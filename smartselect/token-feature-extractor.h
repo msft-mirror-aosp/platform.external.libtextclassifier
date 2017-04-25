@@ -50,6 +50,9 @@ struct TokenFeatureExtractorOptions {
   // Whether to remap digits to a single number.
   bool remap_digits = false;
 
+  // Whether to lowercase all tokens.
+  bool lowercase_tokens = false;
+
   // Maximum length of a word.
   int max_word_length = 20;
 };

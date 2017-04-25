@@ -267,8 +267,7 @@ TEST(TextClassificationModelTest, ClassifyText) {
                 {90, 103})));
 
   // Single word.
-  EXPECT_EQ("other",
-            FindBestResult(model->ClassifyText("Barack Obama", {0, 12})));
+  EXPECT_EQ("other", FindBestResult(model->ClassifyText("obama", {0, 5})));
   EXPECT_EQ("other", FindBestResult(model->ClassifyText("asdf", {0, 4})));
   EXPECT_EQ("<INVALID RESULTS>",
             FindBestResult(model->ClassifyText("asdf", {0, 0})));

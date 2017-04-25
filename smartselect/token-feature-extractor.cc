@@ -16,6 +16,8 @@
 
 #include "smartselect/token-feature-extractor.h"
 
+#include <string>
+
 #include "util/base/logging.h"
 #include "util/hash/farmhash.h"
 #include "util/strings/stringpiece.h"
@@ -27,27 +29,46 @@ namespace libtextclassifier {
 
 namespace {
 
-std::string MapDigitsToZeroAscii(const std::string& token) {
+std::string RemapTokenAscii(const std::string& token,
+                            const TokenFeatureExtractorOptions& options) {
+  if (!options.remap_digits && !options.lowercase_tokens) {
+    return token;
+  }
+
   std::string copy = token;
   for (int i = 0; i < token.size(); ++i) {
-    if (isdigit(copy[i])) {
+    if (options.remap_digits && isdigit(copy[i])) {
       copy[i] = '0';
+    }
+    if (options.lowercase_tokens) {
+      copy[i] = tolower(copy[i]);
     }
   }
   return copy;
 }
 
-void MapDigitsToZeroUnicode(const std::string& token, UnicodeText* remapped) {
-  remapped->clear();
+void RemapTokenUnicode(const std::string& token,
+                       const TokenFeatureExtractorOptions& options,
+                       UnicodeText* remapped) {
+  if (!options.remap_digits && !options.lowercase_tokens) {
+    // Leave remapped untouched.
+    return;
+  }
 
   UnicodeText word = UTF8ToUnicodeText(token, /*do_copy=*/false);
+  icu::UnicodeString icu_string;
   for (auto it = word.begin(); it != word.end(); ++it) {
-    if (u_isdigit(*it)) {
-      remapped->AppendUTF8("0", 1);
+    if (options.remap_digits && u_isdigit(*it)) {
+      icu_string.append('0');
+    } else if (options.lowercase_tokens) {
+      icu_string.append(u_tolower(*it));
     } else {
-      remapped->AppendUTF8(it.utf8_data(), it.utf8_length());
+      icu_string.append(*it);
     }
   }
+  std::string utf8_str;
+  icu_string.toUTF8String(utf8_str);
+  remapped->CopyUTF8(utf8_str.data(), utf8_str.length());
 }
 
 }  // namespace
@@ -87,12 +108,7 @@ std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeaturesAscii(
   if (token.is_padding || token.value.empty()) {
     result.push_back(HashToken("<PAD>"));
   } else {
-    std::string word;
-    if (options_.remap_digits) {
-      word = MapDigitsToZeroAscii(token.value);
-    } else {
-      word = token.value;
-    }
+    const std::string word = RemapTokenAscii(token.value, options_);
 
     // Trim words that are over max_word_length characters.
     const int max_word_length = options_.max_word_length;
@@ -137,9 +153,7 @@ std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeaturesUnicode(
     result.push_back(HashToken("<PAD>"));
   } else {
     UnicodeText word = UTF8ToUnicodeText(token.value, /*do_copy=*/false);
-    if (options_.remap_digits) {
-      MapDigitsToZeroUnicode(token.value, &word);
-    }
+    RemapTokenUnicode(token.value, options_, &word);
 
     // Trim the word if needed by finding a left-cut point and right-cut point.
     auto left_cut = word.begin();

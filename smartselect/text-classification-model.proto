@@ -98,6 +98,9 @@ message FeatureProcessorOptions {
   // Whether to remap all digits to a single number.
   optional bool remap_digits = 20 [default = false];
 
+  // Whether to lower-case each token before generating hashgrams.
+  optional bool lowercase_tokens = 33;
+
   // If true, the selection classifier output will contain only the selections
   // that are feasible (e.g., those that are shorter than max_selection_span),
   // if false, the output will be a complete cross-product of possible

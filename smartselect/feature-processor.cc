@@ -49,6 +49,7 @@ TokenFeatureExtractorOptions BuildTokenFeatureExtractorOptions(
     extractor_options.regexp_features.push_back(options.regexp_feature(i));
   }
   extractor_options.remap_digits = options.remap_digits();
+  extractor_options.lowercase_tokens = options.lowercase_tokens();
 
   return extractor_options;
 }

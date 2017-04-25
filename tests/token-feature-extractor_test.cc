@@ -250,6 +250,47 @@ TEST(TokenFeatureExtractorTest, DigitRemappingUnicode) {
               testing::Not(testing::ElementsAreArray(sparse_features2)));
 }
 
+TEST(TokenFeatureExtractorTest, LowercaseAscii) {
+  TokenFeatureExtractorOptions options;
+  options.num_buckets = 1000;
+  options.chargram_orders = std::vector<int>{1, 2};
+  options.lowercase_tokens = true;
+  options.unicode_aware_features = false;
+  TokenFeatureExtractor extractor(options);
+
+  std::vector<int> sparse_features;
+  std::vector<float> dense_features;
+  extractor.Extract(Token{"AABB", 0, 6}, true, &sparse_features,
+                    &dense_features);
+
+  std::vector<int> sparse_features2;
+  extractor.Extract(Token{"aaBB", 0, 6}, true, &sparse_features2,
+                    &dense_features);
+  EXPECT_THAT(sparse_features, testing::ElementsAreArray(sparse_features2));
+
+  extractor.Extract(Token{"aAbB", 0, 6}, true, &sparse_features2,
+                    &dense_features);
+  EXPECT_THAT(sparse_features, testing::ElementsAreArray(sparse_features2));
+}
+
+TEST(TokenFeatureExtractorTest, LowercaseUnicode) {
+  TokenFeatureExtractorOptions options;
+  options.num_buckets = 1000;
+  options.chargram_orders = std::vector<int>{1, 2};
+  options.lowercase_tokens = true;
+  options.unicode_aware_features = true;
+  TokenFeatureExtractor extractor(options);
+
+  std::vector<int> sparse_features;
+  std::vector<float> dense_features;
+  extractor.Extract(Token{"ŘŘ", 0, 6}, true, &sparse_features, &dense_features);
+
+  std::vector<int> sparse_features2;
+  extractor.Extract(Token{"řř", 0, 6}, true, &sparse_features2,
+                    &dense_features);
+  EXPECT_THAT(sparse_features, testing::ElementsAreArray(sparse_features2));
+}
+
 TEST(TokenFeatureExtractorTest, RegexFeatures) {
   TokenFeatureExtractorOptions options;
   options.num_buckets = 1000;
