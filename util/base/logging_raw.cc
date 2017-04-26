@@ -50,6 +50,12 @@ int GetAndroidLogLevel(LogSeverity severity) {
 void LowLevelLogging(LogSeverity severity, const std::string& tag,
                      const std::string& message) {
   const int android_log_level = GetAndroidLogLevel(severity);
+#if !defined(TC_DEBUG_LOGGING)
+  if (android_log_level != ANDROID_LOG_ERROR &&
+      android_log_level != ANDROID_LOG_FATAL) {
+    return;
+  }
+#endif
   __android_log_write(android_log_level, tag.c_str(), message.c_str());
 }
 

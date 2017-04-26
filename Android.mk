@@ -31,6 +31,11 @@ MY_LIBTEXTCLASSIFIER_CFLAGS := \
     -Wno-undefined-var-template \
     -fvisibility=hidden
 
+# Only enable debug logging in userdebug/eng builds.
+ifneq (,$(filter userdebug eng, $(TARGET_BUILD_VARIANT)))
+  MY_LIBTEXTCLASSIFIER_CFLAGS += -DTC_DEBUG_LOGGING=1
+endif
+
 # ------------------------
 # libtextclassifier_protos
 # ------------------------
