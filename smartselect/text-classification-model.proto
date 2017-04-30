@@ -156,6 +156,10 @@ message FeatureProcessorOptions {
   // A set of codepoint ranges supported by the model.
   repeated CodepointRange supported_codepoint_ranges = 23;
 
+  // A set of codepoint ranges to use in the mixed tokenization mode to identify
+  // stretches of tokens to re-tokenize using the internal tokenizer.
+  repeated CodepointRange internal_tokenizer_codepoint_ranges = 34;
+
   // Minimum ratio of supported codepoints in the input context. If the ratio
   // is lower than this, the feature computation will fail.
   optional float min_supported_codepoint_ratio = 24 [default = 0.0];
@@ -179,6 +183,11 @@ message FeatureProcessorOptions {
 
     // Use ICU for tokenization.
     ICU = 2;
+
+    // First apply ICU tokenization. Then identify stretches of tokens
+    // consisting only of codepoints in internal_tokenizer_codepoint_ranges
+    // and re-tokenize them using the internal tokenizer.
+    MIXED = 3;
   }
   optional TokenizationType tokenization_type = 30
       [default = INTERNAL_TOKENIZER];

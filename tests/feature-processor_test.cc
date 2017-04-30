@@ -203,8 +203,9 @@ class TestingFeatureProcessor : public FeatureProcessor {
   using FeatureProcessor::FeatureProcessor;
   using FeatureProcessor::SpanToLabel;
   using FeatureProcessor::SupportedCodepointsRatio;
-  using FeatureProcessor::IsCodepointSupported;
+  using FeatureProcessor::IsCodepointInRanges;
   using FeatureProcessor::ICUTokenize;
+  using FeatureProcessor::supported_codepoint_ranges_;
 };
 
 TEST(FeatureProcessorTest, SpanToLabel) {
@@ -369,15 +370,24 @@ TEST(FeatureProcessorTest, SupportedCodepointsRatio) {
   EXPECT_THAT(feature_processor.SupportedCodepointsRatio(
                   1, feature_processor.Tokenize("ěěě řřř ěěě")),
               FloatEq(0.0));
-  EXPECT_FALSE(feature_processor.IsCodepointSupported(-1));
-  EXPECT_TRUE(feature_processor.IsCodepointSupported(0));
-  EXPECT_TRUE(feature_processor.IsCodepointSupported(10));
-  EXPECT_TRUE(feature_processor.IsCodepointSupported(127));
-  EXPECT_FALSE(feature_processor.IsCodepointSupported(128));
-  EXPECT_FALSE(feature_processor.IsCodepointSupported(9999));
-  EXPECT_TRUE(feature_processor.IsCodepointSupported(10000));
-  EXPECT_FALSE(feature_processor.IsCodepointSupported(10001));
-  EXPECT_TRUE(feature_processor.IsCodepointSupported(25000));
+  EXPECT_FALSE(feature_processor.IsCodepointInRanges(
+      -1, feature_processor.supported_codepoint_ranges_));
+  EXPECT_TRUE(feature_processor.IsCodepointInRanges(
+      0, feature_processor.supported_codepoint_ranges_));
+  EXPECT_TRUE(feature_processor.IsCodepointInRanges(
+      10, feature_processor.supported_codepoint_ranges_));
+  EXPECT_TRUE(feature_processor.IsCodepointInRanges(
+      127, feature_processor.supported_codepoint_ranges_));
+  EXPECT_FALSE(feature_processor.IsCodepointInRanges(
+      128, feature_processor.supported_codepoint_ranges_));
+  EXPECT_FALSE(feature_processor.IsCodepointInRanges(
+      9999, feature_processor.supported_codepoint_ranges_));
+  EXPECT_TRUE(feature_processor.IsCodepointInRanges(
+      10000, feature_processor.supported_codepoint_ranges_));
+  EXPECT_FALSE(feature_processor.IsCodepointInRanges(
+      10001, feature_processor.supported_codepoint_ranges_));
+  EXPECT_TRUE(feature_processor.IsCodepointInRanges(
+      25000, feature_processor.supported_codepoint_ranges_));
 
   std::vector<Token> tokens;
   int click_pos;
@@ -556,6 +566,47 @@ TEST(FeatureProcessorTest, ICUTokenizeWithWhitespaces) {
                                 Token("ปร", 18, 20),
                                 Token(" ", 20, 21),
                                 Token("มิ", 21, 23)}));
+  // clang-format on
+}
+
+TEST(FeatureProcessorTest, MixedTokenize) {
+  FeatureProcessorOptions options;
+  options.set_tokenization_type(
+      libtextclassifier::FeatureProcessorOptions::MIXED);
+
+  TokenizationCodepointRange* config =
+      options.add_tokenization_codepoint_config();
+  config->set_start(32);
+  config->set_end(33);
+  config->set_role(TokenizationCodepointRange::WHITESPACE_SEPARATOR);
+
+  FeatureProcessorOptions::CodepointRange* range;
+  range = options.add_internal_tokenizer_codepoint_ranges();
+  range->set_start(0);
+  range->set_end(128);
+
+  range = options.add_internal_tokenizer_codepoint_ranges();
+  range->set_start(128);
+  range->set_end(256);
+
+  range = options.add_internal_tokenizer_codepoint_ranges();
+  range->set_start(256);
+  range->set_end(384);
+
+  range = options.add_internal_tokenizer_codepoint_ranges();
+  range->set_start(384);
+  range->set_end(592);
+
+  TestingFeatureProcessor feature_processor(options);
+  std::vector<Token> tokens = feature_processor.Tokenize(
+      "こんにちはJapanese-ląnguagę text 世界 http://www.google.com/");
+  ASSERT_EQ(tokens,
+            // clang-format off
+            std::vector<Token>({Token("こんにちは", 0, 5),
+                                Token("Japanese-ląnguagę", 5, 22),
+                                Token("text", 23, 27),
+                                Token("世界", 28, 30),
+                                Token("http://www.google.com/", 31, 53)}));
   // clang-format on
 }
 

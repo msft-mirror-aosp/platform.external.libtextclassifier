@@ -29,6 +29,7 @@
 #include "smartselect/tokenizer.h"
 #include "smartselect/types.h"
 #include "util/base/logging.h"
+#include "util/utf8/unicodetext.h"
 
 namespace libtextclassifier {
 
@@ -96,9 +97,13 @@ class FeatureProcessor {
         tokenizer_({options.tokenization_codepoint_config().begin(),
                     options.tokenization_codepoint_config().end()}) {
     MakeLabelMaps();
-    PrepareSupportedCodepointRanges(
-        {options.supported_codepoint_ranges().begin(),
-         options.supported_codepoint_ranges().end()});
+    PrepareCodepointRanges({options.supported_codepoint_ranges().begin(),
+                            options.supported_codepoint_ranges().end()},
+                           &supported_codepoint_ranges_);
+    PrepareCodepointRanges(
+        {options.internal_tokenizer_codepoint_ranges().begin(),
+         options.internal_tokenizer_codepoint_ranges().end()},
+        &internal_tokenizer_codepoint_ranges_);
   }
 
   explicit FeatureProcessor(const std::string& serialized_options)
@@ -187,17 +192,20 @@ class FeatureProcessor {
   // Converts a token span to the corresponding label.
   int TokenSpanToLabel(const std::pair<TokenIndex, TokenIndex>& span) const;
 
-  void PrepareSupportedCodepointRanges(
+  void PrepareCodepointRanges(
       const std::vector<FeatureProcessorOptions::CodepointRange>&
-          codepoint_range_configs);
+          codepoint_ranges,
+      std::vector<CodepointRange>* prepared_codepoint_ranges);
 
   // Returns the ratio of supported codepoints to total number of codepoints in
   // the input context around given click position.
   float SupportedCodepointsRatio(int click_pos,
                                  const std::vector<Token>& tokens) const;
 
-  // Returns true if given codepoint is supported.
-  bool IsCodepointSupported(int codepoint) const;
+  // Returns true if given codepoint is covered by the given sorted vector of
+  // codepoint ranges.
+  bool IsCodepointInRanges(
+      int codepoint, const std::vector<CodepointRange>& codepoint_ranges) const;
 
   // Finds the center token index in tokens vector, using the method defined
   // in options_.
@@ -208,7 +216,28 @@ class FeatureProcessor {
   bool ICUTokenize(const std::string& context,
                    std::vector<Token>* result) const;
 
+  // Takes the result of ICU tokenization and retokenizes stretches of tokens
+  // made of a specific subset of characters using the internal tokenizer.
+  void InternalRetokenize(const std::string& context,
+                          std::vector<Token>* tokens) const;
+
+  // Tokenizes a substring of the unicode string, appending the resulting tokens
+  // to the output vector. The resulting tokens have bounds relative to the full
+  // string. Does nothing if the start of the span is negative.
+  void TokenizeSubstring(const UnicodeText& unicode_text, CodepointSpan span,
+                         std::vector<Token>* result) const;
+
   const TokenFeatureExtractor feature_extractor_;
+
+  // Codepoint ranges that define what codepoints are supported by the model.
+  // NOTE: Must be sorted.
+  std::vector<CodepointRange> supported_codepoint_ranges_;
+
+  // Codepoint ranges that define which tokens (consisting of which codepoints)
+  // should be re-tokenized with the internal tokenizer in the mixed
+  // tokenization mode.
+  // NOTE: Must be sorted.
+  std::vector<CodepointRange> internal_tokenizer_codepoint_ranges_;
 
  private:
   const FeatureProcessorOptions options_;
@@ -221,10 +250,6 @@ class FeatureProcessor {
   std::map<std::string, int> collection_to_label_;
 
   Tokenizer tokenizer_;
-
-  // Codepoint ranges that define what codepoints are supported by the model.
-  // NOTE: Must be sorted.
-  std::vector<CodepointRange> supported_codepoint_ranges_;
 };
 
 }  // namespace libtextclassifier
