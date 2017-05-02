@@ -68,7 +68,7 @@ LOCAL_SRC_FILES := $(filter-out tests/%,$(call all-subdir-cpp-files))
 LOCAL_C_INCLUDES += $(proto_sources_dir)/proto/external/libtextclassifier
 
 LOCAL_STATIC_LIBRARIES += libtextclassifier_protos
-LOCAL_STATIC_LIBRARIES += libprotobuf-cpp-lite
+LOCAL_SHARED_LIBRARIES += libprotobuf-cpp-lite
 LOCAL_SHARED_LIBRARIES += liblog
 LOCAL_SHARED_LIBRARIES += libicuuc libicui18n
 LOCAL_REQUIRED_MODULES := textclassifier.langid.model

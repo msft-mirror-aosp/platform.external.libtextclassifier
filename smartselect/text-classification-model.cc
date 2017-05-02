@@ -39,6 +39,7 @@ using nlp_core::FeatureVector;
 using nlp_core::MemoryImageReader;
 using nlp_core::MmapFile;
 using nlp_core::MmapHandle;
+using nlp_core::ScopedMmap;
 
 namespace {
 
@@ -94,8 +95,8 @@ CodepointSpan TextClassificationModel::StripPunctuation(
   }
 }
 
-TextClassificationModel::TextClassificationModel(int fd) {
-  initialized_ = LoadModels(fd);
+TextClassificationModel::TextClassificationModel(int fd) : mmap_(fd) {
+  initialized_ = LoadModels(mmap_.handle());
   if (!initialized_) {
     TC_LOG(ERROR) << "Failed to load models";
     return;
@@ -169,8 +170,7 @@ void ParseMergedModel(const MmapHandle& mmap_handle,
 
 }  // namespace
 
-bool TextClassificationModel::LoadModels(int fd) {
-  MmapHandle mmap_handle = MmapFile(fd);
+bool TextClassificationModel::LoadModels(const MmapHandle& mmap_handle) {
   if (!mmap_handle.ok()) {
     return false;
   }
@@ -207,15 +207,15 @@ bool TextClassificationModel::LoadModels(int fd) {
 }
 
 bool ReadSelectionModelOptions(int fd, ModelOptions* model_options) {
-  MmapHandle mmap_handle = MmapFile(fd);
-  if (!mmap_handle.ok()) {
+  ScopedMmap mmap = ScopedMmap(fd);
+  if (!mmap.handle().ok()) {
     TC_LOG(ERROR) << "Can't mmap.";
     return false;
   }
 
   const char *selection_model, *sharing_model;
   int selection_model_length, sharing_model_length;
-  ParseMergedModel(mmap_handle, &selection_model, &selection_model_length,
+  ParseMergedModel(mmap.handle(), &selection_model, &selection_model_length,
                    &sharing_model, &sharing_model_length);
 
   MemoryImageReader<EmbeddingNetworkProto> reader(selection_model,
