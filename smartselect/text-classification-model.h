@@ -27,6 +27,7 @@
 #include "common/embedding-network.h"
 #include "common/feature-extractor.h"
 #include "common/memory_image/embedding-network-params-from-image.h"
+#include "common/mmap.h"
 #include "smartselect/feature-processor.h"
 #include "smartselect/model-params.h"
 #include "smartselect/text-classification-model.pb.h"
@@ -89,7 +90,7 @@ class TextClassificationModel {
   SharingModelOptions sharing_options_;
 
  private:
-  bool LoadModels(int fd);
+  bool LoadModels(const nlp_core::MmapHandle& mmap_handle);
 
   nlp_core::EmbeddingNetwork::Vector InferInternal(
       const std::string& context, CodepointSpan span,
@@ -108,6 +109,7 @@ class TextClassificationModel {
                                             CodepointSpan click_indices) const;
 
   bool initialized_;
+  nlp_core::ScopedMmap mmap_;
   std::unique_ptr<ModelParams> selection_params_;
   std::unique_ptr<FeatureProcessor> selection_feature_processor_;
   std::unique_ptr<nlp_core::EmbeddingNetwork> selection_network_;
