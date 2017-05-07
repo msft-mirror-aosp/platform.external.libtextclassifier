@@ -339,7 +339,7 @@ EmbeddingNetwork::EmbeddingNetwork(const EmbeddingNetworkParams *model) {
 
   const int num_hidden_layers = model->GetNumHiddenLayers();
   if (num_hidden_layers < 1) {
-    TC_LOG(ERROR) << num_hidden_layers;
+    TC_LOG(ERROR) << "Wrong number of hidden layers: " << num_hidden_layers;
     return;
   }
   hidden_weights_.resize(num_hidden_layers);
