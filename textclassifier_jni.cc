@@ -16,66 +16,13 @@
 
 // Simple JNI wrapper for the SmartSelection library.
 
+#include "textclassifier_jni.h"
+
 #include <jni.h>
 #include <vector>
 
 #include "lang_id/lang-id.h"
 #include "smartselect/text-classification-model.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// SmartSelection.
-JNIEXPORT jlong JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeNew(JNIEnv* env,
-                                                          jobject thiz,
-                                                          jint fd);
-
-JNIEXPORT jintArray JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeSuggest(
-    JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
-    jint selection_end);
-
-JNIEXPORT jobjectArray JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeClassifyText(
-    JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
-    jint selection_end, jint input_flags);
-
-JNIEXPORT void JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeClose(JNIEnv* env,
-                                                            jobject thiz,
-                                                            jlong ptr);
-
-JNIEXPORT jstring JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeGetLanguage(JNIEnv* env,
-                                                                  jobject clazz,
-                                                                  jint fd);
-
-JNIEXPORT jint JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeGetVersion(JNIEnv* env,
-                                                                 jobject clazz,
-                                                                 jint fd);
-
-// LangId.
-JNIEXPORT jlong JNICALL Java_android_view_textclassifier_LangId_nativeNew(
-    JNIEnv* env, jobject thiz, jint fd);
-
-JNIEXPORT jobjectArray JNICALL
-Java_android_view_textclassifier_LangId_nativeFindLanguages(JNIEnv* env,
-                                                            jobject thiz,
-                                                            jlong ptr,
-                                                            jstring text);
-
-JNIEXPORT void JNICALL Java_android_view_textclassifier_LangId_nativeClose(
-    JNIEnv* env, jobject thiz, jlong ptr);
-
-JNIEXPORT int JNICALL Java_android_view_textclassifier_LangId_nativeGetVersion(
-    JNIEnv* env, jobject clazz, jint fd);
-
-#ifdef __cplusplus
-}
-#endif
 
 using libtextclassifier::TextClassificationModel;
 using libtextclassifier::ModelOptions;
@@ -143,6 +90,68 @@ jobjectArray ScoredStringsToJObjectArray(
 
 }  // namespace
 
+namespace libtextclassifier {
+
+using libtextclassifier::CodepointSpan;
+
+namespace {
+
+CodepointSpan ConvertIndicesBMPUTF8(const std::string& utf8_str,
+                                    CodepointSpan orig_indices,
+                                    bool from_utf8) {
+  const libtextclassifier::UnicodeText unicode_str =
+      libtextclassifier::UTF8ToUnicodeText(utf8_str, /*do_copy=*/false);
+
+  int unicode_index = 0;
+  int bmp_index = 0;
+
+  const int* source_index;
+  const int* target_index;
+  if (from_utf8) {
+    source_index = &unicode_index;
+    target_index = &bmp_index;
+  } else {
+    source_index = &bmp_index;
+    target_index = &unicode_index;
+  }
+
+  CodepointSpan result{-1, -1};
+  for (auto it = unicode_str.begin(); it != unicode_str.end();
+       ++it, ++unicode_index, ++bmp_index) {
+    if (orig_indices.first == *source_index) {
+      result.first = *target_index;
+    }
+
+    if (orig_indices.second == *source_index) {
+      result.second = *target_index;
+    }
+
+    // There is 1 extra character in the input for each UTF8 character > 0xFFFF.
+    if (*it > 0xFFFF) {
+      ++bmp_index;
+    }
+  }
+  return result;
+}
+
+}  // namespace
+
+CodepointSpan ConvertIndicesBMPToUTF8(const std::string& utf8_str,
+                                      CodepointSpan orig_indices) {
+  return ConvertIndicesBMPUTF8(utf8_str, orig_indices, /*from_utf8=*/false);
+}
+
+CodepointSpan ConvertIndicesUTF8ToBMP(const std::string& utf8_str,
+                                      CodepointSpan orig_indices) {
+  return ConvertIndicesBMPUTF8(utf8_str, orig_indices, /*from_utf8=*/true);
+}
+
+}  // namespace libtextclassifier
+
+using libtextclassifier::ConvertIndicesUTF8ToBMP;
+using libtextclassifier::ConvertIndicesBMPToUTF8;
+using libtextclassifier::CodepointSpan;
+
 JNIEXPORT jlong JNICALL
 Java_android_view_textclassifier_SmartSelection_nativeNew(JNIEnv* env,
                                                           jobject thiz,
@@ -158,8 +167,12 @@ Java_android_view_textclassifier_SmartSelection_nativeSuggest(
   TextClassificationModel* model =
       reinterpret_cast<TextClassificationModel*>(ptr);
 
-  const libtextclassifier::CodepointSpan selection = model->SuggestSelection(
-      ToStlString(env, context), {selection_begin, selection_end});
+  const std::string context_utf8 = ToStlString(env, context);
+  CodepointSpan input_indices =
+      ConvertIndicesBMPToUTF8(context_utf8, {selection_begin, selection_end});
+  CodepointSpan selection =
+      model->SuggestSelection(context_utf8, input_indices);
+  selection = ConvertIndicesUTF8ToBMP(context_utf8, selection);
 
   jintArray result = env->NewIntArray(2);
   env->SetIntArrayRegion(result, 0, 1, &(std::get<0>(selection)));
