@@ -116,8 +116,8 @@ CodepointSpan ConvertIndicesBMPUTF8(const std::string& utf8_str,
   }
 
   CodepointSpan result{-1, -1};
-  for (auto it = unicode_str.begin(); it != unicode_str.end();
-       ++it, ++unicode_index, ++bmp_index) {
+  std::function<void()> assign_indices_fn = [&result, &orig_indices,
+                                             &source_index, &target_index]() {
     if (orig_indices.first == *source_index) {
       result.first = *target_index;
     }
@@ -125,12 +125,19 @@ CodepointSpan ConvertIndicesBMPUTF8(const std::string& utf8_str,
     if (orig_indices.second == *source_index) {
       result.second = *target_index;
     }
+  };
+
+  for (auto it = unicode_str.begin(); it != unicode_str.end();
+       ++it, ++unicode_index, ++bmp_index) {
+    assign_indices_fn();
 
     // There is 1 extra character in the input for each UTF8 character > 0xFFFF.
     if (*it > 0xFFFF) {
       ++bmp_index;
     }
   }
+  assign_indices_fn();
+
   return result;
 }
 

@@ -23,8 +23,27 @@ namespace libtextclassifier {
 namespace {
 
 TEST(TextClassifier, ConvertIndicesBMPUTF8) {
-  EXPECT_EQ(ConvertIndicesBMPToUTF8("hello", {0, 5}),
-            ConvertIndicesUTF8ToBMP("hello", {0, 5}));
+  // Test boundary cases.
+  EXPECT_EQ(ConvertIndicesBMPToUTF8("hello", {0, 5}), std::make_pair(0, 5));
+  EXPECT_EQ(ConvertIndicesUTF8ToBMP("hello", {0, 5}), std::make_pair(0, 5));
+
+  EXPECT_EQ(ConvertIndicesBMPToUTF8("hello world", {0, 5}),
+            std::make_pair(0, 5));
+  EXPECT_EQ(ConvertIndicesUTF8ToBMP("hello world", {0, 5}),
+            std::make_pair(0, 5));
+  EXPECT_EQ(ConvertIndicesBMPToUTF8("😁ello world", {0, 6}),
+            std::make_pair(0, 5));
+  EXPECT_EQ(ConvertIndicesUTF8ToBMP("😁ello world", {0, 5}),
+            std::make_pair(0, 6));
+
+  EXPECT_EQ(ConvertIndicesBMPToUTF8("hello world", {6, 11}),
+            std::make_pair(6, 11));
+  EXPECT_EQ(ConvertIndicesUTF8ToBMP("hello world", {6, 11}),
+            std::make_pair(6, 11));
+  EXPECT_EQ(ConvertIndicesBMPToUTF8("hello worl😁", {6, 12}),
+            std::make_pair(6, 11));
+  EXPECT_EQ(ConvertIndicesUTF8ToBMP("hello worl😁", {6, 11}),
+            std::make_pair(6, 12));
 
   // Simple example where the longer character is before the selection.
   //  character 😁 is 0x1f601
