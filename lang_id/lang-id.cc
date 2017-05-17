@@ -87,29 +87,37 @@ class LangIdImpl {
     // Using mmap as a fast way to read the model bytes.
     ScopedMmap scoped_mmap(filename);
     MmapHandle mmap_handle = scoped_mmap.handle();
-    Initialize(mmap_handle);
+    if (!mmap_handle.ok()) {
+      TC_LOG(ERROR) << "Unable to read model bytes.";
+      return;
+    }
+
+    Initialize(mmap_handle.to_stringpiece());
   }
 
   explicit LangIdImpl(int fd) {
     // Using mmap as a fast way to read the model bytes.
     ScopedMmap scoped_mmap(fd);
     MmapHandle mmap_handle = scoped_mmap.handle();
-    Initialize(mmap_handle);
+    if (!mmap_handle.ok()) {
+      TC_LOG(ERROR) << "Unable to read model bytes.";
+      return;
+    }
+
+    Initialize(mmap_handle.to_stringpiece());
   }
 
-  void Initialize(const MmapHandle &mmap_handle) {
+  LangIdImpl(const char *ptr, size_t length) {
+    Initialize(StringPiece(ptr, length));
+  }
+
+  void Initialize(StringPiece model_bytes) {
     // Will set valid_ to true only on successful initialization.
     valid_ = false;
 
     // Make sure all relevant features are registered:
     ContinuousBagOfNgramsFunction::RegisterClass();
     RelevantScriptFeature::RegisterClass();
-
-    if (!mmap_handle.ok()) {
-      TC_LOG(ERROR) << "Unable to read model bytes.";
-      return;
-    }
-    StringPiece model_bytes = mmap_handle.to_stringpiece();
 
     // NOTE(salcianu): code below relies on the fact that the current features
     // do not rely on data from a TaskInput.  Otherwise, one would have to use
@@ -353,6 +361,15 @@ LangId::LangId(int fd) : pimpl_(new LangIdImpl(fd)) {
     TC_LOG(ERROR) << "Unable to construct a valid LangId based "
                   << "on the data from descriptor " << fd
                   << "; nothing should crash, "
+                  << "but accuracy will be bad.";
+  }
+}
+
+LangId::LangId(const char *ptr, size_t length)
+    : pimpl_(new LangIdImpl(ptr, length)) {
+  if (!pimpl_->is_valid()) {
+    TC_LOG(ERROR) << "Unable to construct a valid LangId based "
+                  << "on the memory region; nothing should crash, "
                   << "but accuracy will be bad.";
   }
 }

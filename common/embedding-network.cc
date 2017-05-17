@@ -249,31 +249,32 @@ bool EmbeddingNetwork::ComputeLogitsInternal(const VectorSpan<float> &input,
 template <typename ScaleAdderClass>
 bool EmbeddingNetwork::FinishComputeFinalScoresInternal(
     const VectorSpan<float> &input, Vector *scores) const {
-  Vector h0(hidden_bias_[0].size());
-  bool success = SparseReluProductPlusBias<ScaleAdderClass>(
-      false, hidden_weights_[0], hidden_bias_[0], input, &h0);
-  if (!success) return false;
+  // This vector serves as an alternating storage for activations of the
+  // different layers. We can't use just one vector here because all of the
+  // activations of  the previous layer are needed for computation of
+  // activations of the next one.
+  std::vector<Vector> h_storage(2);
 
-  if (hidden_weights_.size() == 1) {  // 1 hidden layer
-    success = SparseReluProductPlusBias<ScaleAdderClass>(
-        true, softmax_weights_, softmax_bias_, h0, scores);
-    if (!success) return false;
-  } else if (hidden_weights_.size() == 2) {  // 2 hidden layers
-    Vector h1(hidden_bias_[1].size());
-    success = SparseReluProductPlusBias<ScaleAdderClass>(
-        true, hidden_weights_[1], hidden_bias_[1], h0, &h1);
-    if (!success) return false;
-    success = SparseReluProductPlusBias<ScaleAdderClass>(
-        true, softmax_weights_, softmax_bias_, h1, scores);
-    if (!success) return false;
-  } else {
-    // This should never happen: the EmbeddingNetwork() constructor marks the
-    // object invalid if #hidden layers is not 1 or 2.  Even if a client uses an
-    // invalid EmbeddingNetwork, ComputeFinalScores() (the only caller to this
-    // method) returns immediately if !is_valid().  Still, just in case, we log
-    // an error, but don't crash.
-    TC_LOG(ERROR) << hidden_weights_.size();
+  // Compute pre-logits activations.
+  VectorSpan<float> h_in(input);
+  Vector *h_out;
+  for (int i = 0; i < hidden_weights_.size(); ++i) {
+    const bool apply_relu = i > 0;
+    h_out = &(h_storage[i % 2]);
+    h_out->resize(hidden_bias_[i].size());
+    if (!SparseReluProductPlusBias<ScaleAdderClass>(
+            apply_relu, hidden_weights_[i], hidden_bias_[i], h_in, h_out)) {
+      return false;
+    }
+    h_in = VectorSpan<float>(*h_out);
   }
+
+  // Compute logit scores.
+  if (!SparseReluProductPlusBias<ScaleAdderClass>(
+          true, softmax_weights_, softmax_bias_, h_in, scores)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -336,9 +337,9 @@ EmbeddingNetwork::EmbeddingNetwork(const EmbeddingNetworkParams *model) {
   // Invariant 2 (trivial by the code above).
   TC_DCHECK_EQ(concat_offset_.size(), embedding_matrices_.size());
 
-  int num_hidden_layers = model->GetNumHiddenLayers();
-  if ((num_hidden_layers != 1) && (num_hidden_layers != 2)) {
-    TC_LOG(ERROR) << num_hidden_layers;
+  const int num_hidden_layers = model->GetNumHiddenLayers();
+  if (num_hidden_layers < 1) {
+    TC_LOG(ERROR) << "Wrong number of hidden layers: " << num_hidden_layers;
     return;
   }
   hidden_weights_.resize(num_hidden_layers);

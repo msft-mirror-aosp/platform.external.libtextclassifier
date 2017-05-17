@@ -53,6 +53,9 @@ class LangId {
   // Same as above but uses a file descriptor.
   explicit LangId(int fd);
 
+  // Same as above but uses already mapped memory region
+  explicit LangId(const char *ptr, size_t length);
+
   virtual ~LangId();
 
   // Sets probability threshold for predictions.  If our likeliest prediction is

@@ -198,7 +198,7 @@ class EmbeddingNetwork {
   // Returns the size (the number of columns) of the embedding space es_index.
   int EmbeddingSize(int es_index) const;
 
- private:
+ protected:
   // Builds an embedding for given feature vector, and places it from
   // concat_offset to the concat vector.
   bool GetEmbeddingInternal(const FeatureVector &feature_vector,
