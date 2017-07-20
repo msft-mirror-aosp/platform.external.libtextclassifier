@@ -71,8 +71,7 @@ LOCAL_STATIC_LIBRARIES += libtextclassifier_protos
 LOCAL_SHARED_LIBRARIES += libprotobuf-cpp-lite
 LOCAL_SHARED_LIBRARIES += liblog
 LOCAL_SHARED_LIBRARIES += libicuuc libicui18n
-LOCAL_REQUIRED_MODULES := textclassifier.langid.model
-LOCAL_REQUIRED_MODULES += textclassifier.smartselection.en.model
+LOCAL_REQUIRED_MODULES := textclassifier.smartselection.en.model
 
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/jni.lds
 LOCAL_LDFLAGS += -Wl,-version-script=$(LOCAL_PATH)/jni.lds
