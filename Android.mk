@@ -203,10 +203,10 @@ LOCAL_MODULE_PATH   := $(TARGET_OUT_ETC)/textclassifier
 include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE        := textclassifier.smartselection.pt-PT.model
+LOCAL_MODULE        := textclassifier.smartselection.pt.model
 LOCAL_MODULE_CLASS  := ETC
 LOCAL_MODULE_OWNER  := google
-LOCAL_SRC_FILES     := ./models/textclassifier.smartselection.pt-PT.model
+LOCAL_SRC_FILES     := ./models/textclassifier.smartselection.pt.model
 LOCAL_MODULE_PATH   := $(TARGET_OUT_ETC)/textclassifier
 include $(BUILD_PREBUILT)
 
