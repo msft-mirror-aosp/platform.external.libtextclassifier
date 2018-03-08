@@ -71,7 +71,8 @@ class TokenFeatureExtractor {
   // Extracts both the sparse (charactergram) and the dense features from a
   // token. is_in_span is a bool indicator whether the token is a part of the
   // selection span (true) or not (false).
-  // Fails and returns false if either of the output pointers in a nullptr.
+  // The sparse_features output is optional. Fails and returns false if
+  // dense_fatures in a nullptr.
   bool Extract(const Token& token, bool is_in_span,
                std::vector<int>* sparse_features,
                std::vector<float>* dense_features) const;

@@ -23,6 +23,7 @@
 #include <memory>
 
 #include "util/base/integral_types.h"
+#include "util/strings/stringpiece.h"
 #include "util/utf8/unicodetext.h"
 #include "unicode/brkiter.h"
 #include "unicode/errorcode.h"
@@ -55,10 +56,18 @@ class UniLib {
     // Checks whether the input text matches the pattern exactly.
     bool Matches(int* status) const;
 
+    // Approximate Matches() implementation implemented using Find(). It uses
+    // the first Find() result and then checks that it spans the whole input.
+    // NOTE: Unlike Matches() it can result in false negatives.
+    // NOTE: Resets the matcher, so the current Find() state will be lost.
+    bool ApproximatelyMatches(int* status);
+
     // Finds occurrences of the pattern in the input text.
     // Can be called repeatedly to find all occurences. A call will update
     // internal state, so that 'Start', 'End' and 'Group' can be called to get
     // information about the match.
+    // NOTE: Any call to ApproximatelyMatches() in between Find() calls will
+    // modify the state.
     bool Find(int* status);
 
     // Gets the start offset of the last match (from  'Find').
@@ -72,6 +81,9 @@ class UniLib {
     // was not called previously.
     int Start(int group_idx, int* status) const;
 
+    // Same as above but uses the group name instead of the index.
+    int Start(StringPiece group_name, int* status) const;
+
     // Gets the end offset of the last match (from  'Find').
     // Sets status to 'kError' if 'Find'
     // was not called previously.
@@ -82,6 +94,9 @@ class UniLib {
     // Sets status to 'kError' if an invalid group was specified or if 'Find'
     // was not called previously.
     int End(int group_idx, int* status) const;
+
+    // Same as above but uses the group name instead of the index.
+    int End(StringPiece group_name, int* status) const;
 
     // Gets the text of the last match (from 'Find').
     // Sets status to 'kError' if 'Find' was not called previously.
@@ -95,7 +110,7 @@ class UniLib {
     // Gets the text of the specified group of the last match (from 'Find').
     // Sets status to 'kError' if an invalid group was specified or if 'Find'
     // was not called previously.
-    UnicodeText Group(const std::string& group_name, int* status) const;
+    UnicodeText Group(StringPiece group_name, int* status) const;
 
    protected:
     friend class RegexPattern;
@@ -133,6 +148,8 @@ class UniLib {
    private:
     std::unique_ptr<icu::BreakIterator> break_iterator_;
     icu::UnicodeString text_;
+    int last_break_index_;
+    int last_unicode_index_;
   };
 
   std::unique_ptr<RegexPattern> CreateRegexPattern(

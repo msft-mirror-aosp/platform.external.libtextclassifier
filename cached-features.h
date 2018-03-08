@@ -32,12 +32,9 @@ class CachedFeatures {
  public:
   static std::unique_ptr<CachedFeatures> Create(
       const TokenSpan& extraction_span,
-      const std::vector<std::vector<int>>& sparse_features,
-      const std::vector<std::vector<float>>& dense_features,
-      const std::vector<int>& padding_sparse_features,
-      const std::vector<float>& padding_dense_features,
-      const FeatureProcessorOptions* options,
-      EmbeddingExecutor* embedding_executor, int feature_vector_size);
+      std::unique_ptr<std::vector<float>> features,
+      std::unique_ptr<std::vector<float>> padding_features,
+      const FeatureProcessorOptions* options, int feature_vector_size);
 
   // Appends the click context features for the given click position to
   // 'output_features'.
@@ -77,8 +74,8 @@ class CachedFeatures {
   TokenSpan extraction_span_;
   const FeatureProcessorOptions* options_;
   int output_features_size_;
-  std::vector<float> features_;
-  std::vector<float> padding_features_;
+  std::unique_ptr<std::vector<float>> features_;
+  std::unique_ptr<std::vector<float>> padding_features_;
 };
 
 }  // namespace libtextclassifier2

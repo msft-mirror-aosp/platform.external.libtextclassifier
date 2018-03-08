@@ -194,7 +194,6 @@ class UnicodeText {
 
     void append(const char* bytes, int byte_length);
     void Copy(const char* data, int size);
-    void TakeOwnershipOf(char* data, int size, int capacity);
     void PointTo(const char* data, int size);
 
    private:

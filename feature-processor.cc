@@ -695,24 +695,22 @@ void FeatureProcessor::MakeLabelMaps() {
   }
 }
 
-void FeatureProcessor::TokenizeAndFindClick(const std::string& context,
-                                            CodepointSpan input_span,
-                                            bool only_use_line_with_click,
-                                            std::vector<Token>* tokens,
-                                            int* click_pos) const {
+void FeatureProcessor::RetokenizeAndFindClick(const std::string& context,
+                                              CodepointSpan input_span,
+                                              bool only_use_line_with_click,
+                                              std::vector<Token>* tokens,
+                                              int* click_pos) const {
   const UnicodeText context_unicode =
       UTF8ToUnicodeText(context, /*do_copy=*/false);
-  TokenizeAndFindClick(context_unicode, input_span, only_use_line_with_click,
-                       tokens, click_pos);
+  RetokenizeAndFindClick(context_unicode, input_span, only_use_line_with_click,
+                         tokens, click_pos);
 }
 
-void FeatureProcessor::TokenizeAndFindClick(const UnicodeText& context_unicode,
-                                            CodepointSpan input_span,
-                                            bool only_use_line_with_click,
-                                            std::vector<Token>* tokens,
-                                            int* click_pos) const {
+void FeatureProcessor::RetokenizeAndFindClick(
+    const UnicodeText& context_unicode, CodepointSpan input_span,
+    bool only_use_line_with_click, std::vector<Token>* tokens,
+    int* click_pos) const {
   TC_CHECK(tokens != nullptr);
-  *tokens = Tokenize(context_unicode);
 
   if (options_->split_tokens_on_selection_boundaries()) {
     internal::SplitTokensOnSelectionBoundaries(input_span, tokens);
@@ -775,7 +773,8 @@ void StripOrPadTokens(TokenSpan relative_click_span, int context_size,
 bool FeatureProcessor::ExtractFeatures(
     const std::vector<Token>& tokens, TokenSpan token_span,
     CodepointSpan selection_span_for_feature,
-    EmbeddingExecutor* embedding_executor, int feature_vector_size,
+    const EmbeddingExecutor* embedding_executor,
+    EmbeddingCache* embedding_cache, int feature_vector_size,
     std::unique_ptr<CachedFeatures>* cached_features) const {
   if (options_->min_supported_codepoint_ratio() > 0) {
     const float supported_codepoint_ratio =
@@ -787,32 +786,30 @@ bool FeatureProcessor::ExtractFeatures(
     }
   }
 
-  std::vector<std::vector<int>> sparse_features(TokenSpanSize(token_span));
-  std::vector<std::vector<float>> dense_features(TokenSpanSize(token_span));
+  std::unique_ptr<std::vector<float>> features(new std::vector<float>());
+  features->reserve(feature_vector_size * TokenSpanSize(token_span));
   for (int i = token_span.first; i < token_span.second; ++i) {
-    const Token& token = tokens[i];
-    const int features_index = i - token_span.first;
-    if (!feature_extractor_.Extract(
-            token, token.IsContainedInSpan(selection_span_for_feature),
-            &(sparse_features[features_index]),
-            &(dense_features[features_index]))) {
-      TC_LOG(ERROR) << "Could not extract token's features: " << token;
+    if (!AppendTokenFeaturesWithCache(tokens[i], selection_span_for_feature,
+                                      embedding_executor, embedding_cache,
+                                      features.get())) {
+      TC_LOG(ERROR) << "Could not get token features.";
       return false;
     }
   }
 
-  std::vector<int> padding_sparse_features;
-  std::vector<float> padding_dense_features;
-  if (!feature_extractor_.Extract(Token(), false, &padding_sparse_features,
-                                  &padding_dense_features)) {
-    TC_LOG(ERROR) << "Could not extract padding token's features.";
+  std::unique_ptr<std::vector<float>> padding_features(
+      new std::vector<float>());
+  padding_features->reserve(feature_vector_size);
+  if (!AppendTokenFeaturesWithCache(Token(), selection_span_for_feature,
+                                    embedding_executor, embedding_cache,
+                                    padding_features.get())) {
+    TC_LOG(ERROR) << "Count not get padding token features.";
     return false;
   }
 
-  *cached_features =
-      CachedFeatures::Create(token_span, sparse_features, dense_features,
-                             padding_sparse_features, padding_dense_features,
-                             options_, embedding_executor, feature_vector_size);
+  *cached_features = CachedFeatures::Create(token_span, std::move(features),
+                                            std::move(padding_features),
+                                            options_, feature_vector_size);
   if (!*cached_features) {
     TC_LOG(ERROR) << "Cound not create cached features.";
     return false;
@@ -926,6 +923,71 @@ void FeatureProcessor::TokenizeSubstring(const UnicodeText& unicode_text,
     token.end += span.first;
     result->emplace_back(std::move(token));
   }
+}
+
+bool FeatureProcessor::AppendTokenFeaturesWithCache(
+    const Token& token, CodepointSpan selection_span_for_feature,
+    const EmbeddingExecutor* embedding_executor,
+    EmbeddingCache* embedding_cache,
+    std::vector<float>* output_features) const {
+  // Look for the embedded features for the token in the cache, if there is one.
+  if (embedding_cache) {
+    const auto it = embedding_cache->find({token.start, token.end});
+    if (it != embedding_cache->end()) {
+      // The embedded features were found in the cache, extract only the dense
+      // features.
+      std::vector<float> dense_features;
+      if (!feature_extractor_.Extract(
+              token, token.IsContainedInSpan(selection_span_for_feature),
+              /*sparse_features=*/nullptr, &dense_features)) {
+        TC_LOG(ERROR) << "Could not extract token's dense features.";
+        return false;
+      }
+
+      // Append both embedded and dense features to the output and return.
+      output_features->insert(output_features->end(), it->second.begin(),
+                              it->second.end());
+      output_features->insert(output_features->end(), dense_features.begin(),
+                              dense_features.end());
+      return true;
+    }
+  }
+
+  // Extract the sparse and dense features.
+  std::vector<int> sparse_features;
+  std::vector<float> dense_features;
+  if (!feature_extractor_.Extract(
+          token, token.IsContainedInSpan(selection_span_for_feature),
+          &sparse_features, &dense_features)) {
+    TC_LOG(ERROR) << "Could not extract token's features.";
+    return false;
+  }
+
+  // Embed the sparse features, appending them directly to the output.
+  const int embedding_size = GetOptions()->embedding_size();
+  output_features->resize(output_features->size() + embedding_size);
+  float* output_features_end =
+      output_features->data() + output_features->size();
+  if (!embedding_executor->AddEmbedding(
+          TensorView<int>(sparse_features.data(),
+                          {static_cast<int>(sparse_features.size())}),
+          /*dest=*/output_features_end - embedding_size,
+          /*dest_size=*/embedding_size)) {
+    TC_LOG(ERROR) << "Cound not embed token's sparse features.";
+    return false;
+  }
+
+  // If there is a cache, the embedded features for the token were not in it,
+  // so insert them.
+  if (embedding_cache) {
+    (*embedding_cache)[{token.start, token.end}] = std::vector<float>(
+        output_features_end - embedding_size, output_features_end);
+  }
+
+  // Append the dense features to the output.
+  output_features->insert(output_features->end(), dense_features.begin(),
+                          dense_features.end());
+  return true;
 }
 
 }  // namespace libtextclassifier2

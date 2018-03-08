@@ -47,7 +47,7 @@ class Tokenizer {
  protected:
   // Finds the tokenization codepoint range config for given codepoint.
   // Internally uses binary search so should be O(log(# of codepoint_ranges)).
-  const TokenizationCodepointRange* FindTokenizationRange(int codepoint) const;
+  const TokenizationCodepointRangeT* FindTokenizationRange(int codepoint) const;
 
   // Finds the role and script for given codepoint. If not found, DEFAULT_ROLE
   // and kUnknownScript are assigned.
@@ -58,7 +58,8 @@ class Tokenizer {
  private:
   // Codepoint ranges that determine how different codepoints are tokenized.
   // The ranges must not overlap.
-  std::vector<const TokenizationCodepointRange*> codepoint_ranges_;
+  std::vector<std::unique_ptr<const TokenizationCodepointRangeT>>
+      codepoint_ranges_;
 
   // If true, tokens will be additionally split when the codepoint's script_id
   // changes.

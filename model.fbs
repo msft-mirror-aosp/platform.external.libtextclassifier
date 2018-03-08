@@ -16,6 +16,19 @@
 
 file_identifier "TC2 ";
 
+// The possible model modes, represents a bit field.
+namespace libtextclassifier2;
+enum ModeFlag : int {
+  NONE = 0,
+  ANNOTATION = 1,
+  CLASSIFICATION = 2,
+  ANNOTATION_AND_CLASSIFICATION = 3,
+  SELECTION = 4,
+  ANNOTATION_AND_SELECTION = 5,
+  CLASSIFICATION_AND_SELECTION = 6,
+  ALL = 7,
+}
+
 namespace libtextclassifier2;
 enum DatetimeExtractorType : int {
   UNKNOWN_DATETIME_EXTRACTOR_TYPE = 0,
@@ -129,20 +142,19 @@ table Pattern {
   // Can specify a single capturing group used as match boundaries.
   pattern:string;
 
-  // Whether to apply the pattern for annotation.
-  enabled_for_annotation:bool = 0;
-
-  // Whether to apply the pattern for classification.
-  enabled_for_classification:bool = 0;
-
-  // Whether to apply the pattern for selection.
-  enabled_for_selection:bool = 0;
+  // The modes for which to apply the patterns.
+  enabled_modes:libtextclassifier2.ModeFlag = ALL;
 
   // The final score to assign to the results of this pattern.
   target_classification_score:float = 1;
 
   // Priority score used for conflict resolution with the other models.
   priority_score:float = 0;
+
+  // If true, will use an approximate matching implementation implemented
+  // using Find() instead of the true Match(). This approximate matching will
+  // use the first Find() result and then check that it spans the whole input.
+  use_approximate_matching:bool = 0;
 }
 
 namespace libtextclassifier2;
@@ -164,6 +176,9 @@ table DatetimeModelPattern {
 
   // Priority score used for conflict resulution with the other models.
   priority_score:float = 0;
+
+  // The modes for which to apply the patterns.
+  enabled_modes:libtextclassifier2.ModeFlag = ALL;
 }
 
 namespace libtextclassifier2;
@@ -181,13 +196,20 @@ table DatetimeModel {
 
   patterns:[libtextclassifier2.DatetimeModelPattern];
   extractors:[libtextclassifier2.DatetimeModelExtractor];
+
+  // If true, will use the extractors for determining the match location as
+  // opposed to using the location where the global pattern matched.
+  use_extractors_for_locating:bool = 1;
 }
 
-// Options controlling the output of the models.
+// Options controlling the output of the Tensorflow Lite models.
 namespace libtextclassifier2;
 table ModelTriggeringOptions {
   // Lower bound threshold for filtering annotation model outputs.
   min_annotate_confidence:float = 0;
+
+  // The modes for which to enable the models.
+  enabled_modes:libtextclassifier2.ModeFlag = ALL;
 }
 
 namespace libtextclassifier2;
@@ -196,27 +218,32 @@ table Model {
   locales:string;
 
   version:int;
+
+  // A name for the model that can be used for e.g. logging.
+  name:string;
+
   selection_feature_options:libtextclassifier2.FeatureProcessorOptions;
   classification_feature_options:libtextclassifier2.FeatureProcessorOptions;
 
-  // TFLite models.
+  // Tensorflow Lite models.
   selection_model:[ubyte] (force_align: 16);
 
   classification_model:[ubyte] (force_align: 16);
   embedding_model:[ubyte] (force_align: 16);
-  regex_model:libtextclassifier2.RegexModel;
 
   // Options for the different models.
   selection_options:libtextclassifier2.SelectionModelOptions;
 
   classification_options:libtextclassifier2.ClassificationModelOptions;
+  regex_model:libtextclassifier2.RegexModel;
   datetime_model:libtextclassifier2.DatetimeModel;
 
   // Options controlling the output of the models.
   triggering_options:libtextclassifier2.ModelTriggeringOptions;
 
-  // A name for the model that can be used for e.g. logging.
-  name:string;
+  // Global switch that controls if SuggestSelection(), ClassifyText() and
+  // Annotate() will run. If a mode is disabled it returns empty/no-op results.
+  enabled_modes:libtextclassifier2.ModeFlag = ALL;
 }
 
 // Role of the codepoints in the range.
@@ -321,6 +348,10 @@ table BoundsSensitiveFeatures {
   // If true, includes the selection length (in the number of tokens) as a
   // feature.
   include_inside_length:bool;
+
+  // If true, for selection, single token spans are not run through the model
+  // and their score is assumed to be zero.
+  score_single_token_spans_as_zero:bool;
 }
 
 namespace libtextclassifier2.FeatureProcessorOptions_;
@@ -336,6 +367,9 @@ table FeatureProcessorOptions {
 
   // Size of the embedding.
   embedding_size:int = -1;
+
+  // Number of bits for quantization for embeddings.
+  embedding_quantization_bits:int = 8;
 
   // Context size defines the number of words to the left and to the right of
   // the selected word to be used as context. For example, if context size is
@@ -428,7 +462,7 @@ table FeatureProcessorOptions {
   // to it. So the resulting feature vector has two regions.
   feature_version:int = 0;
 
-  tokenization_type:libtextclassifier2.FeatureProcessorOptions_.TokenizationType;
+  tokenization_type:libtextclassifier2.FeatureProcessorOptions_.TokenizationType = INTERNAL_TOKENIZER;
   icu_preserve_whitespace_tokens:bool = 0;
 
   // List of codepoints that will be stripped from beginning and end of
@@ -447,9 +481,6 @@ table FeatureProcessorOptions {
   // If true, tokens will be also split when the codepoint's script_id changes
   // as defined in TokenizationCodepointRange.
   tokenize_on_script_change:bool = 0;
-
-  // Number of bits for quantization for embeddings.
-  embedding_quantization_bits:int = 8;
 }
 
 root_type libtextclassifier2.Model;

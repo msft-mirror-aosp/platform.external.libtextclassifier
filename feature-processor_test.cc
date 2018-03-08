@@ -27,12 +27,26 @@ namespace {
 
 using testing::ElementsAreArray;
 using testing::FloatEq;
+using testing::Matcher;
 
 flatbuffers::DetachedBuffer PackFeatureProcessorOptions(
     const FeatureProcessorOptionsT& options) {
   flatbuffers::FlatBufferBuilder builder;
   builder.Finish(CreateFeatureProcessorOptions(builder, &options));
   return builder.Release();
+}
+
+template <typename T>
+std::vector<T> Subvector(const std::vector<T>& vector, int start, int end) {
+  return std::vector<T>(vector.begin() + start, vector.begin() + end);
+}
+
+Matcher<std::vector<float>> ElementsAreFloat(const std::vector<float>& values) {
+  std::vector<Matcher<float>> matchers;
+  for (const float value : values) {
+    matchers.push_back(FloatEq(value));
+  }
+  return ElementsAreArray(matchers);
 }
 
 class TestingFeatureProcessor : public FeatureProcessor {
@@ -51,7 +65,7 @@ class TestingFeatureProcessor : public FeatureProcessor {
 class FakeEmbeddingExecutor : public EmbeddingExecutor {
  public:
   bool AddEmbedding(const TensorView<int>& sparse_features, float* dest,
-                    int dest_size) override {
+                    int dest_size) const override {
     TC_CHECK_GE(dest_size, 4);
     EXPECT_EQ(sparse_features.size(), 1);
     dest[0] = sparse_features.data()[0];
@@ -147,7 +161,7 @@ TEST(FeatureProcessorTest, SplitTokensOnSelectionBoundariesCrossToken) {
 }
 
 TEST(FeatureProcessorTest, KeepLineWithClickFirst) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.only_use_line_with_click = true;
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
@@ -173,7 +187,7 @@ TEST(FeatureProcessorTest, KeepLineWithClickFirst) {
 }
 
 TEST(FeatureProcessorTest, KeepLineWithClickSecond) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.only_use_line_with_click = true;
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
@@ -199,7 +213,7 @@ TEST(FeatureProcessorTest, KeepLineWithClickSecond) {
 }
 
 TEST(FeatureProcessorTest, KeepLineWithClickThird) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.only_use_line_with_click = true;
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
@@ -225,7 +239,7 @@ TEST(FeatureProcessorTest, KeepLineWithClickThird) {
 }
 
 TEST(FeatureProcessorTest, KeepLineWithClickSecondWithPipe) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.only_use_line_with_click = true;
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
@@ -251,7 +265,7 @@ TEST(FeatureProcessorTest, KeepLineWithClickSecondWithPipe) {
 }
 
 TEST(FeatureProcessorTest, KeepLineWithCrosslineClick) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.only_use_line_with_click = true;
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
@@ -279,7 +293,7 @@ TEST(FeatureProcessorTest, KeepLineWithCrosslineClick) {
 }
 
 TEST(FeatureProcessorTest, SpanToLabel) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.context_size = 1;
   options.max_selection_span = 1;
@@ -354,7 +368,7 @@ TEST(FeatureProcessorTest, SpanToLabel) {
 }
 
 TEST(FeatureProcessorTest, SpanToLabelIgnoresPunctuation) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.context_size = 1;
   options.max_selection_span = 1;
@@ -542,7 +556,7 @@ TEST(FeatureProcessorTest, SupportedCodepointsRatio) {
   }
 
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   TestingFeatureProcessor feature_processor(
       flatbuffers::GetRoot<FeatureProcessorOptions>(options_fb.data()),
       &unilib);
@@ -590,7 +604,7 @@ TEST(FeatureProcessorTest, SupportedCodepointsRatio) {
   EXPECT_TRUE(feature_processor2.ExtractFeatures(
       tokens, /*token_span=*/{0, 3},
       /*selection_span_for_feature=*/{kInvalidIndex, kInvalidIndex},
-      &embedding_executor,
+      &embedding_executor, /*embedding_cache=*/nullptr,
       /*feature_vector_size=*/4, &cached_features));
 
   options.min_supported_codepoint_ratio = 0.2;
@@ -602,7 +616,7 @@ TEST(FeatureProcessorTest, SupportedCodepointsRatio) {
   EXPECT_TRUE(feature_processor3.ExtractFeatures(
       tokens, /*token_span=*/{0, 3},
       /*selection_span_for_feature=*/{kInvalidIndex, kInvalidIndex},
-      &embedding_executor,
+      &embedding_executor, /*embedding_cache=*/nullptr,
       /*feature_vector_size=*/4, &cached_features));
 
   options.min_supported_codepoint_ratio = 0.5;
@@ -614,7 +628,7 @@ TEST(FeatureProcessorTest, SupportedCodepointsRatio) {
   EXPECT_FALSE(feature_processor4.ExtractFeatures(
       tokens, /*token_span=*/{0, 3},
       /*selection_span_for_feature=*/{kInvalidIndex, kInvalidIndex},
-      &embedding_executor,
+      &embedding_executor, /*embedding_cache=*/nullptr,
       /*feature_vector_size=*/4, &cached_features));
 }
 
@@ -628,7 +642,7 @@ TEST(FeatureProcessorTest, InSpanFeature) {
   options.extract_selection_mask_feature = true;
 
   flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   TestingFeatureProcessor feature_processor(
       flatbuffers::GetRoot<FeatureProcessorOptions>(options_fb.data()),
       &unilib);
@@ -643,7 +657,8 @@ TEST(FeatureProcessorTest, InSpanFeature) {
   EXPECT_TRUE(feature_processor.ExtractFeatures(
       tokens, /*token_span=*/{0, 4},
       /*selection_span_for_feature=*/{4, 11}, &embedding_executor,
-      /*feature_vector_size=*/5, &cached_features));
+      /*embedding_cache=*/nullptr, /*feature_vector_size=*/5,
+      &cached_features));
   std::vector<float> features;
   cached_features->AppendClickContextFeaturesForClick(1, &features);
   ASSERT_EQ(features.size(), 25);
@@ -652,6 +667,76 @@ TEST(FeatureProcessorTest, InSpanFeature) {
   EXPECT_THAT(features[14], FloatEq(1.0));
   EXPECT_THAT(features[19], FloatEq(1.0));
   EXPECT_THAT(features[24], FloatEq(0.0));
+}
+
+TEST(FeatureProcessorTest, EmbeddingCache) {
+  FeatureProcessorOptionsT options;
+  options.context_size = 2;
+  options.max_selection_span = 2;
+  options.snap_label_span_boundaries_to_containing_tokens = false;
+  options.feature_version = 2;
+  options.embedding_size = 4;
+  options.bounds_sensitive_features.reset(
+      new FeatureProcessorOptions_::BoundsSensitiveFeaturesT());
+  options.bounds_sensitive_features->enabled = true;
+  options.bounds_sensitive_features->num_tokens_before = 3;
+  options.bounds_sensitive_features->num_tokens_inside_left = 2;
+  options.bounds_sensitive_features->num_tokens_inside_right = 2;
+  options.bounds_sensitive_features->num_tokens_after = 3;
+
+  flatbuffers::DetachedBuffer options_fb = PackFeatureProcessorOptions(options);
+  CREATE_UNILIB_FOR_TESTING;
+  TestingFeatureProcessor feature_processor(
+      flatbuffers::GetRoot<FeatureProcessorOptions>(options_fb.data()),
+      &unilib);
+
+  std::unique_ptr<CachedFeatures> cached_features;
+
+  FakeEmbeddingExecutor embedding_executor;
+
+  const std::vector<Token> tokens = {
+      Token("aaa", 0, 3),   Token("bbb", 4, 7),   Token("ccc", 8, 11),
+      Token("ddd", 12, 15), Token("eee", 16, 19), Token("fff", 20, 23)};
+
+  // We pre-populate the cache with dummy embeddings, to make sure they are
+  // used when populating the features vector.
+  const std::vector<float> cached_padding_features = {10.0, -10.0, 10.0, -10.0};
+  const std::vector<float> cached_features1 = {1.0, 2.0, 3.0, 4.0};
+  const std::vector<float> cached_features2 = {5.0, 6.0, 7.0, 8.0};
+  FeatureProcessor::EmbeddingCache embedding_cache = {
+      {{kInvalidIndex, kInvalidIndex}, cached_padding_features},
+      {{4, 7}, cached_features1},
+      {{12, 15}, cached_features2},
+  };
+
+  EXPECT_TRUE(feature_processor.ExtractFeatures(
+      tokens, /*token_span=*/{0, 6},
+      /*selection_span_for_feature=*/{kInvalidIndex, kInvalidIndex},
+      &embedding_executor, &embedding_cache, /*feature_vector_size=*/4,
+      &cached_features));
+  std::vector<float> features;
+  cached_features->AppendBoundsSensitiveFeaturesForSpan({2, 4}, &features);
+  ASSERT_EQ(features.size(), 40);
+  // Check that the dummy embeddings were used.
+  EXPECT_THAT(Subvector(features, 0, 4),
+              ElementsAreFloat(cached_padding_features));
+  EXPECT_THAT(Subvector(features, 8, 12), ElementsAreFloat(cached_features1));
+  EXPECT_THAT(Subvector(features, 16, 20), ElementsAreFloat(cached_features2));
+  EXPECT_THAT(Subvector(features, 24, 28), ElementsAreFloat(cached_features2));
+  EXPECT_THAT(Subvector(features, 36, 40),
+              ElementsAreFloat(cached_padding_features));
+  // Check that the real embeddings were cached.
+  EXPECT_EQ(embedding_cache.size(), 7);
+  EXPECT_THAT(Subvector(features, 4, 8),
+              ElementsAreFloat(embedding_cache.at({0, 3})));
+  EXPECT_THAT(Subvector(features, 12, 16),
+              ElementsAreFloat(embedding_cache.at({8, 11})));
+  EXPECT_THAT(Subvector(features, 20, 24),
+              ElementsAreFloat(embedding_cache.at({8, 11})));
+  EXPECT_THAT(Subvector(features, 28, 32),
+              ElementsAreFloat(embedding_cache.at({16, 19})));
+  EXPECT_THAT(Subvector(features, 32, 36),
+              ElementsAreFloat(embedding_cache.at({20, 23})));
 }
 
 TEST(FeatureProcessorTest, StripUnusedTokensWithNoRelativeClick) {
@@ -767,7 +852,7 @@ TEST(FeatureProcessorTest, StripUnusedTokensWithRelativeClick) {
 }
 
 TEST(FeatureProcessorTest, InternalTokenizeOnScriptChange) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.tokenization_codepoint_config.emplace_back(
       new TokenizationCodepointRangeT());
@@ -907,7 +992,7 @@ TEST(FeatureProcessorTest, MixedTokenize) {
 #endif
 
 TEST(FeatureProcessorTest, IgnoredSpanBoundaryCodepoints) {
-  CREATE_UNILIB_FOR_TESTING
+  CREATE_UNILIB_FOR_TESTING;
   FeatureProcessorOptionsT options;
   options.ignored_span_boundary_codepoints.push_back('.');
   options.ignored_span_boundary_codepoints.push_back(',');

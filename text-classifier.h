@@ -75,6 +75,33 @@ struct AnnotationOptions {
   static AnnotationOptions Default() { return AnnotationOptions(); }
 };
 
+// Holds TFLite interpreters for selection and classification models.
+// NOTE: his class is not thread-safe, thus should NOT be re-used across
+// threads.
+class InterpreterManager {
+ public:
+  // The constructor can be called with nullptr for any of the executors, and is
+  // a defined behavior, as long as the corresponding *Interpreter() method is
+  // not called when the executor is null.
+  InterpreterManager(const ModelExecutor* selection_executor,
+                     const ModelExecutor* classification_executor)
+      : selection_executor_(selection_executor),
+        classification_executor_(classification_executor) {}
+
+  // Gets or creates and caches an interpreter for the selection model.
+  tflite::Interpreter* SelectionInterpreter();
+
+  // Gets or creates and caches an interpreter for the classification model.
+  tflite::Interpreter* ClassificationInterpreter();
+
+ private:
+  const ModelExecutor* selection_executor_;
+  const ModelExecutor* classification_executor_;
+
+  std::unique_ptr<tflite::Interpreter> selection_interpreter_;
+  std::unique_ptr<tflite::Interpreter> classification_interpreter_;
+};
+
 // A text processing model that provides text classification, annotation,
 // selection suggestion for various types.
 // NOTE: This class is not thread-safe.
@@ -167,6 +194,7 @@ class TextClassifier {
   // the span.
   bool ResolveConflicts(const std::vector<AnnotatedSpan>& candidates,
                         const std::string& context,
+                        InterpreterManager* interpreter_manager,
                         std::vector<int>* result) const;
 
   // Resolves one conflict between candidates on indices 'start_index'
@@ -175,19 +203,34 @@ class TextClassifier {
   bool ResolveConflict(const std::string& context,
                        const std::vector<AnnotatedSpan>& candidates,
                        int start_index, int end_index,
+                       InterpreterManager* interpreter_manager,
                        std::vector<int>* chosen_indices) const;
 
   // Gets selection candidates from the ML model.
   bool ModelSuggestSelection(const UnicodeText& context_unicode,
                              CodepointSpan click_indices,
+                             InterpreterManager* interpreter_manager,
                              std::vector<AnnotatedSpan>* result) const;
 
   // Classifies the selected text given the context string with the
   // classification model.
   // Returns true if no error occurred.
   bool ModelClassifyText(
-      const std::string& context, CodepointSpan selection_indices,
+      const std::string& context, const std::vector<Token>& cached_tokens,
+      CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
+      FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
+
+  bool ModelClassifyText(
+      const std::string& context, CodepointSpan selection_indices,
+      InterpreterManager* interpreter_manager,
+      FeatureProcessor::EmbeddingCache* embedding_cache,
+      std::vector<ClassificationResult>* classification_results) const;
+
+  // Returns a relative token span that represents how many tokens on the left
+  // from the selection and right from the selection are needed for the
+  // classifier input.
+  TokenSpan ClassifyTextUpperBoundNeededTokens() const;
 
   // Classifies the selected text with the regular expressions models.
   // Returns true if any regular expression matched and the result was set.
@@ -207,6 +250,7 @@ class TextClassifier {
   // The annotations are sorted by their position in the context string and
   // exclude spans classified as 'other'.
   bool ModelAnnotate(const std::string& context,
+                     InterpreterManager* interpreter_manager,
                      std::vector<AnnotatedSpan>* result) const;
 
   // Groups the tokens into chunks. A chunk is a token span that should be the
@@ -219,6 +263,7 @@ class TextClassifier {
   // completely. The first and last chunk might extend beyond it.
   // The chunks vector is cleared before filling.
   bool ModelChunk(int num_tokens, const TokenSpan& span_of_interest,
+                  tflite::Interpreter* selection_interpreter,
                   const CachedFeatures& cached_features,
                   std::vector<TokenSpan>* chunks) const;
 
@@ -228,6 +273,7 @@ class TextClassifier {
   bool ModelClickContextScoreChunks(
       int num_tokens, const TokenSpan& span_of_interest,
       const CachedFeatures& cached_features,
+      tflite::Interpreter* selection_interpreter,
       std::vector<ScoredChunk>* scored_chunks) const;
 
   // A helper method for ModelChunk(). It generates scored chunk candidates for
@@ -236,6 +282,7 @@ class TextClassifier {
   bool ModelBoundsSensitiveScoreChunks(
       int num_tokens, const TokenSpan& span_of_interest,
       const TokenSpan& inference_span, const CachedFeatures& cached_features,
+      tflite::Interpreter* selection_interpreter,
       std::vector<ScoredChunk>* scored_chunks) const;
 
   // Produces chunks isolated by a set of regular expressions.
@@ -247,19 +294,19 @@ class TextClassifier {
   bool DatetimeChunk(const UnicodeText& context_unicode,
                      int64 reference_time_ms_utc,
                      const std::string& reference_timezone,
-                     const std::string& locales,
+                     const std::string& locales, ModeFlag mode,
                      std::vector<AnnotatedSpan>* result) const;
 
   const Model* model_;
 
-  std::unique_ptr<ModelExecutor> selection_executor_;
-  std::unique_ptr<ModelExecutor> classification_executor_;
-  std::unique_ptr<EmbeddingExecutor> embedding_executor_;
+  std::unique_ptr<const ModelExecutor> selection_executor_;
+  std::unique_ptr<const ModelExecutor> classification_executor_;
+  std::unique_ptr<const EmbeddingExecutor> embedding_executor_;
 
-  std::unique_ptr<FeatureProcessor> selection_feature_processor_;
-  std::unique_ptr<FeatureProcessor> classification_feature_processor_;
+  std::unique_ptr<const FeatureProcessor> selection_feature_processor_;
+  std::unique_ptr<const FeatureProcessor> classification_feature_processor_;
 
-  std::unique_ptr<DatetimeParser> datetime_parser_;
+  std::unique_ptr<const DatetimeParser> datetime_parser_;
 
  private:
   struct CompiledRegexPattern {
@@ -271,8 +318,12 @@ class TextClassifier {
 
   std::unique_ptr<ScopedMmap> mmap_;
   bool initialized_ = false;
+  bool enabled_for_annotation_ = false;
+  bool enabled_for_classification_ = false;
+  bool enabled_for_selection_ = false;
 
   std::vector<CompiledRegexPattern> regex_patterns_;
+  std::unordered_set<int> regex_approximate_match_pattern_ids_;
 
   // Indices into regex_patterns_ for the different modes.
   std::vector<int> annotation_regex_patterns_, classification_regex_patterns_,
@@ -281,6 +332,15 @@ class TextClassifier {
   std::unique_ptr<UniLib> owned_unilib_;
   const UniLib* unilib_;
 };
+
+namespace internal {
+// Copies tokens from 'cached_tokens' that are
+// 'tokens_around_selection_to_copy' (on the left, and right) tokens distant
+// from the tokens that correspond to 'selection_indices'.
+std::vector<Token> CopyCachedTokens(const std::vector<Token>& cached_tokens,
+                                    CodepointSpan selection_indices,
+                                    TokenSpan tokens_around_selection_to_copy);
+}  // namespace internal
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.
 const Model* ViewModel(const void* buffer, int size);

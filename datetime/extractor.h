@@ -22,7 +22,8 @@
 #include <vector>
 
 #include "model_generated.h"
-#include "util/calendar/types.h"
+#include "types.h"
+#include "util/strings/stringpiece.h"
 #include "util/utf8/unicodetext.h"
 #include "util/utf8/unilib.h"
 
@@ -34,7 +35,8 @@ class DatetimeExtractor {
  public:
   DatetimeExtractor(
       const UniLib::RegexMatcher& matcher, int locale_id, const UniLib& unilib,
-      const std::vector<std::unique_ptr<UniLib::RegexPattern>>& extractor_rules,
+      const std::vector<std::unique_ptr<const UniLib::RegexPattern>>&
+          extractor_rules,
       const std::unordered_map<DatetimeExtractorType,
                                std::unordered_map<int, int>>&
           type_and_locale_to_extractor_rule)
@@ -43,7 +45,7 @@ class DatetimeExtractor {
         unilib_(unilib),
         rules_(extractor_rules),
         type_and_locale_to_rule_(type_and_locale_to_extractor_rule) {}
-  bool Extract(DateParseData* result) const;
+  bool Extract(DateParseData* result, CodepointSpan* result_span) const;
 
  private:
   bool RuleIdForType(DatetimeExtractorType type, int* rule_id) const;
@@ -55,7 +57,10 @@ class DatetimeExtractor {
                    DatetimeExtractorType extractor_type,
                    UnicodeText* match_result = nullptr) const;
 
-  bool GroupNotEmpty(const std::string& name, UnicodeText* result) const;
+  bool GroupNotEmpty(StringPiece name, UnicodeText* result) const;
+
+  // Updates the span to include the current match for the given group.
+  bool UpdateMatchSpan(StringPiece group_name, CodepointSpan* span) const;
 
   // Returns true if any of the extractors from 'mapping' matched. If it did,
   // will fill 'result' with the associated value from 'mapping'.
@@ -82,7 +87,7 @@ class DatetimeExtractor {
   const UniLib::RegexMatcher& matcher_;
   int locale_id_;
   const UniLib& unilib_;
-  const std::vector<std::unique_ptr<UniLib::RegexPattern>>& rules_;
+  const std::vector<std::unique_ptr<const UniLib::RegexPattern>>& rules_;
   const std::unordered_map<DatetimeExtractorType, std::unordered_map<int, int>>&
       type_and_locale_to_rule_;
 };

@@ -23,37 +23,6 @@ namespace libtextclassifier2 {
 
 namespace {
 
-// Populates the features for one token into the target vector at an offset
-// corresponding to the given token index. It builds the features to populate by
-// embedding the sparse features and combining them with the dense featues.
-// Embeds sparse features and the features of one token into the features
-// vector.
-bool PopulateTokenFeatures(int target_feature_index,
-                           const std::vector<int>& sparse_features,
-                           const std::vector<float>& dense_features,
-                           int feature_vector_size,
-                           EmbeddingExecutor* embedding_executor,
-                           std::vector<float>* target_features) {
-  const int sparse_embedding_size = feature_vector_size - dense_features.size();
-  float* dest =
-      target_features->data() + target_feature_index * feature_vector_size;
-
-  // Embed sparse features.
-  if (!embedding_executor->AddEmbedding(
-          TensorView<int>(sparse_features.data(),
-                          {static_cast<int>(sparse_features.size())}),
-          dest, sparse_embedding_size)) {
-    return false;
-  }
-
-  // Copy dense features.
-  for (int j = 0; j < dense_features.size(); ++j) {
-    dest[sparse_embedding_size + j] = dense_features[j];
-  }
-
-  return true;
-}
-
 int CalculateOutputFeaturesSize(const FeatureProcessorOptions* options,
                                 int feature_vector_size) {
   const bool bounds_sensitive_enabled =
@@ -89,12 +58,9 @@ int CalculateOutputFeaturesSize(const FeatureProcessorOptions* options,
 
 std::unique_ptr<CachedFeatures> CachedFeatures::Create(
     const TokenSpan& extraction_span,
-    const std::vector<std::vector<int>>& sparse_features,
-    const std::vector<std::vector<float>>& dense_features,
-    const std::vector<int>& padding_sparse_features,
-    const std::vector<float>& padding_dense_features,
-    const FeatureProcessorOptions* options,
-    EmbeddingExecutor* embedding_executor, int feature_vector_size) {
+    std::unique_ptr<std::vector<float>> features,
+    std::unique_ptr<std::vector<float>> padding_features,
+    const FeatureProcessorOptions* options, int feature_vector_size) {
   const int min_feature_version =
       options->bounds_sensitive_features() &&
               options->bounds_sensitive_features()->enabled()
@@ -107,31 +73,12 @@ std::unique_ptr<CachedFeatures> CachedFeatures::Create(
 
   std::unique_ptr<CachedFeatures> cached_features(new CachedFeatures());
   cached_features->extraction_span_ = extraction_span;
+  cached_features->features_ = std::move(features);
+  cached_features->padding_features_ = std::move(padding_features);
   cached_features->options_ = options;
 
   cached_features->output_features_size_ =
       CalculateOutputFeaturesSize(options, feature_vector_size);
-
-  cached_features->features_.resize(feature_vector_size *
-                                    TokenSpanSize(extraction_span));
-  for (int i = 0; i < TokenSpanSize(extraction_span); ++i) {
-    if (!PopulateTokenFeatures(/*target_feature_index=*/i, sparse_features[i],
-                               dense_features[i], feature_vector_size,
-                               embedding_executor,
-                               &cached_features->features_)) {
-      TC_LOG(ERROR) << "Could not embed sparse token features.";
-      return nullptr;
-    }
-  }
-
-  cached_features->padding_features_.resize(feature_vector_size);
-  if (!PopulateTokenFeatures(/*target_feature_index=*/0,
-                             padding_sparse_features, padding_dense_features,
-                             feature_vector_size, embedding_executor,
-                             &cached_features->padding_features_)) {
-    TC_LOG(ERROR) << "Could not embed sparse padding token features.";
-    return nullptr;
-  }
 
   return cached_features;
 }
@@ -194,8 +141,8 @@ void CachedFeatures::AppendFeaturesInternal(
   }
   output_features->insert(
       output_features->end(),
-      features_.begin() + copy_span.first * NumFeaturesPerToken(),
-      features_.begin() + copy_span.second * NumFeaturesPerToken());
+      features_->begin() + copy_span.first * NumFeaturesPerToken(),
+      features_->begin() + copy_span.second * NumFeaturesPerToken());
   for (int i = copy_span.second; i < intended_span.second; ++i) {
     AppendPaddingFeatures(output_features);
   }
@@ -203,8 +150,8 @@ void CachedFeatures::AppendFeaturesInternal(
 
 void CachedFeatures::AppendPaddingFeatures(
     std::vector<float>* output_features) const {
-  output_features->insert(output_features->end(), padding_features_.begin(),
-                          padding_features_.end());
+  output_features->insert(output_features->end(), padding_features_->begin(),
+                          padding_features_->end());
 }
 
 void CachedFeatures::AppendBagFeatures(
@@ -214,13 +161,13 @@ void CachedFeatures::AppendBagFeatures(
   for (int i = bag_span.first; i < bag_span.second; ++i) {
     for (int j = 0; j < NumFeaturesPerToken(); ++j) {
       (*output_features)[offset + j] +=
-          features_[i * NumFeaturesPerToken() + j] / TokenSpanSize(bag_span);
+          (*features_)[i * NumFeaturesPerToken() + j] / TokenSpanSize(bag_span);
     }
   }
 }
 
 int CachedFeatures::NumFeaturesPerToken() const {
-  return padding_features_.size();
+  return padding_features_->size();
 }
 
 }  // namespace libtextclassifier2
