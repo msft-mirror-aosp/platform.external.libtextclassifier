@@ -19,9 +19,9 @@
 
 #include <string>
 
+#include "types.h"
 #include "util/base/integral_types.h"
 #include "util/base/logging.h"
-#include "util/calendar/types.h"
 
 namespace libtextclassifier2 {
 

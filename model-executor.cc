@@ -22,33 +22,34 @@
 namespace libtextclassifier2 {
 namespace internal {
 bool FromModelSpec(const tflite::Model* model_spec,
-                   std::unique_ptr<tflite::FlatBufferModel>* model,
-                   std::unique_ptr<tflite::Interpreter>* interpreter) {
+                   std::unique_ptr<const tflite::FlatBufferModel>* model) {
   *model = tflite::FlatBufferModel::BuildFromModel(model_spec);
   if (!(*model) || !(*model)->initialized()) {
     TC_LOG(ERROR) << "Could not build TFLite model from a model spec. ";
-    return false;
-  }
-
-  tflite::ops::builtin::BuiltinOpResolver builtins;
-  tflite::InterpreterBuilder(**model, builtins)(interpreter);
-  if (!interpreter) {
-    TC_LOG(ERROR) << "Could not build TFLite interpreter.";
     return false;
   }
   return true;
 }
 }  // namespace internal
 
+std::unique_ptr<tflite::Interpreter> ModelExecutor::CreateInterpreter() const {
+  std::unique_ptr<tflite::Interpreter> interpreter;
+  tflite::InterpreterBuilder(*model_, builtins_)(&interpreter);
+  return interpreter;
+}
+
 TFLiteEmbeddingExecutor::TFLiteEmbeddingExecutor(
     const tflite::Model* model_spec, const int embedding_size,
     const int quantization_bits)
     : quantization_bits_(quantization_bits),
       output_embedding_size_(embedding_size) {
-  internal::FromModelSpec(model_spec, &model_, &interpreter_);
+  internal::FromModelSpec(model_spec, &model_);
+  tflite::InterpreterBuilder(*model_, builtins_)(&interpreter_);
   if (!interpreter_) {
+    TC_LOG(ERROR) << "Could not build TFLite interpreter for embeddings.";
     return;
   }
+
   if (interpreter_->tensors_size() != 2) {
     return;
   }
@@ -73,7 +74,7 @@ TFLiteEmbeddingExecutor::TFLiteEmbeddingExecutor(
 }
 
 bool TFLiteEmbeddingExecutor::AddEmbedding(
-    const TensorView<int>& sparse_features, float* dest, int dest_size) {
+    const TensorView<int>& sparse_features, float* dest, int dest_size) const {
   if (!initialized_ || dest_size != output_embedding_size_) {
     TC_LOG(ERROR) << "Mismatching dest_size and output_embedding_size: "
                   << dest_size << " " << output_embedding_size_;
@@ -99,6 +100,9 @@ TensorView<float> ComputeLogitsHelper(const int input_index_features,
                                       const int output_index_logits,
                                       const TensorView<float>& features,
                                       tflite::Interpreter* interpreter) {
+  if (!interpreter) {
+    return TensorView<float>::Invalid();
+  }
   interpreter->ResizeInputTensor(input_index_features, features.shape());
   if (interpreter->AllocateTensors() != kTfLiteOk) {
     TC_VLOG(1) << "Allocation failed.";

@@ -32,8 +32,7 @@ namespace libtextclassifier2 {
 
 namespace internal {
 bool FromModelSpec(const tflite::Model* model_spec,
-                   std::unique_ptr<tflite::FlatBufferModel>* model,
-                   std::unique_ptr<tflite::Interpreter>* interpreter);
+                   std::unique_ptr<const tflite::FlatBufferModel>* model);
 }  // namespace internal
 
 // A helper function that given indices of feature and logits tensor, feature
@@ -44,24 +43,28 @@ TensorView<float> ComputeLogitsHelper(const int input_index_features,
                                       tflite::Interpreter* interpreter);
 
 // Executor for the text selection prediction and classification models.
-// NOTE: This class is not thread-safe.
 class ModelExecutor {
  public:
   explicit ModelExecutor(const tflite::Model* model_spec) {
-    internal::FromModelSpec(model_spec, &model_, &interpreter_);
+    internal::FromModelSpec(model_spec, &model_);
   }
 
-  TensorView<float> ComputeLogits(const TensorView<float>& features) {
+  // Creates an Interpreter for the model that serves as a scratch-pad for the
+  // inference. The Interpreter is NOT thread-safe.
+  std::unique_ptr<tflite::Interpreter> CreateInterpreter() const;
+
+  TensorView<float> ComputeLogits(const TensorView<float>& features,
+                                  tflite::Interpreter* interpreter) const {
     return ComputeLogitsHelper(kInputIndexFeatures, kOutputIndexLogits,
-                               features, interpreter_.get());
+                               features, interpreter);
   }
 
  protected:
   static const int kInputIndexFeatures = 0;
   static const int kOutputIndexLogits = 0;
 
-  std::unique_ptr<tflite::FlatBufferModel> model_ = nullptr;
-  std::unique_ptr<tflite::Interpreter> interpreter_ = nullptr;
+  std::unique_ptr<const tflite::FlatBufferModel> model_ = nullptr;
+  tflite::ops::builtin::BuiltinOpResolver builtins_;
 };
 
 // Executor for embedding sparse features into a dense vector.
@@ -72,21 +75,20 @@ class EmbeddingExecutor {
   // Embeds the sparse_features into a dense embedding and adds (+) it
   // element-wise to the dest vector.
   virtual bool AddEmbedding(const TensorView<int>& sparse_features, float* dest,
-                            int dest_size) = 0;
+                            int dest_size) const = 0;
 
   // Returns true when the model is ready to be used, false otherwise.
-  virtual bool IsReady() { return true; }
+  virtual bool IsReady() const { return true; }
 };
 
-// NOTE: This class is not thread-safe.
 class TFLiteEmbeddingExecutor : public EmbeddingExecutor {
  public:
   explicit TFLiteEmbeddingExecutor(const tflite::Model* model_spec,
                                    int embedding_size, int quantization_bits);
   bool AddEmbedding(const TensorView<int>& sparse_features, float* dest,
-                    int dest_size) override;
+                    int dest_size) const override;
 
-  bool IsReady() override { return initialized_; }
+  bool IsReady() const override { return initialized_; }
 
  protected:
   int quantization_bits_;
@@ -97,8 +99,11 @@ class TFLiteEmbeddingExecutor : public EmbeddingExecutor {
   const TfLiteTensor* scales_ = nullptr;
   const TfLiteTensor* embeddings_ = nullptr;
 
-  std::unique_ptr<tflite::FlatBufferModel> model_ = nullptr;
+  std::unique_ptr<const tflite::FlatBufferModel> model_ = nullptr;
+  // NOTE: This interpreter is used in a read-only way (as a storage for the
+  // model params), thus is still thread-safe.
   std::unique_ptr<tflite::Interpreter> interpreter_ = nullptr;
+  tflite::ops::builtin::BuiltinOpResolver builtins_;
 };
 
 }  // namespace libtextclassifier2

@@ -58,10 +58,10 @@ class TestingTokenizerProxy {
   }
 
   TokenizationCodepointRange_::Role TestFindTokenizationRole(int c) const {
-    const TokenizationCodepointRange* range =
+    const TokenizationCodepointRangeT* range =
         tokenizer_->FindTokenizationRange(c);
     if (range != nullptr) {
-      return range->role();
+      return range->role;
     } else {
       return TokenizationCodepointRange_::Role_DEFAULT_ROLE;
     }

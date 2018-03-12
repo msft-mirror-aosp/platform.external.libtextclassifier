@@ -37,22 +37,15 @@ Matcher<std::vector<float>> ElementsAreFloat(const std::vector<float>& values) {
   return ElementsAreArray(matchers);
 }
 
-// EmbeddingExecutor that always returns features based on
-class FakeEmbeddingExecutor : public EmbeddingExecutor {
- public:
-  bool AddEmbedding(const TensorView<int>& sparse_features, float* dest,
-                    int dest_size) override {
-    TC_CHECK_GE(dest_size, 2);
-    EXPECT_EQ(sparse_features.size(), 1);
-
-    dest[0] = sparse_features.data()[0] * 11.0f;
-    dest[1] = -sparse_features.data()[0] * 11.0f;
-    return true;
+std::unique_ptr<std::vector<float>> MakeFeatures(int num_tokens) {
+  std::unique_ptr<std::vector<float>> features(new std::vector<float>());
+  for (int i = 1; i <= num_tokens; ++i) {
+    features->push_back(i * 11.0f);
+    features->push_back(-i * 11.0f);
+    features->push_back(i * 0.1f);
   }
-
- private:
-  std::vector<float> storage_;
-};
+  return features;
+}
 
 std::vector<float> GetCachedClickContextFeatures(
     const CachedFeatures& cached_features, int click_pos) {
@@ -78,25 +71,15 @@ TEST(CachedFeaturesTest, ClickContext) {
   builder.Finish(CreateFeatureProcessorOptions(builder, &options));
   flatbuffers::DetachedBuffer options_fb = builder.Release();
 
-  std::vector<std::vector<int>> sparse_features(9);
-  for (int i = 0; i < sparse_features.size(); ++i) {
-    sparse_features[i].push_back(i + 1);
-  }
-  std::vector<std::vector<float>> dense_features(9);
-  for (int i = 0; i < dense_features.size(); ++i) {
-    dense_features[i].push_back((i + 1) * 0.1);
-  }
+  std::unique_ptr<std::vector<float>> features = MakeFeatures(9);
+  std::unique_ptr<std::vector<float>> padding_features(
+      new std::vector<float>{112233.0, -112233.0, 321.0});
 
-  std::vector<int> padding_sparse_features = {10203};
-  std::vector<float> padding_dense_features = {321.0};
-
-  FakeEmbeddingExecutor executor;
   const std::unique_ptr<CachedFeatures> cached_features =
       CachedFeatures::Create(
-          {3, 10}, sparse_features, dense_features, padding_sparse_features,
-          padding_dense_features,
+          {3, 10}, std::move(features), std::move(padding_features),
           flatbuffers::GetRoot<FeatureProcessorOptions>(options_fb.data()),
-          &executor, /*feature_vector_size=*/3);
+          /*feature_vector_size=*/3);
   ASSERT_TRUE(cached_features);
 
   EXPECT_THAT(GetCachedClickContextFeatures(*cached_features, 5),
@@ -129,25 +112,15 @@ TEST(CachedFeaturesTest, BoundsSensitive) {
   builder.Finish(CreateFeatureProcessorOptions(builder, &options));
   flatbuffers::DetachedBuffer options_fb = builder.Release();
 
-  std::vector<std::vector<int>> sparse_features(6);
-  for (int i = 0; i < sparse_features.size(); ++i) {
-    sparse_features[i].push_back(i + 1);
-  }
-  std::vector<std::vector<float>> dense_features(6);
-  for (int i = 0; i < dense_features.size(); ++i) {
-    dense_features[i].push_back((i + 1) * 0.1);
-  }
+  std::unique_ptr<std::vector<float>> features = MakeFeatures(9);
+  std::unique_ptr<std::vector<float>> padding_features(
+      new std::vector<float>{112233.0, -112233.0, 321.0});
 
-  std::vector<int> padding_sparse_features = {10203};
-  std::vector<float> padding_dense_features = {321.0};
-
-  FakeEmbeddingExecutor executor;
   const std::unique_ptr<CachedFeatures> cached_features =
       CachedFeatures::Create(
-          {3, 9}, sparse_features, dense_features, padding_sparse_features,
-          padding_dense_features,
+          {3, 9}, std::move(features), std::move(padding_features),
           flatbuffers::GetRoot<FeatureProcessorOptions>(options_fb.data()),
-          &executor, /*feature_vector_size=*/3);
+          /*feature_vector_size=*/3);
   ASSERT_TRUE(cached_features);
 
   EXPECT_THAT(
