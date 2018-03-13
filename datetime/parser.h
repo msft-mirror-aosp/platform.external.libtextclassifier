@@ -41,11 +41,13 @@ class DatetimeParser {
   // do not overlap.
   bool Parse(const std::string& input, int64 reference_time_ms_utc,
              const std::string& reference_timezone, const std::string& locales,
+             ModeFlag mode,
              std::vector<DatetimeParseResultSpan>* results) const;
 
   // Same as above but takes UnicodeText.
   bool Parse(const UnicodeText& input, int64 reference_time_ms_utc,
              const std::string& reference_timezone, const std::string& locales,
+             ModeFlag mode,
              std::vector<DatetimeParseResultSpan>* results) const;
 
  protected:
@@ -64,19 +66,21 @@ class DatetimeParser {
   bool ExtractDatetime(const UniLib::RegexMatcher& matcher,
                        int64 reference_time_ms_utc,
                        const std::string& reference_timezone, int locale_id,
-                       DatetimeParseResult* result) const;
+                       DatetimeParseResult* result,
+                       CodepointSpan* result_span) const;
 
  private:
   bool initialized_;
   const UniLib& unilib_;
   std::vector<const DatetimeModelPattern*> rule_id_to_pattern_;
-  std::vector<std::unique_ptr<UniLib::RegexPattern>> rules_;
+  std::vector<std::unique_ptr<const UniLib::RegexPattern>> rules_;
   std::unordered_map<int, std::vector<int>> locale_to_rules_;
-  std::vector<std::unique_ptr<UniLib::RegexPattern>> extractor_rules_;
+  std::vector<std::unique_ptr<const UniLib::RegexPattern>> extractor_rules_;
   std::unordered_map<DatetimeExtractorType, std::unordered_map<int, int>>
       type_and_locale_to_extractor_rule_;
   std::unordered_map<std::string, int> locale_string_to_id_;
   CalendarLib calendar_lib_;
+  bool use_extractors_for_locating_;
 };
 
 }  // namespace libtextclassifier2

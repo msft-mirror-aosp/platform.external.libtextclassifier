@@ -78,21 +78,24 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib)
     locale_string_to_id_[model->locales()->Get(i)->str()] = i;
   }
 
+  use_extractors_for_locating_ = model->use_extractors_for_locating();
+
   initialized_ = true;
 }
 
 bool DatetimeParser::Parse(
     const std::string& input, const int64 reference_time_ms_utc,
     const std::string& reference_timezone, const std::string& locales,
-    std::vector<DatetimeParseResultSpan>* results) const {
+    ModeFlag mode, std::vector<DatetimeParseResultSpan>* results) const {
   return Parse(UTF8ToUnicodeText(input, /*do_copy=*/false),
-               reference_time_ms_utc, reference_timezone, locales, results);
+               reference_time_ms_utc, reference_timezone, locales, mode,
+               results);
 }
 
 bool DatetimeParser::Parse(
     const UnicodeText& input, const int64 reference_time_ms_utc,
     const std::string& reference_timezone, const std::string& locales,
-    std::vector<DatetimeParseResultSpan>* results) const {
+    ModeFlag mode, std::vector<DatetimeParseResultSpan>* results) const {
   std::vector<DatetimeParseResultSpan> found_spans;
   std::unordered_set<int> executed_rules;
   for (const int locale_id : ParseLocales(locales)) {
@@ -106,6 +109,11 @@ bool DatetimeParser::Parse(
       if (executed_rules.find(rule_id) != executed_rules.end()) {
         continue;
       }
+
+      if (!(rule_id_to_pattern_[rule_id]->enabled_modes() & mode)) {
+        continue;
+      }
+
       executed_rules.insert(rule_id);
 
       if (!ParseWithRule(*rules_[rule_id], rule_id_to_pattern_[rule_id], input,
@@ -157,10 +165,12 @@ bool DatetimeParser::ParseWithRule(
     }
 
     DatetimeParseResultSpan parse_result;
-    parse_result.span = {start, end};
     if (!ExtractDatetime(*matcher, reference_time_ms_utc, reference_timezone,
-                         locale_id, &(parse_result.data))) {
+                         locale_id, &(parse_result.data), &parse_result.span)) {
       return false;
+    }
+    if (!use_extractors_for_locating_) {
+      parse_result.span = {start, end};
     }
     parse_result.target_classification_score =
         pattern->target_classification_score();
@@ -196,13 +206,34 @@ namespace {
 
 DatetimeGranularity GetGranularity(const DateParseData& data) {
   DatetimeGranularity granularity = DatetimeGranularity::GRANULARITY_YEAR;
-  if (data.field_set_mask & DateParseData::YEAR_FIELD) {
+  if ((data.field_set_mask & DateParseData::YEAR_FIELD) ||
+      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
+       (data.relation_type == DateParseData::RelationType::YEAR))) {
     granularity = DatetimeGranularity::GRANULARITY_YEAR;
   }
-  if (data.field_set_mask & DateParseData::MONTH_FIELD) {
+  if ((data.field_set_mask & DateParseData::MONTH_FIELD) ||
+      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
+       (data.relation_type == DateParseData::RelationType::MONTH))) {
     granularity = DatetimeGranularity::GRANULARITY_MONTH;
   }
-  if (data.field_set_mask & DateParseData::DAY_FIELD) {
+  if (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
+      (data.relation_type == DateParseData::RelationType::WEEK)) {
+    granularity = DatetimeGranularity::GRANULARITY_WEEK;
+  }
+  if (data.field_set_mask & DateParseData::DAY_FIELD ||
+      (data.field_set_mask & DateParseData::RELATION_FIELD &&
+       (data.relation == DateParseData::Relation::NOW ||
+        data.relation == DateParseData::Relation::TOMORROW ||
+        data.relation == DateParseData::Relation::YESTERDAY)) ||
+      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
+       (data.relation_type == DateParseData::RelationType::MONDAY ||
+        data.relation_type == DateParseData::RelationType::TUESDAY ||
+        data.relation_type == DateParseData::RelationType::WEDNESDAY ||
+        data.relation_type == DateParseData::RelationType::THURSDAY ||
+        data.relation_type == DateParseData::RelationType::FRIDAY ||
+        data.relation_type == DateParseData::RelationType::SATURDAY ||
+        data.relation_type == DateParseData::RelationType::SUNDAY ||
+        data.relation_type == DateParseData::RelationType::DAY))) {
     granularity = DatetimeGranularity::GRANULARITY_DAY;
   }
   if (data.field_set_mask & DateParseData::HOUR_FIELD) {
@@ -222,12 +253,12 @@ DatetimeGranularity GetGranularity(const DateParseData& data) {
 bool DatetimeParser::ExtractDatetime(const UniLib::RegexMatcher& matcher,
                                      const int64 reference_time_ms_utc,
                                      const std::string& reference_timezone,
-                                     int locale_id,
-                                     DatetimeParseResult* result) const {
+                                     int locale_id, DatetimeParseResult* result,
+                                     CodepointSpan* result_span) const {
   DateParseData parse;
   DatetimeExtractor extractor(matcher, locale_id, unilib_, extractor_rules_,
                               type_and_locale_to_extractor_rule_);
-  if (!extractor.Extract(&parse)) {
+  if (!extractor.Extract(&parse, result_span)) {
     return false;
   }
 

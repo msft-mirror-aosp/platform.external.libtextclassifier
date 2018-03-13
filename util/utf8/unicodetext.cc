@@ -199,7 +199,7 @@ bool UnicodeText::operator==(const UnicodeText& other) const {
 }
 
 std::string UnicodeText::ToUTF8String() const {
-  return std::string(begin(), end());
+  return UTF8Substring(begin(), end());
 }
 
 std::string UnicodeText::UTF8Substring(const const_iterator& first,

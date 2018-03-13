@@ -86,6 +86,13 @@ CodepointSpan TokenSpanToCodepointSpan(
 // Takes care of preparing features for the span prediction model.
 class FeatureProcessor {
  public:
+  // A cache mapping codepoint spans to embedded tokens features. An instance
+  // can be provided to multiple calls to ExtractFeatures() operating on the
+  // same context (the same codepoint spans corresponding to the same tokens),
+  // as an optimization. Note that the tokenizations do not have to be
+  // identical.
+  typedef std::map<CodepointSpan, std::vector<float>> EmbeddingCache;
+
   // If unilib is nullptr, will create and own an instance of a UniLib,
   // otherwise will use what's passed in.
   explicit FeatureProcessor(const FeatureProcessorOptions* options,
@@ -139,24 +146,25 @@ class FeatureProcessor {
 
   const FeatureProcessorOptions* GetOptions() const { return options_; }
 
-  // Tokenizes the context and input span, and finds the click position.
-  void TokenizeAndFindClick(const std::string& context,
-                            CodepointSpan input_span,
-                            bool only_use_line_with_click,
-                            std::vector<Token>* tokens, int* click_pos) const;
+  // Retokenizes the context and input span, and finds the click position.
+  // Depending on the options, might modify tokens (split them or remove them).
+  void RetokenizeAndFindClick(const std::string& context,
+                              CodepointSpan input_span,
+                              bool only_use_line_with_click,
+                              std::vector<Token>* tokens, int* click_pos) const;
 
   // Same as above but takes UnicodeText.
-  void TokenizeAndFindClick(const UnicodeText& context_unicode,
-                            CodepointSpan input_span,
-                            bool only_use_line_with_click,
-                            std::vector<Token>* tokens, int* click_pos) const;
+  void RetokenizeAndFindClick(const UnicodeText& context_unicode,
+                              CodepointSpan input_span,
+                              bool only_use_line_with_click,
+                              std::vector<Token>* tokens, int* click_pos) const;
 
   // Extracts features as a CachedFeatures object that can be used for repeated
   // inference over token spans in the given context.
   bool ExtractFeatures(const std::vector<Token>& tokens, TokenSpan token_span,
                        CodepointSpan selection_span_for_feature,
-                       EmbeddingExecutor* embedding_executor,
-                       int feature_vector_size,
+                       const EmbeddingExecutor* embedding_executor,
+                       EmbeddingCache* embedding_cache, int feature_vector_size,
                        std::unique_ptr<CachedFeatures>* cached_features) const;
 
   // Fills selection_label_spans with CodepointSpans that correspond to the
@@ -279,6 +287,15 @@ class FeatureProcessor {
   void StripTokensFromOtherLines(const UnicodeText& context_unicode,
                                  CodepointSpan span,
                                  std::vector<Token>* tokens) const;
+
+  // Extracts the features of a token and appends them to the output vector.
+  // Uses the embedding cache to to avoid re-extracting the re-embedding the
+  // sparse features for the same token.
+  bool AppendTokenFeaturesWithCache(const Token& token,
+                                    CodepointSpan selection_span_for_feature,
+                                    const EmbeddingExecutor* embedding_executor,
+                                    EmbeddingCache* embedding_cache,
+                                    std::vector<float>* output_features) const;
 
  private:
   std::unique_ptr<UniLib> owned_unilib_;

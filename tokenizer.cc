@@ -26,20 +26,24 @@ namespace libtextclassifier2 {
 Tokenizer::Tokenizer(
     const std::vector<const TokenizationCodepointRange*>& codepoint_ranges,
     bool split_on_script_change)
-    : codepoint_ranges_(codepoint_ranges),
-      split_on_script_change_(split_on_script_change) {
+    : split_on_script_change_(split_on_script_change) {
+  for (const TokenizationCodepointRange* range : codepoint_ranges) {
+    codepoint_ranges_.emplace_back(range->UnPack());
+  }
+
   std::sort(codepoint_ranges_.begin(), codepoint_ranges_.end(),
-            [](const TokenizationCodepointRange* a,
-               const TokenizationCodepointRange* b) {
-              return a->start() < b->start();
+            [](const std::unique_ptr<const TokenizationCodepointRangeT>& a,
+               const std::unique_ptr<const TokenizationCodepointRangeT>& b) {
+              return a->start < b->start;
             });
 }
 
-const TokenizationCodepointRange* Tokenizer::FindTokenizationRange(
+const TokenizationCodepointRangeT* Tokenizer::FindTokenizationRange(
     int codepoint) const {
   auto it = std::lower_bound(
       codepoint_ranges_.begin(), codepoint_ranges_.end(), codepoint,
-      [](const TokenizationCodepointRange* range, int codepoint) {
+      [](const std::unique_ptr<const TokenizationCodepointRangeT>& range,
+         int codepoint) {
         // This function compares range with the codepoint for the purpose of
         // finding the first greater or equal range. Because of the use of
         // std::lower_bound it needs to return true when range < codepoint;
@@ -49,11 +53,11 @@ const TokenizationCodepointRange* Tokenizer::FindTokenizationRange(
         // It might seem weird that the condition is range.end <= codepoint
         // here but when codepoint == range.end it means it's actually just
         // outside of the range, thus the range is less than the codepoint.
-        return range->end() <= codepoint;
+        return range->end <= codepoint;
       });
-  if (it != codepoint_ranges_.end() && (*it)->start() <= codepoint &&
-      (*it)->end() > codepoint) {
-    return *it;
+  if (it != codepoint_ranges_.end() && (*it)->start <= codepoint &&
+      (*it)->end > codepoint) {
+    return it->get();
   } else {
     return nullptr;
   }
@@ -62,10 +66,10 @@ const TokenizationCodepointRange* Tokenizer::FindTokenizationRange(
 void Tokenizer::GetScriptAndRole(char32 codepoint,
                                  TokenizationCodepointRange_::Role* role,
                                  int* script) const {
-  const TokenizationCodepointRange* range = FindTokenizationRange(codepoint);
+  const TokenizationCodepointRangeT* range = FindTokenizationRange(codepoint);
   if (range) {
-    *role = range->role();
-    *script = range->script_id();
+    *role = range->role;
+    *script = range->script_id;
   } else {
     *role = TokenizationCodepointRange_::Role_DEFAULT_ROLE;
     *script = kUnknownScript;

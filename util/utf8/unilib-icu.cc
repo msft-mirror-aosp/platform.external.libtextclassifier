@@ -85,12 +85,11 @@ constexpr int UniLib::RegexMatcher::kError;
 constexpr int UniLib::RegexMatcher::kNoError;
 
 bool UniLib::RegexMatcher::Matches(int* status) const {
-  std::string text = "";
-  text_.toUTF8String(text);
   if (!matcher_) {
     *status = kError;
     return false;
   }
+
   UErrorCode icu_status = U_ZERO_ERROR;
   const bool result = matcher_->matches(/*startIndex=*/0, icu_status);
   if (U_FAILURE(icu_status)) {
@@ -99,6 +98,31 @@ bool UniLib::RegexMatcher::Matches(int* status) const {
   }
   *status = kNoError;
   return result;
+}
+
+bool UniLib::RegexMatcher::ApproximatelyMatches(int* status) {
+  if (!matcher_) {
+    *status = kError;
+    return false;
+  }
+
+  matcher_->reset();
+  *status = kNoError;
+  if (!Find(status) || *status != kNoError) {
+    return false;
+  }
+  const int found_start = Start(status);
+  if (*status != kNoError) {
+    return false;
+  }
+  const int found_end = End(status);
+  if (*status != kNoError) {
+    return false;
+  }
+  if (found_start != 0 || found_end != text_.countChar32()) {
+    return false;
+  }
+  return true;
 }
 
 bool UniLib::RegexMatcher::Find(int* status) {
@@ -117,18 +141,7 @@ bool UniLib::RegexMatcher::Find(int* status) {
 }
 
 int UniLib::RegexMatcher::Start(int* status) const {
-  if (!matcher_) {
-    *status = kError;
-    return kError;
-  }
-  UErrorCode icu_status = U_ZERO_ERROR;
-  const int result = matcher_->start(icu_status);
-  if (U_FAILURE(icu_status)) {
-    *status = kError;
-    return kError;
-  }
-  *status = kNoError;
-  return result;
+  return Start(/*group_idx=*/0, status);
 }
 
 int UniLib::RegexMatcher::Start(int group_idx, int* status) const {
@@ -143,22 +156,24 @@ int UniLib::RegexMatcher::Start(int group_idx, int* status) const {
     return kError;
   }
   *status = kNoError;
-  return result;
+  return text_.countChar32(/*start=*/0, /*length=*/result);
 }
 
-int UniLib::RegexMatcher::End(int* status) const {
-  if (!matcher_) {
-    *status = kError;
-    return kError;
-  }
+int UniLib::RegexMatcher::Start(StringPiece group_name, int* status) const {
   UErrorCode icu_status = U_ZERO_ERROR;
-  const int result = matcher_->end(icu_status);
+  const int group_idx = pattern_->groupNumberFromName(
+      icu::UnicodeString::fromUTF8(
+          icu::StringPiece(group_name.data(), group_name.size())),
+      icu_status);
   if (U_FAILURE(icu_status)) {
     *status = kError;
     return kError;
   }
-  *status = kNoError;
-  return result;
+  return Start(group_idx, status);
+}
+
+int UniLib::RegexMatcher::End(int* status) const {
+  return End(/*group_idx=*/0, status);
 }
 
 int UniLib::RegexMatcher::End(int group_idx, int* status) const {
@@ -173,23 +188,24 @@ int UniLib::RegexMatcher::End(int group_idx, int* status) const {
     return kError;
   }
   *status = kNoError;
-  return result;
+  return text_.countChar32(/*start=*/0, /*length=*/result);
+}
+
+int UniLib::RegexMatcher::End(StringPiece group_name, int* status) const {
+  UErrorCode icu_status = U_ZERO_ERROR;
+  const int group_idx = pattern_->groupNumberFromName(
+      icu::UnicodeString::fromUTF8(
+          icu::StringPiece(group_name.data(), group_name.size())),
+      icu_status);
+  if (U_FAILURE(icu_status)) {
+    *status = kError;
+    return kError;
+  }
+  return End(group_idx, status);
 }
 
 UnicodeText UniLib::RegexMatcher::Group(int* status) const {
-  if (!matcher_) {
-    *status = kError;
-    return UTF8ToUnicodeText("", /*do_copy=*/false);
-  }
-  std::string result = "";
-  UErrorCode icu_status = U_ZERO_ERROR;
-  matcher_->group(icu_status).toUTF8String(result);
-  if (U_FAILURE(icu_status)) {
-    *status = kError;
-    return UTF8ToUnicodeText("", /*do_copy=*/false);
-  }
-  *status = kNoError;
-  return UTF8ToUnicodeText(result, /*do_copy=*/true);
+  return Group(/*group_idx=*/0, status);
 }
 
 UnicodeText UniLib::RegexMatcher::Group(int group_idx, int* status) const {
@@ -199,21 +215,22 @@ UnicodeText UniLib::RegexMatcher::Group(int group_idx, int* status) const {
   }
   std::string result = "";
   UErrorCode icu_status = U_ZERO_ERROR;
-  matcher_->group(group_idx, icu_status).toUTF8String(result);
+  const icu::UnicodeString result_icu = matcher_->group(group_idx, icu_status);
   if (U_FAILURE(icu_status)) {
     *status = kError;
     return UTF8ToUnicodeText("", /*do_copy=*/false);
   }
+  result_icu.toUTF8String(result);
   *status = kNoError;
   return UTF8ToUnicodeText(result, /*do_copy=*/true);
 }
 
-UnicodeText UniLib::RegexMatcher::Group(const std::string& group_name,
+UnicodeText UniLib::RegexMatcher::Group(StringPiece group_name,
                                         int* status) const {
   UErrorCode icu_status = U_ZERO_ERROR;
   const int group_idx = pattern_->groupNumberFromName(
       icu::UnicodeString::fromUTF8(
-          icu::StringPiece(group_name.c_str(), group_name.size())),
+          icu::StringPiece(group_name.data(), group_name.size())),
       icu_status);
   if (U_FAILURE(icu_status)) {
     *status = kError;
@@ -226,7 +243,9 @@ constexpr int UniLib::BreakIterator::kDone;
 
 UniLib::BreakIterator::BreakIterator(const UnicodeText& text)
     : text_(icu::UnicodeString::fromUTF8(
-          icu::StringPiece(text.data(), text.size_bytes()))) {
+          icu::StringPiece(text.data(), text.size_bytes()))),
+      last_break_index_(0),
+      last_unicode_index_(0) {
   icu::ErrorCode status;
   break_iterator_.reset(
       icu::BreakIterator::createWordInstance(icu::Locale("en"), status));
@@ -238,12 +257,14 @@ UniLib::BreakIterator::BreakIterator(const UnicodeText& text)
 }
 
 int UniLib::BreakIterator::Next() {
-  const int result = break_iterator_->next();
-  if (result == icu::BreakIterator::DONE) {
+  const int break_index = break_iterator_->next();
+  if (break_index == icu::BreakIterator::DONE) {
     return BreakIterator::kDone;
-  } else {
-    return result;
   }
+  last_unicode_index_ +=
+      text_.countChar32(last_break_index_, break_index - last_break_index_);
+  last_break_index_ = break_index;
+  return last_unicode_index_;
 }
 
 std::unique_ptr<UniLib::RegexPattern> UniLib::CreateRegexPattern(

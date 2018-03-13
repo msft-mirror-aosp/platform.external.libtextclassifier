@@ -82,10 +82,12 @@ TokenFeatureExtractor::TokenFeatureExtractor(
 bool TokenFeatureExtractor::Extract(const Token& token, bool is_in_span,
                                     std::vector<int>* sparse_features,
                                     std::vector<float>* dense_features) const {
-  if (sparse_features == nullptr || dense_features == nullptr) {
+  if (!dense_features) {
     return false;
   }
-  *sparse_features = ExtractCharactergramFeatures(token);
+  if (sparse_features) {
+    *sparse_features = ExtractCharactergramFeatures(token);
+  }
   *dense_features = ExtractDenseFeatures(token, is_in_span);
   return true;
 }

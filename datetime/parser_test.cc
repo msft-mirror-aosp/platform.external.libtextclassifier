@@ -79,7 +79,8 @@ class ParserTest : public testing::Test {
 
     std::vector<DatetimeParseResultSpan> results;
 
-    if (!parser_->Parse(text, 0, timezone, /*locales=*/"", &results)) {
+    if (!parser_->Parse(text, 0, timezone, /*locales=*/"", ModeFlag_ANNOTATION,
+                        &results)) {
       TC_LOG(ERROR) << text;
       TC_CHECK(false);
     }
@@ -122,8 +123,7 @@ class ParserTest : public testing::Test {
 TEST_F(ParserTest, ParseShort) {
   EXPECT_TRUE(
       ParsesCorrectly("{January 1, 1988}", 567990000000, GRANULARITY_DAY));
-  EXPECT_TRUE(
-      ParsesCorrectly("{three days ago}", -262800000, GRANULARITY_YEAR));
+  EXPECT_TRUE(ParsesCorrectly("{three days ago}", -262800000, GRANULARITY_DAY));
 }
 
 TEST_F(ParserTest, Parse) {
@@ -148,37 +148,37 @@ TEST_F(ParserTest, Parse) {
       ParsesCorrectly("{Mar 16 08:12:04}", 6419524000, GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{2012-10-14T22:11:20}", 1350245480000,
                               GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{2014-07-01T14:59:55.711Z}", 1404219595000,
+  EXPECT_TRUE(ParsesCorrectly("{2014-07-01T14:59:55}.711Z", 1404219595000,
                               GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{2010-06-26 02:31:29,573}", 1277512289000,
+  EXPECT_TRUE(ParsesCorrectly("{2010-06-26 02:31:29},573", 1277512289000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{2006/01/22 04:11:05}", 1137899465000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(
       ParsesCorrectly("{150423 11:42:35}", 1429782155000, GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{11:42:35}", 38555000, GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{11:42:35.173}", 38555000, GRANULARITY_SECOND));
+  EXPECT_TRUE(ParsesCorrectly("{11:42:35}.173", 38555000, GRANULARITY_SECOND));
   EXPECT_TRUE(
-      ParsesCorrectly("{23/Apr 11:42:35,173}", 9715355000, GRANULARITY_SECOND));
+      ParsesCorrectly("{23/Apr 11:42:35},173", 9715355000, GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{23/Apr/2015:11:42:35}", 1429782155000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{23/Apr/2015 11:42:35}", 1429782155000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{23-Apr-2015 11:42:35}", 1429782155000,
                               GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{23-Apr-2015 11:42:35.883}", 1429782155000,
+  EXPECT_TRUE(ParsesCorrectly("{23-Apr-2015 11:42:35}.883", 1429782155000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{23 Apr 2015 11:42:35}", 1429782155000,
                               GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{23 Apr 2015 11:42:35.883}", 1429782155000,
+  EXPECT_TRUE(ParsesCorrectly("{23 Apr 2015 11:42:35}.883", 1429782155000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{04/23/15 11:42:35}", 1429782155000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{04/23/2015 11:42:35}", 1429782155000,
                               GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{04/23/2015 11:42:35.883}", 1429782155000,
+  EXPECT_TRUE(ParsesCorrectly("{04/23/2015 11:42:35}.883", 1429782155000,
                               GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{8/5/2011 3:31:18 AM:234}", 1312507878000,
+  EXPECT_TRUE(ParsesCorrectly("{8/5/2011 3:31:18 AM}:234}", 1312507878000,
                               GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectly("{9/28/2011 2:23:15 PM}", 1317212595000,
                               GRANULARITY_SECOND));
@@ -203,30 +203,25 @@ TEST_F(ParserTest, Parse) {
   EXPECT_TRUE(ParsesCorrectly("{january 1 2018 at 4pm}", 1514818800000,
                               GRANULARITY_HOUR));
 
-  // WARNING: The following cases have incorrect granularity.
-  // TODO(zilka): Fix this, when granularity is correctly implemented in
-  // InterpretParseData.
-  EXPECT_TRUE(ParsesCorrectly("{today}", -3600000, GRANULARITY_YEAR));
-  EXPECT_TRUE(ParsesCorrectly("{today}", -57600000, GRANULARITY_YEAR,
+  EXPECT_TRUE(ParsesCorrectly("{today}", -3600000, GRANULARITY_DAY));
+  EXPECT_TRUE(ParsesCorrectly("{today}", -57600000, GRANULARITY_DAY,
                               "America/Los_Angeles"));
-  EXPECT_TRUE(ParsesCorrectly("{next week}", 255600000, GRANULARITY_YEAR));
-  EXPECT_TRUE(ParsesCorrectly("{next day}", 82800000, GRANULARITY_YEAR));
-  EXPECT_TRUE(ParsesCorrectly("{in three days}", 255600000, GRANULARITY_YEAR));
+  EXPECT_TRUE(ParsesCorrectly("{next week}", 255600000, GRANULARITY_WEEK));
+  EXPECT_TRUE(ParsesCorrectly("{next day}", 82800000, GRANULARITY_DAY));
+  EXPECT_TRUE(ParsesCorrectly("{in three days}", 255600000, GRANULARITY_DAY));
   EXPECT_TRUE(
-      ParsesCorrectly("{in three weeks}", 1465200000, GRANULARITY_YEAR));
-  EXPECT_TRUE(ParsesCorrectly("{tomorrow}", 82800000, GRANULARITY_YEAR));
+      ParsesCorrectly("{in three weeks}", 1465200000, GRANULARITY_WEEK));
+  EXPECT_TRUE(ParsesCorrectly("{tomorrow}", 82800000, GRANULARITY_DAY));
   EXPECT_TRUE(
       ParsesCorrectly("{tomorrow at 4:00}", 97200000, GRANULARITY_MINUTE));
   EXPECT_TRUE(ParsesCorrectly("{tomorrow at 4}", 97200000, GRANULARITY_HOUR));
-  EXPECT_TRUE(ParsesCorrectly("{next wednesday}", 514800000, GRANULARITY_YEAR));
+  EXPECT_TRUE(ParsesCorrectly("{next wednesday}", 514800000, GRANULARITY_DAY));
   EXPECT_TRUE(
       ParsesCorrectly("{next wednesday at 4}", 529200000, GRANULARITY_HOUR));
   EXPECT_TRUE(ParsesCorrectly("last seen {today at 9:01 PM}", 72060000,
                               GRANULARITY_MINUTE));
-  EXPECT_TRUE(
-      ParsesCorrectly("{Three days ago}", -262800000, GRANULARITY_YEAR));
-  EXPECT_TRUE(
-      ParsesCorrectly("{three days ago}", -262800000, GRANULARITY_YEAR));
+  EXPECT_TRUE(ParsesCorrectly("{Three days ago}", -262800000, GRANULARITY_DAY));
+  EXPECT_TRUE(ParsesCorrectly("{three days ago}", -262800000, GRANULARITY_DAY));
 }
 
 // TODO(zilka): Add a test that tests multiple locales.
