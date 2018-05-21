@@ -98,6 +98,35 @@ TEST(TokenFeatureExtractorTest, ExtractAscii) {
   EXPECT_THAT(dense_features, testing::ElementsAreArray({-1.0, 0.0}));
 }
 
+TEST(TokenFeatureExtractorTest, ExtractAsciiNoChargrams) {
+  TokenFeatureExtractorOptions options;
+  options.num_buckets = 1000;
+  options.chargram_orders = std::vector<int>{};
+  options.extract_case_feature = true;
+  options.unicode_aware_features = false;
+  options.extract_selection_mask_feature = true;
+  TestingTokenFeatureExtractor extractor(options);
+
+  std::vector<int> sparse_features;
+  std::vector<float> dense_features;
+
+  extractor.Extract(Token{"Hello", 0, 5}, true, &sparse_features,
+                    &dense_features);
+
+  EXPECT_THAT(sparse_features,
+              testing::ElementsAreArray({extractor.HashToken("^Hello$")}));
+  EXPECT_THAT(dense_features, testing::ElementsAreArray({1.0, 1.0}));
+
+  sparse_features.clear();
+  dense_features.clear();
+  extractor.Extract(Token{"world!", 23, 29}, false, &sparse_features,
+                    &dense_features);
+
+  EXPECT_THAT(sparse_features,
+              testing::ElementsAreArray({extractor.HashToken("^world!$")}));
+  EXPECT_THAT(dense_features, testing::ElementsAreArray({-1.0, 0.0}));
+}
+
 TEST(TokenFeatureExtractorTest, ExtractUnicode) {
   TokenFeatureExtractorOptions options;
   options.num_buckets = 1000;
@@ -165,6 +194,36 @@ TEST(TokenFeatureExtractorTest, ExtractUnicode) {
                   extractor.HashToken("d!$"),
                   // clang-format on
               }));
+  EXPECT_THAT(dense_features, testing::ElementsAreArray({-1.0, -1.0}));
+}
+
+TEST(TokenFeatureExtractorTest, ExtractUnicodeNoChargrams) {
+  TokenFeatureExtractorOptions options;
+  options.num_buckets = 1000;
+  options.chargram_orders = std::vector<int>{};
+  options.extract_case_feature = true;
+  options.unicode_aware_features = true;
+  options.extract_selection_mask_feature = true;
+  TestingTokenFeatureExtractor extractor(options);
+
+  std::vector<int> sparse_features;
+  std::vector<float> dense_features;
+
+  extractor.Extract(Token{"Hělló", 0, 5}, true, &sparse_features,
+                    &dense_features);
+
+  EXPECT_THAT(sparse_features,
+              testing::ElementsAreArray({extractor.HashToken("^Hělló$")}));
+  EXPECT_THAT(dense_features, testing::ElementsAreArray({1.0, 1.0}));
+
+  sparse_features.clear();
+  dense_features.clear();
+  extractor.Extract(Token{"world!", 23, 29}, false, &sparse_features,
+                    &dense_features);
+
+  EXPECT_THAT(sparse_features, testing::ElementsAreArray({
+                                   extractor.HashToken("^world!$"),
+                               }));
   EXPECT_THAT(dense_features, testing::ElementsAreArray({-1.0, -1.0}));
 }
 
@@ -398,6 +457,86 @@ TEST(TokenFeatureExtractorTest, ExtractForPadToken) {
   EXPECT_THAT(sparse_features,
               testing::ElementsAreArray({extractor.HashToken("<PAD>")}));
   EXPECT_THAT(dense_features, testing::ElementsAreArray({-1.0, 0.0}));
+}
+
+TEST(TokenFeatureExtractorTest, ExtractFiltered) {
+  TokenFeatureExtractorOptions options;
+  options.num_buckets = 1000;
+  options.chargram_orders = std::vector<int>{1, 2, 3};
+  options.extract_case_feature = true;
+  options.unicode_aware_features = false;
+  options.extract_selection_mask_feature = true;
+  options.allowed_chargrams.insert("^H");
+  options.allowed_chargrams.insert("ll");
+  options.allowed_chargrams.insert("llo");
+  options.allowed_chargrams.insert("w");
+  options.allowed_chargrams.insert("!");
+  options.allowed_chargrams.insert("\xc4");  // UTF8 control character.
+
+  TestingTokenFeatureExtractor extractor(options);
+
+  std::vector<int> sparse_features;
+  std::vector<float> dense_features;
+
+  extractor.Extract(Token{"Hěllo", 0, 5}, true, &sparse_features,
+                    &dense_features);
+
+  EXPECT_THAT(sparse_features,
+              testing::ElementsAreArray({
+                  // clang-format off
+                  0,
+                  extractor.HashToken("\xc4"),
+                  0,
+                  0,
+                  0,
+                  0,
+                  extractor.HashToken("^H"),
+                  0,
+                  0,
+                  0,
+                  extractor.HashToken("ll"),
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  extractor.HashToken("llo"),
+                  0
+                  // clang-format on
+              }));
+  EXPECT_THAT(dense_features, testing::ElementsAreArray({1.0, 1.0}));
+
+  sparse_features.clear();
+  dense_features.clear();
+  extractor.Extract(Token{"world!", 23, 29}, false, &sparse_features,
+                    &dense_features);
+
+  EXPECT_THAT(sparse_features, testing::ElementsAreArray({
+                                   // clang-format off
+                  extractor.HashToken("w"),
+                  0,
+                  0,
+                  0,
+                  0,
+                  extractor.HashToken("!"),
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                                   // clang-format on
+                               }));
+  EXPECT_THAT(dense_features, testing::ElementsAreArray({-1.0, 0.0}));
+  EXPECT_EQ(extractor.HashToken("<PAD>"), 1);
 }
 
 }  // namespace

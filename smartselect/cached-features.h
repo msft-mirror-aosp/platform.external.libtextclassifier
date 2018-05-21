@@ -20,7 +20,6 @@
 #include <memory>
 #include <vector>
 
-#include "base.h"
 #include "common/vector-span.h"
 #include "smartselect/types.h"
 

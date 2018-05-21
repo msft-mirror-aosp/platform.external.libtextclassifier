@@ -16,49 +16,42 @@
 
 #include "smartselect/tokenizer.h"
 
+#include <algorithm>
+
 #include "util/strings/utf8.h"
 #include "util/utf8/unicodetext.h"
 
 namespace libtextclassifier {
 
-void Tokenizer::PrepareTokenizationCodepointRanges(
-    const std::vector<TokenizationCodepointRange>& codepoint_range_configs) {
-  codepoint_ranges_.clear();
-  codepoint_ranges_.reserve(codepoint_range_configs.size());
-  for (const TokenizationCodepointRange& range : codepoint_range_configs) {
-    codepoint_ranges_.push_back(
-        CodepointRange(range.start(), range.end(), range.role()));
-  }
-
+Tokenizer::Tokenizer(
+    const std::vector<TokenizationCodepointRange>& codepoint_ranges)
+    : codepoint_ranges_(codepoint_ranges) {
   std::sort(codepoint_ranges_.begin(), codepoint_ranges_.end(),
-            [](const CodepointRange& a, const CodepointRange& b) {
-              return a.start < b.start;
+            [](const TokenizationCodepointRange& a,
+               const TokenizationCodepointRange& b) {
+              return a.start() < b.start();
             });
 }
 
 TokenizationCodepointRange::Role Tokenizer::FindTokenizationRole(
     int codepoint) const {
-  auto it = std::lower_bound(codepoint_ranges_.begin(), codepoint_ranges_.end(),
-                             codepoint,
-                             [](const CodepointRange& range, int codepoint) {
-                               // This function compares range with the
-                               // codepoint for the purpose of finding the first
-                               // greater or equal range. Because of the use of
-                               // std::lower_bound it needs to return true when
-                               // range < codepoint; the first time it will
-                               // return false the lower bound is found and
-                               // returned.
-                               //
-                               // It might seem weird that the condition is
-                               // range.end <= codepoint here but when codepoint
-                               // == range.end it means it's actually just
-                               // outside of the range, thus the range is less
-                               // than the codepoint.
-                               return range.end <= codepoint;
-                             });
-  if (it != codepoint_ranges_.end() && it->start <= codepoint &&
-      it->end > codepoint) {
-    return it->role;
+  auto it = std::lower_bound(
+      codepoint_ranges_.begin(), codepoint_ranges_.end(), codepoint,
+      [](const TokenizationCodepointRange& range, int codepoint) {
+        // This function compares range with the codepoint for the purpose of
+        // finding the first greater or equal range. Because of the use of
+        // std::lower_bound it needs to return true when range < codepoint;
+        // the first time it will return false the lower bound is found and
+        // returned.
+        //
+        // It might seem weird that the condition is range.end <= codepoint
+        // here but when codepoint == range.end it means it's actually just
+        // outside of the range, thus the range is less than the codepoint.
+        return range.end() <= codepoint;
+      });
+  if (it != codepoint_ranges_.end() && it->start() <= codepoint &&
+      it->end() > codepoint) {
+    return it->role();
   } else {
     return TokenizationCodepointRange::DEFAULT_ROLE;
   }

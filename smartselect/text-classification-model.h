@@ -23,7 +23,6 @@
 #include <set>
 #include <string>
 
-#include "base.h"
 #include "common/embedding-network.h"
 #include "common/feature-extractor.h"
 #include "common/memory_image/embedding-network-params-from-image.h"
@@ -38,9 +37,32 @@ namespace libtextclassifier {
 // SmartSelection/Sharing feed-forward model.
 class TextClassificationModel {
  public:
+  // Represents a result of Annotate call.
+  struct AnnotatedSpan {
+    // Unicode codepoint indices in the input string.
+    CodepointSpan span = {kInvalidIndex, kInvalidIndex};
+
+    // Classification result for the span.
+    std::vector<std::pair<std::string, float>> classification;
+  };
+
   // Loads TextClassificationModel from given file given by an int
   // file descriptor.
+  // Offset is byte a position in the file to the beginning of the model data.
+  TextClassificationModel(int fd, int offset, int size);
+
+  // Same as above but the whole file is mapped and it is assumed the model
+  // starts at offset 0.
   explicit TextClassificationModel(int fd);
+
+  // Loads TextClassificationModel from given file.
+  explicit TextClassificationModel(const std::string& path);
+
+  // Loads TextClassificationModel from given location in memory.
+  TextClassificationModel(const void* addr, int size);
+
+  // Returns true if the model is ready for use.
+  bool IsInitialized() { return initialized_; }
 
   // Bit flags for the input selection.
   enum SelectionInputFlags { SELECTION_IS_URL = 0x1, SELECTION_IS_EMAIL = 0x2 };
@@ -63,16 +85,32 @@ class TextClassificationModel {
       const std::string& context, CodepointSpan click_indices,
       int input_flags = 0) const;
 
+  // Annotates given input text. The annotations should cover the whole input
+  // context except for whitespaces, and are sorted by their position in the
+  // context string.
+  std::vector<AnnotatedSpan> Annotate(const std::string& context) const;
+
  protected:
-  // Removes punctuation from the beginning and end of the selection and returns
-  // the new selection span.
-  CodepointSpan StripPunctuation(CodepointSpan selection,
-                                 const std::string& context) const;
+  // Initializes the model from mmap_ file.
+  void InitFromMmap();
+
+  // Extracts chunks from the context. The extraction proceeds from the center
+  // token determined by click_span and looks at relative_click_span tokens
+  // left and right around the click position.
+  // If relative_click_span == {kInvalidIndex, kInvalidIndex} then the whole
+  // context is considered, regardless of the click_span.
+  // Returns the chunks sorted by their position in the context string.
+  std::vector<CodepointSpan> Chunk(const std::string& context,
+                                   CodepointSpan click_span,
+                                   TokenSpan relative_click_span) const;
 
   // During evaluation we need access to the feature processor.
   FeatureProcessor* SelectionFeatureProcessor() const {
     return selection_feature_processor_.get();
   }
+
+  void InitializeSharingRegexPatterns(
+      const std::vector<SharingModelOptions::RegexPattern>& patterns);
 
   // Collection name when url hint is accepted.
   const std::string kUrlHintCollection = "url";
@@ -90,7 +128,14 @@ class TextClassificationModel {
   SharingModelOptions sharing_options_;
 
  private:
-  bool LoadModels(const nlp_core::MmapHandle& mmap_handle);
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
+  struct CompiledRegexPattern {
+    std::string collection_name;
+    std::unique_ptr<icu::RegexPattern> pattern;
+  };
+#endif
+
+  bool LoadModels(const void* addr, int size);
 
   nlp_core::EmbeddingNetwork::Vector InferInternal(
       const std::string& context, CodepointSpan span,
@@ -108,8 +153,8 @@ class TextClassificationModel {
   CodepointSpan SuggestSelectionSymmetrical(const std::string& context,
                                             CodepointSpan click_indices) const;
 
-  bool initialized_;
-  nlp_core::ScopedMmap mmap_;
+  bool initialized_ = false;
+  std::unique_ptr<nlp_core::ScopedMmap> mmap_;
   std::unique_ptr<ModelParams> selection_params_;
   std::unique_ptr<FeatureProcessor> selection_feature_processor_;
   std::unique_ptr<nlp_core::EmbeddingNetwork> selection_network_;
@@ -118,13 +163,33 @@ class TextClassificationModel {
   std::unique_ptr<ModelParams> sharing_params_;
   std::unique_ptr<nlp_core::EmbeddingNetwork> sharing_network_;
   FeatureVectorFn sharing_feature_fn_;
-
-  std::set<int> punctuation_to_strip_;
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
+  std::vector<CompiledRegexPattern> regex_patterns_;
+#endif
 };
+
+// If the first or the last codepoint of the given span is a bracket, the
+// bracket is stripped if the span does not contain its corresponding paired
+// version.
+CodepointSpan StripUnpairedBrackets(const std::string& context,
+                                    CodepointSpan span);
 
 // Parses the merged image given as a file descriptor, and reads
 // the ModelOptions proto from the selection model.
 bool ReadSelectionModelOptions(int fd, ModelOptions* model_options);
+
+// Pretty-printing function for TextClassificationModel::AnnotatedSpan.
+inline std::ostream& operator<<(
+    std::ostream& os, const TextClassificationModel::AnnotatedSpan& span) {
+  std::string best_class;
+  float best_score = -1;
+  if (!span.classification.empty()) {
+    best_class = span.classification[0].first;
+    best_score = span.classification[0].second;
+  }
+  return os << "Span(" << span.span.first << ", " << span.span.second << ", "
+            << best_class << ", " << best_score << ")";
+}
 
 }  // namespace libtextclassifier
 

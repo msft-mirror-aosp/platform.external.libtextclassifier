@@ -29,12 +29,12 @@ DataStore::DataStore(StringPiece bytes)
   }
 }
 
-DataBlobView DataStore::GetData(const std::string &name) const {
+StringPiece DataStore::GetData(const std::string &name) const {
   if (!reader_.success_status()) {
     TC_LOG(ERROR) << "DataStore::GetData(" << name << ") "
                   << "called on invalid DataStore; will return empty data "
                   << "chunk";
-    return DataBlobView();
+    return StringPiece();
   }
 
   const auto &entries = reader_.trimmed_proto().entries();
@@ -42,14 +42,14 @@ DataBlobView DataStore::GetData(const std::string &name) const {
   if (it == entries.end()) {
     TC_LOG(ERROR) << "Unknown key: " << name
                   << "; will return empty data chunk";
-    return DataBlobView();
+    return StringPiece();
   }
 
   const DataStoreEntryBytes &entry_bytes = it->second;
   if (!entry_bytes.has_blob_index()) {
     TC_LOG(ERROR) << "DataStoreEntryBytes with no blob_index; "
                   << "will return empty data chunk.";
-    return DataBlobView();
+    return StringPiece();
   }
 
   int blob_index = entry_bytes.blob_index();

@@ -17,7 +17,6 @@
 #include "common/memory_image/in-memory-model-data.h"
 
 #include "common/file-utils.h"
-#include "common/memory_image/memory-image-common.h"
 #include "util/base/logging.h"
 #include "util/strings/stringpiece.h"
 
@@ -28,27 +27,18 @@ const char InMemoryModelData::kTaskSpecDataStoreEntryName[] = "TASK-SPEC-#@";
 const char InMemoryModelData::kFilePatternPrefix[] = "in-mem-model::";
 
 bool InMemoryModelData::GetTaskSpec(TaskSpec *task_spec) const {
-  DataBlobView blob = data_store_.GetData(kTaskSpecDataStoreEntryName);
+  StringPiece blob = data_store_.GetData(kTaskSpecDataStoreEntryName);
   if (blob.data() == nullptr) {
     TC_LOG(ERROR) << "Can't find data blob for TaskSpec, i.e., entry "
                   << kTaskSpecDataStoreEntryName;
     return false;
   }
-  bool parse_status = file_utils::ParseProtoFromMemory(
-      blob.to_stringpiece(), task_spec);
+  bool parse_status = file_utils::ParseProtoFromMemory(blob, task_spec);
   if (!parse_status) {
     TC_LOG(ERROR) << "Error parsing TaskSpec";
     return false;
   }
   return true;
-}
-
-StringPiece InMemoryModelData::GetBytesForInputFile(
-    const std::string &file_name) const {
-  // TODO(salcianu): replace our DataBlobView with StringPiece everywhere.
-  DataBlobView blob = data_store_.GetData(file_name);
-  return StringPiece(reinterpret_cast<const char *>(blob.data()),
-                     blob.size());
 }
 
 }  // namespace nlp_core

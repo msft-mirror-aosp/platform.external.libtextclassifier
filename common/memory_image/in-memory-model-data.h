@@ -62,7 +62,9 @@ class InMemoryModelData {
   // file_pattern for a TaskInput from the TaskSpec (see GetTaskSpec()).
   // Returns a StringPiece indicating a memory area with the content bytes.  On
   // error, returns StringPiece(nullptr, 0).
-  StringPiece GetBytesForInputFile(const std::string &file_name) const;
+  StringPiece GetBytesForInputFile(const std::string &file_name) const {
+    return data_store_.GetData(file_name);
+  }
 
  private:
   const memory_image::DataStore data_store_;

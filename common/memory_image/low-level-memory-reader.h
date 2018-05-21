@@ -21,10 +21,10 @@
 
 #include <string>
 
-#include "base.h"
-#include "common/memory_image/memory-image-common.h"
+#include "util/base/endian.h"
 #include "util/base/integral_types.h"
 #include "util/base/logging.h"
+#include "util/strings/stringpiece.h"
 
 namespace libtextclassifier {
 namespace nlp_core {
@@ -61,7 +61,7 @@ class LowLevelMemReader {
   // On success, sets *view to be a view of the relevant bytes: view.data()
   // points to the beginning of the string bytes, and view.size() is the number
   // of such bytes.
-  bool ReadString(DataBlobView *view) {
+  bool ReadString(StringPiece *view) {
     uint32 size;
     if (!Read(&size, sizeof(size))) {
       TC_LOG(ERROR) << "Unable to read std::string size";
@@ -73,15 +73,15 @@ class LowLevelMemReader {
                       << " available < " << size << " required ";
       return false;
     }
-    *view = DataBlobView(current_, size);
+    *view = StringPiece(current_, size);
     Advance(size);
     return true;
   }
 
-  // Like ReadString(DataBlobView *) but reads directly into a C++ string,
-  // instead of a DataBlobView (StringPiece-like object).
+  // Like ReadString(StringPiece *) but reads directly into a C++ string,
+  // instead of a StringPiece (StringPiece-like object).
   bool ReadString(std::string *target) {
-    DataBlobView view;
+    StringPiece view;
     if (!ReadString(&view)) {
       return false;
     }

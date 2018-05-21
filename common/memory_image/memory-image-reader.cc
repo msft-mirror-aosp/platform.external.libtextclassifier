@@ -18,10 +18,10 @@
 
 #include <string>
 
-#include "base.h"
 #include "common/memory_image/low-level-memory-reader.h"
 #include "common/memory_image/memory-image-common.h"
 #include "common/memory_image/memory-image.pb.h"
+#include "util/base/endian.h"
 #include "util/base/logging.h"
 
 namespace libtextclassifier {

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "tests/functions.h"
-
-#include "common/registry.h"
+#ifndef LIBTEXTCLASSIFIER_SMARTSELECT_MODEL_PARSER_H_
+#define LIBTEXTCLASSIFIER_SMARTSELECT_MODEL_PARSER_H_
 
 namespace libtextclassifier {
-namespace nlp_core {
 
-TC_DEFINE_CLASS_REGISTRY_NAME("function", functions::Function);
+// Parse a merged model image.
+bool ParseMergedModel(const void* addr, const int size,
+                      const char** selection_model, int* selection_model_length,
+                      const char** sharing_model, int* sharing_model_length);
 
-TC_DEFINE_CLASS_REGISTRY_NAME("int-function", functions::IntFunction);
-
-}  // namespace nlp_core
 }  // namespace libtextclassifier
+
+#endif  // LIBTEXTCLASSIFIER_SMARTSELECT_MODEL_PARSER_H_

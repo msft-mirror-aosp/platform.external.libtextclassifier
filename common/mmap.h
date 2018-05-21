@@ -21,6 +21,7 @@
 
 #include <string>
 
+#include "util/base/integral_types.h"
 #include "util/strings/stringpiece.h"
 
 namespace libtextclassifier {
@@ -39,11 +40,21 @@ namespace nlp_core {
 // are ok keeping that file in memory the whole time).
 class MmapHandle {
  public:
-  MmapHandle(void *start, size_t num_bytes)
-      : start_(start), num_bytes_(num_bytes) {}
+  MmapHandle(void *start, size_t num_bytes, void *unmap_addr = nullptr)
+      : start_(start), num_bytes_(num_bytes), unmap_addr_(unmap_addr) {}
 
   // Returns start address for the memory area where a file has been mmapped.
   void *start() const { return start_; }
+
+  // Returns address to use for munmap call. If unmap_addr was not specified
+  // the start address is used.
+  void *unmap_addr() const {
+    if (unmap_addr_ != nullptr) {
+      return unmap_addr_;
+    } else {
+      return start_;
+    }
+  }
 
   // Returns number of bytes of the memory area from start().
   size_t num_bytes() const { return num_bytes_; }
@@ -63,6 +74,9 @@ class MmapHandle {
 
   // See doc for num_bytes().
   const size_t num_bytes_;
+
+  // Address to use for unmapping.
+  void *const unmap_addr_;
 };
 
 // Maps the full content of a file in memory (using mmap).
@@ -88,6 +102,13 @@ MmapHandle MmapFile(const std::string &filename);
 // Like MmapFile(const std::string &filename), but uses a file descriptor.
 MmapHandle MmapFile(int fd);
 
+// Maps a segment of a file to memory. File is given by a file descriptor, and
+// offset (relative to the beginning of the file) and size specify the segment
+// to be mapped. NOTE: Internally, we align the offset for the call to mmap
+// system call to be a multiple of page size, so offset does NOT have to be a
+// multiply of the page size.
+MmapHandle MmapFile(int fd, int64 segment_offset, int64 segment_size);
+
 // Unmaps a file mapped using MmapFile.  Returns true on success, false
 // otherwise.
 bool Unmap(MmapHandle mmap_handle);
@@ -99,8 +120,10 @@ class ScopedMmap {
   explicit ScopedMmap(const std::string &filename)
       : handle_(MmapFile(filename)) {}
 
-  explicit ScopedMmap(int fd)
-      : handle_(MmapFile(fd)) {}
+  explicit ScopedMmap(int fd) : handle_(MmapFile(fd)) {}
+
+  ScopedMmap(int fd, int segment_offset, int segment_size)
+      : handle_(MmapFile(fd, segment_offset, segment_size)) {}
 
   ~ScopedMmap() {
     if (handle_.ok()) {

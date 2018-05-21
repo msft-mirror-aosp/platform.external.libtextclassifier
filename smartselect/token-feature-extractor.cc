@@ -16,14 +16,17 @@
 
 #include "smartselect/token-feature-extractor.h"
 
+#include <cctype>
 #include <string>
 
 #include "util/base/logging.h"
 #include "util/hash/farmhash.h"
 #include "util/strings/stringpiece.h"
 #include "util/utf8/unicodetext.h"
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
 #include "unicode/regex.h"
 #include "unicode/uchar.h"
+#endif
 
 namespace libtextclassifier {
 
@@ -47,6 +50,7 @@ std::string RemapTokenAscii(const std::string& token,
   return copy;
 }
 
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
 void RemapTokenUnicode(const std::string& token,
                        const TokenFeatureExtractorOptions& options,
                        UnicodeText* remapped) {
@@ -70,12 +74,14 @@ void RemapTokenUnicode(const std::string& token,
   icu_string.toUTF8String(utf8_str);
   remapped->CopyUTF8(utf8_str.data(), utf8_str.length());
 }
+#endif
 
 }  // namespace
 
 TokenFeatureExtractor::TokenFeatureExtractor(
     const TokenFeatureExtractorOptions& options)
     : options_(options) {
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
   UErrorCode status;
   for (const std::string& pattern : options.regexp_features) {
     status = U_ZERO_ERROR;
@@ -87,10 +93,44 @@ TokenFeatureExtractor::TokenFeatureExtractor(
       TC_LOG(WARNING) << "Failed to load pattern" << pattern;
     }
   }
+#else
+  bool found_unsupported_regexp_features = false;
+  for (const std::string& pattern : options.regexp_features) {
+    // A temporary solution to support this specific regexp pattern without
+    // adding too much binary size.
+    if (pattern == "^[^a-z]*$") {
+      enable_all_caps_feature_ = true;
+    } else {
+      found_unsupported_regexp_features = true;
+    }
+  }
+  if (found_unsupported_regexp_features) {
+    TC_LOG(WARNING) << "ICU not supported regexp features ignored.";
+  }
+#endif
 }
 
 int TokenFeatureExtractor::HashToken(StringPiece token) const {
-  return tcfarmhash::Fingerprint64(token) % options_.num_buckets;
+  if (options_.allowed_chargrams.empty()) {
+    return tcfarmhash::Fingerprint64(token) % options_.num_buckets;
+  } else {
+    // Padding and out-of-vocabulary tokens have extra buckets reserved because
+    // they are special and important tokens, and we don't want them to share
+    // embedding with other charactergrams.
+    // TODO(zilka): Experimentally verify.
+    const int kNumExtraBuckets = 2;
+    const std::string token_string = token.ToString();
+    if (token_string == "<PAD>") {
+      return 1;
+    } else if (options_.allowed_chargrams.find(token_string) ==
+               options_.allowed_chargrams.end()) {
+      return 0;  // Out-of-vocabulary.
+    } else {
+      return (tcfarmhash::Fingerprint64(token) %
+              (options_.num_buckets - kNumExtraBuckets)) +
+             kNumExtraBuckets;
+    }
+  }
 }
 
 std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeatures(
@@ -126,19 +166,23 @@ std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeaturesAscii(
     // Upper-bound the number of charactergram extracted to avoid resizing.
     result.reserve(options_.chargram_orders.size() * feature_word.size());
 
-    // Generate the character-grams.
-    for (int chargram_order : options_.chargram_orders) {
-      if (chargram_order == 1) {
-        for (int i = 1; i < feature_word.size() - 1; ++i) {
-          result.push_back(
-              HashToken(StringPiece(feature_word, /*offset=*/i, /*len=*/1)));
-        }
-      } else {
-        for (int i = 0;
-             i < static_cast<int>(feature_word.size()) - chargram_order + 1;
-             ++i) {
-          result.push_back(HashToken(
-              StringPiece(feature_word, /*offset=*/i, /*len=*/chargram_order)));
+    if (options_.chargram_orders.empty()) {
+      result.push_back(HashToken(feature_word));
+    } else {
+      // Generate the character-grams.
+      for (int chargram_order : options_.chargram_orders) {
+        if (chargram_order == 1) {
+          for (int i = 1; i < feature_word.size() - 1; ++i) {
+            result.push_back(
+                HashToken(StringPiece(feature_word, /*offset=*/i, /*len=*/1)));
+          }
+        } else {
+          for (int i = 0;
+               i < static_cast<int>(feature_word.size()) - chargram_order + 1;
+               ++i) {
+            result.push_back(HashToken(StringPiece(feature_word, /*offset=*/i,
+                                                   /*len=*/chargram_order)));
+          }
         }
       }
     }
@@ -148,6 +192,7 @@ std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeaturesAscii(
 
 std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeaturesUnicode(
     const Token& token) const {
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
   std::vector<int> result;
   if (token.is_padding || token.value.empty()) {
     result.push_back(HashToken("<PAD>"));
@@ -186,39 +231,47 @@ std::vector<int> TokenFeatureExtractor::ExtractCharactergramFeaturesUnicode(
     // Upper-bound the number of charactergram extracted to avoid resizing.
     result.reserve(options_.chargram_orders.size() * feature_word.size());
 
-    // Generate the character-grams.
-    for (int chargram_order : options_.chargram_orders) {
-      UnicodeText::const_iterator it_start = feature_word_unicode.begin();
-      UnicodeText::const_iterator it_end = feature_word_unicode.end();
-      if (chargram_order == 1) {
-        ++it_start;
-        --it_end;
-      }
-
-      UnicodeText::const_iterator it_chargram_start = it_start;
-      UnicodeText::const_iterator it_chargram_end = it_start;
-      bool chargram_is_complete = true;
-      for (int i = 0; i < chargram_order; ++i) {
-        if (it_chargram_end == it_end) {
-          chargram_is_complete = false;
-          break;
+    if (options_.chargram_orders.empty()) {
+      result.push_back(HashToken(feature_word));
+    } else {
+      // Generate the character-grams.
+      for (int chargram_order : options_.chargram_orders) {
+        UnicodeText::const_iterator it_start = feature_word_unicode.begin();
+        UnicodeText::const_iterator it_end = feature_word_unicode.end();
+        if (chargram_order == 1) {
+          ++it_start;
+          --it_end;
         }
-        ++it_chargram_end;
-      }
-      if (!chargram_is_complete) {
-        continue;
-      }
 
-      for (; it_chargram_end <= it_end;
-           ++it_chargram_start, ++it_chargram_end) {
-        const int length_bytes =
-            it_chargram_end.utf8_data() - it_chargram_start.utf8_data();
-        result.push_back(HashToken(
-            StringPiece(it_chargram_start.utf8_data(), length_bytes)));
+        UnicodeText::const_iterator it_chargram_start = it_start;
+        UnicodeText::const_iterator it_chargram_end = it_start;
+        bool chargram_is_complete = true;
+        for (int i = 0; i < chargram_order; ++i) {
+          if (it_chargram_end == it_end) {
+            chargram_is_complete = false;
+            break;
+          }
+          ++it_chargram_end;
+        }
+        if (!chargram_is_complete) {
+          continue;
+        }
+
+        for (; it_chargram_end <= it_end;
+             ++it_chargram_start, ++it_chargram_end) {
+          const int length_bytes =
+              it_chargram_end.utf8_data() - it_chargram_start.utf8_data();
+          result.push_back(HashToken(
+              StringPiece(it_chargram_start.utf8_data(), length_bytes)));
+        }
       }
     }
   }
   return result;
+#else
+  TC_LOG(WARNING) << "ICU not supported. No feature extracted.";
+  return {};
+#endif
 }
 
 bool TokenFeatureExtractor::Extract(const Token& token, bool is_in_span,
@@ -234,7 +287,14 @@ bool TokenFeatureExtractor::Extract(const Token& token, bool is_in_span,
     if (options_.unicode_aware_features) {
       UnicodeText token_unicode =
           UTF8ToUnicodeText(token.value, /*do_copy=*/false);
-      if (!token.value.empty() && u_isupper(*token_unicode.begin())) {
+      bool is_upper;
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
+      is_upper = u_isupper(*token_unicode.begin());
+#else
+      TC_LOG(WARNING) << "Using non-unicode isupper because ICU is disabled.";
+      is_upper = isupper(*token_unicode.begin());
+#endif
+      if (!token.value.empty() && is_upper) {
         dense_features->push_back(1.0);
       } else {
         dense_features->push_back(-1.0);
@@ -260,6 +320,7 @@ bool TokenFeatureExtractor::Extract(const Token& token, bool is_in_span,
     }
   }
 
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
   // Add regexp features.
   if (!regex_patterns_.empty()) {
     icu::UnicodeString unicode_str(token.value.c_str(), token.value.size(),
@@ -281,6 +342,23 @@ bool TokenFeatureExtractor::Extract(const Token& token, bool is_in_span,
       }
     }
   }
+#else
+  if (enable_all_caps_feature_) {
+    bool is_all_caps = true;
+    for (const char character_byte : token.value) {
+      if (islower(character_byte)) {
+        is_all_caps = false;
+        break;
+      }
+    }
+    if (is_all_caps) {
+      dense_features->push_back(1.0);
+    } else {
+      dense_features->push_back(-1.0);
+    }
+  }
+#endif
+
   return true;
 }
 

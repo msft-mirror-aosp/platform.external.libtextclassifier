@@ -23,9 +23,10 @@
 
 #include "lang_id/lang-id.h"
 #include "smartselect/text-classification-model.h"
+#include "util/java/scoped_local_ref.h"
 
-using libtextclassifier::TextClassificationModel;
 using libtextclassifier::ModelOptions;
+using libtextclassifier::TextClassificationModel;
 using libtextclassifier::nlp_core::lang_id::LangId;
 
 namespace {
@@ -38,6 +39,11 @@ bool JStringToUtf8String(JNIEnv* env, const jstring& jstr,
   }
 
   jclass string_class = env->FindClass("java/lang/String");
+  if (!string_class) {
+    TC_LOG(ERROR) << "Can't find String class";
+    return false;
+  }
+
   jmethodID get_bytes_id =
       env->GetMethodID(string_class, "getBytes", "(Ljava/lang/String;)[B");
 
@@ -69,6 +75,11 @@ jobjectArray ScoredStringsToJObjectArray(
     JNIEnv* env, const std::string& result_class_name,
     const std::vector<std::pair<std::string, float>>& classification_result) {
   jclass result_class = env->FindClass(result_class_name.c_str());
+  if (!result_class) {
+    TC_LOG(ERROR) << "Couldn't find result class: " << result_class_name;
+    return nullptr;
+  }
+
   jmethodID result_class_constructor =
       env->GetMethodID(result_class, "<init>", "(Ljava/lang/String;F)V");
 
@@ -155,22 +166,64 @@ CodepointSpan ConvertIndicesUTF8ToBMP(const std::string& utf8_str,
 
 }  // namespace libtextclassifier
 
-using libtextclassifier::ConvertIndicesUTF8ToBMP;
-using libtextclassifier::ConvertIndicesBMPToUTF8;
 using libtextclassifier::CodepointSpan;
+using libtextclassifier::ConvertIndicesBMPToUTF8;
+using libtextclassifier::ConvertIndicesUTF8ToBMP;
+using libtextclassifier::ScopedLocalRef;
 
-JNIEXPORT jlong JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeNew(JNIEnv* env,
-                                                          jobject thiz,
-                                                          jint fd) {
+JNI_METHOD(jlong, SmartSelection, nativeNew)
+(JNIEnv* env, jobject thiz, jint fd) {
   TextClassificationModel* model = new TextClassificationModel(fd);
   return reinterpret_cast<jlong>(model);
 }
 
-JNIEXPORT jintArray JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeSuggest(
-    JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
-    jint selection_end) {
+JNI_METHOD(jlong, SmartSelection, nativeNewFromPath)
+(JNIEnv* env, jobject thiz, jstring path) {
+  const std::string path_str = ToStlString(env, path);
+  TextClassificationModel* model = new TextClassificationModel(path_str);
+  return reinterpret_cast<jlong>(model);
+}
+
+JNI_METHOD(jlong, SmartSelection, nativeNewFromAssetFileDescriptor)
+(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
+  // Get system-level file descriptor from AssetFileDescriptor.
+  ScopedLocalRef<jclass> afd_class(
+      env->FindClass("android/content/res/AssetFileDescriptor"), env);
+  if (afd_class == nullptr) {
+    TC_LOG(ERROR) << "Couln't find AssetFileDescriptor.";
+    return reinterpret_cast<jlong>(nullptr);
+  }
+  jmethodID afd_class_getFileDescriptor = env->GetMethodID(
+      afd_class.get(), "getFileDescriptor", "()Ljava/io/FileDescriptor;");
+  if (afd_class_getFileDescriptor == nullptr) {
+    TC_LOG(ERROR) << "Couln't find getFileDescriptor.";
+    return reinterpret_cast<jlong>(nullptr);
+  }
+
+  ScopedLocalRef<jclass> fd_class(env->FindClass("java/io/FileDescriptor"),
+                                  env);
+  if (fd_class == nullptr) {
+    TC_LOG(ERROR) << "Couln't find FileDescriptor.";
+    return reinterpret_cast<jlong>(nullptr);
+  }
+  jfieldID fd_class_descriptor =
+      env->GetFieldID(fd_class.get(), "descriptor", "I");
+  if (fd_class_descriptor == nullptr) {
+    TC_LOG(ERROR) << "Couln't find descriptor.";
+    return reinterpret_cast<jlong>(nullptr);
+  }
+
+  jobject bundle_jfd = env->CallObjectMethod(afd, afd_class_getFileDescriptor);
+  jint bundle_cfd = env->GetIntField(bundle_jfd, fd_class_descriptor);
+
+  TextClassificationModel* model =
+      new TextClassificationModel(bundle_cfd, offset, size);
+  return reinterpret_cast<jlong>(model);
+}
+
+JNI_METHOD(jintArray, SmartSelection, nativeSuggest)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
+ jint selection_end) {
   TextClassificationModel* model =
       reinterpret_cast<TextClassificationModel*>(ptr);
 
@@ -187,10 +240,9 @@ Java_android_view_textclassifier_SmartSelection_nativeSuggest(
   return result;
 }
 
-JNIEXPORT jobjectArray JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeClassifyText(
-    JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
-    jint selection_end, jint input_flags) {
+JNI_METHOD(jobjectArray, SmartSelection, nativeClassifyText)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
+ jint selection_end, jint input_flags) {
   TextClassificationModel* ff_model =
       reinterpret_cast<TextClassificationModel*>(ptr);
   const std::vector<std::pair<std::string, float>> classification_result =
@@ -198,28 +250,58 @@ Java_android_view_textclassifier_SmartSelection_nativeClassifyText(
                              {selection_begin, selection_end}, input_flags);
 
   return ScoredStringsToJObjectArray(
-      env, "android/view/textclassifier/SmartSelection$ClassificationResult",
+      env, TC_PACKAGE_PATH "SmartSelection$ClassificationResult",
       classification_result);
 }
 
-JNIEXPORT void JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeClose(JNIEnv* env,
-                                                            jobject thiz,
-                                                            jlong ptr) {
+JNI_METHOD(jobjectArray, SmartSelection, nativeAnnotate)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring context) {
+  TextClassificationModel* model =
+      reinterpret_cast<TextClassificationModel*>(ptr);
+  std::string context_utf8 = ToStlString(env, context);
+  std::vector<TextClassificationModel::AnnotatedSpan> annotations =
+      model->Annotate(context_utf8);
+
+  jclass result_class =
+      env->FindClass(TC_PACKAGE_PATH "SmartSelection$AnnotatedSpan");
+  if (!result_class) {
+    TC_LOG(ERROR) << "Couldn't find result class: "
+                  << TC_PACKAGE_PATH "SmartSelection$AnnotatedSpan";
+    return nullptr;
+  }
+
+  jmethodID result_class_constructor = env->GetMethodID(
+      result_class, "<init>",
+      "(II[L" TC_PACKAGE_PATH "SmartSelection$ClassificationResult;)V");
+
+  jobjectArray results =
+      env->NewObjectArray(annotations.size(), result_class, nullptr);
+
+  for (int i = 0; i < annotations.size(); ++i) {
+    CodepointSpan span_bmp =
+        ConvertIndicesUTF8ToBMP(context_utf8, annotations[i].span);
+    jobject result = env->NewObject(
+        result_class, result_class_constructor,
+        static_cast<jint>(span_bmp.first), static_cast<jint>(span_bmp.second),
+        ScoredStringsToJObjectArray(
+            env, TC_PACKAGE_PATH "SmartSelection$ClassificationResult",
+            annotations[i].classification));
+    env->SetObjectArrayElement(results, i, result);
+    env->DeleteLocalRef(result);
+  }
+  env->DeleteLocalRef(result_class);
+  return results;
+}
+
+JNI_METHOD(void, SmartSelection, nativeClose)
+(JNIEnv* env, jobject thiz, jlong ptr) {
   TextClassificationModel* model =
       reinterpret_cast<TextClassificationModel*>(ptr);
   delete model;
 }
 
-JNIEXPORT jlong JNICALL Java_android_view_textclassifier_LangId_nativeNew(
-    JNIEnv* env, jobject thiz, jint fd) {
-  return reinterpret_cast<jlong>(new LangId(fd));
-}
-
-JNIEXPORT jstring JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeGetLanguage(JNIEnv* env,
-                                                                  jobject clazz,
-                                                                  jint fd) {
+JNI_METHOD(jstring, SmartSelection, nativeGetLanguage)
+(JNIEnv* env, jobject clazz, jint fd) {
   ModelOptions model_options;
   if (ReadSelectionModelOptions(fd, &model_options)) {
     return env->NewStringUTF(model_options.language().c_str());
@@ -228,10 +310,8 @@ Java_android_view_textclassifier_SmartSelection_nativeGetLanguage(JNIEnv* env,
   }
 }
 
-JNIEXPORT jint JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeGetVersion(JNIEnv* env,
-                                                                 jobject clazz,
-                                                                 jint fd) {
+JNI_METHOD(jint, SmartSelection, nativeGetVersion)
+(JNIEnv* env, jobject clazz, jint fd) {
   ModelOptions model_options;
   if (ReadSelectionModelOptions(fd, &model_options)) {
     return model_options.version();
@@ -240,28 +320,31 @@ Java_android_view_textclassifier_SmartSelection_nativeGetVersion(JNIEnv* env,
   }
 }
 
-JNIEXPORT jobjectArray JNICALL
-Java_android_view_textclassifier_LangId_nativeFindLanguages(JNIEnv* env,
-                                                            jobject thiz,
-                                                            jlong ptr,
-                                                            jstring text) {
+#ifndef LIBTEXTCLASSIFIER_DISABLE_LANG_ID
+JNI_METHOD(jlong, LangId, nativeNew)
+(JNIEnv* env, jobject thiz, jint fd) {
+  return reinterpret_cast<jlong>(new LangId(fd));
+}
+
+JNI_METHOD(jobjectArray, LangId, nativeFindLanguages)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring text) {
   LangId* lang_id = reinterpret_cast<LangId*>(ptr);
   const std::vector<std::pair<std::string, float>> scored_languages =
       lang_id->FindLanguages(ToStlString(env, text));
 
   return ScoredStringsToJObjectArray(
-      env, "android/view/textclassifier/LangId$ClassificationResult",
-      scored_languages);
+      env, TC_PACKAGE_PATH "LangId$ClassificationResult", scored_languages);
 }
 
-JNIEXPORT void JNICALL Java_android_view_textclassifier_LangId_nativeClose(
-    JNIEnv* env, jobject thiz, jlong ptr) {
+JNI_METHOD(void, LangId, nativeClose)
+(JNIEnv* env, jobject thiz, jlong ptr) {
   LangId* lang_id = reinterpret_cast<LangId*>(ptr);
   delete lang_id;
 }
 
-JNIEXPORT int JNICALL Java_android_view_textclassifier_LangId_nativeGetVersion(
-    JNIEnv* env, jobject clazz, jint fd) {
+JNI_METHOD(int, LangId, nativeGetVersion)
+(JNIEnv* env, jobject clazz, jint fd) {
   std::unique_ptr<LangId> lang_id(new LangId(fd));
   return lang_id->version();
 }
+#endif

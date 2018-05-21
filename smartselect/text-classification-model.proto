@@ -37,10 +37,7 @@ message ModelOptions {
 
 message SelectionModelOptions {
   // A list of Unicode codepoints to strip from predicted selections.
-  repeated int32 punctuation_to_strip = 1;
-
-  // Whether to strip punctuation after the selection is made.
-  optional bool strip_punctuation = 2;
+  repeated int32 deprecated_punctuation_to_strip = 1;
 
   // Enforce symmetrical selections.
   optional bool enforce_symmetry = 3;
@@ -48,6 +45,14 @@ message SelectionModelOptions {
   // Number of inferences made around the click position (to one side), for
   // enforcing symmetry.
   optional int32 symmetry_context_size = 4;
+
+  // If true, before the selection is returned, the unpaired brackets contained
+  // in the predicted selection are stripped from the both selection ends.
+  // The bracket codepoints are defined in the Unicode standard:
+  // http://www.unicode.org/Public/UNIDATA/BidiBrackets.txt
+  optional bool strip_unpaired_brackets = 5 [default = true];
+
+  reserved 2;
 }
 
 message SharingModelOptions {
@@ -60,8 +65,19 @@ message SharingModelOptions {
   // Limits for phone numbers.
   optional int32 phone_min_num_digits = 3 [default = 7];
   optional int32 phone_max_num_digits = 4 [default = 15];
+
+  // List of regular expression matchers to check.
+  message RegexPattern {
+    // The name of the collection of a match.
+    optional string collection_name = 1;
+
+    // The pattern to check.
+    optional string pattern = 2;
+  }
+  repeated RegexPattern regex_pattern = 5;
 }
 
+// Next ID: 41
 message FeatureProcessorOptions {
   // Number of buckets used for hashing charactergrams.
   optional int32 num_buckets = 1 [default = -1];
@@ -193,7 +209,18 @@ message FeatureProcessorOptions {
       [default = INTERNAL_TOKENIZER];
   optional bool icu_preserve_whitespace_tokens = 31 [default = false];
 
-  reserved 7, 11, 12, 17, 26, 27, 28, 29, 32;
+  // List of codepoints that will be stripped from beginning and end of
+  // predicted spans.
+  repeated int32 ignored_span_boundary_codepoints = 36;
+
+  reserved 7, 11, 12, 26, 27, 28, 29, 32, 35, 39, 40;
+
+  // List of allowed charactergrams. The extracted charactergrams are filtered
+  // using this list, and charactergrams that are not present are interpreted as
+  // out-of-vocabulary.
+  // If no allowed_chargrams are specified, all charactergrams are allowed.
+  // The field is typed as bytes type to allow non-UTF8 chargrams.
+  repeated bytes allowed_chargrams = 38;
 };
 
 extend nlp_core.EmbeddingNetworkProto {

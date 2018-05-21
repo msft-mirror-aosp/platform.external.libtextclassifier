@@ -17,9 +17,11 @@
 #ifndef LIBTEXTCLASSIFIER_UTIL_UTF8_UNICODETEXT_H_
 #define LIBTEXTCLASSIFIER_UTIL_UTF8_UNICODETEXT_H_
 
+#include <iterator>
+#include <string>
 #include <utility>
 
-#include "base.h"
+#include "util/base/integral_types.h"
 
 namespace libtextclassifier {
 
@@ -137,6 +139,7 @@ class UnicodeText {
 
   const_iterator begin() const;
   const_iterator end() const;
+  int size() const;  // the number of Unicode characters (codepoints)
 
   // x.PointToUTF8(buf,len) changes x so that it points to buf
   // ("becomes an alias"). It does not take ownership or copy buf.
@@ -162,7 +165,7 @@ class UnicodeText {
     int capacity_;
     bool ours_;  // Do we own data_?
 
-    Repr() : data_(NULL), size_(0), capacity_(0), ours_(true) {}
+    Repr() : data_(nullptr), size_(0), capacity_(0), ours_(true) {}
     ~Repr() {
       if (ours_) delete[] data_;
     }

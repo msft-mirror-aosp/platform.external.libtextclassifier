@@ -22,7 +22,6 @@
 
 #include "smartselect/tokenizer.pb.h"
 #include "smartselect/types.h"
-#include "util/base/integral_types.h"
 
 namespace libtextclassifier {
 
@@ -31,29 +30,12 @@ namespace libtextclassifier {
 class Tokenizer {
  public:
   explicit Tokenizer(
-      const std::vector<TokenizationCodepointRange>& codepoint_range_configs) {
-    PrepareTokenizationCodepointRanges(codepoint_range_configs);
-  }
+      const std::vector<TokenizationCodepointRange>& codepoint_ranges);
 
   // Tokenizes the input string using the selected tokenization method.
   std::vector<Token> Tokenize(const std::string& utf8_text) const;
 
  protected:
-  // Represents a codepoint range [start, end) with its role for tokenization.
-  struct CodepointRange {
-    int32 start;
-    int32 end;
-    TokenizationCodepointRange::Role role;
-
-    CodepointRange(int32 arg_start, int32 arg_end,
-                   TokenizationCodepointRange::Role arg_role)
-        : start(arg_start), end(arg_end), role(arg_role) {}
-  };
-
-  // Prepares tokenization codepoint ranges for use in tokenization.
-  void PrepareTokenizationCodepointRanges(
-      const std::vector<TokenizationCodepointRange>& codepoint_range_configs);
-
   // Finds the tokenization role for given codepoint.
   // If the character is not found returns DEFAULT_ROLE.
   // Internally uses binary search so should be O(log(# of codepoint_ranges)).
@@ -62,7 +44,7 @@ class Tokenizer {
  private:
   // Codepoint ranges that determine how different codepoints are tokenized.
   // The ranges must not overlap.
-  std::vector<CodepointRange> codepoint_ranges_;
+  std::vector<TokenizationCodepointRange> codepoint_ranges_;
 };
 
 }  // namespace libtextclassifier

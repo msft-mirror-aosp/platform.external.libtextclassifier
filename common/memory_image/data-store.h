@@ -20,7 +20,6 @@
 #include <string>
 
 #include "common/memory_image/data-store.pb.h"
-#include "common/memory_image/memory-image-common.h"
 #include "common/memory_image/memory-image-reader.h"
 #include "util/strings/stringpiece.h"
 
@@ -46,7 +45,7 @@ class DataStore {
   // If the alignment is a low power of 2 (e..g, 4, 8, or 16) and "start" passed
   // to constructor corresponds to the beginning of a memory page or an address
   // returned by new or malloc(), then start_addr is divisible with alignment.
-  DataBlobView GetData(const std::string &name) const;
+  StringPiece GetData(const std::string &name) const;
 
  private:
   MemoryImageReader<DataStoreProto> reader_;

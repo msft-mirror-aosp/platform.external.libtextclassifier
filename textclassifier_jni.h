@@ -22,56 +22,70 @@
 
 #include "smartselect/types.h"
 
+#ifndef TC_PACKAGE_NAME
+#define TC_PACKAGE_NAME android_view_textclassifier
+#endif
+#ifndef TC_PACKAGE_PATH
+#define TC_PACKAGE_PATH "android/view/textclassifier/"
+#endif
+
+#define JNI_METHOD_PRIMITIVE(return_type, package_name, class_name, \
+                             method_name)                           \
+  JNIEXPORT return_type JNICALL                                     \
+      Java_##package_name##_##class_name##_##method_name
+
+// The indirection is needed to correctly expand the TC_PACKAGE_NAME macro.
+#define JNI_METHOD2(return_type, package_name, class_name, method_name) \
+  JNI_METHOD_PRIMITIVE(return_type, package_name, class_name, method_name)
+
+#define JNI_METHOD(return_type, class_name, method_name) \
+  JNI_METHOD2(return_type, TC_PACKAGE_NAME, class_name, method_name)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // SmartSelection.
-JNIEXPORT jlong JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeNew(JNIEnv* env,
-                                                          jobject thiz,
-                                                          jint fd);
+JNI_METHOD(jlong, SmartSelection, nativeNew)
+(JNIEnv* env, jobject thiz, jint fd);
 
-JNIEXPORT jintArray JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeSuggest(
-    JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
-    jint selection_end);
+JNI_METHOD(jlong, SmartSelection, nativeNewFromPath)
+(JNIEnv* env, jobject thiz, jstring path);
 
-JNIEXPORT jobjectArray JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeClassifyText(
-    JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
-    jint selection_end, jint input_flags);
+JNI_METHOD(jlong, SmartSelection, nativeNewFromAssetFileDescriptor)
+(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size);
 
-JNIEXPORT void JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeClose(JNIEnv* env,
-                                                            jobject thiz,
-                                                            jlong ptr);
+JNI_METHOD(jintArray, SmartSelection, nativeSuggest)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
+ jint selection_end);
 
-JNIEXPORT jstring JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeGetLanguage(JNIEnv* env,
-                                                                  jobject clazz,
-                                                                  jint fd);
+JNI_METHOD(jobjectArray, SmartSelection, nativeClassifyText)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
+ jint selection_end, jint input_flags);
 
-JNIEXPORT jint JNICALL
-Java_android_view_textclassifier_SmartSelection_nativeGetVersion(JNIEnv* env,
-                                                                 jobject clazz,
-                                                                 jint fd);
+JNI_METHOD(jobjectArray, SmartSelection, nativeAnnotate)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring context);
 
+JNI_METHOD(void, SmartSelection, nativeClose)
+(JNIEnv* env, jobject thiz, jlong ptr);
+
+JNI_METHOD(jstring, SmartSelection, nativeGetLanguage)
+(JNIEnv* env, jobject clazz, jint fd);
+
+JNI_METHOD(jint, SmartSelection, nativeGetVersion)
+(JNIEnv* env, jobject clazz, jint fd);
+
+#ifndef LIBTEXTCLASSIFIER_DISABLE_LANG_ID
 // LangId.
-JNIEXPORT jlong JNICALL Java_android_view_textclassifier_LangId_nativeNew(
-    JNIEnv* env, jobject thiz, jint fd);
+JNI_METHOD(jlong, LangId, nativeNew)(JNIEnv* env, jobject thiz, jint fd);
 
-JNIEXPORT jobjectArray JNICALL
-Java_android_view_textclassifier_LangId_nativeFindLanguages(JNIEnv* env,
-                                                            jobject thiz,
-                                                            jlong ptr,
-                                                            jstring text);
+JNI_METHOD(jobjectArray, LangId, nativeFindLanguages)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring text);
 
-JNIEXPORT void JNICALL Java_android_view_textclassifier_LangId_nativeClose(
-    JNIEnv* env, jobject thiz, jlong ptr);
+JNI_METHOD(void, LangId, nativeClose)(JNIEnv* env, jobject thiz, jlong ptr);
 
-JNIEXPORT int JNICALL Java_android_view_textclassifier_LangId_nativeGetVersion(
-    JNIEnv* env, jobject clazz, jint fd);
+JNI_METHOD(int, LangId, nativeGetVersion)(JNIEnv* env, jobject clazz, jint fd);
+#endif
 
 #ifdef __cplusplus
 }

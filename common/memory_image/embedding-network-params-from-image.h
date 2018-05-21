@@ -22,6 +22,7 @@
 #include "common/embedding-network.pb.h"
 #include "common/memory_image/memory-image-reader.h"
 #include "util/base/integral_types.h"
+#include "util/strings/stringpiece.h"
 
 namespace libtextclassifier {
 namespace nlp_core {
@@ -84,7 +85,7 @@ class EmbeddingNetworkParamsFromImage : public EmbeddingNetworkParams {
     const int blob_index = trimmed_proto_.embeddings(i).is_quantized()
                                ? (embeddings_blob_offset_ + 2 * i)
                                : (embeddings_blob_offset_ + i);
-    DataBlobView data_blob_view = memory_reader_.data_blob_view(blob_index);
+    StringPiece data_blob_view = memory_reader_.data_blob_view(blob_index);
     return data_blob_view.data();
   }
 
@@ -104,7 +105,7 @@ class EmbeddingNetworkParamsFromImage : public EmbeddingNetworkParams {
       // one blob with the quantized values and (immediately after it, hence the
       // "+ 1") one blob with the scales.
       int blob_index = embeddings_blob_offset_ + 2 * i + 1;
-      DataBlobView data_blob_view = memory_reader_.data_blob_view(blob_index);
+      StringPiece data_blob_view = memory_reader_.data_blob_view(blob_index);
       return reinterpret_cast<const float16 *>(data_blob_view.data());
     } else {
       return nullptr;
@@ -125,7 +126,7 @@ class EmbeddingNetworkParamsFromImage : public EmbeddingNetworkParams {
 
   const void *hidden_weights(int i) const override {
     TC_DCHECK(InRange(i, hidden_size()));
-    DataBlobView data_blob_view =
+    StringPiece data_blob_view =
         memory_reader_.data_blob_view(hidden_blob_offset_ + i);
     return data_blob_view.data();
   }
@@ -146,7 +147,7 @@ class EmbeddingNetworkParamsFromImage : public EmbeddingNetworkParams {
 
   const void *hidden_bias_weights(int i) const override {
     TC_DCHECK(InRange(i, hidden_bias_size()));
-    DataBlobView data_blob_view =
+    StringPiece data_blob_view =
         memory_reader_.data_blob_view(hidden_bias_blob_offset_ + i);
     return data_blob_view.data();
   }
@@ -167,7 +168,7 @@ class EmbeddingNetworkParamsFromImage : public EmbeddingNetworkParams {
 
   const void *softmax_weights(int i) const override {
     TC_DCHECK(InRange(i, softmax_size()));
-    DataBlobView data_blob_view =
+    StringPiece data_blob_view =
         memory_reader_.data_blob_view(softmax_blob_offset_ + i);
     return data_blob_view.data();
   }
@@ -188,7 +189,7 @@ class EmbeddingNetworkParamsFromImage : public EmbeddingNetworkParams {
 
   const void *softmax_bias_weights(int i) const override {
     TC_DCHECK(InRange(i, softmax_bias_size()));
-    DataBlobView data_blob_view =
+    StringPiece data_blob_view =
         memory_reader_.data_blob_view(softmax_bias_blob_offset_ + i);
     return data_blob_view.data();
   }

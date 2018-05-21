@@ -31,13 +31,9 @@ namespace libtextclassifier {
 namespace nlp_core {
 
 namespace {
-inline std::string GetLastSystemError() {
-  return std::string(strerror(errno));
-}
+inline std::string GetLastSystemError() { return std::string(strerror(errno)); }
 
-inline MmapHandle GetErrorMmapHandle() {
-  return MmapHandle(nullptr, 0);
-}
+inline MmapHandle GetErrorMmapHandle() { return MmapHandle(nullptr, 0); }
 
 class FileCloser {
  public:
@@ -49,11 +45,13 @@ class FileCloser {
       TC_LOG(ERROR) << "Error closing file descriptor: " << last_error;
     }
   }
+
  private:
   const int fd_;
 
   TC_DISALLOW_COPY_AND_ASSIGN(FileCloser);
 };
+
 }  // namespace
 
 MmapHandle MmapFile(const std::string &filename) {
@@ -81,7 +79,15 @@ MmapHandle MmapFile(int fd) {
     TC_LOG(ERROR) << "Unable to stat fd: " << last_error;
     return GetErrorMmapHandle();
   }
-  size_t file_size_in_bytes = static_cast<size_t>(sb.st_size);
+
+  return MmapFile(fd, /*segment_offset=*/0, /*segment_size=*/sb.st_size);
+}
+
+MmapHandle MmapFile(int fd, int64 segment_offset, int64 segment_size) {
+  static const int64 kPageSize = sysconf(_SC_PAGE_SIZE);
+  const int64 aligned_offset = (segment_offset / kPageSize) * kPageSize;
+  const int64 alignment_shift = segment_offset - aligned_offset;
+  const int64 aligned_length = segment_size + alignment_shift;
 
   // Perform actual mmap.
   void *mmap_addr = mmap(
@@ -89,8 +95,7 @@ MmapHandle MmapFile(int fd) {
       // Let system pick address for mmapp-ed data.
       nullptr,
 
-      // Mmap all bytes from the file.
-      file_size_in_bytes,
+      aligned_length,
 
       // One can read / write the mapped data (but see MAP_PRIVATE below).
       // Normally, we expect only to read it, but in the future, we may want to
@@ -104,16 +109,15 @@ MmapHandle MmapFile(int fd) {
       // Descriptor of file to mmap.
       fd,
 
-      // Map bytes right from the beginning of the file.  This, and
-      // file_size_in_bytes (2nd argument) means we map all bytes from the file.
-      0);
+      aligned_offset);
   if (mmap_addr == MAP_FAILED) {
     const std::string last_error = GetLastSystemError();
-    TC_LOG(ERROR) << "Error while mmaping: " << last_error;
+    TC_LOG(ERROR) << "Error while mmapping: " << last_error;
     return GetErrorMmapHandle();
   }
 
-  return MmapHandle(mmap_addr, file_size_in_bytes);
+  return MmapHandle(static_cast<char *>(mmap_addr) + alignment_shift,
+                    segment_size, /*unmap_addr=*/mmap_addr);
 }
 
 bool Unmap(MmapHandle mmap_handle) {
@@ -121,7 +125,7 @@ bool Unmap(MmapHandle mmap_handle) {
     // Unmapping something that hasn't been mapped is trivially successful.
     return true;
   }
-  if (munmap(mmap_handle.start(), mmap_handle.num_bytes()) != 0) {
+  if (munmap(mmap_handle.unmap_addr(), mmap_handle.num_bytes()) != 0) {
     const std::string last_error = GetLastSystemError();
     TC_LOG(ERROR) << "Error during Unmap / munmap: " << last_error;
     return false;

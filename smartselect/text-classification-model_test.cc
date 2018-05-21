@@ -18,17 +18,39 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <string>
 
-#include "base.h"
 #include "gtest/gtest.h"
 
 namespace libtextclassifier {
 namespace {
 
+std::string ReadFile(const std::string& file_name) {
+  std::ifstream file_stream(file_name);
+  return std::string(std::istreambuf_iterator<char>(file_stream), {});
+}
+
 std::string GetModelPath() {
   return TEST_DATA_DIR "smartselection.model";
+}
+
+std::string GetURLRegexPath() {
+  return TEST_DATA_DIR "regex_url.txt";
+}
+
+std::string GetEmailRegexPath() {
+  return TEST_DATA_DIR "regex_email.txt";
+}
+
+TEST(TextClassificationModelTest, StripUnpairedBrackets) {
+  // Stripping brackets strip brackets from length 1 bracket only selections.
+  EXPECT_EQ(StripUnpairedBrackets("call me at ) today", {11, 12}),
+            std::make_pair(12, 12));
+  EXPECT_EQ(StripUnpairedBrackets("call me at ( today", {11, 12}),
+            std::make_pair(12, 12));
 }
 
 TEST(TextClassificationModelTest, ReadModelOptions) {
@@ -63,6 +85,29 @@ TEST(TextClassificationModelTest, SuggestSelection) {
 
   // Single word.
   EXPECT_EQ(std::make_pair(0, 4), model->SuggestSelection("asdf", {0, 4}));
+
+  EXPECT_EQ(model->SuggestSelection("call me at 857 225 3556 today", {11, 14}),
+            std::make_pair(11, 23));
+
+  // Unpaired bracket stripping.
+  EXPECT_EQ(
+      model->SuggestSelection("call me at (857) 225 3556 today", {11, 16}),
+      std::make_pair(11, 25));
+  EXPECT_EQ(model->SuggestSelection("call me at (857 225 3556 today", {11, 15}),
+            std::make_pair(12, 24));
+  EXPECT_EQ(model->SuggestSelection("call me at 857 225 3556) today", {11, 14}),
+            std::make_pair(11, 23));
+  EXPECT_EQ(
+      model->SuggestSelection("call me at )857 225 3556( today", {11, 15}),
+      std::make_pair(12, 24));
+
+  // If the resulting selection would be empty, the original span is returned.
+  EXPECT_EQ(model->SuggestSelection("call me at )( today", {11, 13}),
+            std::make_pair(11, 13));
+  EXPECT_EQ(model->SuggestSelection("call me at ( today", {11, 12}),
+            std::make_pair(11, 12));
+  EXPECT_EQ(model->SuggestSelection("call me at ) today", {11, 12}),
+            std::make_pair(11, 12));
 }
 
 TEST(TextClassificationModelTest, SuggestSelectionsAreSymmetric) {
@@ -140,36 +185,13 @@ class TestingTextClassificationModel
   explicit TestingTextClassificationModel(int fd)
       : libtextclassifier::TextClassificationModel(fd) {}
 
-  using libtextclassifier::TextClassificationModel::StripPunctuation;
+  using TextClassificationModel::InitializeSharingRegexPatterns;
 
   void DisableClassificationHints() {
     sharing_options_.set_always_accept_url_hint(false);
     sharing_options_.set_always_accept_email_hint(false);
   }
 };
-
-TEST(TextClassificationModelTest, StripPunctuation) {
-  const std::string model_path = GetModelPath();
-  int fd = open(model_path.c_str(), O_RDONLY);
-  std::unique_ptr<TestingTextClassificationModel> model(
-      new TestingTextClassificationModel(fd));
-  close(fd);
-
-  EXPECT_EQ(std::make_pair(3, 10),
-            model->StripPunctuation({0, 10}, ".,-abcd.()"));
-  EXPECT_EQ(std::make_pair(0, 6), model->StripPunctuation({0, 6}, "(abcd)"));
-  EXPECT_EQ(std::make_pair(1, 5), model->StripPunctuation({0, 6}, "[abcd]"));
-  EXPECT_EQ(std::make_pair(1, 5), model->StripPunctuation({0, 6}, "{abcd}"));
-
-  // Empty result.
-  EXPECT_EQ(std::make_pair(0, 0), model->StripPunctuation({0, 1}, "&"));
-  EXPECT_EQ(std::make_pair(0, 0), model->StripPunctuation({0, 4}, "&-,}"));
-
-  // Invalid indices
-  EXPECT_EQ(std::make_pair(-1, 523), model->StripPunctuation({-1, 523}, "a"));
-  EXPECT_EQ(std::make_pair(-1, -1), model->StripPunctuation({-1, -1}, "a"));
-  EXPECT_EQ(std::make_pair(0, -1), model->StripPunctuation({0, -1}, "a"));
-}
 
 TEST(TextClassificationModelTest, SuggestSelectionNoCrashWithJunk) {
   const std::string model_path = GetModelPath();
@@ -326,6 +348,92 @@ TEST(TextClassificationModelTest, PhoneFiltering) {
                          "phone: (123) 456 789,0001112", {7, 25}, 0)));
   EXPECT_EQ("other", FindBestResult(model->ClassifyText(
                          "phone: (123) 456 789,0001112", {7, 28}, 0)));
+}
+
+TEST(TextClassificationModelTest, Annotate) {
+  const std::string model_path = GetModelPath();
+  int fd = open(model_path.c_str(), O_RDONLY);
+  std::unique_ptr<TestingTextClassificationModel> model(
+      new TestingTextClassificationModel(fd));
+  close(fd);
+
+  std::string test_string =
+      "& saw Barak Obama today .. 350 Third Street, Cambridge\nand my phone "
+      "number is 853 225-3556.";
+  std::vector<TextClassificationModel::AnnotatedSpan> result =
+      model->Annotate(test_string);
+
+  std::vector<TextClassificationModel::AnnotatedSpan> expected;
+  expected.emplace_back();
+  expected.back().span = {0, 0};
+  expected.emplace_back();
+  expected.back().span = {2, 5};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {6, 17};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {18, 23};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {24, 24};
+  expected.emplace_back();
+  expected.back().span = {27, 54};
+  expected.back().classification.push_back({"address", 1.0});
+  expected.emplace_back();
+  expected.back().span = {55, 58};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {59, 61};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {62, 74};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {75, 77};
+  expected.back().classification.push_back({"other", 1.0});
+  expected.emplace_back();
+  expected.back().span = {78, 90};
+  expected.back().classification.push_back({"phone", 1.0});
+
+  EXPECT_EQ(result.size(), expected.size());
+  for (int i = 0; i < expected.size(); ++i) {
+    EXPECT_EQ(result[i].span, expected[i].span) << result[i];
+    if (!expected[i].classification.empty()) {
+      EXPECT_GT(result[i].classification.size(), 0);
+      EXPECT_EQ(result[i].classification[0].first,
+                expected[i].classification[0].first)
+          << result[i];
+    }
+  }
+}
+
+TEST(TextClassificationModelTest, URLEmailRegex) {
+  const std::string model_path = GetModelPath();
+  int fd = open(model_path.c_str(), O_RDONLY);
+  std::unique_ptr<TestingTextClassificationModel> model(
+      new TestingTextClassificationModel(fd));
+  close(fd);
+
+  SharingModelOptions options;
+  SharingModelOptions::RegexPattern* email_pattern =
+      options.add_regex_pattern();
+  email_pattern->set_collection_name("email");
+  email_pattern->set_pattern(ReadFile(GetEmailRegexPath()));
+  SharingModelOptions::RegexPattern* url_pattern = options.add_regex_pattern();
+  url_pattern->set_collection_name("url");
+  url_pattern->set_pattern(ReadFile(GetURLRegexPath()));
+
+  // TODO(b/69538802): Modify directly the model image instead.
+  model->InitializeSharingRegexPatterns(
+      {options.regex_pattern().begin(), options.regex_pattern().end()});
+
+  EXPECT_EQ("url", FindBestResult(model->ClassifyText(
+                       "Visit www.google.com every today!", {6, 20})));
+  EXPECT_EQ("email", FindBestResult(model->ClassifyText(
+                         "My email: asdf@something.cz", {10, 27})));
+  EXPECT_EQ("url", FindBestResult(model->ClassifyText(
+                       "Login: http://asdf@something.cz", {7, 31})));
 }
 
 }  // namespace

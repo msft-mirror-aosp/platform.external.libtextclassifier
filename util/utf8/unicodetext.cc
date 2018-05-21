@@ -16,7 +16,10 @@
 
 #include "util/utf8/unicodetext.h"
 
-#include "base.h"
+#include <string.h>
+
+#include <algorithm>
+
 #include "util/strings/utf8.h"
 
 namespace libtextclassifier {
@@ -107,6 +110,8 @@ UnicodeText& UnicodeText::AppendUTF8(const char* utf8, int len) {
 }
 
 void UnicodeText::clear() { repr_.clear(); }
+
+int UnicodeText::size() const { return std::distance(begin(), end()); }
 
 std::string UnicodeText::UTF8Substring(const const_iterator& first,
                                        const const_iterator& last) {

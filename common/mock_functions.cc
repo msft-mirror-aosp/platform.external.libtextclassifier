@@ -14,28 +14,16 @@
  * limitations under the License.
  */
 
-// Common utils for memory images.
+#include "common/mock_functions.h"
 
-#ifndef LIBTEXTCLASSIFIER_COMMON_MEMORY_IMAGE_MEMORY_IMAGE_COMMON_H_
-#define LIBTEXTCLASSIFIER_COMMON_MEMORY_IMAGE_MEMORY_IMAGE_COMMON_H_
-
-#include <stddef.h>
-
-#include <string>
-
-#include "util/strings/stringpiece.h"
+#include "common/registry.h"
 
 namespace libtextclassifier {
 namespace nlp_core {
 
-class MemoryImageConstants {
- public:
-  static const char kSignature[];
-  static const int kCurrentVersion;
-  static const int kDefaultAlignment;
-};
+TC_DEFINE_CLASS_REGISTRY_NAME("function", functions::Function);
+
+TC_DEFINE_CLASS_REGISTRY_NAME("int-function", functions::IntFunction);
 
 }  // namespace nlp_core
 }  // namespace libtextclassifier
-
-#endif  // LIBTEXTCLASSIFIER_COMMON_MEMORY_IMAGE_MEMORY_IMAGE_COMMON_H_

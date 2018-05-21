@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "base.h"
+#include "util/base/endian.h"
 #include "util/base/logging.h"
 
 namespace libtextclassifier {

@@ -18,12 +18,14 @@
 #define LIBTEXTCLASSIFIER_SMARTSELECT_TOKEN_FEATURE_EXTRACTOR_H_
 
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
-#include "base.h"
 #include "smartselect/types.h"
 #include "util/strings/stringpiece.h"
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
 #include "unicode/regex.h"
+#endif
 
 namespace libtextclassifier {
 
@@ -55,6 +57,12 @@ struct TokenFeatureExtractorOptions {
 
   // Maximum length of a word.
   int max_word_length = 20;
+
+  // List of allowed charactergrams. The extracted charactergrams are filtered
+  // using this list, and charactergrams that are not present are interpreted as
+  // out-of-vocabulary.
+  // If no allowed_chargrams are specified, all charactergrams are allowed.
+  std::unordered_set<std::string> allowed_chargrams;
 };
 
 class TokenFeatureExtractor {
@@ -73,8 +81,16 @@ class TokenFeatureExtractor {
                std::vector<float>* dense_features) const;
 
   int DenseFeaturesCount() const {
-    return options_.extract_case_feature +
-           options_.extract_selection_mask_feature + regex_patterns_.size();
+    int feature_count =
+        options_.extract_case_feature + options_.extract_selection_mask_feature;
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
+    feature_count += regex_patterns_.size();
+#else
+    if (enable_all_caps_feature_) {
+      feature_count += 1;
+    }
+#endif
+    return feature_count;
   }
 
  protected:
@@ -94,8 +110,11 @@ class TokenFeatureExtractor {
 
  private:
   TokenFeatureExtractorOptions options_;
-
+#ifndef LIBTEXTCLASSIFIER_DISABLE_ICU_SUPPORT
   std::vector<std::unique_ptr<icu::RegexPattern>> regex_patterns_;
+#else
+  bool enable_all_caps_feature_ = false;
+#endif
 };
 
 }  // namespace libtextclassifier

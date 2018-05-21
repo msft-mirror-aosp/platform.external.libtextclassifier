@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include "tests/functions.h"
+#include "common/mock_functions.h"
 #include "gtest/gtest.h"
 
 namespace libtextclassifier {

@@ -21,7 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "base.h"
 #include "util/base/logging.h"
 #include "gtest/gtest.h"
 

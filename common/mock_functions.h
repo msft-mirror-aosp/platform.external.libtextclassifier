@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef LIBTEXTCLASSIFIER_TESTS_FUNCTIONS_H_
-#define LIBTEXTCLASSIFIER_TESTS_FUNCTIONS_H_
+#ifndef LIBTEXTCLASSIFIER_COMMON_MOCK_FUNCTIONS_H_
+#define LIBTEXTCLASSIFIER_COMMON_MOCK_FUNCTIONS_H_
 
 #include <math.h>
 
@@ -24,6 +24,7 @@
 namespace libtextclassifier {
 namespace nlp_core {
 namespace functions {
+
 // Abstract double -> double function.
 class Function : public RegisterableClass<Function> {
  public:
@@ -61,6 +62,7 @@ class Dec : public IntFunction {
   int Evaluate(int k) override { return k + 1; }
   TC_DEFINE_REGISTRATION_METHOD("dec", Dec);
 };
+
 }  // namespace functions
 
 // Should be inside namespace libtextclassifier::nlp_core.
@@ -70,4 +72,4 @@ TC_DECLARE_CLASS_REGISTRY_NAME(functions::IntFunction);
 }  // namespace nlp_core
 }  // namespace libtextclassifier
 
-#endif  // LIBTEXTCLASSIFIER_TESTS_FUNCTIONS_H_
+#endif  // LIBTEXTCLASSIFIER_COMMON_MOCK_FUNCTIONS_H_

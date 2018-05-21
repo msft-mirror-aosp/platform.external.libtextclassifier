@@ -24,6 +24,23 @@
 #include "util/base/logging_levels.h"
 #include "util/base/port.h"
 
+// TC_STRIP
+namespace libtextclassifier {
+// string class that can't be instantiated.  Makes sure that the code does not
+// compile when non std::string is used.
+//
+// NOTE: defined here because most files directly or transitively include this
+// file.  Asking people to include a special header just to make sure they don't
+// use the unqualified string doesn't work: as that header doesn't produce any
+// immediate benefit, one can easily forget about it.
+class string {
+ public:
+  // Makes the class non-instantiable.
+  virtual ~string() = 0;
+};
+}  // namespace libtextclassifier
+// TC_END_STRIP
+
 namespace libtextclassifier {
 namespace logging {
 
@@ -75,10 +92,6 @@ class LogMessage {
 #define TC_CHECK_GE(x, y) TC_CHECK((x) >= (y))
 #define TC_CHECK_NE(x, y) TC_CHECK((x) != (y))
 
-// Debug checks: a TC_DCHECK<suffix> macro should behave like TC_CHECK<suffix>
-// in debug mode an don't check / don't print anything in non-debug mode.
-#ifdef NDEBUG
-
 // Pseudo-stream that "eats" the tokens <<-pumped into it, without printing
 // anything.
 class NullStream {
@@ -92,6 +105,11 @@ inline NullStream &operator<<(NullStream &str, const T &) {
 }
 
 #define TC_NULLSTREAM ::libtextclassifier::logging::NullStream().stream()
+
+// Debug checks: a TC_DCHECK<suffix> macro should behave like TC_CHECK<suffix>
+// in debug mode an don't check / don't print anything in non-debug mode.
+#ifdef NDEBUG
+
 #define TC_DCHECK(x) TC_NULLSTREAM
 #define TC_DCHECK_EQ(x, y) TC_NULLSTREAM
 #define TC_DCHECK_LT(x, y) TC_NULLSTREAM
@@ -113,6 +131,16 @@ inline NullStream &operator<<(NullStream &str, const T &) {
 #define TC_DCHECK_NE(x, y) TC_CHECK_NE(x, y)
 
 #endif  // NDEBUG
+
+#ifdef LIBTEXTCLASSIFIER_VLOG
+#define TC_VLOG(severity)                                                      \
+  ::libtextclassifier::logging::LogMessage(::libtextclassifier::logging::INFO, \
+                                           __FILE__, __LINE__)                 \
+      .stream()
+#else
+#define TC_VLOG(severity) TC_NULLSTREAM
+#endif
+
 }  // namespace logging
 }  // namespace libtextclassifier
 

@@ -22,11 +22,11 @@
 #include <string>
 #include <vector>
 
-#include "common/memory_image/memory-image-common.h"
 #include "common/memory_image/memory-image.pb.h"
 #include "util/base/integral_types.h"
 #include "util/base/logging.h"
 #include "util/base/macros.h"
+#include "util/strings/stringpiece.h"
 
 namespace libtextclassifier {
 namespace nlp_core {
@@ -66,11 +66,11 @@ class GeneralMemoryImageReader {
   }
 
   // Returns pointer to the beginning of the data blob #i.
-  DataBlobView data_blob_view(int i) const {
+  StringPiece data_blob_view(int i) const {
     if ((i < 0) || (i >= num_data_blobs())) {
       TC_LOG(ERROR) << "Blob index " << i << " outside range [0, "
                     << num_data_blobs() << "); will return empty data chunk";
-      return DataBlobView();
+      return StringPiece();
     }
     return data_blob_views_[i];
   }
@@ -79,6 +79,12 @@ class GeneralMemoryImageReader {
   // trimmed of the large fields (those were placed in the data blobs).
   std::string trimmed_proto_str() const {
     return trimmed_proto_serialization_.ToString();
+  }
+
+  // Same as above but returns the trimmed proto as a string piece pointing to
+  // the image.
+  StringPiece trimmed_proto_view() const {
+    return trimmed_proto_serialization_;
   }
 
   const MemoryImageHeader &header() { return header_; }
@@ -101,13 +107,13 @@ class GeneralMemoryImageReader {
   MemoryImageHeader header_;
 
   // Binary serialization of the trimmed version of the original proto.
-  // Represented as a DataBlobView backed up by the underlying memory image
+  // Represented as a StringPiece backed up by the underlying memory image
   // bytes.
-  DataBlobView trimmed_proto_serialization_;
+  StringPiece trimmed_proto_serialization_;
 
-  // List of DataBlobView objects for all data blobs from the memory image (in
+  // List of StringPiece objects for all data blobs from the memory image (in
   // order).
-  std::vector<DataBlobView> data_blob_views_;
+  std::vector<StringPiece> data_blob_views_;
 
   // Memory reading success status.
   bool success_;
