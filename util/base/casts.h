@@ -19,7 +19,7 @@
 
 #include <string.h>  // for memcpy
 
-namespace libtextclassifier {
+namespace libtextclassifier2 {
 
 // bit_cast<Dest, Source> is a template function that implements the equivalent
 // of "*reinterpret_cast<Dest*>(&source)".  We need this in very low-level
@@ -87,6 +87,6 @@ inline Dest bit_cast(const Source &source) {
   return dest;
 }
 
-}  // namespace libtextclassifier
+}  // namespace libtextclassifier2
 
 #endif  // LIBTEXTCLASSIFIER_UTIL_BASE_CASTS_H_

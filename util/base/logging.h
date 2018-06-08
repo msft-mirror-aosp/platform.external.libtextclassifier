@@ -18,31 +18,51 @@
 #define LIBTEXTCLASSIFIER_UTIL_BASE_LOGGING_H_
 
 #include <cassert>
-#include <sstream>
 #include <string>
 
 #include "util/base/logging_levels.h"
 #include "util/base/port.h"
 
-// TC_STRIP
-namespace libtextclassifier {
-// string class that can't be instantiated.  Makes sure that the code does not
-// compile when non std::string is used.
-//
-// NOTE: defined here because most files directly or transitively include this
-// file.  Asking people to include a special header just to make sure they don't
-// use the unqualified string doesn't work: as that header doesn't produce any
-// immediate benefit, one can easily forget about it.
-class string {
- public:
-  // Makes the class non-instantiable.
-  virtual ~string() = 0;
-};
-}  // namespace libtextclassifier
-// TC_END_STRIP
 
-namespace libtextclassifier {
+namespace libtextclassifier2 {
 namespace logging {
+
+// A tiny code footprint string stream for assembling log messages.
+struct LoggingStringStream {
+  LoggingStringStream() {}
+  LoggingStringStream &stream() { return *this; }
+  // Needed for invocation in TC_CHECK macro.
+  explicit operator bool() const { return true; }
+
+  std::string message;
+};
+
+template <typename T>
+inline LoggingStringStream &operator<<(LoggingStringStream &stream,
+                                       const T &entry) {
+  stream.message.append(std::to_string(entry));
+  return stream;
+}
+
+inline LoggingStringStream &operator<<(LoggingStringStream &stream,
+                                       const char *message) {
+  stream.message.append(message);
+  return stream;
+}
+
+#if defined(HAS_GLOBAL_STRING)
+inline LoggingStringStream &operator<<(LoggingStringStream &stream,
+                                       const ::string &message) {
+  stream.message.append(message);
+  return stream;
+}
+#endif
+
+inline LoggingStringStream &operator<<(LoggingStringStream &stream,
+                                       const std::string &message) {
+  stream.message.append(message);
+  return stream;
+}
 
 // The class that does all the work behind our TC_LOG(severity) macros.  Each
 // TC_LOG(severity) << obj1 << obj2 << ...; logging statement creates a
@@ -61,19 +81,34 @@ class LogMessage {
   ~LogMessage() TC_ATTRIBUTE_NOINLINE;
 
   // Returns the stream associated with the logger object.
-  std::stringstream &stream() { return stream_; }
+  LoggingStringStream &stream() { return stream_; }
 
  private:
   const LogSeverity severity_;
 
   // Stream that "prints" all info into a string (not to a file).  We construct
   // here the entire logging message and next print it in one operation.
-  std::stringstream stream_;
+  LoggingStringStream stream_;
 };
 
-#define TC_LOG(severity)                                          \
-  ::libtextclassifier::logging::LogMessage(                       \
-      ::libtextclassifier::logging::severity, __FILE__, __LINE__) \
+// Pseudo-stream that "eats" the tokens <<-pumped into it, without printing
+// anything.
+class NullStream {
+ public:
+  NullStream() {}
+  NullStream &stream() { return *this; }
+};
+template <typename T>
+inline NullStream &operator<<(NullStream &str, const T &) {
+  return str;
+}
+
+}  // namespace logging
+}  // namespace libtextclassifier2
+
+#define TC_LOG(severity)                                           \
+  ::libtextclassifier2::logging::LogMessage(                       \
+      ::libtextclassifier2::logging::severity, __FILE__, __LINE__) \
       .stream()
 
 // If condition x is true, does nothing.  Otherwise, crashes the program (liek
@@ -92,19 +127,7 @@ class LogMessage {
 #define TC_CHECK_GE(x, y) TC_CHECK((x) >= (y))
 #define TC_CHECK_NE(x, y) TC_CHECK((x) != (y))
 
-// Pseudo-stream that "eats" the tokens <<-pumped into it, without printing
-// anything.
-class NullStream {
- public:
-  NullStream() {}
-  NullStream &stream() { return *this; }
-};
-template <typename T>
-inline NullStream &operator<<(NullStream &str, const T &) {
-  return str;
-}
-
-#define TC_NULLSTREAM ::libtextclassifier::logging::NullStream().stream()
+#define TC_NULLSTREAM ::libtextclassifier2::logging::NullStream().stream()
 
 // Debug checks: a TC_DCHECK<suffix> macro should behave like TC_CHECK<suffix>
 // in debug mode an don't check / don't print anything in non-debug mode.
@@ -133,15 +156,12 @@ inline NullStream &operator<<(NullStream &str, const T &) {
 #endif  // NDEBUG
 
 #ifdef LIBTEXTCLASSIFIER_VLOG
-#define TC_VLOG(severity)                                                      \
-  ::libtextclassifier::logging::LogMessage(::libtextclassifier::logging::INFO, \
-                                           __FILE__, __LINE__)                 \
+#define TC_VLOG(severity)                                      \
+  ::libtextclassifier2::logging::LogMessage(                   \
+      ::libtextclassifier2::logging::INFO, __FILE__, __LINE__) \
       .stream()
 #else
 #define TC_VLOG(severity) TC_NULLSTREAM
 #endif
-
-}  // namespace logging
-}  // namespace libtextclassifier
 
 #endif  // LIBTEXTCLASSIFIER_UTIL_BASE_LOGGING_H_
