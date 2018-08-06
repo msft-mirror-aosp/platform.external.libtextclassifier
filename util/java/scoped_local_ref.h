@@ -23,11 +23,13 @@
 
 #include "util/base/logging.h"
 
-namespace libtextclassifier {
+namespace libtextclassifier2 {
 
 // A deleter to be used with std::unique_ptr to delete JNI local references.
 class LocalRefDeleter {
  public:
+  LocalRefDeleter() : env_(nullptr) {}
+
   // Style guide violating implicit constructor so that the LocalRefDeleter
   // is implicitly constructed from the second argument to ScopedLocalRef.
   LocalRefDeleter(JNIEnv* env) : env_(env) {}  // NOLINT(runtime/explicit)
@@ -43,7 +45,11 @@ class LocalRefDeleter {
   }
 
   // The delete operator.
-  void operator()(jobject o) const { env_->DeleteLocalRef(o); }
+  void operator()(jobject object) const {
+    if (env_) {
+      env_->DeleteLocalRef(object);
+    }
+  }
 
  private:
   // The env_ stashed to use for deletion. Thread-local, don't share!
@@ -60,6 +66,6 @@ template <typename T>
 using ScopedLocalRef =
     std::unique_ptr<typename std::remove_pointer<T>::type, LocalRefDeleter>;
 
-}  // namespace libtextclassifier
+}  // namespace libtextclassifier2
 
 #endif  // LIBTEXTCLASSIFIER_UTIL_JAVA_SCOPED_LOCAL_REF_H_
