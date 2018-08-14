@@ -19,7 +19,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-namespace libtextclassifier {
+namespace libtextclassifier2 {
 namespace {
 
 TEST(TextClassifier, ConvertIndicesBMPUTF8) {
@@ -76,4 +76,4 @@ TEST(TextClassifier, ConvertIndicesBMPUTF8) {
 }
 
 }  // namespace
-}  // namespace libtextclassifier
+}  // namespace libtextclassifier2

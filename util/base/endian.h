@@ -19,7 +19,7 @@
 
 #include "util/base/integral_types.h"
 
-namespace libtextclassifier {
+namespace libtextclassifier2 {
 
 #if defined OS_LINUX || defined OS_CYGWIN || defined OS_ANDROID || \
     defined(__ANDROID__)
@@ -133,6 +133,6 @@ class LittleEndian {
 #endif /* ENDIAN */
 };
 
-}  // namespace libtextclassifier
+}  // namespace libtextclassifier2
 
 #endif  // LIBTEXTCLASSIFIER_UTIL_BASE_ENDIAN_H_

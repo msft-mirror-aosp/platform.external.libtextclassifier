@@ -19,7 +19,7 @@
 #include "util/base/integral_types.h"
 #include "gtest/gtest.h"
 
-namespace libtextclassifier {
+namespace libtextclassifier2 {
 namespace {
 
 void TestParseInt32(const char *c_str, bool expected_parsing_success,
@@ -100,4 +100,4 @@ TEST(ParseDoubleTest, ErrorCases) {
   TestParseDouble("23.5a", false);
 }
 }  // namespace
-}  // namespace libtextclassifier
+}  // namespace libtextclassifier2
