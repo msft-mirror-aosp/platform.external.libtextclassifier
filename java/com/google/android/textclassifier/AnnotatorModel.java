@@ -17,8 +17,8 @@
 package com.google.android.textclassifier;
 
 /**
- * Java wrapper for Annotator native library interface. This library is used for detecting
- * entities in text.
+ * Java wrapper for Annotator native library interface. This library is used for detecting entities
+ * in text.
  *
  * @hide
  */

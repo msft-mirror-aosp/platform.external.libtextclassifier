@@ -66,6 +66,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
   /** Action suggestion that contains a response text and the type of the response. */
   public static final class ActionSuggestion {
+
     private final String responseText;
     private final String actionType;
     private final float score;
