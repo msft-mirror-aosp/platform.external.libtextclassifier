@@ -348,7 +348,10 @@ table Model {
   output_options:libtextclassifier3.OutputOptions;
 
   // Configures how Intents should be generated on Android.
+  // TODO(smillius): Remove deprecated factory options.
   android_intent_options:libtextclassifier3.AndroidIntentFactoryOptions;
+
+  intent_options:libtextclassifier3.IntentFactoryModel;
 }
 
 // Role of the codepoints in the range.

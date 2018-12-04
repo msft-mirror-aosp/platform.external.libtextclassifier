@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "annotator/annotator.h"
+#include "annotator/annotator_jni_common.h"
 #include "utils/base/integral_types.h"
 #include "utils/calendar/calendar.h"
 #include "utils/java/scoped_local_ref.h"
@@ -123,81 +124,6 @@ jobjectArray ClassificationResultsToJObjectArray(
     env->DeleteLocalRef(result);
   }
   return results;
-}
-
-SelectionOptions FromJavaSelectionOptions(JNIEnv* env, jobject joptions) {
-  if (!joptions) {
-    return {};
-  }
-
-  const ScopedLocalRef<jclass> options_class(
-      env->FindClass(TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
-                     "$SelectionOptions"),
-      env);
-  const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
-      env, joptions, options_class.get(), &JNIEnv::CallObjectMethod,
-      "getLocales", "Ljava/lang/String;");
-  if (!status_or_locales.first) {
-    return {};
-  }
-
-  SelectionOptions options;
-  options.locales =
-      ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
-
-  return options;
-}
-
-template <typename T>
-T FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
-                          const std::string& class_name) {
-  if (!joptions) {
-    return {};
-  }
-
-  const ScopedLocalRef<jclass> options_class(env->FindClass(class_name.c_str()),
-                                             env);
-  if (!options_class) {
-    return {};
-  }
-
-  const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
-      env, joptions, options_class.get(), &JNIEnv::CallObjectMethod,
-      "getLocale", "Ljava/lang/String;");
-  const std::pair<bool, jobject> status_or_reference_timezone =
-      CallJniMethod0<jobject>(env, joptions, options_class.get(),
-                              &JNIEnv::CallObjectMethod, "getReferenceTimezone",
-                              "Ljava/lang/String;");
-  const std::pair<bool, int64> status_or_reference_time_ms_utc =
-      CallJniMethod0<int64>(env, joptions, options_class.get(),
-                            &JNIEnv::CallLongMethod, "getReferenceTimeMsUtc",
-                            "J");
-
-  if (!status_or_locales.first || !status_or_reference_timezone.first ||
-      !status_or_reference_time_ms_utc.first) {
-    return {};
-  }
-
-  T options;
-  options.locales =
-      ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
-  options.reference_timezone = ToStlString(
-      env, reinterpret_cast<jstring>(status_or_reference_timezone.second));
-  options.reference_time_ms_utc = status_or_reference_time_ms_utc.second;
-  return options;
-}
-
-ClassificationOptions FromJavaClassificationOptions(JNIEnv* env,
-                                                    jobject joptions) {
-  return FromJavaOptionsInternal<ClassificationOptions>(
-      env, joptions,
-      TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$ClassificationOptions");
-}
-
-AnnotationOptions FromJavaAnnotationOptions(JNIEnv* env, jobject joptions) {
-  return FromJavaOptionsInternal<AnnotationOptions>(
-      env, joptions,
-      TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$AnnotationOptions");
 }
 
 CodepointSpan ConvertIndicesBMPUTF8(const std::string& utf8_str,

@@ -31,7 +31,10 @@ JniCache::JniCache(JavaVM* jvm)
       breakiterator_class(nullptr, jvm),
       integer_class(nullptr, jvm),
       calendar_class(nullptr, jvm),
-      timezone_class(nullptr, jvm) {}
+      timezone_class(nullptr, jvm),
+      urlencoder_class(nullptr, jvm)
+{
+}
 
 // The macros below are intended to reduce the boilerplate in Create and avoid
 // easily introduced copy/paste errors.
@@ -43,15 +46,28 @@ JniCache::JniCache(JavaVM* jvm)
   result->FIELD##_class = MakeGlobalRef(env->FindClass(NAME), env, jvm); \
   TC3_CHECK_JNI_PTR(result->FIELD##_class)
 
+#define TC3_GET_OPTIONAL_CLASS(FIELD, NAME)                              \
+  result->FIELD##_class = MakeGlobalRef(env->FindClass(NAME), env, jvm); \
+  env->ExceptionClear();
+
 #define TC3_GET_METHOD(CLASS, FIELD, NAME, SIGNATURE)                 \
   result->CLASS##_##FIELD =                                           \
       env->GetMethodID(result->CLASS##_class.get(), NAME, SIGNATURE); \
   TC3_CHECK_JNI_PTR(result->CLASS##_##FIELD)
 
-#define TC3_GET_OPTIONAL_STATIC_METHOD(CLASS, FIELD, NAME, SIGNATURE)       \
-  result->CLASS##_##FIELD =                                                 \
-      env->GetStaticMethodID(result->CLASS##_class.get(), NAME, SIGNATURE); \
-  env->ExceptionClear();
+#define TC3_GET_OPTIONAL_METHOD(CLASS, FIELD, NAME, SIGNATURE)          \
+  if (result->CLASS##_class != nullptr) {                               \
+    result->CLASS##_##FIELD =                                           \
+        env->GetMethodID(result->CLASS##_class.get(), NAME, SIGNATURE); \
+    env->ExceptionClear();                                              \
+  }
+
+#define TC3_GET_OPTIONAL_STATIC_METHOD(CLASS, FIELD, NAME, SIGNATURE)         \
+  if (result->CLASS##_class != nullptr) {                                     \
+    result->CLASS##_##FIELD =                                                 \
+        env->GetStaticMethodID(result->CLASS##_class.get(), NAME, SIGNATURE); \
+    env->ExceptionClear();                                                    \
+  }
 
 #define TC3_GET_STATIC_METHOD(CLASS, FIELD, NAME, SIGNATURE)                \
   result->CLASS##_##FIELD =                                                 \
@@ -165,6 +181,34 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   TC3_GET_CLASS(timezone, "java/util/TimeZone");
   TC3_GET_STATIC_METHOD(timezone, get_timezone, "getTimeZone",
                         "(Ljava/lang/String;)Ljava/util/TimeZone;");
+
+  // URLEncoder.
+  TC3_GET_CLASS(urlencoder, "java/net/URLEncoder");
+  TC3_GET_STATIC_METHOD(
+      urlencoder, encode, "encode",
+      "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+
+  // Context.
+  TC3_GET_CLASS(context, "android/content/Context");
+  TC3_GET_METHOD(context, get_package_name, "getPackageName",
+                 "()Ljava/lang/String;");
+  TC3_GET_METHOD(context, get_system_service, "getSystemService",
+                 "(Ljava/lang/String;)Ljava/lang/Object;");
+
+  // Uri.
+  TC3_GET_CLASS(uri, "android/net/Uri");
+  TC3_GET_STATIC_METHOD(uri, parse, "parse",
+                        "(Ljava/lang/String;)Landroid/net/Uri;");
+  TC3_GET_METHOD(uri, get_scheme, "getScheme", "()Ljava/lang/String;");
+
+  // UserManager.
+  TC3_GET_OPTIONAL_CLASS(usermanager, "android/os/UserManager");
+  TC3_GET_OPTIONAL_METHOD(usermanager, get_user_restrictions,
+                          "getUserRestrictions", "()Landroid/os/Bundle;");
+
+  // Bundle.
+  TC3_GET_CLASS(bundle, "android/os/Bundle");
+  TC3_GET_METHOD(bundle, get_boolean, "getBoolean", "(Ljava/lang/String;)Z");
 
   return result;
 }

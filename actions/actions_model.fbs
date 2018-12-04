@@ -53,6 +53,30 @@ table TensorflowLiteModelSpec {
   output_actions_scores:int = 5;
 }
 
+namespace libtextclassifier3.AnnotationActionsSpec_;
+table AnnotationMapping {
+  // The annotation collection.
+  annotation_collection:string;
+
+  // The action name to use.
+  action_name:string;
+
+  // Default score in case we do not use the annotation score.
+  default_score:float;
+
+  // Whether to use the score of the annotation as the action score.
+  use_annotation_score:bool = true;
+
+  // Minimum threshold for the annotation score for filtering.
+  min_annotation_score:float;
+}
+
+// Configuration for actions based on annotatations.
+namespace libtextclassifier3;
+table AnnotationActionsSpec {
+  annotation_mapping:[libtextclassifier3.AnnotationActionsSpec_.AnnotationMapping];
+}
+
 namespace libtextclassifier3;
 table ActionsModel {
   // Comma-separated list of locales supported by the model as BCP 47 tags.
@@ -84,6 +108,21 @@ table ActionsModel {
 
   // Length of message history to consider, -1 if unbounded.
   max_conversation_history_length:int = 1;
+
+  // Filtering behaviour.
+  // Whether to supress all model output when a conversation is classified as
+  // sensitive.
+  suppress_on_sensitive_topic:bool = true;
+
+  // Thresholds on the model prediction input.
+  // The minimal length of input to consider for prediction.
+  min_input_length:int = 0;
+
+  // The maximal length of input to consider for prediciton, -1 if unbounded.
+  max_input_length:int = -1;
+
+  // Configuration for mapping annotations to action suggestions.
+  annotation_actions_spec:libtextclassifier3.AnnotationActionsSpec;
 }
 
 root_type libtextclassifier3.ActionsModel;
