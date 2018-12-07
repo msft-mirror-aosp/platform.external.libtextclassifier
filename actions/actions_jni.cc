@@ -116,14 +116,14 @@ ConversationMessage FromJavaConversationMessage(JNIEnv* env, jobject jmessage) {
   const std::pair<bool, int32> status_or_user_id =
       CallJniMethod0<int32>(env, jmessage, message_class.get(),
                             &JNIEnv::CallIntMethod, "getUserId", "I");
-  const std::pair<bool, int32> status_or_time_diff = CallJniMethod0<int32>(
-      env, jmessage, message_class.get(), &JNIEnv::CallIntMethod,
-      "getTimeDiffInSeconds", "I");
+  const std::pair<bool, int64> status_or_reference_time = CallJniMethod0<int64>(
+      env, jmessage, message_class.get(), &JNIEnv::CallLongMethod,
+      "getReferenceTimeMsUtc", "J");
   const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
       env, jmessage, message_class.get(), &JNIEnv::CallObjectMethod,
       "getLocales", "Ljava/lang/String;");
   if (!status_or_text.first || !status_or_user_id.first ||
-      !status_or_locales.first || !status_or_time_diff.first) {
+      !status_or_locales.first || !status_or_reference_time.first) {
     return {};
   }
 
@@ -131,7 +131,7 @@ ConversationMessage FromJavaConversationMessage(JNIEnv* env, jobject jmessage) {
   message.text =
       ToStlString(env, reinterpret_cast<jstring>(status_or_text.second));
   message.user_id = status_or_user_id.second;
-  message.time_diff_secs = status_or_time_diff.second;
+  message.reference_time_ms_utc = status_or_reference_time.second;
   message.locales =
       ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
   return message;
