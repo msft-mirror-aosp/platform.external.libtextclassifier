@@ -24,11 +24,13 @@
 
 #include "actions/actions-suggestions.h"
 #include "annotator/annotator.h"
+#include "annotator/annotator_jni_common.h"
 #include "utils/base/integral_types.h"
 #include "utils/java/scoped_local_ref.h"
 #include "utils/memory/mmap.h"
 
 using libtextclassifier3::ActionsSuggestions;
+using libtextclassifier3::ActionsSuggestionsResponse;
 using libtextclassifier3::ActionSuggestion;
 using libtextclassifier3::ActionSuggestionOptions;
 using libtextclassifier3::Annotator;
@@ -41,7 +43,36 @@ namespace libtextclassifier3 {
 namespace {
 ActionSuggestionOptions FromJavaActionSuggestionOptions(JNIEnv* env,
                                                         jobject joptions) {
-  return {};
+  ActionSuggestionOptions options = ActionSuggestionOptions::Default();
+
+  if (!joptions) {
+    return options;
+  }
+
+  const ScopedLocalRef<jclass> options_class(
+      env->FindClass(TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR
+                     "$ActionSuggestionOptions"),
+      env);
+
+  if (!options_class) {
+    return options;
+  }
+
+  const std::pair<bool, jobject> status_or_annotation_options =
+      CallJniMethod0<jobject>(env, joptions, options_class.get(),
+                              &JNIEnv::CallObjectMethod, "getAnnotationOptions",
+                              "L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+                              "$AnnotationOptions;");
+
+  if (!status_or_annotation_options.first) {
+    return options;
+  }
+
+  // Create annotation options.
+  options.annotation_options =
+      FromJavaAnnotationOptions(env, status_or_annotation_options.second);
+
+  return options;
 }
 
 jobjectArray ActionSuggestionsToJObjectArray(
@@ -85,7 +116,14 @@ ConversationMessage FromJavaConversationMessage(JNIEnv* env, jobject jmessage) {
   const std::pair<bool, int32> status_or_user_id =
       CallJniMethod0<int32>(env, jmessage, message_class.get(),
                             &JNIEnv::CallIntMethod, "getUserId", "I");
-  if (!status_or_text.first || !status_or_user_id.first) {
+  const std::pair<bool, int32> status_or_time_diff = CallJniMethod0<int32>(
+      env, jmessage, message_class.get(), &JNIEnv::CallIntMethod,
+      "getTimeDiffInSeconds", "I");
+  const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
+      env, jmessage, message_class.get(), &JNIEnv::CallObjectMethod,
+      "getLocales", "Ljava/lang/String;");
+  if (!status_or_text.first || !status_or_user_id.first ||
+      !status_or_locales.first || !status_or_time_diff.first) {
     return {};
   }
 
@@ -93,6 +131,9 @@ ConversationMessage FromJavaConversationMessage(JNIEnv* env, jobject jmessage) {
   message.text =
       ToStlString(env, reinterpret_cast<jstring>(status_or_text.second));
   message.user_id = status_or_user_id.second;
+  message.time_diff_secs = status_or_time_diff.second;
+  message.locales =
+      ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
   return message;
 }
 
@@ -205,9 +246,9 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
       FromJavaActionSuggestionOptions(env, joptions);
   ActionsSuggestions* action_model = reinterpret_cast<ActionsSuggestions*>(ptr);
 
-  const std::vector<ActionSuggestion> action_suggestions =
+  const ActionsSuggestionsResponse response =
       action_model->SuggestActions(conversation, actionSuggestionOptions);
-  return ActionSuggestionsToJObjectArray(env, action_suggestions);
+  return ActionSuggestionsToJObjectArray(env, response.actions);
 }
 
 TC3_JNI_METHOD(void, TC3_ACTIONS_CLASS_NAME, nativeCloseActionsModel)

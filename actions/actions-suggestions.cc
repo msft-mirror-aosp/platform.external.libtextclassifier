@@ -20,6 +20,21 @@
 
 namespace libtextclassifier3 {
 
+const std::string& ActionsSuggestions::kViewCalendarType =
+    *[]() { return new std::string("view_calendar"); }();
+const std::string& ActionsSuggestions::kViewMapType =
+    *[]() { return new std::string("view_map"); }();
+const std::string& ActionsSuggestions::kTrackFlightType =
+    *[]() { return new std::string("track_flight"); }();
+const std::string& ActionsSuggestions::kOpenUrlType =
+    *[]() { return new std::string("open_url"); }();
+const std::string& ActionsSuggestions::kSendSmsType =
+    *[]() { return new std::string("send_sms"); }();
+const std::string& ActionsSuggestions::kCallPhoneType =
+    *[]() { return new std::string("call_phone"); }();
+const std::string& ActionsSuggestions::kSendEmailType =
+    *[]() { return new std::string("send_email"); }();
+
 namespace {
 const ActionsModel* LoadAndVerifyModel(const uint8_t* addr, int size) {
   flatbuffers::Verifier verifier(addr, size);
@@ -143,72 +158,87 @@ void ActionsSuggestions::SetupModelInput(
   }
 }
 
-bool ActionsSuggestions::ShouldSuppressPredictions(
-    tflite::Interpreter* interpreter) const {
-  const TensorView<float>& triggering_score =
-      model_executor_->OutputView<float>(
-          model_->tflite_model_spec()->output_triggering_score(), interpreter);
-  if (!triggering_score.is_valid() || triggering_score.dim(0) != 1) {
-    TC3_LOG(ERROR) << "Could not compute triggering score.";
-    return true;
-  }
-  if (triggering_score.data()[0] <= model_->min_triggering_confidence()) {
-    return true;
-  }
-
-  const TensorView<float>& sensitive_topic_score =
-      model_executor_->OutputView<float>(
-          model_->tflite_model_spec()->output_sensitive_topic_score(),
-          interpreter);
-  if (!sensitive_topic_score.is_valid() || sensitive_topic_score.dim(0) != 1) {
-    TC3_LOG(ERROR) << "Could not compute sensitive topic score.";
-    return true;
-  }
-  if (sensitive_topic_score.data()[0] > model_->max_sensitive_topic_score()) {
-    return true;
-  }
-  return false;
-}
-
 void ActionsSuggestions::ReadModelOutput(
     tflite::Interpreter* interpreter,
-    std::vector<ActionSuggestion>* suggestions) const {
+    ActionsSuggestionsResponse* response) const {
+  // Read sensitivity and triggering score predictions.
+  if (model_->tflite_model_spec()->output_triggering_score() >= 0) {
+    const TensorView<float>& triggering_score =
+        model_executor_->OutputView<float>(
+            model_->tflite_model_spec()->output_triggering_score(),
+            interpreter);
+    if (!triggering_score.is_valid() || triggering_score.size() == 0) {
+      TC3_LOG(ERROR) << "Could not compute triggering score.";
+      return;
+    }
+    response->triggering_score = triggering_score.data()[0];
+    response->output_filtered_min_triggering_score =
+        (response->triggering_score < model_->min_triggering_confidence());
+  }
+  if (model_->tflite_model_spec()->output_sensitive_topic_score() >= 0) {
+    const TensorView<float>& sensitive_topic_score =
+        model_executor_->OutputView<float>(
+            model_->tflite_model_spec()->output_sensitive_topic_score(),
+            interpreter);
+    if (!sensitive_topic_score.is_valid() ||
+        sensitive_topic_score.dim(0) != 1) {
+      TC3_LOG(ERROR) << "Could not compute sensitive topic score.";
+      return;
+    }
+    response->sensitivity_score = sensitive_topic_score.data()[0];
+    response->output_filtered_sensitivity =
+        (response->sensitivity_score > model_->max_sensitive_topic_score());
+  }
+
+  // Suppress model outputs.
+  if (response->output_filtered_sensitivity) {
+    return;
+  }
+
   // Read smart reply predictions.
-  const std::vector<tflite::StringRef> replies =
-      model_executor_->Output<tflite::StringRef>(
-          model_->tflite_model_spec()->output_replies(), interpreter);
-  TensorView<float> scores = model_executor_->OutputView<float>(
-      model_->tflite_model_spec()->output_replies_scores(), interpreter);
-  std::vector<ActionSuggestion> text_replies;
-  for (int i = 0; i < replies.size(); i++) {
-    suggestions->push_back({std::string(replies[i].str, replies[i].len),
-                            model_->smart_reply_action_type()->str(),
-                            scores.data()[i]});
+  if (!response->output_filtered_min_triggering_score &&
+      model_->tflite_model_spec()->output_replies() >= 0) {
+    const std::vector<tflite::StringRef> replies =
+        model_executor_->Output<tflite::StringRef>(
+            model_->tflite_model_spec()->output_replies(), interpreter);
+    TensorView<float> scores = model_executor_->OutputView<float>(
+        model_->tflite_model_spec()->output_replies_scores(), interpreter);
+    std::vector<ActionSuggestion> text_replies;
+    for (int i = 0; i < replies.size(); i++) {
+      response->actions.push_back({std::string(replies[i].str, replies[i].len),
+                                   model_->smart_reply_action_type()->str(),
+                                   scores.data()[i]});
+    }
   }
 
   // Read actions suggestions.
-  const TensorView<float> actions_scores = model_executor_->OutputView<float>(
-      model_->tflite_model_spec()->output_actions_scores(), interpreter);
-  for (int i = 0; i < model_->action_type()->Length(); i++) {
-    // Skip disabled action classes, such as the default other category.
-    if (!(*model_->action_type())[i]->enabled()) {
-      continue;
-    }
-    const float score = actions_scores.data()[i];
-    if (score < (*model_->action_type())[i]->min_triggering_score()) {
-      continue;
-    }
-    const std::string& output_class =
-        (*model_->action_type())[i]->name()->str();
-    if (score >= model_->min_actions_confidence()) {
-      suggestions->push_back({/*response_text=*/"", output_class, score});
+  if (model_->tflite_model_spec()->output_actions_scores() >= 0) {
+    const TensorView<float> actions_scores = model_executor_->OutputView<float>(
+        model_->tflite_model_spec()->output_actions_scores(), interpreter);
+    for (int i = 0; i < model_->action_type()->Length(); i++) {
+      // Skip disabled action classes, such as the default other category.
+      if (!(*model_->action_type())[i]->enabled()) {
+        continue;
+      }
+      const float score = actions_scores.data()[i];
+      if (score < (*model_->action_type())[i]->min_triggering_score()) {
+        continue;
+      }
+      const std::string& output_class =
+          (*model_->action_type())[i]->name()->str();
+      if (score >= model_->min_actions_confidence()) {
+        response->actions.push_back(
+            {/*response_text=*/"", output_class, score});
+      }
     }
   }
 }
 
 void ActionsSuggestions::SuggestActionsFromModel(
-    const Conversation& conversation,
-    std::vector<ActionSuggestion>* suggestions) const {
+    const Conversation& conversation, const int num_messages,
+    ActionsSuggestionsResponse* response) const {
+  TC3_CHECK_LE(num_messages, conversation.messages.size());
+
   if (!model_executor_) {
     return;
   }
@@ -228,22 +258,11 @@ void ActionsSuggestions::SuggestActionsFromModel(
     return;
   }
 
-  int num_messages = conversation.messages.size();
-  if (model_->max_conversation_history_length() >= 0 &&
-      num_messages > model_->max_conversation_history_length()) {
-    num_messages = model_->max_conversation_history_length();
-  }
-
-  if (num_messages <= 0) {
-    TC3_LOG(INFO) << "No messages provided for actions suggestions.";
-    return;
-  }
-
   std::vector<std::string> context;
   std::vector<int> user_ids;
   std::vector<float> time_diffs;
 
-  // Gather last `num__messages` messages from the conversation.
+  // Gather last `num_messages` messages from the conversation.
   for (int i = conversation.messages.size() - num_messages;
        i < conversation.messages.size(); i++) {
     const ConversationMessage& message = conversation.messages[i];
@@ -261,16 +280,18 @@ void ActionsSuggestions::SuggestActionsFromModel(
     return;
   }
 
-  if (ShouldSuppressPredictions(interpreter.get())) {
-    return;
-  }
-
-  ReadModelOutput(interpreter.get(), suggestions);
+  ReadModelOutput(interpreter.get(), response);
 }
 
 void ActionsSuggestions::SuggestActionsFromAnnotations(
     const Conversation& conversation, const ActionSuggestionOptions& options,
-    std::vector<ActionSuggestion>* suggestions) const {
+    ActionsSuggestionsResponse* response) const {
+  if (model_->annotation_actions_spec() == nullptr ||
+      model_->annotation_actions_spec()->annotation_mapping() == nullptr ||
+      model_->annotation_actions_spec()->annotation_mapping()->size() == 0) {
+    return;
+  }
+
   // Create actions based on the annotations present in the last message.
   // TODO(smillius): Make this configurable.
   std::vector<AnnotatedSpan> annotations =
@@ -279,33 +300,93 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
     annotations = annotator_->Annotate(conversation.messages.back().text,
                                        options.annotation_options);
   }
+  const int message_index = conversation.messages.size() - 1;
   for (const AnnotatedSpan& annotation : annotations) {
     if (annotation.classification.empty() ||
         annotation.classification[0].collection.empty()) {
       continue;
     }
-    const ClassificationResult& classification_result =
-        annotation.classification[0];
-    suggestions->push_back({/*response_text=*/"",
-                            /*type=*/classification_result.collection,
-                            /*score=*/classification_result.score});
+    CreateActionsFromAnnotationResult(message_index, annotation, response);
   }
 }
 
-std::vector<ActionSuggestion> ActionsSuggestions::SuggestActions(
+void ActionsSuggestions::CreateActionsFromAnnotationResult(
+    const int message_index, const AnnotatedSpan& annotation,
+    ActionsSuggestionsResponse* suggestions) const {
+  const ClassificationResult& classification_result =
+      annotation.classification[0];
+  ActionSuggestionAnnotation suggestion_annotation;
+  suggestion_annotation.message_index = message_index;
+  suggestion_annotation.span = annotation.span;
+  suggestion_annotation.entity = classification_result;
+  const std::string collection = classification_result.collection;
+
+  for (const AnnotationActionsSpec_::AnnotationMapping* mapping :
+       *model_->annotation_actions_spec()->annotation_mapping()) {
+    if (collection == mapping->annotation_collection()->str()) {
+      if (classification_result.score < mapping->min_annotation_score()) {
+        continue;
+      }
+      const float score =
+          (mapping->use_annotation_score() ? classification_result.score
+                                           : mapping->default_score());
+      suggestions->actions.push_back({/*response_text=*/"",
+                                      /*type=*/mapping->action_name()->str(),
+                                      /*score=*/score,
+                                      /*annotations=*/{suggestion_annotation}});
+    }
+  }
+}
+
+ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
     const Conversation& conversation,
     const ActionSuggestionOptions& options) const {
-  std::vector<ActionSuggestion> suggestions;
+  ActionsSuggestionsResponse response;
   if (conversation.messages.empty()) {
-    return suggestions;
+    return response;
   }
 
-  SuggestActionsFromModel(conversation, &suggestions);
-  SuggestActionsFromAnnotations(conversation, options, &suggestions);
+  const int conversation_history_length = conversation.messages.size();
+  const int max_conversation_history_length =
+      model_->max_conversation_history_length();
+  const int num_messages =
+      ((max_conversation_history_length < 0 ||
+        conversation_history_length < max_conversation_history_length)
+           ? conversation_history_length
+           : max_conversation_history_length);
+
+  if (num_messages <= 0) {
+    TC3_LOG(INFO) << "No messages provided for actions suggestions.";
+    return response;
+  }
+
+  int input_text_length = 0;
+  for (int i = conversation.messages.size() - num_messages;
+       i < conversation.messages.size(); i++) {
+    input_text_length += conversation.messages[i].text.length();
+  }
+
+  // Bail out if we are provided with too few or too much input.
+  if (input_text_length < model_->min_input_length() ||
+      (model_->max_input_length() >= 0 &&
+       input_text_length > model_->max_input_length())) {
+    TC3_LOG(INFO) << "Too much or not enough input for inference.";
+    return response;
+  }
+
+  SuggestActionsFromModel(conversation, num_messages, &response);
+
+  // Suppress all predictions if the conversation was deemed sensitive.
+  if (model_->suppress_on_sensitive_topic() &&
+      response.output_filtered_sensitivity) {
+    return response;
+  }
+
+  SuggestActionsFromAnnotations(conversation, options, &response);
 
   // TODO(smillius): Properly rank the actions.
 
-  return suggestions;
+  return response;
 }
 
 const ActionsModel* ViewActionsModel(const void* buffer, int size) {

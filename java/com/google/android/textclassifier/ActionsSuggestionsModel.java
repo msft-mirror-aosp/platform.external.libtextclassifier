@@ -135,10 +135,14 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   public static final class ConversationMessage {
     private final int userId;
     private final String text;
+    private final int timeDiffInSeconds;
+    private final String locales;
 
-    public ConversationMessage(int userId, String text) {
+    public ConversationMessage(int userId, String text, int timeDiffInSeconds, String locales) {
       this.userId = userId;
       this.text = text;
+      this.timeDiffInSeconds = timeDiffInSeconds;
+      this.locales = locales;
     }
 
     /** The identifier of the sender */
@@ -148,6 +152,18 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
     public String getText() {
       return text;
+    }
+
+    /**
+     * The time difference (in seconds) between the first message of the coversation and this
+     * message, value {@code 0} means unspecified.
+     */
+    public int getTimeDiffInSeconds() {
+      return timeDiffInSeconds;
+    }
+
+    public String getLocales() {
+      return locales;
     }
   }
 
@@ -165,7 +181,21 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   }
 
   /** Represents options for the SuggestActions call. */
-  public static final class ActionSuggestionOptions {}
+  public static final class ActionSuggestionOptions {
+    private final AnnotatorModel.AnnotationOptions annotationOptions;
+
+    public ActionSuggestionOptions() {
+      this.annotationOptions = null;
+    }
+
+    public ActionSuggestionOptions(AnnotatorModel.AnnotationOptions annotationOptions) {
+      this.annotationOptions = annotationOptions;
+    }
+
+    public AnnotatorModel.AnnotationOptions getAnnotationOptions() {
+      return annotationOptions;
+    }
+  }
 
   /** Sets and annotator to use for actions suggestions. */
   private void setAnnotator(AnnotatorModel annotator) {
