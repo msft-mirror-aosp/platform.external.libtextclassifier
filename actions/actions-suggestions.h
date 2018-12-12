@@ -93,8 +93,8 @@ struct ConversationMessage {
   // Text of the message.
   std::string text;
 
-  // Relative time to previous message.
-  float time_diff_secs;
+  // Reference time of this message.
+  int64 reference_time_ms_utc;
 
   // Annotations on the text.
   std::vector<AnnotatedSpan> annotations;

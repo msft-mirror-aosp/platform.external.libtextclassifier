@@ -46,9 +46,14 @@ JniCache::JniCache(JavaVM* jvm)
   result->FIELD##_class = MakeGlobalRef(env->FindClass(NAME), env, jvm); \
   TC3_CHECK_JNI_PTR(result->FIELD##_class)
 
-#define TC3_GET_OPTIONAL_CLASS(FIELD, NAME)                              \
-  result->FIELD##_class = MakeGlobalRef(env->FindClass(NAME), env, jvm); \
-  env->ExceptionClear();
+#define TC3_GET_OPTIONAL_CLASS(FIELD, NAME)                   \
+  {                                                           \
+    jclass clazz = env->FindClass(NAME);                      \
+    if (clazz != nullptr) {                                   \
+      result->FIELD##_class = MakeGlobalRef(clazz, env, jvm); \
+    }                                                         \
+    env->ExceptionClear();                                    \
+  }
 
 #define TC3_GET_METHOD(CLASS, FIELD, NAME, SIGNATURE)                 \
   result->CLASS##_##FIELD =                                           \
