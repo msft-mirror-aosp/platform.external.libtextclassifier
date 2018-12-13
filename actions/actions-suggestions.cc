@@ -263,12 +263,25 @@ void ActionsSuggestions::SuggestActionsFromModel(
   std::vector<float> time_diffs;
 
   // Gather last `num_messages` messages from the conversation.
+  int64 last_message_reference_time_ms_utc = 0;
+  const float second_in_ms = 1000;
   for (int i = conversation.messages.size() - num_messages;
        i < conversation.messages.size(); i++) {
     const ConversationMessage& message = conversation.messages[i];
     context.push_back(message.text);
     user_ids.push_back(message.user_id);
-    time_diffs.push_back(message.time_diff_secs);
+
+    float time_diff_secs = 0;
+    if (message.reference_time_ms_utc != 0 &&
+        last_message_reference_time_ms_utc != 0) {
+      time_diff_secs = std::max(0.0f, (message.reference_time_ms_utc -
+                                       last_message_reference_time_ms_utc) /
+                                          second_in_ms);
+    }
+    if (message.reference_time_ms_utc != 0) {
+      last_message_reference_time_ms_utc = message.reference_time_ms_utc;
+    }
+    time_diffs.push_back(time_diff_secs);
   }
 
   SetupModelInput(context, user_ids, time_diffs,

@@ -135,13 +135,13 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   public static final class ConversationMessage {
     private final int userId;
     private final String text;
-    private final int timeDiffInSeconds;
+    private final long referenceTimeMsUtc;
     private final String locales;
 
-    public ConversationMessage(int userId, String text, int timeDiffInSeconds, String locales) {
+    public ConversationMessage(int userId, String text, long referenceTimeMsUtc, String locales) {
       this.userId = userId;
       this.text = text;
-      this.timeDiffInSeconds = timeDiffInSeconds;
+      this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.locales = locales;
     }
 
@@ -155,13 +155,14 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     }
 
     /**
-     * The time difference (in seconds) between the first message of the coversation and this
-     * message, value {@code 0} means unspecified.
+     * Return the reference time of the message, for example, it could be compose time or send time.
+     * {@code 0} means unspecified.
      */
-    public int getTimeDiffInSeconds() {
-      return timeDiffInSeconds;
+    public long getReferenceTimeMsUtc() {
+      return referenceTimeMsUtc;
     }
 
+    /** Returns a comma separated list of locales supported by the model as BCP 47 tags. */
     public String getLocales() {
       return locales;
     }

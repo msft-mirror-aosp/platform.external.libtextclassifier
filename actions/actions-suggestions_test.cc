@@ -172,9 +172,9 @@ TEST(ActionsSuggestionsTest, SuggestActionsWithLongerConversation) {
       ClassificationResult(Annotator::kAddressCollection, 1.0)};
   const ActionsSuggestionsResponse& response =
       actions_suggestions->SuggestActions(
-          {{{/*user_id=*/0, "hi, how are you?", /*time_diff_secs=*/0},
+          {{{/*user_id=*/0, "hi, how are you?", /*reference_time=*/10000},
             {/*user_id=*/1, "good! are you at home?",
-             /*time_diff_secs=*/60,
+             /*reference_time=*/15000,
              /*annotations=*/{annotation}}}});
   EXPECT_EQ(response.actions.size(), 1);
   EXPECT_EQ(response.actions.back().type, "view_map");
