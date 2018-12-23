@@ -85,6 +85,8 @@ LOCAL_REQUIRED_MODULES += libtextclassifier_lang_id_model
 
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/jni.lds
 LOCAL_LDFLAGS += -Wl,-version-script=$(LOCAL_PATH)/jni.lds
+# TODO(b/119788152): Remove this when the bug is fixed
+LOCAL_CFLAGS += -DANDROID_LINK_SHARED_ICU4C
 LOCAL_CPPFLAGS_32 += -DTC3_TEST_DATA_DIR="\"/data/nativetest/libtextclassifier_tests/test_data/\""
 LOCAL_CPPFLAGS_64 += -DTC3_TEST_DATA_DIR="\"/data/nativetest64/libtextclassifier_tests/test_data/\""
 
@@ -109,6 +111,8 @@ LOCAL_STRIP_MODULE := $(LIBTEXTCLASSIFIER_STRIP_OPTS)
 
 LOCAL_TEST_DATA := $(call find-test-data-in-subdirs, $(LOCAL_PATH), *, annotator/test_data, actions/test_data)
 
+# TODO(b/119788152): Remove this when the bug is fixed
+LOCAL_CFLAGS += -DANDROID_LINK_SHARED_ICU4C
 LOCAL_CPPFLAGS_32 += -DTC3_TEST_DATA_DIR="\"/data/nativetest/libtextclassifier_tests/test_data/\""
 LOCAL_CPPFLAGS_64 += -DTC3_TEST_DATA_DIR="\"/data/nativetest64/libtextclassifier_tests/test_data/\""
 
