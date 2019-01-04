@@ -26,6 +26,8 @@
 #include "annotator/types.h"
 #include "utils/memory/mmap.h"
 #include "utils/tflite-model-executor.h"
+#include "utils/utf8/unilib.h"
+#include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3 {
 
@@ -122,17 +124,26 @@ struct ActionSuggestionOptions {
 class ActionsSuggestions {
  public:
   static std::unique_ptr<ActionsSuggestions> FromUnownedBuffer(
-      const uint8_t* buffer, const int size);
+      const uint8_t* buffer, const int size, const UniLib* unilib = nullptr);
   // Takes ownership of the mmap.
   static std::unique_ptr<ActionsSuggestions> FromScopedMmap(
-      std::unique_ptr<libtextclassifier3::ScopedMmap> mmap);
+      std::unique_ptr<libtextclassifier3::ScopedMmap> mmap,
+      const UniLib* unilib = nullptr);
   static std::unique_ptr<ActionsSuggestions> FromFileDescriptor(
-      const int fd, const int offset, const int size);
-  static std::unique_ptr<ActionsSuggestions> FromFileDescriptor(const int fd);
-  static std::unique_ptr<ActionsSuggestions> FromPath(const std::string& path);
+      const int fd, const int offset, const int size,
+      const UniLib* unilib = nullptr);
+  static std::unique_ptr<ActionsSuggestions> FromFileDescriptor(
+      const int fd, const UniLib* unilib = nullptr);
+  static std::unique_ptr<ActionsSuggestions> FromPath(
+      const std::string& path, const UniLib* unilib = nullptr);
 
   ActionsSuggestionsResponse SuggestActions(
       const Conversation& conversation,
+      const ActionSuggestionOptions& options =
+          ActionSuggestionOptions::Default()) const;
+
+  ActionsSuggestionsResponse SuggestActions(
+      const Conversation& conversation, const Annotator* annotator,
       const ActionSuggestionOptions& options =
           ActionSuggestionOptions::Default()) const;
 
@@ -148,11 +159,17 @@ class ActionsSuggestions {
   static const std::string& kSendSmsType;
   static const std::string& kCallPhoneType;
   static const std::string& kSendEmailType;
+  static const std::string& kShareLocation;
 
  private:
   // Checks that model contains all required fields, and initializes internal
   // datastructures.
   bool ValidateAndInitialize();
+
+  void SetOrCreateUnilib(const UniLib* unilib);
+
+  // Initializes regular expression rules.
+  bool InitializeRules(ZlibDecompressor* decompressor);
 
   void SetupModelInput(const std::vector<std::string>& context,
                        const std::vector<int>& user_ids,
@@ -168,11 +185,18 @@ class ActionsSuggestions {
 
   void SuggestActionsFromAnnotations(
       const Conversation& conversation, const ActionSuggestionOptions& options,
+      const Annotator* annotator,
       ActionsSuggestionsResponse* suggestions) const;
 
   void CreateActionsFromAnnotationResult(
       const int message_index, const AnnotatedSpan& annotation,
       ActionsSuggestionsResponse* suggestions) const;
+
+  void SuggestActionsFromRules(const Conversation& conversation,
+                               ActionsSuggestionsResponse* suggestions) const;
+
+  // Rank and deduplicate actions suggestions.
+  void RankActions(ActionsSuggestionsResponse* suggestions) const;
 
   const ActionsModel* model_;
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap_;
@@ -180,8 +204,15 @@ class ActionsSuggestions {
   // Tensorflow Lite models.
   std::unique_ptr<const TfLiteModelExecutor> model_executor_;
 
-  // Annotator.
-  const Annotator* annotator_ = nullptr;
+  // Rules.
+  struct CompiledRule {
+    int rule_id;
+    std::unique_ptr<UniLib::RegexPattern> pattern;
+  };
+  std::vector<CompiledRule> rules_;
+
+  std::unique_ptr<UniLib> owned_unilib_;
+  const UniLib* unilib_;
 };
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.

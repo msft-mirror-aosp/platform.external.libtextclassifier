@@ -38,6 +38,13 @@ using libtextclassifier3::Conversation;
 using libtextclassifier3::ScopedLocalRef;
 using libtextclassifier3::ToStlString;
 
+// When using the Java's ICU, UniLib needs to be instantiated with a JavaVM
+// pointer from JNI. When using a standard ICU the pointer is not needed and the
+// objects are instantiated implicitly.
+#ifdef TC3_UNILIB_JAVAICU
+using libtextclassifier3::UniLib;
+#endif
+
 namespace libtextclassifier3 {
 
 namespace {
@@ -216,28 +223,51 @@ using libtextclassifier3::FromJavaConversation;
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModel)
 (JNIEnv* env, jobject thiz, jint fd) {
+#ifdef TC3_UNILIB_JAVAICU
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
+      libtextclassifier3::JniCache::Create(env));
+  return reinterpret_cast<jlong>(
+      ActionsSuggestions::FromFileDescriptor(fd, new UniLib(jni_cache))
+          .release());
+#else
   return reinterpret_cast<jlong>(
       ActionsSuggestions::FromFileDescriptor(fd).release());
+#endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelFromPath)
 (JNIEnv* env, jobject thiz, jstring path) {
   const std::string path_str = ToStlString(env, path);
+#ifdef TC3_UNILIB_JAVAICU
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
+      libtextclassifier3::JniCache::Create(env));
+  return reinterpret_cast<jlong>(
+      ActionsSuggestions::FromPath(path_str, new UniLib(jni_cache)).release());
+#else
   return reinterpret_cast<jlong>(
       ActionsSuggestions::FromPath(path_str).release());
+#endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME,
                nativeNewActionModelsFromAssetFileDescriptor)
 (JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
   const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
+#ifdef TC3_UNILIB_JAVAICU
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
+      libtextclassifier3::JniCache::Create(env));
+  return reinterpret_cast<jlong>(ActionsSuggestions::FromFileDescriptor(
+                                     fd, offset, size, new UniLib(jni_cache))
+                                     .release());
+#else
   return reinterpret_cast<jlong>(
       ActionsSuggestions::FromFileDescriptor(fd, offset, size).release());
+#endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
-(JNIEnv* env, jobject clazz, jlong ptr, jobject jconversation,
- jobject joptions) {
+(JNIEnv* env, jobject clazz, jlong ptr, jobject jconversation, jobject joptions,
+ jlong annotatorPtr) {
   if (!ptr) {
     return nullptr;
   }
@@ -245,9 +275,10 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
   const ActionSuggestionOptions actionSuggestionOptions =
       FromJavaActionSuggestionOptions(env, joptions);
   ActionsSuggestions* action_model = reinterpret_cast<ActionsSuggestions*>(ptr);
+  Annotator* annotator = reinterpret_cast<Annotator*>(annotatorPtr);
 
-  const ActionsSuggestionsResponse response =
-      action_model->SuggestActions(conversation, actionSuggestionOptions);
+  const ActionsSuggestionsResponse response = action_model->SuggestActions(
+      conversation, annotator, actionSuggestionOptions);
   return ActionSuggestionsToJObjectArray(env, response.actions);
 }
 
@@ -276,14 +307,4 @@ TC3_JNI_METHOD(jint, TC3_ACTIONS_CLASS_NAME, nativeGetVersion)
   const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd));
   return libtextclassifier3::GetVersionFromMmap(env, mmap.get());
-}
-
-TC3_JNI_METHOD(void, TC3_ACTIONS_CLASS_NAME, nativeSetAnnotator)
-(JNIEnv* env, jobject clazz, jlong ptr, jlong annotatorPtr) {
-  if (!ptr) {
-    return;
-  }
-  ActionsSuggestions* action_model = reinterpret_cast<ActionsSuggestions*>(ptr);
-  Annotator* annotator = reinterpret_cast<Annotator*>(annotatorPtr);
-  action_model->SetAnnotator(annotator);
 }

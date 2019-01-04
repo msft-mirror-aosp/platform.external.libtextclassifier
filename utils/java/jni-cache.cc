@@ -33,18 +33,24 @@ JniCache::JniCache(JavaVM* jvm)
       calendar_class(nullptr, jvm),
       timezone_class(nullptr, jvm),
       urlencoder_class(nullptr, jvm)
+#ifdef __ANDROID__
+      ,
+      context_class(nullptr, jvm),
+      uri_class(nullptr, jvm),
+      usermanager_class(nullptr, jvm),
+      bundle_class(nullptr, jvm)
+#endif
 {
 }
 
 // The macros below are intended to reduce the boilerplate in Create and avoid
 // easily introduced copy/paste errors.
-#define TC3_CHECK_JNI_PTR(PTR) \
-  TC3_DCHECK(PTR);             \
-  if (!(PTR)) return nullptr;
+#define TC3_CHECK_JNI_PTR(PTR) TC3_CHECK((PTR) != nullptr)
+#define TC3_CHECK_JNI_RESULT(RESULT) TC3_CHECK(RESULT)
 
 #define TC3_GET_CLASS(FIELD, NAME)                                       \
   result->FIELD##_class = MakeGlobalRef(env->FindClass(NAME), env, jvm); \
-  TC3_CHECK_JNI_PTR(result->FIELD##_class)
+  TC3_CHECK_JNI_PTR(result->FIELD##_class) << "Error finding class: " << NAME;
 
 #define TC3_GET_OPTIONAL_CLASS(FIELD, NAME)                   \
   {                                                           \
@@ -58,7 +64,8 @@ JniCache::JniCache(JavaVM* jvm)
 #define TC3_GET_METHOD(CLASS, FIELD, NAME, SIGNATURE)                 \
   result->CLASS##_##FIELD =                                           \
       env->GetMethodID(result->CLASS##_class.get(), NAME, SIGNATURE); \
-  TC3_CHECK_JNI_PTR(result->CLASS##_##FIELD)
+  TC3_CHECK_JNI_RESULT(result->CLASS##_##FIELD)                       \
+      << "Error finding method: " << NAME;
 
 #define TC3_GET_OPTIONAL_METHOD(CLASS, FIELD, NAME, SIGNATURE)          \
   if (result->CLASS##_class != nullptr) {                               \
@@ -77,25 +84,30 @@ JniCache::JniCache(JavaVM* jvm)
 #define TC3_GET_STATIC_METHOD(CLASS, FIELD, NAME, SIGNATURE)                \
   result->CLASS##_##FIELD =                                                 \
       env->GetStaticMethodID(result->CLASS##_class.get(), NAME, SIGNATURE); \
-  TC3_CHECK_JNI_PTR(result->CLASS##_##FIELD)
+  TC3_CHECK_JNI_RESULT(result->CLASS##_##FIELD)                             \
+      << "Error finding method: " << NAME;
 
 #define TC3_GET_STATIC_OBJECT_FIELD(CLASS, FIELD, NAME, SIGNATURE)         \
   const jfieldID CLASS##_##FIELD##_field =                                 \
       env->GetStaticFieldID(result->CLASS##_class.get(), NAME, SIGNATURE); \
-  TC3_CHECK_JNI_PTR(CLASS##_##FIELD##_field)                               \
+  TC3_CHECK_JNI_RESULT(CLASS##_##FIELD##_field)                            \
+      << "Error finding field id: " << NAME;                               \
   result->CLASS##_##FIELD =                                                \
       MakeGlobalRef(env->GetStaticObjectField(result->CLASS##_class.get(), \
                                               CLASS##_##FIELD##_field),    \
                     env, jvm);                                             \
-  TC3_CHECK_JNI_PTR(result->CLASS##_##FIELD)
+  TC3_CHECK_JNI_RESULT(result->CLASS##_##FIELD)                            \
+      << "Error finding field: " << NAME;
 
 #define TC3_GET_STATIC_INT_FIELD(CLASS, FIELD, NAME)                 \
   const jfieldID CLASS##_##FIELD##_field =                           \
       env->GetStaticFieldID(result->CLASS##_class.get(), NAME, "I"); \
-  TC3_CHECK_JNI_PTR(CLASS##_##FIELD##_field)                         \
+  TC3_CHECK_JNI_RESULT(CLASS##_##FIELD##_field)                      \
+      << "Error finding field id: " << NAME;                         \
   result->CLASS##_##FIELD = env->GetStaticIntField(                  \
       result->CLASS##_class.get(), CLASS##_##FIELD##_field);         \
-  TC3_CHECK_JNI_PTR(result->CLASS##_##FIELD)
+  TC3_CHECK_JNI_RESULT(result->CLASS##_##FIELD)                      \
+      << "Error finding field: " << NAME;
 
 std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   if (env == nullptr) {
@@ -114,7 +126,7 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   TC3_GET_METHOD(string, code_point_count, "codePointCount", "(II)I");
   TC3_GET_METHOD(string, length, "length", "()I");
   result->string_utf8 = MakeGlobalRef(env->NewStringUTF("UTF-8"), env, jvm);
-  TC3_CHECK_JNI_PTR(result->string_utf8)
+  TC3_CHECK_JNI_PTR(result->string_utf8);
 
   // Pattern
   TC3_GET_CLASS(pattern, "java/util/regex/Pattern");
@@ -193,6 +205,7 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
       urlencoder, encode, "encode",
       "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 
+#ifdef __ANDROID__
   // Context.
   TC3_GET_CLASS(context, "android/content/Context");
   TC3_GET_METHOD(context, get_package_name, "getPackageName",
@@ -214,6 +227,7 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   // Bundle.
   TC3_GET_CLASS(bundle, "android/os/Bundle");
   TC3_GET_METHOD(bundle, get_boolean, "getBoolean", "(Ljava/lang/String;)Z");
+#endif
 
   return result;
 }
