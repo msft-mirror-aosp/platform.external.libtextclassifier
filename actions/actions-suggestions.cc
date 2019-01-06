@@ -16,6 +16,7 @@
 
 #include "actions/actions-suggestions.h"
 #include "utils/base/logging.h"
+#include "utils/utf8/unicodetext.h"
 #include "tensorflow/contrib/lite/string_util.h"
 
 namespace libtextclassifier3 {
@@ -34,6 +35,8 @@ const std::string& ActionsSuggestions::kCallPhoneType =
     *[]() { return new std::string("call_phone"); }();
 const std::string& ActionsSuggestions::kSendEmailType =
     *[]() { return new std::string("send_email"); }();
+const std::string& ActionsSuggestions::kShareLocation =
+    *[]() { return new std::string("share_location"); }();
 
 namespace {
 const ActionsModel* LoadAndVerifyModel(const uint8_t* addr, int size) {
@@ -45,16 +48,55 @@ const ActionsModel* LoadAndVerifyModel(const uint8_t* addr, int size) {
   }
 }
 
+// Checks whether two annotations can be considered equivalent.
+bool IsEquivalentActionAnnotation(const ActionSuggestionAnnotation& annotation,
+                                  const ActionSuggestionAnnotation& other) {
+  return annotation.message_index == other.message_index &&
+         annotation.span == other.span && annotation.name == other.name &&
+         annotation.entity.collection == other.entity.collection;
+}
+
+// Checks whether two action suggestions can be considered equivalent.
+bool IsEquivalentActionSuggestion(const ActionSuggestion& action,
+                                  const ActionSuggestion& other) {
+  if (action.type != other.type ||
+      action.response_text != other.response_text ||
+      action.annotations.size() != other.annotations.size()) {
+    return false;
+  }
+
+  // Check whether annotations are the same.
+  for (int i = 0; i < action.annotations.size(); i++) {
+    if (!IsEquivalentActionAnnotation(action.annotations[i],
+                                      other.annotations[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Checks whether any action is equivalent to the given one.
+bool IsAnyActionEquivalent(const ActionSuggestion& action,
+                           const std::vector<ActionSuggestion>& actions) {
+  for (const ActionSuggestion& other : actions) {
+    if (IsEquivalentActionSuggestion(action, other)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
-    const uint8_t* buffer, const int size) {
+    const uint8_t* buffer, const int size, const UniLib* unilib) {
   auto actions = std::unique_ptr<ActionsSuggestions>(new ActionsSuggestions());
   const ActionsModel* model = LoadAndVerifyModel(buffer, size);
   if (model == nullptr) {
     return nullptr;
   }
   actions->model_ = model;
+  actions->SetOrCreateUnilib(unilib);
   if (!actions->ValidateAndInitialize()) {
     return nullptr;
   }
@@ -62,7 +104,8 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
-    std::unique_ptr<libtextclassifier3::ScopedMmap> mmap) {
+    std::unique_ptr<libtextclassifier3::ScopedMmap> mmap,
+    const UniLib* unilib) {
   if (!mmap->handle().ok()) {
     TC3_VLOG(1) << "Mmap failed.";
     return nullptr;
@@ -77,7 +120,7 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
   auto actions = std::unique_ptr<ActionsSuggestions>(new ActionsSuggestions());
   actions->model_ = model;
   actions->mmap_ = std::move(mmap);
-
+  actions->SetOrCreateUnilib(unilib);
   if (!actions->ValidateAndInitialize()) {
     return nullptr;
   }
@@ -85,33 +128,43 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromFileDescriptor(
-    const int fd, const int offset, const int size) {
+    const int fd, const int offset, const int size, const UniLib* unilib) {
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd, offset, size));
-  return FromScopedMmap(std::move(mmap));
+  return FromScopedMmap(std::move(mmap), unilib);
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromFileDescriptor(
-    const int fd) {
+    const int fd, const UniLib* unilib) {
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd));
-  return FromScopedMmap(std::move(mmap));
+  return FromScopedMmap(std::move(mmap), unilib);
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromPath(
-    const std::string& path) {
+    const std::string& path, const UniLib* unilib) {
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(path));
-  return FromScopedMmap(std::move(mmap));
+  return FromScopedMmap(std::move(mmap), unilib);
 }
 
-void ActionsSuggestions::SetAnnotator(const Annotator* annotator) {
-  annotator_ = annotator;
+void ActionsSuggestions::SetOrCreateUnilib(const UniLib* unilib) {
+  if (unilib != nullptr) {
+    unilib_ = unilib;
+  } else {
+    owned_unilib_.reset(new UniLib);
+    unilib_ = owned_unilib_.get();
+  }
 }
 
 bool ActionsSuggestions::ValidateAndInitialize() {
   if (model_ == nullptr) {
     TC3_LOG(ERROR) << "No model specified.";
+    return false;
+  }
+
+  if (model_->preconditions() == nullptr) {
+    TC3_LOG(ERROR) << "No triggering conditions specified.";
     return false;
   }
 
@@ -124,7 +177,54 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     }
   }
 
+  std::unique_ptr<ZlibDecompressor> decompressor = ZlibDecompressor::Instance();
+  if (!InitializeRules(decompressor.get())) {
+    TC3_LOG(ERROR) << "Could not initialize rules.";
+    return false;
+  }
+
   return true;
+}
+
+bool ActionsSuggestions::InitializeRules(ZlibDecompressor* decompressor) {
+  if (model_->rules() == nullptr) {
+    // No rules specified.
+    return true;
+  }
+
+  const int num_rules = model_->rules()->rule()->size();
+  for (int i = 0; i < num_rules; i++) {
+    const auto* rule = model_->rules()->rule()->Get(i);
+    std::unique_ptr<UniLib::RegexPattern> compiled_pattern =
+        UncompressMakeRegexPattern(*unilib_, rule->pattern(),
+                                   rule->compressed_pattern(), decompressor);
+    if (compiled_pattern == nullptr) {
+      TC3_LOG(ERROR) << "Failed to load rule pattern.";
+      return false;
+    }
+    rules_.push_back({/*rule_id=*/i, std::move(compiled_pattern)});
+  }
+
+  return true;
+}
+
+void ActionsSuggestions::RankActions(
+    ActionsSuggestionsResponse* suggestions) const {
+  // First order suggestions by score.
+  std::sort(suggestions->actions.begin(), suggestions->actions.end(),
+            [](const ActionSuggestion& a, const ActionSuggestion& b) {
+              return a.score > b.score;
+            });
+
+  // Deduplicate, keeping the higher score actions.
+  std::vector<ActionSuggestion> deduplicated_actions;
+  for (const ActionSuggestion& candidate : suggestions->actions) {
+    // Check whether we already have an equivalent action.
+    if (!IsAnyActionEquivalent(candidate, deduplicated_actions)) {
+      deduplicated_actions.push_back(candidate);
+    }
+  }
+  suggestions->actions = deduplicated_actions;
 }
 
 void ActionsSuggestions::SetupModelInput(
@@ -173,7 +273,8 @@ void ActionsSuggestions::ReadModelOutput(
     }
     response->triggering_score = triggering_score.data()[0];
     response->output_filtered_min_triggering_score =
-        (response->triggering_score < model_->min_triggering_confidence());
+        (response->triggering_score <
+         model_->preconditions()->min_smart_reply_triggering_score());
   }
   if (model_->tflite_model_spec()->output_sensitive_topic_score() >= 0) {
     const TensorView<float>& sensitive_topic_score =
@@ -187,7 +288,8 @@ void ActionsSuggestions::ReadModelOutput(
     }
     response->sensitivity_score = sensitive_topic_score.data()[0];
     response->output_filtered_sensitivity =
-        (response->sensitivity_score > model_->max_sensitive_topic_score());
+        (response->sensitivity_score >
+         model_->preconditions()->max_sensitive_topic_score());
   }
 
   // Suppress model outputs.
@@ -205,6 +307,7 @@ void ActionsSuggestions::ReadModelOutput(
         model_->tflite_model_spec()->output_replies_scores(), interpreter);
     std::vector<ActionSuggestion> text_replies;
     for (int i = 0; i < replies.size(); i++) {
+      if (replies[i].len == 0) continue;
       response->actions.push_back({std::string(replies[i].str, replies[i].len),
                                    model_->smart_reply_action_type()->str(),
                                    scores.data()[i]});
@@ -226,10 +329,7 @@ void ActionsSuggestions::ReadModelOutput(
       }
       const std::string& output_class =
           (*model_->action_type())[i]->name()->str();
-      if (score >= model_->min_actions_confidence()) {
-        response->actions.push_back(
-            {/*response_text=*/"", output_class, score});
-      }
+      response->actions.push_back({/*response_text=*/"", output_class, score});
     }
   }
 }
@@ -298,7 +398,7 @@ void ActionsSuggestions::SuggestActionsFromModel(
 
 void ActionsSuggestions::SuggestActionsFromAnnotations(
     const Conversation& conversation, const ActionSuggestionOptions& options,
-    ActionsSuggestionsResponse* response) const {
+    const Annotator* annotator, ActionsSuggestionsResponse* response) const {
   if (model_->annotation_actions_spec() == nullptr ||
       model_->annotation_actions_spec()->annotation_mapping() == nullptr ||
       model_->annotation_actions_spec()->annotation_mapping()->size() == 0) {
@@ -306,12 +406,11 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
   }
 
   // Create actions based on the annotations present in the last message.
-  // TODO(smillius): Make this configurable.
   std::vector<AnnotatedSpan> annotations =
       conversation.messages.back().annotations;
-  if (annotations.empty() && annotator_ != nullptr) {
-    annotations = annotator_->Annotate(conversation.messages.back().text,
-                                       options.annotation_options);
+  if (annotations.empty() && annotator != nullptr) {
+    annotations = annotator->Annotate(conversation.messages.back().text,
+                                      options.annotation_options);
   }
   const int message_index = conversation.messages.size() - 1;
   for (const AnnotatedSpan& annotation : annotations) {
@@ -342,17 +441,44 @@ void ActionsSuggestions::CreateActionsFromAnnotationResult(
       }
       const float score =
           (mapping->use_annotation_score() ? classification_result.score
-                                           : mapping->default_score());
+                                           : mapping->action()->score());
       suggestions->actions.push_back({/*response_text=*/"",
-                                      /*type=*/mapping->action_name()->str(),
+                                      /*type=*/mapping->action()->type()->str(),
                                       /*score=*/score,
                                       /*annotations=*/{suggestion_annotation}});
     }
   }
 }
 
-ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
+void ActionsSuggestions::SuggestActionsFromRules(
     const Conversation& conversation,
+    ActionsSuggestionsResponse* suggestions) const {
+  // Create actions based on rules checking the last message.
+  const std::string& message = conversation.messages.back().text;
+  const UnicodeText message_unicode(
+      UTF8ToUnicodeText(message, /*do_copy=*/false));
+  for (int i = 0; i < rules_.size(); i++) {
+    const std::unique_ptr<UniLib::RegexMatcher> matcher =
+        rules_[i].pattern->Matcher(message_unicode);
+    int status = UniLib::RegexMatcher::kNoError;
+    if (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
+      const auto actions =
+          model_->rules()->rule()->Get(rules_[i].rule_id)->actions();
+      for (int k = 0; k < actions->size(); k++) {
+        const ActionSuggestionSpec* action = actions->Get(k);
+        suggestions->actions.push_back(
+            {/*response_text=*/(action->response_text() != nullptr
+                                    ? action->response_text()->str()
+                                    : ""),
+             /*type=*/action->type()->str(),
+             /*score=*/action->score()});
+      }
+    }
+  }
+}
+
+ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
+    const Conversation& conversation, const Annotator* annotator,
     const ActionSuggestionOptions& options) const {
   ActionsSuggestionsResponse response;
   if (conversation.messages.empty()) {
@@ -380,26 +506,34 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
   }
 
   // Bail out if we are provided with too few or too much input.
-  if (input_text_length < model_->min_input_length() ||
-      (model_->max_input_length() >= 0 &&
-       input_text_length > model_->max_input_length())) {
+  if (input_text_length < model_->preconditions()->min_input_length() ||
+      (model_->preconditions()->max_input_length() >= 0 &&
+       input_text_length > model_->preconditions()->max_input_length())) {
     TC3_LOG(INFO) << "Too much or not enough input for inference.";
     return response;
   }
 
+  SuggestActionsFromRules(conversation, &response);
+
   SuggestActionsFromModel(conversation, num_messages, &response);
 
   // Suppress all predictions if the conversation was deemed sensitive.
-  if (model_->suppress_on_sensitive_topic() &&
+  if (model_->preconditions()->suppress_on_sensitive_topic() &&
       response.output_filtered_sensitivity) {
     return response;
   }
 
-  SuggestActionsFromAnnotations(conversation, options, &response);
+  SuggestActionsFromAnnotations(conversation, options, annotator, &response);
 
-  // TODO(smillius): Properly rank the actions.
+  RankActions(&response);
 
   return response;
+}
+
+ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
+    const Conversation& conversation,
+    const ActionSuggestionOptions& options) const {
+  return SuggestActions(conversation, /*annotator=*/nullptr, options);
 }
 
 const ActionsModel* ViewActionsModel(const void* buffer, int size) {

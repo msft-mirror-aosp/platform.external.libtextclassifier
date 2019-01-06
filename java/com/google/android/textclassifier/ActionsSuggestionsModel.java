@@ -47,7 +47,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     if (actionsModelPtr == 0L) {
       throw new IllegalArgumentException("Couldn't initialize actions model from file descriptor.");
     }
-    setAnnotator(annotator);
+    this.annotator = annotator;
   }
 
   /**
@@ -63,13 +63,17 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     if (actionsModelPtr == 0L) {
       throw new IllegalArgumentException("Couldn't initialize actions model from given file.");
     }
-    setAnnotator(annotator);
+    this.annotator = annotator;
   }
 
   /** Suggests actions / replies to the given conversation. */
   public ActionSuggestion[] suggestActions(
       Conversation conversation, ActionSuggestionOptions options) {
-    return nativeSuggestActions(actionsModelPtr, conversation, options);
+    return nativeSuggestActions(
+        actionsModelPtr,
+        conversation,
+        options,
+        (annotator != null ? annotator.getNativeAnnotator() : 0));
   }
 
   /** Frees up the allocated memory. */
@@ -198,14 +202,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     }
   }
 
-  /** Sets and annotator to use for actions suggestions. */
-  private void setAnnotator(AnnotatorModel annotator) {
-    this.annotator = annotator;
-    if (annotator != null) {
-      nativeSetAnnotator(annotator.getNativeAnnotator());
-    }
-  }
-
   private static native long nativeNewActionsModel(int fd);
 
   private static native long nativeNewActionsModelFromPath(String path);
@@ -217,7 +213,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   private static native String nativeGetName(int fd);
 
   private native ActionSuggestion[] nativeSuggestActions(
-      long context, Conversation conversation, ActionSuggestionOptions options);
+      long context, Conversation conversation, ActionSuggestionOptions options, long annotatorPtr);
 
   private native void nativeCloseActionsModel(long context);
 

@@ -34,6 +34,7 @@
 #include "annotator/zlib-utils.h"
 #include "utils/memory/mmap.h"
 #include "utils/utf8/unilib.h"
+#include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3 {
 

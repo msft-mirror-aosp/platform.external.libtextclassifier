@@ -40,15 +40,11 @@
 #endif
 
 using libtextclassifier3::AnnotatedSpan;
-using libtextclassifier3::AnnotationOptions;
 using libtextclassifier3::Annotator;
-using libtextclassifier3::ClassificationOptions;
 using libtextclassifier3::ClassificationResult;
 using libtextclassifier3::CodepointSpan;
-using libtextclassifier3::JStringToUtf8String;
 using libtextclassifier3::Model;
 using libtextclassifier3::ScopedLocalRef;
-using libtextclassifier3::SelectionOptions;
 // When using the Java's ICU, CalendarLib and UniLib need to be instantiated
 // with a JavaVM pointer from JNI. When using a standard ICU the pointer is
 // not needed and the objects are instantiated implicitly.
@@ -234,9 +230,10 @@ TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotator)
 #ifdef TC3_USE_JAVAICU
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
       libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(Annotator::FromFileDescriptor(fd).release(),
-                                 new UniLib(jni_cache),
-                                 new CalendarLib(jni_cache));
+  return reinterpret_cast<jlong>(
+      Annotator::FromFileDescriptor(fd, new UniLib(jni_cache),
+                                    new CalendarLib(jni_cache))
+          .release());
 #else
   return reinterpret_cast<jlong>(Annotator::FromFileDescriptor(fd).release());
 #endif

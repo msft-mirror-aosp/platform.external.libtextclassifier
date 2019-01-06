@@ -18,6 +18,15 @@ endef
 
 intermediates := $(call local-generated-sources-dir)
 
+# Generate utils/zlib/buffer_generated.h using FlatBuffer schema compiler.
+UTILS_ZLIB_BUFFER_FBS := $(LOCAL_PATH)/utils/zlib/buffer.fbs
+UTILS_ZLIB_BUFFER_H := $(intermediates)/utils/zlib/buffer_generated.h
+$(UTILS_ZLIB_BUFFER_H): PRIVATE_INPUT_FBS := $(UTILS_ZLIB_BUFFER_FBS)
+$(UTILS_ZLIB_BUFFER_H): INPUT_DIR := $(LOCAL_PATH)
+$(UTILS_ZLIB_BUFFER_H): $(FLATC) $(UTILS_ZLIB_BUFFER_FBS)
+	$(transform-fbs-to-cpp)
+LOCAL_GENERATED_SOURCES += $(UTILS_ZLIB_BUFFER_H)
+
 # Generate utils/intent/intent-config_generated.h using FlatBuffer schema compiler.
 INTENT_CONFIG_FBS := $(LOCAL_PATH)/utils/intents/intent-config.fbs
 INTENT_CONFIG_H := $(intermediates)/utils/intents/intent-config_generated.h
