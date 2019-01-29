@@ -17,7 +17,7 @@
 #include "actions/actions-suggestions.h"
 #include "utils/base/logging.h"
 #include "utils/utf8/unicodetext.h"
-#include "tensorflow/contrib/lite/string_util.h"
+#include "tensorflow/lite/string_util.h"
 
 namespace libtextclassifier3 {
 
