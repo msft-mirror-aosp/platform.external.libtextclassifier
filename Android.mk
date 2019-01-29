@@ -64,7 +64,8 @@ include $(LOCAL_PATH)/generate_flatbuffers.mk
 LOCAL_CFLAGS += $(MY_LIBTEXTCLASSIFIER_CFLAGS)
 LOCAL_STRIP_MODULE := $(LIBTEXTCLASSIFIER_STRIP_OPTS)
 
-LOCAL_SRC_FILES := $(filter-out tests/% %_test.cc test-util.%,$(call all-subdir-cpp-files))
+EXCLUDED_FILES := %_test.cc test-util.% utils/testing/% %-test-lib.cc
+LOCAL_SRC_FILES := $(filter-out $(EXCLUDED_FILES),$(call all-subdir-cpp-files))
 
 LOCAL_C_INCLUDES := $(TOP)/external/zlib
 LOCAL_C_INCLUDES += $(TOP)/external/tensorflow
@@ -77,6 +78,7 @@ LOCAL_SHARED_LIBRARIES += libtflite
 LOCAL_SHARED_LIBRARIES += libz
 
 LOCAL_STATIC_LIBRARIES += libutf
+LOCAL_STATIC_LIBRARIES += liblua
 
 LOCAL_REQUIRED_MODULES := libtextclassifier_annotator_en_model
 LOCAL_REQUIRED_MODULES += libtextclassifier_annotator_universal_model
@@ -113,6 +115,8 @@ LOCAL_CPPFLAGS_32 += -DTC3_TEST_DATA_DIR="\"/data/nativetest/libtextclassifier_t
 LOCAL_CPPFLAGS_64 += -DTC3_TEST_DATA_DIR="\"/data/nativetest64/libtextclassifier_tests/test_data/\""
 
 # TODO: Do not filter out tflite test once the dependency issue is resolved.
+EXCLUDED_FILES := utils/tflite/%_test.cc
+
 LOCAL_SRC_FILES := $(filter-out utils/tflite/%_test.cc,$(call all-subdir-cpp-files))
 
 LOCAL_C_INCLUDES := $(TOP)/external/zlib
@@ -127,6 +131,7 @@ LOCAL_SHARED_LIBRARIES += libz
 
 LOCAL_STATIC_LIBRARIES += libgmock
 LOCAL_STATIC_LIBRARIES += libutf
+LOCAL_STATIC_LIBRARIES += liblua
 
 include $(BUILD_NATIVE_TEST)
 
