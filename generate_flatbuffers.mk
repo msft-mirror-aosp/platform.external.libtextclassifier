@@ -18,6 +18,15 @@ endef
 
 intermediates := $(call local-generated-sources-dir)
 
+# Generate utils/named-extra_generated.h using FlatBuffer schema compiler.
+NAMED_EXTRA_FBS := $(LOCAL_PATH)/utils/named-extra.fbs
+NAMED_EXTRA_H := $(intermediates)/utils/named-extra_generated.h
+$(NAMED_EXTRA_H): PRIVATE_INPUT_FBS := $(NAMED_EXTRA_FBS)
+$(NAMED_EXTRA_H): INPUT_DIR := $(LOCAL_PATH)
+$(NAMED_EXTRA_H): $(FLATC) $(NAMED_EXTRA_FBS)
+	$(transform-fbs-to-cpp)
+LOCAL_GENERATED_SOURCES += $(NAMED_EXTRA_H)
+
 # Generate utils/zlib/buffer_generated.h using FlatBuffer schema compiler.
 UTILS_ZLIB_BUFFER_FBS := $(LOCAL_PATH)/utils/zlib/buffer.fbs
 UTILS_ZLIB_BUFFER_H := $(intermediates)/utils/zlib/buffer_generated.h
