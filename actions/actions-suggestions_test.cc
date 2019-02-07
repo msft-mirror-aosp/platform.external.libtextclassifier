@@ -240,13 +240,18 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromClassificationResult) {
                                              /*locales=*/"en"}}});
 
   EXPECT_EQ(response.actions.size(),
-            5 /* smart replies + actions from annotations*/);
+            6 /* smart replies + actions from annotations*/);
   EXPECT_EQ(response.actions[0].type, "call_phone");
   EXPECT_EQ(response.actions[0].score, 1.0);
   EXPECT_EQ(response.actions[0].annotations.size(), 1);
   EXPECT_EQ(response.actions[0].annotations[0].message_index, 0);
   EXPECT_EQ(response.actions[0].annotations[0].span, annotation.span);
   EXPECT_EQ(response.actions[1].type, "send_sms");
+  EXPECT_EQ(response.actions[1].score, 1.0);
+  EXPECT_EQ(response.actions[1].annotations.size(), 1);
+  EXPECT_EQ(response.actions[1].annotations[0].message_index, 0);
+  EXPECT_EQ(response.actions[1].annotations[0].span, annotation.span);
+  EXPECT_EQ(response.actions[2].type, "add_contact");
   EXPECT_EQ(response.actions[1].score, 1.0);
   EXPECT_EQ(response.actions[1].annotations.size(), 1);
   EXPECT_EQ(response.actions[1].annotations[0].message_index, 0);

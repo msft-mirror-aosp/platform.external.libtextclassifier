@@ -219,6 +219,7 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   TC3_GET_STATIC_METHOD(uri, parse, "parse",
                         "(Ljava/lang/String;)Landroid/net/Uri;");
   TC3_GET_METHOD(uri, get_scheme, "getScheme", "()Ljava/lang/String;");
+  TC3_GET_METHOD(uri, get_host, "getHost", "()Ljava/lang/String;");
 
   // UserManager.
   TC3_GET_OPTIONAL_CLASS(usermanager, "android/os/UserManager");
