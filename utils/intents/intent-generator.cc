@@ -43,6 +43,7 @@ static constexpr const char* kTimeUsecKey = "parsed_time_ms_utc";
 static constexpr const char* kReferenceTimeUsecKey = "reference_time_ms_utc";
 static constexpr const char* kHashKey = "hash";
 static constexpr const char* kUrlSchemaKey = "url_schema";
+static constexpr const char* kUrlHostKey = "url_host";
 static constexpr const char* kUrlEncodeKey = "urlencode";
 static constexpr const char* kPackageNameKey = "package_name";
 static constexpr const char* kDeviceLocaleKey = "device_locale";
@@ -94,6 +95,7 @@ class JniLuaEnvironment : public LuaEnvironment {
   int HandleUrlSchema();
   int HandleHash();
   int HandleAndroidStringResources();
+  int HandleUrlHost();
 
   // Checks and retrieves string resources from the model.
   bool LookupModelStringResource();
@@ -113,6 +115,9 @@ class JniLuaEnvironment : public LuaEnvironment {
   // Retrieves system resources if not previously done.
   bool RetrieveSystemResources();
 
+  // Parse the url string by using Uri.parse from Java.
+  ScopedLocalRef<jobject> ParseUri(StringPiece& url) const;
+
   // Builtins.
   enum CallbackId {
     CALLBACK_ID_EXTERNAL = 0,
@@ -124,7 +129,8 @@ class JniLuaEnvironment : public LuaEnvironment {
     CALLBACK_ID_ANDROID_STRING_RESOURCES = 6,
     CALLBACK_ID_HASH = 7,
     CALLBACK_ID_ANNOTATION = 8,
-    CALLBACK_ID_ANNOTATION_EXTRAS = 9
+    CALLBACK_ID_ANNOTATION_EXTRAS = 9,
+    CALLBACK_ID_URL_HOST = 10,
   };
 
   const Resources& resources_;
@@ -289,6 +295,8 @@ int JniLuaEnvironment::HandleCallback(int callback_id, void*) {
       return HandleAndroidStringResources();
     case CALLBACK_ID_HASH:
       return HandleHash();
+    case CALLBACK_ID_URL_HOST:
+      return HandleUrlHost();
     default:
       TC3_LOG(ERROR) << "Unhandled callback: " << callback_id;
       lua_error(state_);
@@ -297,7 +305,7 @@ int JniLuaEnvironment::HandleCallback(int callback_id, void*) {
 }
 
 int JniLuaEnvironment::HandleExternalCallback() {
-  const StringPiece key = ReadString(/*index=*/2);
+  const StringPiece key = ReadString(/*index=*/-1);
   if (key.Equals(kReferenceTimeUsecKey)) {
     lua_pushinteger(state_, reference_time_ms_utc_);
     return LUA_YIELD;
@@ -312,7 +320,7 @@ int JniLuaEnvironment::HandleExternalCallback() {
 }
 
 int JniLuaEnvironment::HandleExtrasLookup() {
-  const StringPiece key = ReadString(/*index=*/2);
+  const StringPiece key = ReadString(/*index=*/-1);
   if (key.Equals(kTextKey)) {
     PushString(entity_text_);
   } else if (key.Equals(kTimeUsecKey)) {
@@ -330,7 +338,7 @@ int JniLuaEnvironment::HandleExtrasLookup() {
 }
 
 int JniLuaEnvironment::HandleAndroidCallback() {
-  const StringPiece key = ReadString(/*index=*/2);
+  const StringPiece key = ReadString(/*index=*/-1);
   if (key.Equals(kDeviceLocaleKey)) {
     // Provide the locale as table with the individual fields set.
     lua_newtable(state_);
@@ -359,6 +367,9 @@ int JniLuaEnvironment::HandleAndroidCallback() {
     return LUA_YIELD;
   } else if (key.Equals(kUrlEncodeKey)) {
     PushCallback(CALLBACK_ID_URL_ENCODE);
+    return LUA_YIELD;
+  } else if (key.Equals(kUrlHostKey)) {
+    PushCallback(CALLBACK_ID_URL_HOST);
     return LUA_YIELD;
   } else if (key.Equals(kUrlSchemaKey)) {
     PushCallback(CALLBACK_ID_URL_SCHEMA);
@@ -395,7 +406,7 @@ int JniLuaEnvironment::HandleUserRestrictionsCallback() {
     return LUA_ERRRUN;
   }
 
-  const StringPiece key_str = ReadString(/*index=*/2);
+  const StringPiece key_str = ReadString(/*index=*/-1);
   if (key_str.empty()) {
     TC3_LOG(ERROR) << "Expected string, got null.";
     lua_error(state_);
@@ -447,30 +458,38 @@ int JniLuaEnvironment::HandleUrlEncode() {
   return LUA_YIELD;
 }
 
-int JniLuaEnvironment::HandleUrlSchema() {
-  StringPiece url = ReadString(/*index=*/1);
+ScopedLocalRef<jobject> JniLuaEnvironment::ParseUri(StringPiece& url) const {
   if (url.empty()) {
-    lua_pushnil(state_);
-    return LUA_YIELD;
+    return nullptr;
   }
 
   // Call to Java URI parser.
   ScopedLocalRef<jstring> url_str = jni_cache_->ConvertToJavaString(url);
   if (jni_cache_->ExceptionCheckAndClear() || url_str == nullptr) {
     TC3_LOG(ERROR) << "Expected string, got null";
-    lua_error(state_);
-    return LUA_ERRRUN;
+    return nullptr;
   }
+
   // Try to parse uri and get scheme.
   ScopedLocalRef<jobject> uri(jenv_->CallStaticObjectMethod(
       jni_cache_->uri_class.get(), jni_cache_->uri_parse, url_str.get()));
   if (jni_cache_->ExceptionCheckAndClear() || uri == nullptr) {
     TC3_LOG(ERROR) << "Error calling Uri.parse";
+  }
+  return uri;
+}
+
+int JniLuaEnvironment::HandleUrlSchema() {
+  StringPiece url = ReadString(/*index=*/1);
+
+  ScopedLocalRef<jobject> parsed_uri = ParseUri(url);
+  if (parsed_uri == nullptr) {
     lua_error(state_);
     return LUA_ERRRUN;
   }
+
   ScopedLocalRef<jstring> scheme_str(static_cast<jstring>(
-      jenv_->CallObjectMethod(uri.get(), jni_cache_->uri_get_scheme)));
+      jenv_->CallObjectMethod(parsed_uri.get(), jni_cache_->uri_get_scheme)));
   if (jni_cache_->ExceptionCheckAndClear()) {
     TC3_LOG(ERROR) << "Error calling Uri.getScheme";
     lua_error(state_);
@@ -484,8 +503,32 @@ int JniLuaEnvironment::HandleUrlSchema() {
   return LUA_YIELD;
 }
 
+int JniLuaEnvironment::HandleUrlHost() {
+  StringPiece url = ReadString(/*index=*/-1);
+
+  ScopedLocalRef<jobject> parsed_uri = ParseUri(url);
+  if (parsed_uri == nullptr) {
+    lua_error(state_);
+    return LUA_ERRRUN;
+  }
+
+  ScopedLocalRef<jstring> host_str(static_cast<jstring>(
+      jenv_->CallObjectMethod(parsed_uri.get(), jni_cache_->uri_get_host)));
+  if (jni_cache_->ExceptionCheckAndClear()) {
+    TC3_LOG(ERROR) << "Error calling Uri.getHost";
+    lua_error(state_);
+    return LUA_ERRRUN;
+  }
+  if (host_str == nullptr) {
+    lua_pushnil(state_);
+  } else {
+    PushString(ToStlString(jenv_, host_str.get()));
+  }
+  return LUA_YIELD;
+}
+
 int JniLuaEnvironment::HandleHash() {
-  const StringPiece input = ReadString(/*index=*/1);
+  const StringPiece input = ReadString(/*index=*/-1);
   lua_pushinteger(state_, tc3farmhash::Hash32(input.data(), input.length()));
   return LUA_YIELD;
 }
@@ -496,7 +539,7 @@ bool JniLuaEnvironment::LookupModelStringResource() {
     return false;
   }
 
-  const StringPiece resource_name = ReadString(/*index=*/2);
+  const StringPiece resource_name = ReadString(/*index=*/-1);
   StringPiece resource_content;
   if (!resources_.GetResourceContent(device_locale_, resource_name,
                                      &resource_content)) {
@@ -522,12 +565,12 @@ int JniLuaEnvironment::HandleAndroidStringResources() {
   }
 
   int resource_id;
-  switch (lua_type(state_, 2)) {
+  switch (lua_type(state_, -1)) {
     case LUA_TNUMBER:
-      resource_id = static_cast<int>(lua_tonumber(state_, /*idx=*/2));
+      resource_id = static_cast<int>(lua_tonumber(state_, /*idx=*/-1));
       break;
     case LUA_TSTRING: {
-      const StringPiece resource_name_str = ReadString(/*index=*/2);
+      const StringPiece resource_name_str = ReadString(/*index=*/-1);
       if (resource_name_str.empty()) {
         TC3_LOG(ERROR) << "No resource name provided.";
         lua_error(state_);
@@ -777,12 +820,16 @@ int ActionsJniLuaEnvironment::HandleAnnotationCallback() {
   // We can directly access an annotation by index (lua is 1-based), or
   // by name.
   int64 annotation_id = -1;
-  switch (lua_type(state_, 2)) {
+  switch (lua_type(state_, -1)) {
     case LUA_TNUMBER:
-      annotation_id = static_cast<int>(lua_tonumber(state_, /*idx=*/2)) - 1;
+      annotation_id = static_cast<int>(lua_tonumber(state_, /*idx=*/-1)) - 1;
+      TC3_LOG(ERROR) << "Annotation lookup by id: " << annotation_id;
       break;
     case LUA_TSTRING: {
-      const StringPiece annotation_name = ReadString(/*index=*/2);
+      const StringPiece annotation_name = ReadString(/*index=*/-1);
+
+      TC3_LOG(ERROR) << "Annotation lookup: " << annotation_name.ToString();
+
       for (int i = 0; i < action_.annotations.size(); i++) {
         if (annotation_name.Equals(action_.annotations[i].name)) {
           annotation_id = i;
@@ -824,7 +871,7 @@ int ActionsJniLuaEnvironment::HandleAnnotationExtrasCallback(
   }
   const ActionSuggestionAnnotation& annotation =
       action_.annotations[annotation_id];
-  const StringPiece key = ReadString(/*index=*/2);
+  const StringPiece key = ReadString(/*index=*/-1);
   if (key.Equals(kTextKey)) {
     if (annotation.message_index == kInvalidIndex) {
       lua_pushnil(state_);

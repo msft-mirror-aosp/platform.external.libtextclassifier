@@ -239,7 +239,10 @@ cc_test {
 
     srcs: ["**/*.cc"],
     // TODO: Do not filter out tflite test once the dependency issue is resolved.
-    exclude_srcs: ["utils/tflite/*_test.cc"],
+    exclude_srcs: [
+        "utils/tflite/*_test.cc",
+        "utils/flatbuffers_test.cc"
+    ],
 
     static_libs: ["libgmock"],
 

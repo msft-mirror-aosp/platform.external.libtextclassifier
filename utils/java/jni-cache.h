@@ -119,6 +119,7 @@ struct JniCache {
   ScopedGlobalRef<jclass> uri_class;
   jmethodID uri_parse = nullptr;
   jmethodID uri_get_scheme = nullptr;
+  jmethodID uri_get_host = nullptr;
 
   // android.os.UserManager
   ScopedGlobalRef<jclass> usermanager_class;
