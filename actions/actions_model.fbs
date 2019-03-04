@@ -14,26 +14,13 @@
 // limitations under the License.
 //
 
+include "annotator/model.fbs";
 include "utils/flatbuffers.fbs";
 include "utils/intents/intent-config.fbs";
 include "utils/resources.fbs";
 include "utils/zlib/buffer.fbs";
 
 file_identifier "TC3A";
-
-// Options to specify triggering behaviour per action class.
-namespace libtextclassifier3;
-table ActionTypeOptions {
-  // The name of the predicted action.
-  name:string;
-
-  // Triggering behaviour.
-  // Whether the action class is considered in the model output or not.
-  enabled:bool = true;
-
-  // Minimal output score threshold.
-  min_triggering_score:float = 0;
-}
 
 // TensorFlow Lite model for suggesting actions.
 namespace libtextclassifier3;
@@ -48,6 +35,9 @@ table TensorflowLiteModelSpec {
   input_context_length:int = 2;
   input_time_diffs:int = 3;
   input_num_suggestions:int = 4;
+  input_diversification_distance:int = -1;
+  input_empirical_probability_factor:int = -1;
+  input_confidence_threshold:int = -1;
 
   // Output specification.
   output_replies:int = 0;
@@ -56,6 +46,9 @@ table TensorflowLiteModelSpec {
   output_sensitive_topic_score:int = 3;
   output_triggering_score:int = 4;
   output_actions_scores:int = 5;
+
+  // Model setup.
+  resize_inputs:bool = false;
 }
 
 namespace libtextclassifier3;
@@ -81,13 +74,19 @@ table TriggeringPreconditions {
   // a locale that the model can handle.
   min_locale_match_fraction:float = 0.75;
 
-  handle_missing_locale_as_supported:bool = true;
-  handle_unknown_locale_as_supported:bool = true;
+  handle_missing_locale_as_supported:bool = false;
+  handle_unknown_locale_as_supported:bool = false;
 
   // Filter input with low-confidence triggers.
   suppress_on_low_confidence_input:bool = true;
 
   low_confidence_rules:RulesModel;
+
+  // Smart reply thresholds.
+  diversification_distance_threshold:float = 0;
+
+  confidence_threshold:float = 0;
+  empirical_probability_factor:float = 0;
 }
 
 namespace libtextclassifier3;
@@ -103,6 +102,26 @@ table ActionSuggestionSpec {
 
   // Serialized entity information.
   serialized_entity_data:string;
+
+  // Priority score used for internal conflict resolution.
+  priority_score:float = 0;
+}
+
+// Options to specify triggering behaviour per action class.
+namespace libtextclassifier3;
+table ActionTypeOptions {
+  // The name of the predicted action.
+  name:string;
+
+  // Triggering behaviour.
+  // Whether the action class is considered in the model output or not.
+  enabled:bool = true;
+
+  // Minimal output score threshold.
+  min_triggering_score:float = 0;
+
+  // The action to trigger.
+  action:ActionSuggestionSpec;
 }
 
 namespace libtextclassifier3.AnnotationActionsSpec_;
@@ -118,6 +137,10 @@ table AnnotationMapping {
 
   // Minimum threshold for the annotation score for filtering.
   min_annotation_score:float;
+
+  // If set, the text of the annotation will be used to set a field in the
+  // action entity data.
+  entity_field:FlatbufferFieldPath;
 }
 
 // Configuration for actions based on annotatations.
@@ -128,6 +151,9 @@ table AnnotationActionsSpec {
   // Whether to deduplicate annotations by type and text prior to generating
   // actions.
   deduplicate_annotations:bool = true;
+
+  // Annotation usecase to specify for text annotation.
+  annotation_usecase:AnnotationUsecase = ANNOTATION_USECASE_SMART;
 }
 
 // Ranking options.
@@ -136,6 +162,9 @@ table RankingOptions {
   // When true, actions suggestions are deduplicated by `type`, `response_text`
   // and associated annotations, keeping the higher scoring actions.
   deduplicate_suggestions:bool = true;
+
+  // When true, actions are deduplicated by the span they are referring to.
+  deduplicate_suggestions_by_span:bool = true;
 
   // Optional script to run for ranking and filtering the action suggestions.
   // The following global variables are available to the script:
@@ -154,6 +183,12 @@ table CapturingGroup {
   // If set, the text of the capturing group will be used to set a field
   // in the action entity data.
   entity_field:FlatbufferFieldPath;
+
+  // If set, the capturing group will be used to create a text annotation
+  // with the given name and type.
+  annotation_type:string;
+
+  annotation_name:string;
 }
 
 // The actions to produce upon triggering.
@@ -173,12 +208,20 @@ table Rule {
 
   compressed_pattern:CompressedBuffer;
   actions:[Rule_.RuleActionSpec];
+
+  // Patterns for post-checking the outputs.
+  output_pattern:string;
+
+  compressed_output_pattern:CompressedBuffer;
 }
 
 // Rule based actions.
 namespace libtextclassifier3;
 table RulesModel {
   rule:[RulesModel_.Rule];
+
+  // If true, will compile the regexes only on first use.
+  lazy_regex_compilation:bool = true;
 }
 
 namespace libtextclassifier3;
@@ -225,6 +268,9 @@ table ActionsModel {
 
   // Action ranking options.
   ranking_options:RankingOptions;
+
+  // Lua based actions.
+  lua_actions_script:string;
 }
 
 root_type libtextclassifier3.ActionsModel;

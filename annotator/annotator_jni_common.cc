@@ -45,9 +45,14 @@ T FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
       CallJniMethod0<int64>(env, joptions, options_class.get(),
                             &JNIEnv::CallLongMethod, "getReferenceTimeMsUtc",
                             "J");
+  const std::pair<bool, jobject> status_or_detected_text_language_tags =
+      CallJniMethod0<jobject>(
+          env, joptions, options_class.get(), &JNIEnv::CallObjectMethod,
+          "getDetectedTextLanguageTags", "Ljava/lang/String;");
 
   if (!status_or_locales.first || !status_or_reference_timezone.first ||
-      !status_or_reference_time_ms_utc.first) {
+      !status_or_reference_time_ms_utc.first ||
+      !status_or_detected_text_language_tags.first) {
     return {};
   }
 
@@ -57,6 +62,9 @@ T FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
   options.reference_timezone = ToStlString(
       env, reinterpret_cast<jstring>(status_or_reference_timezone.second));
   options.reference_time_ms_utc = status_or_reference_time_ms_utc.second;
+  options.detected_text_language_tags = ToStlString(
+      env,
+      reinterpret_cast<jstring>(status_or_detected_text_language_tags.second));
   return options;
 }
 }  // namespace

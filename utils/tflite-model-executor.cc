@@ -116,7 +116,7 @@ void TfLiteModelExecutor::SetInput(const int input_index,
 
 template <>
 std::vector<tflite::StringRef> TfLiteModelExecutor::Output(
-    const int output_index, tflite::Interpreter* interpreter) const {
+    const int output_index, const tflite::Interpreter* interpreter) const {
   const TfLiteTensor* output_tensor =
       interpreter->tensor(interpreter->outputs()[output_index]);
   const int num_strings = tflite::GetStringCount(output_tensor);
@@ -129,7 +129,7 @@ std::vector<tflite::StringRef> TfLiteModelExecutor::Output(
 
 template <>
 std::vector<std::string> TfLiteModelExecutor::Output(
-    const int output_index, tflite::Interpreter* interpreter) const {
+    const int output_index, const tflite::Interpreter* interpreter) const {
   std::vector<std::string> output;
   for (const tflite::StringRef& s :
        Output<tflite::StringRef>(output_index, interpreter)) {

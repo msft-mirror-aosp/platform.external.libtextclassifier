@@ -67,16 +67,22 @@ class IntentGenerator {
       const reflection::Schema* annotations_entity_data_schema = nullptr,
       const reflection::Schema* actions_entity_data_schema = nullptr);
 
-  // Generate intents for a classification result.
-  std::vector<RemoteActionTemplate> GenerateIntents(
-      const jstring device_locale, const ClassificationResult& classification,
-      int64 reference_time_ms_utc, const std::string& text,
-      CodepointSpan selection_indices) const;
+  // Generates intents for a classification result.
+  // Returns true, if the intent generator snippets could be successfully run,
+  // returns false otherwise.
+  bool GenerateIntents(const jstring device_locales,
+                       const ClassificationResult& classification,
+                       int64 reference_time_ms_utc, const std::string& text,
+                       CodepointSpan selection_indices,
+                       std::vector<RemoteActionTemplate>* remote_actions) const;
 
-  // Generate intents for an action suggestion.
-  std::vector<RemoteActionTemplate> GenerateIntents(
-      const jstring device_locale, const ActionSuggestion& action,
-      int64 reference_time_ms_utc, const Conversation& conversation) const;
+  // Generates intents for an action suggestion.
+  // Returns true, if the intent generator snippets could be successfully run,
+  // returns false otherwise.
+  bool GenerateIntents(const jstring device_locales,
+                       const ActionSuggestion& action,
+                       const Conversation& conversation,
+                       std::vector<RemoteActionTemplate>* remote_actions) const;
 
  private:
   IntentGenerator(const IntentFactoryModel* options,
@@ -86,7 +92,7 @@ class IntentGenerator {
                   const reflection::Schema* annotations_entity_data_schema,
                   const reflection::Schema* actions_entity_data_schema);
 
-  Locale ParseLocale(const jstring device_locale) const;
+  std::vector<Locale> ParseDeviceLocales(const jstring device_locales) const;
 
   const IntentFactoryModel* options_;
   const Resources resources_;

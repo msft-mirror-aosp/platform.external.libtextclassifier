@@ -207,4 +207,15 @@ jobjectArray RemoteActionTemplatesHandler::RemoteActionTemplatesToJObjectArray(
   return results;
 }
 
+jobject RemoteActionTemplatesHandler::EntityDataAsNamedVariantArray(
+    const reflection::Schema* entity_data_schema,
+    const std::string& serialized_entity_data) const {
+  ReflectiveFlatbufferBuilder entity_data_builder(entity_data_schema);
+  std::unique_ptr<ReflectiveFlatbuffer> buffer = entity_data_builder.NewRoot();
+  buffer->MergeFromSerializedFlatbuffer(serialized_entity_data);
+  std::map<std::string, Variant> entity_data_map = buffer->AsFlatMap();
+  entity_data_map["serialized_entity_data"] = Variant(serialized_entity_data);
+  return AsNamedVariantArray(entity_data_map);
+}
+
 }  // namespace libtextclassifier3

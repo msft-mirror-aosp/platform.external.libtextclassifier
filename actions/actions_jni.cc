@@ -19,6 +19,7 @@
 #include "actions/actions_jni.h"
 
 #include <jni.h>
+#include <map>
 #include <type_traits>
 #include <vector>
 
@@ -54,50 +55,16 @@ namespace {
 ActionSuggestionOptions FromJavaActionSuggestionOptions(JNIEnv* env,
                                                         jobject joptions) {
   ActionSuggestionOptions options = ActionSuggestionOptions::Default();
-
-  if (!joptions) {
-    return options;
-  }
-
-  const ScopedLocalRef<jclass> options_class(
-      env->FindClass(TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR
-                     "$ActionSuggestionOptions"),
-      env);
-
-  if (!options_class) {
-    return options;
-  }
-
-  const std::pair<bool, jobject> status_or_annotation_options =
-      CallJniMethod0<jobject>(env, joptions, options_class.get(),
-                              &JNIEnv::CallObjectMethod, "getAnnotationOptions",
-                              "L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
-                              "$AnnotationOptions;");
-  const std::pair<bool, int64> status_or_reference_time_ms_utc =
-      CallJniMethod0<int64>(env, joptions, options_class.get(),
-                            &JNIEnv::CallLongMethod, "getReferenceTimeMsUtc",
-                            "J");
-
-  if (!status_or_annotation_options.first ||
-      !status_or_reference_time_ms_utc.first) {
-    return options;
-  }
-
-  // Create annotation options.
-  options.reference_time_ms_utc = status_or_reference_time_ms_utc.second;
-  options.annotation_options =
-      FromJavaAnnotationOptions(env, status_or_annotation_options.second);
-
   return options;
 }
 
 jobjectArray ActionSuggestionsToJObjectArray(
     JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
+    const reflection::Schema* entity_data_schema,
     const std::vector<ActionSuggestion>& action_result,
-    const Conversation& conversation, const int64 reference_time_ms_utc,
-    const IntentGenerator* intent_generator,
+    const Conversation& conversation, const IntentGenerator* intent_generator,
     const RemoteActionTemplatesHandler* remote_action_templates_handler,
-    const jstring device_locale) {
+    const jstring device_locales) {
   const ScopedLocalRef<jclass> result_class(
       env->FindClass(TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR
                      "$ActionSuggestion"),
@@ -110,20 +77,29 @@ jobjectArray ActionSuggestionsToJObjectArray(
   const jmethodID result_class_constructor = env->GetMethodID(
       result_class.get(), "<init>",
       "(Ljava/lang/String;Ljava/lang/String;F[L" TC3_PACKAGE_PATH
-          TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
+          TC3_NAMED_VARIANT_CLASS_NAME_STR
+      ";[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
   const jobjectArray results =
       env->NewObjectArray(action_result.size(), result_class.get(), nullptr);
   for (int i = 0; i < action_result.size(); i++) {
+    jobject extras = nullptr;
+
+    if (entity_data_schema != nullptr &&
+        !action_result[i].serialized_entity_data.empty()) {
+      extras = remote_action_templates_handler->EntityDataAsNamedVariantArray(
+          entity_data_schema, action_result[i].serialized_entity_data);
+    }
+
     jobject remote_action_templates_result = nullptr;
-    if (intent_generator != nullptr &&
-        remote_action_templates_handler != nullptr) {
-      std::vector<RemoteActionTemplate> remote_action_templates =
-          intent_generator->GenerateIntents(device_locale, action_result[i],
-                                            reference_time_ms_utc,
-                                            conversation);
-      remote_action_templates_result =
-          remote_action_templates_handler->RemoteActionTemplatesToJObjectArray(
-              remote_action_templates);
+    if (intent_generator != nullptr) {
+      std::vector<RemoteActionTemplate> remote_action_templates;
+      if (intent_generator->GenerateIntents(device_locales, action_result[i],
+                                            conversation,
+                                            &remote_action_templates)) {
+        remote_action_templates_result =
+            remote_action_templates_handler
+                ->RemoteActionTemplatesToJObjectArray(remote_action_templates);
+      }
     }
 
     ScopedLocalRef<jstring> reply =
@@ -132,7 +108,7 @@ jobjectArray ActionSuggestionsToJObjectArray(
     ScopedLocalRef<jobject> result(env->NewObject(
         result_class.get(), result_class_constructor, reply.get(),
         env->NewStringUTF(action_result[i].type.c_str()),
-        static_cast<jfloat>(action_result[i].score),
+        static_cast<jfloat>(action_result[i].score), extras,
         remote_action_templates_result));
     env->SetObjectArrayElement(results, i, result.get());
   }
@@ -157,21 +133,28 @@ ConversationMessage FromJavaConversationMessage(JNIEnv* env, jobject jmessage) {
   const std::pair<bool, int64> status_or_reference_time = CallJniMethod0<int64>(
       env, jmessage, message_class.get(), &JNIEnv::CallLongMethod,
       "getReferenceTimeMsUtc", "J");
-  const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
-      env, jmessage, message_class.get(), &JNIEnv::CallObjectMethod,
-      "getLocales", "Ljava/lang/String;");
+  const std::pair<bool, jobject> status_or_reference_timezone =
+      CallJniMethod0<jobject>(env, jmessage, message_class.get(),
+                              &JNIEnv::CallObjectMethod, "getReferenceTimezone",
+                              "Ljava/lang/String;");
+  const std::pair<bool, jobject> status_or_detected_text_language_tags =
+      CallJniMethod0<jobject>(
+          env, jmessage, message_class.get(), &JNIEnv::CallObjectMethod,
+          "getDetectedTextLanguageTags", "Ljava/lang/String;");
   if (!status_or_text.first || !status_or_user_id.first ||
-      !status_or_locales.first || !status_or_reference_time.first) {
+      !status_or_detected_text_language_tags.first ||
+      !status_or_reference_time.first || !status_or_reference_timezone.first) {
     return {};
   }
 
   ConversationMessage message;
-  message.text =
-      ToStlString(env, reinterpret_cast<jstring>(status_or_text.second));
+  message.text = ToStlString(env, static_cast<jstring>(status_or_text.second));
   message.user_id = status_or_user_id.second;
   message.reference_time_ms_utc = status_or_reference_time.second;
-  message.locales =
-      ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
+  message.reference_timezone = ToStlString(
+      env, static_cast<jstring>(status_or_reference_timezone.second));
+  message.detected_text_language_tags = ToStlString(
+      env, static_cast<jstring>(status_or_detected_text_language_tags.second));
   return message;
 }
 
@@ -298,7 +281,7 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME,
 
 TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
 (JNIEnv* env, jobject clazz, jlong ptr, jobject jconversation, jobject joptions,
- jlong annotatorPtr, jobject app_context, jstring device_locale,
+ jlong annotatorPtr, jobject app_context, jstring device_locales,
  jboolean generate_intents) {
   if (!ptr) {
     return nullptr;
@@ -315,13 +298,19 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
       libtextclassifier3::JniCache::Create(env));
 
+  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
+      remote_actions_templates_handler =
+          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
+                                                                   jni_cache);
+
   if (!generate_intents) {
     return ActionSuggestionsToJObjectArray(
-        env, jni_cache.get(), response.actions, conversation,
-        actionSuggestionOptions.reference_time_ms_utc,
+        env, jni_cache.get(), action_model->entity_data_schema(),
+        response.actions, conversation,
         /*intent_generator=*/nullptr,
-        /*remote_action_templates_handler=*/nullptr,
-        /*device_locale=*/nullptr);
+        /*remote_action_templates_handler=*/
+        remote_actions_templates_handler.get(),
+        /*device_locales=*/nullptr);
   }
 
   std::unique_ptr<libtextclassifier3::IntentGenerator> intent_generator =
@@ -331,14 +320,10 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
           (annotator != nullptr ? annotator->entity_data_schema() : nullptr),
           action_model->entity_data_schema());
 
-  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
-      remote_actions_templates_handler =
-          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
-                                                                   jni_cache);
   return ActionSuggestionsToJObjectArray(
-      env, jni_cache.get(), response.actions, conversation,
-      actionSuggestionOptions.reference_time_ms_utc, intent_generator.get(),
-      remote_actions_templates_handler.get(), device_locale);
+      env, jni_cache.get(), action_model->entity_data_schema(),
+      response.actions, conversation, intent_generator.get(),
+      remote_actions_templates_handler.get(), device_locales);
 }
 
 TC3_JNI_METHOD(void, TC3_ACTIONS_CLASS_NAME, nativeCloseActionsModel)

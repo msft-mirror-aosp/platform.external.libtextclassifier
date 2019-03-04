@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "utils/base/logging.h"
+#include "utils/resources.h"
 #include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3 {
@@ -62,6 +63,11 @@ bool CompressModel(ModelT* model) {
                                 extractor->compressed_pattern.get());
       extractor->pattern.clear();
     }
+  }
+
+  // Compress resources.
+  if (model->resources != nullptr) {
+    CompressResources(model->resources.get());
   }
   return true;
 }

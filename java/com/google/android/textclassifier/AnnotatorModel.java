@@ -118,7 +118,7 @@ public final class AnnotatorModel implements AutoCloseable {
         selectionEnd,
         options,
         /*appContext=*/ null,
-        /*deviceLocale=*/ null);
+        /*deviceLocales=*/ null);
   }
 
   public ClassificationResult[] classifyText(
@@ -127,9 +127,9 @@ public final class AnnotatorModel implements AutoCloseable {
       int selectionEnd,
       ClassificationOptions options,
       Object appContext,
-      String deviceLocale) {
+      String deviceLocales) {
     return nativeClassifyText(
-        annotatorPtr, context, selectionBegin, selectionEnd, options, appContext, deviceLocale);
+        annotatorPtr, context, selectionBegin, selectionEnd, options, appContext, deviceLocales);
   }
 
   /**
@@ -223,6 +223,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final String contactId;
     private final String appName;
     private final String appPackageName;
+    private final NamedVariant[] entityData;
     private final RemoteActionTemplate[] remoteActionTemplates;
 
     public ClassificationResult(
@@ -238,6 +239,7 @@ public final class AnnotatorModel implements AutoCloseable {
         String contactId,
         String appName,
         String appPackageName,
+        NamedVariant[] entityData,
         RemoteActionTemplate[] remoteActionTemplates) {
       this.collection = collection;
       this.score = score;
@@ -251,6 +253,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.contactId = contactId;
       this.appName = appName;
       this.appPackageName = appPackageName;
+      this.entityData = entityData;
       this.remoteActionTemplates = remoteActionTemplates;
     }
 
@@ -304,6 +307,10 @@ public final class AnnotatorModel implements AutoCloseable {
       return appPackageName;
     }
 
+    public NamedVariant[] getEntityData() {
+      return entityData;
+    }
+
     public RemoteActionTemplate[] getRemoteActionTemplates() {
       return remoteActionTemplates;
     }
@@ -337,13 +344,20 @@ public final class AnnotatorModel implements AutoCloseable {
   /** Represents options for the suggestSelection call. */
   public static final class SelectionOptions {
     private final String locales;
+    private final String detectedTextLanguageTags;
 
-    public SelectionOptions(String locales) {
+    public SelectionOptions(String locales, String detectedTextLanguageTags) {
       this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
     }
 
     public String getLocales() {
       return locales;
+    }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
     }
   }
 
@@ -352,11 +366,17 @@ public final class AnnotatorModel implements AutoCloseable {
     private final long referenceTimeMsUtc;
     private final String referenceTimezone;
     private final String locales;
+    private final String detectedTextLanguageTags;
 
-    public ClassificationOptions(long referenceTimeMsUtc, String referenceTimezone, String locale) {
+    public ClassificationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
-      this.locales = locale;
+      this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
     }
 
     public long getReferenceTimeMsUtc() {
@@ -369,6 +389,11 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public String getLocale() {
       return locales;
+    }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
     }
   }
 
@@ -377,11 +402,17 @@ public final class AnnotatorModel implements AutoCloseable {
     private final long referenceTimeMsUtc;
     private final String referenceTimezone;
     private final String locales;
+    private final String detectedTextLanguageTags;
 
-    public AnnotationOptions(long referenceTimeMsUtc, String referenceTimezone, String locale) {
+    public AnnotationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
-      this.locales = locale;
+      this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
     }
 
     public long getReferenceTimeMsUtc() {
@@ -394,6 +425,11 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public String getLocale() {
       return locales;
+    }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
     }
   }
 
@@ -431,7 +467,7 @@ public final class AnnotatorModel implements AutoCloseable {
       int selectionEnd,
       ClassificationOptions options,
       Object appContext,
-      String deviceLocale);
+      String deviceLocales);
 
   private native AnnotatedSpan[] nativeAnnotate(
       long context, String text, AnnotationOptions options);

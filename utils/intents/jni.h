@@ -23,8 +23,10 @@
 #include <string>
 #include <vector>
 
+#include "utils/flatbuffers.h"
 #include "utils/intents/intent-generator.h"
 #include "utils/java/jni-base.h"
+#include "utils/java/jni-cache.h"
 #include "utils/optional.h"
 #include "utils/variant.h"
 
@@ -67,6 +69,10 @@ class RemoteActionTemplatesHandler {
 
   jobjectArray RemoteActionTemplatesToJObjectArray(
       const std::vector<RemoteActionTemplate>& remote_actions) const;
+
+  jobject EntityDataAsNamedVariantArray(
+      const reflection::Schema* entity_data_schema,
+      const std::string& serialized_entity_data) const;
 
  private:
   JNIEnv* env_;

@@ -31,7 +31,10 @@ class ActionsSuggestionsRanker {
   CreateActionsSuggestionsRanker(const RankingOptions* options);
 
   // Rank and filter actions.
-  bool RankActions(ActionsSuggestionsResponse* response) const;
+  bool RankActions(
+      ActionsSuggestionsResponse* response,
+      const reflection::Schema* entity_data_schema = nullptr,
+      const reflection::Schema* annotations_entity_data_schema = nullptr) const;
 
  private:
   explicit ActionsSuggestionsRanker(const RankingOptions* options)
