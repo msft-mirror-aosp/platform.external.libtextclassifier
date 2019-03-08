@@ -1304,8 +1304,8 @@ bool Annotator::ModelAnnotate(const std::string& context,
            ? model_->triggering_options()->min_annotate_confidence()
            : 0.f);
 
-  FeatureProcessor::EmbeddingCache embedding_cache;
   for (const UnicodeTextRange& line : lines) {
+    FeatureProcessor::EmbeddingCache embedding_cache;
     const std::string line_str =
         UnicodeText::UTF8Substring(line.first, line.second);
 
