@@ -64,6 +64,7 @@ cc_defaults {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wno-deprecated-declarations",
         "-Wno-ignored-qualifiers",
         "-Wno-missing-field-initializers",
         "-Wno-sign-compare",
