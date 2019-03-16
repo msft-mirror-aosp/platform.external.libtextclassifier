@@ -19,9 +19,7 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_ZLIB_ZLIB_H_
 #define LIBTEXTCLASSIFIER_UTILS_ZLIB_ZLIB_H_
 
-#include <memory>
-
-#include "utils/utf8/unilib.h"
+#include "utils/base/integral_types.h"
 #include "utils/zlib/buffer_generated.h"
 #include <zlib.h>
 
@@ -63,12 +61,6 @@ class ZlibCompressor {
   unsigned int buffer_size_;
   bool initialized_;
 };
-
-// Create and compile a regex pattern from optionally compressed pattern.
-std::unique_ptr<UniLib::RegexPattern> UncompressMakeRegexPattern(
-    const UniLib& unilib, const flatbuffers::String* uncompressed_pattern,
-    const CompressedBuffer* compressed_pattern, ZlibDecompressor* decompressor,
-    std::string* result_pattern_text = nullptr);
 
 }  // namespace libtextclassifier3
 

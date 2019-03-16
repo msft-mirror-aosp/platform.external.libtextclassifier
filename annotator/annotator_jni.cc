@@ -64,10 +64,121 @@ using libtextclassifier3::CodepointSpan;
 
 namespace {
 
-jobjectArray ClassificationResultsWithIntentsToJObjectArray(
-    JNIEnv* env, const IntentGenerator* intent_generator,
+jobject ClassificationResultWithIntentsToJObject(
+    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
+    jclass result_class, jmethodID result_class_constructor,
+    jclass datetime_parse_class, jmethodID datetime_parse_class_constructor,
+    const reflection::Schema* entity_data_schema,
+    const IntentGenerator* intent_generator,
     const RemoteActionTemplatesHandler* remote_action_templates_handler,
-    const jstring device_locale, const ClassificationOptions* options,
+    const jstring device_locales, const ClassificationOptions* options,
+    const std::string& context, const CodepointSpan& selection_indices,
+    const ClassificationResult& classification_result, bool is_first) {
+  jstring row_string =
+      env->NewStringUTF(classification_result.collection.c_str());
+
+  jobject row_datetime_parse = nullptr;
+  if (classification_result.datetime_parse_result.IsSet()) {
+    row_datetime_parse =
+        env->NewObject(datetime_parse_class, datetime_parse_class_constructor,
+                       classification_result.datetime_parse_result.time_ms_utc,
+                       classification_result.datetime_parse_result.granularity);
+  }
+
+  jbyteArray serialized_knowledge_result = nullptr;
+  const std::string& serialized_knowledge_result_string =
+      classification_result.serialized_knowledge_result;
+  if (!serialized_knowledge_result_string.empty()) {
+    serialized_knowledge_result =
+        env->NewByteArray(serialized_knowledge_result_string.size());
+    env->SetByteArrayRegion(serialized_knowledge_result, 0,
+                            serialized_knowledge_result_string.size(),
+                            reinterpret_cast<const jbyte*>(
+                                serialized_knowledge_result_string.data()));
+  }
+
+  jstring contact_name = nullptr;
+  if (!classification_result.contact_name.empty()) {
+    contact_name =
+        env->NewStringUTF(classification_result.contact_name.c_str());
+  }
+
+  jstring contact_given_name = nullptr;
+  if (!classification_result.contact_given_name.empty()) {
+    contact_given_name =
+        env->NewStringUTF(classification_result.contact_given_name.c_str());
+  }
+
+  jstring contact_nickname = nullptr;
+  if (!classification_result.contact_nickname.empty()) {
+    contact_nickname =
+        env->NewStringUTF(classification_result.contact_nickname.c_str());
+  }
+
+  jstring contact_email_address = nullptr;
+  if (!classification_result.contact_email_address.empty()) {
+    contact_email_address =
+        env->NewStringUTF(classification_result.contact_email_address.c_str());
+  }
+
+  jstring contact_phone_number = nullptr;
+  if (!classification_result.contact_phone_number.empty()) {
+    contact_phone_number =
+        env->NewStringUTF(classification_result.contact_phone_number.c_str());
+  }
+
+  jstring contact_id = nullptr;
+  if (!classification_result.contact_id.empty()) {
+    contact_id = env->NewStringUTF(classification_result.contact_id.c_str());
+  }
+
+  jstring app_name = nullptr;
+  if (!classification_result.app_name.empty()) {
+    app_name = env->NewStringUTF(classification_result.app_name.c_str());
+  }
+
+  jstring app_package_name = nullptr;
+  if (!classification_result.app_package_name.empty()) {
+    app_package_name =
+        env->NewStringUTF(classification_result.app_package_name.c_str());
+  }
+
+  jobject extras = nullptr;
+  if (entity_data_schema != nullptr &&
+      !classification_result.serialized_entity_data.empty()) {
+    extras = remote_action_templates_handler->EntityDataAsNamedVariantArray(
+        entity_data_schema, classification_result.serialized_entity_data);
+  }
+
+  jobject remote_action_templates_result = nullptr;
+  // Only generate RemoteActionTemplate for the top classification result
+  // as classifyText does not need RemoteAction from other results anyway.
+  if (is_first && intent_generator != nullptr) {
+    std::vector<RemoteActionTemplate> remote_action_templates;
+    if (intent_generator->GenerateIntents(device_locales, classification_result,
+                                          options->reference_time_ms_utc,
+                                          context, selection_indices,
+                                          &remote_action_templates)) {
+      remote_action_templates_result =
+          remote_action_templates_handler->RemoteActionTemplatesToJObjectArray(
+              remote_action_templates);
+    }
+  }
+
+  return env->NewObject(
+      result_class, result_class_constructor, row_string,
+      static_cast<jfloat>(classification_result.score), row_datetime_parse,
+      serialized_knowledge_result, contact_name, contact_given_name,
+      contact_nickname, contact_email_address, contact_phone_number, contact_id,
+      app_name, app_package_name, extras, remote_action_templates_result);
+}
+
+jobjectArray ClassificationResultsWithIntentsToJObjectArray(
+    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
+    const reflection::Schema* entity_data_schema,
+    const IntentGenerator* intent_generator,
+    const RemoteActionTemplatesHandler* remote_action_templates_handler,
+    const jstring device_locales, const ClassificationOptions* options,
     const std::string& context, const CodepointSpan& selection_indices,
     const std::vector<ClassificationResult>& classification_result) {
   const ScopedLocalRef<jclass> result_class(
@@ -92,105 +203,20 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
       "(Ljava/lang/String;FL" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
       "$DatetimeResult;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;"
       "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-      "Ljava/lang/String;[L" TC3_PACKAGE_PATH
-          TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
+      "Ljava/lang/String;[L" TC3_PACKAGE_PATH TC3_NAMED_VARIANT_CLASS_NAME_STR
+      ";[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
   const jmethodID datetime_parse_class_constructor =
       env->GetMethodID(datetime_parse_class.get(), "<init>", "(JI)V");
 
   const jobjectArray results = env->NewObjectArray(classification_result.size(),
                                                    result_class.get(), nullptr);
-
   for (int i = 0; i < classification_result.size(); i++) {
-    jstring row_string =
-        env->NewStringUTF(classification_result[i].collection.c_str());
-
-    jobject row_datetime_parse = nullptr;
-    if (classification_result[i].datetime_parse_result.IsSet()) {
-      row_datetime_parse = env->NewObject(
-          datetime_parse_class.get(), datetime_parse_class_constructor,
-          classification_result[i].datetime_parse_result.time_ms_utc,
-          classification_result[i].datetime_parse_result.granularity);
-    }
-
-    jbyteArray serialized_knowledge_result = nullptr;
-    const std::string& serialized_knowledge_result_string =
-        classification_result[i].serialized_knowledge_result;
-    if (!serialized_knowledge_result_string.empty()) {
-      serialized_knowledge_result =
-          env->NewByteArray(serialized_knowledge_result_string.size());
-      env->SetByteArrayRegion(serialized_knowledge_result, 0,
-                              serialized_knowledge_result_string.size(),
-                              reinterpret_cast<const jbyte*>(
-                                  serialized_knowledge_result_string.data()));
-    }
-
-    jstring contact_name = nullptr;
-    if (!classification_result[i].contact_name.empty()) {
-      contact_name =
-          env->NewStringUTF(classification_result[i].contact_name.c_str());
-    }
-
-    jstring contact_given_name = nullptr;
-    if (!classification_result[i].contact_given_name.empty()) {
-      contact_given_name = env->NewStringUTF(
-          classification_result[i].contact_given_name.c_str());
-    }
-
-    jstring contact_nickname = nullptr;
-    if (!classification_result[i].contact_nickname.empty()) {
-      contact_nickname =
-          env->NewStringUTF(classification_result[i].contact_nickname.c_str());
-    }
-
-    jstring contact_email_address = nullptr;
-    if (!classification_result[i].contact_email_address.empty()) {
-      contact_email_address = env->NewStringUTF(
-          classification_result[i].contact_email_address.c_str());
-    }
-
-    jstring contact_phone_number = nullptr;
-    if (!classification_result[i].contact_phone_number.empty()) {
-      contact_phone_number = env->NewStringUTF(
-          classification_result[i].contact_phone_number.c_str());
-    }
-
-    jstring contact_id = nullptr;
-    if (!classification_result[i].contact_id.empty()) {
-      contact_id =
-          env->NewStringUTF(classification_result[i].contact_id.c_str());
-    }
-
-    jstring app_name = nullptr;
-    if (!classification_result[i].app_name.empty()) {
-      app_name = env->NewStringUTF(classification_result[i].app_name.c_str());
-    }
-
-    jstring app_package_name = nullptr;
-    if (!classification_result[i].app_package_name.empty()) {
-      app_package_name =
-          env->NewStringUTF(classification_result[i].app_package_name.c_str());
-    }
-
-    jobject remote_action_templates_result = nullptr;
-    // Only generate RemoteActionTemplate for the top classification result
-    // as classifyText does not need RemoteAction from other results anyway.
-    if (i == 0 && intent_generator != nullptr &&
-        remote_action_templates_handler != nullptr) {
-      std::vector<RemoteActionTemplate> remote_action_templates =
-          intent_generator->GenerateIntents(
-              device_locale, classification_result[i],
-              options->reference_time_ms_utc, context, selection_indices);
-      remote_action_templates_result =
-          remote_action_templates_handler->RemoteActionTemplatesToJObjectArray(
-              remote_action_templates);
-    }
-
-    jobject result = env->NewObject(
-        result_class.get(), result_class_constructor, row_string,
-        static_cast<jfloat>(classification_result[i].score), row_datetime_parse,
-        serialized_knowledge_result, contact_name, contact_given_name,
-        contact_nickname, contact_email_address, contact_phone_number,
-        contact_id, app_name, app_package_name, remote_action_templates_result);
+    jobject result = ClassificationResultWithIntentsToJObject(
+        env, jni_cache, result_class.get(), result_class_constructor,
+        datetime_parse_class.get(), datetime_parse_class_constructor,
+        entity_data_schema, intent_generator, remote_action_templates_handler,
+        device_locales, options, context, selection_indices,
+        classification_result[i], /*is_first=*/i == 0);
     env->SetObjectArrayElement(results, i, result);
     env->DeleteLocalRef(result);
   }
@@ -198,11 +224,13 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
 }
 
 jobjectArray ClassificationResultsToJObjectArray(
-    JNIEnv* env,
-    const std::vector<ClassificationResult>& classification_result) {
+    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
+    const reflection::Schema* entity_data_schema,
+    const std::vector<ClassificationResult>& classification_result,
+    const RemoteActionTemplatesHandler* remote_action_templates_handler) {
   return ClassificationResultsWithIntentsToJObjectArray(
-      env, /*(unused) intent_generator=*/nullptr,
-      /*(unused) remote_action_templates_handler=*/nullptr,
+      env, jni_cache, entity_data_schema,
+      /*(unused) intent_generator=*/nullptr, remote_action_templates_handler,
       /*(unused) devide_locale=*/nullptr,
       /*(unusued) options=*/nullptr,
       /*(unused) selection_text=*/"",
@@ -442,7 +470,7 @@ TC3_JNI_METHOD(jintArray, TC3_ANNOTATOR_CLASS_NAME, nativeSuggestSelection)
 TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeClassifyText)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
  jint selection_end, jobject options, jobject app_context,
- jstring device_locale) {
+ jstring device_locales) {
   if (!ptr) {
     return nullptr;
   }
@@ -456,27 +484,28 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeClassifyText)
   const std::vector<ClassificationResult> classification_result =
       ff_model->ClassifyText(context_utf8, input_indices,
                              classification_options);
-
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
+      libtextclassifier3::JniCache::Create(env));
+  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
+      remote_actions_templates_handler =
+          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
+                                                                   jni_cache);
   if (app_context != nullptr) {
     std::unique_ptr<libtextclassifier3::IntentGenerator> intent_generator;
-    std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-        libtextclassifier3::JniCache::Create(env));
     intent_generator =
         libtextclassifier3::IntentGenerator::CreateIntentGenerator(
-            ff_model->ViewModel()->intent_options(),
-            ff_model->ViewModel()->resources(), jni_cache, app_context,
-            ff_model->entity_data_schema());
-    std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
-        remote_actions_templates_handler =
-            libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
-                                                                     jni_cache);
+            ff_model->model()->intent_options(), ff_model->model()->resources(),
+            jni_cache, app_context, ff_model->entity_data_schema());
 
     return ClassificationResultsWithIntentsToJObjectArray(
-        env, intent_generator.get(), remote_actions_templates_handler.get(),
-        device_locale, &classification_options, context_utf8, input_indices,
+        env, jni_cache.get(), ff_model->entity_data_schema(),
+        intent_generator.get(), remote_actions_templates_handler.get(),
+        device_locales, &classification_options, context_utf8, input_indices,
         classification_result);
   }
-  return ClassificationResultsToJObjectArray(env, classification_result);
+  return ClassificationResultsToJObjectArray(
+      env, jni_cache.get(), ff_model->entity_data_schema(),
+      classification_result, remote_actions_templates_handler.get());
 }
 
 TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
@@ -503,17 +532,27 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
                        "(II[L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
                        "$ClassificationResult;)V");
 
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
+      libtextclassifier3::JniCache::Create(env));
+
+  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
+      remote_actions_templates_handler =
+          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
+                                                                   jni_cache);
+
   jobjectArray results =
       env->NewObjectArray(annotations.size(), result_class, nullptr);
 
   for (int i = 0; i < annotations.size(); ++i) {
     CodepointSpan span_bmp =
         ConvertIndicesUTF8ToBMP(context_utf8, annotations[i].span);
-    jobject result = env->NewObject(result_class, result_class_constructor,
-                                    static_cast<jint>(span_bmp.first),
-                                    static_cast<jint>(span_bmp.second),
-                                    ClassificationResultsToJObjectArray(
-                                        env, annotations[i].classification));
+    jobject result = env->NewObject(
+        result_class, result_class_constructor,
+        static_cast<jint>(span_bmp.first), static_cast<jint>(span_bmp.second),
+        ClassificationResultsToJObjectArray(
+            env, jni_cache.get(), model->entity_data_schema(),
+            annotations[i].classification,
+            remote_actions_templates_handler.get()));
     env->SetObjectArrayElement(results, i, result);
     env->DeleteLocalRef(result);
   }

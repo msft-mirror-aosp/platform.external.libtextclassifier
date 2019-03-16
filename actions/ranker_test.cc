@@ -57,9 +57,11 @@ TEST(RankingTest, DeduplicationExtraData) {
   ActionsSuggestionsResponse response;
   response.actions = {
       {/*response_text=*/"hello there", /*type=*/"text_reply",
-       /*score=*/1.0},
-      {/*response_text=*/"hello there", /*type=*/"text_reply", /*score=*/0.5},
+       /*score=*/1.0, /*priority_score=*/0.0},
+      {/*response_text=*/"hello there", /*type=*/"text_reply", /*score=*/0.5,
+       /*priority_score=*/0.0},
       {/*response_text=*/"hello there", /*type=*/"text_reply", /*score=*/0.6,
+       /*priority_score=*/0.0,
        /*annotations=*/{}, /*serialized_entity_data=*/"test"},
   };
 
@@ -82,32 +84,35 @@ TEST(RankingTest, DeduplicationAnnotations) {
   ActionsSuggestionsResponse response;
   {
     ActionSuggestionAnnotation annotation;
-    annotation.message_index = 0;
-    annotation.span = {0, 10};
+    annotation.span = {/*message_index=*/0, /*span=*/{0, 21},
+                       /*text=*/"742 Evergreen Terrace"};
     annotation.entity = ClassificationResult("address", 0.5);
     response.actions.push_back({/*response_text=*/"",
                                 /*type=*/"view_map",
                                 /*score=*/0.5,
+                                /*priority_score=*/1.0,
                                 /*annotations=*/{annotation}});
   }
   {
     ActionSuggestionAnnotation annotation;
-    annotation.message_index = 0;
-    annotation.span = {0, 10};
+    annotation.span = {/*message_index=*/0, /*span=*/{0, 21},
+                       /*text=*/"742 Evergreen Terrace"};
     annotation.entity = ClassificationResult("address", 1.0);
     response.actions.push_back({/*response_text=*/"",
                                 /*type=*/"view_map",
                                 /*score=*/1.0,
+                                /*priority_score=*/2.0,
                                 /*annotations=*/{annotation}});
   }
   {
     ActionSuggestionAnnotation annotation;
-    annotation.message_index = 0;
-    annotation.span = {11, 15};
+    annotation.span = {/*message_index=*/0, /*span=*/{40, 53},
+                       /*text=*/"1-800-TESTING"};
     annotation.entity = ClassificationResult("phone", 0.5);
     response.actions.push_back({/*response_text=*/"",
                                 /*type=*/"call_phone",
                                 /*score=*/0.5,
+                                /*priority_score=*/1.0,
                                 /*annotations=*/{annotation}});
   }
 
@@ -122,6 +127,94 @@ TEST(RankingTest, DeduplicationAnnotations) {
   EXPECT_THAT(response.actions,
               testing::ElementsAreArray({IsAction("view_map", "", 1.0),
                                          IsAction("call_phone", "", 0.5)}));
+}
+
+TEST(RankingTest, DeduplicationAnnotationsByPrioritySCore) {
+  ActionsSuggestionsResponse response;
+  {
+    ActionSuggestionAnnotation annotation;
+    annotation.span = {/*message_index=*/0, /*span=*/{0, 21},
+                       /*text=*/"742 Evergreen Terrace"};
+    annotation.entity = ClassificationResult("address", 0.5);
+    response.actions.push_back({/*response_text=*/"",
+                                /*type=*/"view_map",
+                                /*score=*/0.6,
+                                /*priority_score=*/2.0,
+                                /*annotations=*/{annotation}});
+  }
+  {
+    ActionSuggestionAnnotation annotation;
+    annotation.span = {/*message_index=*/0, /*span=*/{0, 21},
+                       /*text=*/"742 Evergreen Terrace"};
+    annotation.entity = ClassificationResult("address", 1.0);
+    response.actions.push_back({/*response_text=*/"",
+                                /*type=*/"view_map",
+                                /*score=*/1.0,
+                                /*priority_score=*/1.0,
+                                /*annotations=*/{annotation}});
+  }
+  {
+    ActionSuggestionAnnotation annotation;
+    annotation.span = {/*message_index=*/0, /*span=*/{40, 53},
+                       /*text=*/"1-800-TESTING"};
+    annotation.entity = ClassificationResult("phone", 0.5);
+    response.actions.push_back({/*response_text=*/"",
+                                /*type=*/"call_phone",
+                                /*score=*/0.5,
+                                /*priority_score=*/1.0,
+                                /*annotations=*/{annotation}});
+  }
+
+  RankingOptionsT options;
+  options.deduplicate_suggestions = true;
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(RankingOptions::Pack(builder, &options));
+  auto ranker = ActionsSuggestionsRanker::CreateActionsSuggestionsRanker(
+      flatbuffers::GetRoot<RankingOptions>(builder.GetBufferPointer()));
+
+  ranker->RankActions(&response);
+  EXPECT_THAT(
+      response.actions,
+      testing::ElementsAreArray(
+          {IsAction("view_map", "",
+                    0.6),  // lower score wins, as priority score is higher
+           IsAction("call_phone", "", 0.5)}));
+}
+
+TEST(RankingTest, DeduplicatesConflictingActions) {
+  ActionsSuggestionsResponse response;
+  {
+    ActionSuggestionAnnotation annotation;
+    annotation.span = {/*message_index=*/0, /*span=*/{6, 9},
+                       /*text=*/"911"};
+    annotation.entity = ClassificationResult("phone", 1.0);
+    response.actions.push_back({/*response_text=*/"",
+                                /*type=*/"call_phone",
+                                /*score=*/1.0,
+                                /*priority_score=*/1.0,
+                                /*annotations=*/{annotation}});
+  }
+  {
+    ActionSuggestionAnnotation annotation;
+    annotation.span = {/*message_index=*/0, /*span=*/{4, 9},
+                       /*text=*/"A-911"};
+    annotation.entity = ClassificationResult("code", 1.0);
+    response.actions.push_back({/*response_text=*/"",
+                                /*type=*/"copy_code",
+                                /*score=*/1.0,
+                                /*priority_score=*/2.0,
+                                /*annotations=*/{annotation}});
+  }
+  RankingOptionsT options;
+  options.deduplicate_suggestions = true;
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(RankingOptions::Pack(builder, &options));
+  auto ranker = ActionsSuggestionsRanker::CreateActionsSuggestionsRanker(
+      flatbuffers::GetRoot<RankingOptions>(builder.GetBufferPointer()));
+
+  ranker->RankActions(&response);
+  EXPECT_THAT(response.actions,
+              testing::ElementsAreArray({IsAction("copy_code", "", 1.0)}));
 }
 
 }  // namespace

@@ -75,7 +75,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         options,
         (annotator != null ? annotator.getNativeAnnotator() : 0),
         /* appContext= */ null,
-        /* deviceLocale= */ null,
+        /* deviceLocales= */ null,
         /* generateAndroidIntents= */ false);
   }
 
@@ -83,14 +83,14 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       Conversation conversation,
       ActionSuggestionOptions options,
       Object appContext,
-      String deviceLocale) {
+      String deviceLocales) {
     return nativeSuggestActions(
         actionsModelPtr,
         conversation,
         options,
         (annotator != null ? annotator.getNativeAnnotator() : 0),
         appContext,
-        deviceLocale,
+        deviceLocales,
         /* generateAndroidIntents= */ true);
   }
 
@@ -132,16 +132,19 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     private final String responseText;
     private final String actionType;
     private final float score;
+    private final NamedVariant[] entityData;
     private final RemoteActionTemplate[] remoteActionTemplates;
 
     public ActionSuggestion(
         String responseText,
         String actionType,
         float score,
+        NamedVariant[] entityData,
         RemoteActionTemplate[] remoteActionTemplates) {
       this.responseText = responseText;
       this.actionType = actionType;
       this.score = score;
+      this.entityData = entityData;
       this.remoteActionTemplates = remoteActionTemplates;
     }
 
@@ -158,6 +161,10 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       return score;
     }
 
+    public NamedVariant[] getEntityData() {
+      return entityData;
+    }
+
     public RemoteActionTemplate[] getRemoteActionTemplates() {
       return remoteActionTemplates;
     }
@@ -168,13 +175,20 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     private final int userId;
     private final String text;
     private final long referenceTimeMsUtc;
-    private final String locales;
+    private final String referenceTimezone;
+    private final String detectedTextLanguageTags;
 
-    public ConversationMessage(int userId, String text, long referenceTimeMsUtc, String locales) {
+    public ConversationMessage(
+        int userId,
+        String text,
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String detectedTextLanguageTags) {
       this.userId = userId;
       this.text = text;
       this.referenceTimeMsUtc = referenceTimeMsUtc;
-      this.locales = locales;
+      this.referenceTimezone = referenceTimezone;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
     }
 
     /** The identifier of the sender */
@@ -194,9 +208,13 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       return referenceTimeMsUtc;
     }
 
-    /** Returns a comma separated list of locales supported by the model as BCP 47 tags. */
-    public String getLocales() {
-      return locales;
+    public String getReferenceTimezone() {
+      return referenceTimezone;
+    }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
     }
   }
 
@@ -215,27 +233,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
   /** Represents options for the SuggestActions call. */
   public static final class ActionSuggestionOptions {
-    private final long referenceTimeMsUtc;
-    private final AnnotatorModel.AnnotationOptions annotationOptions;
-
-    public ActionSuggestionOptions() {
-      this.referenceTimeMsUtc = 0;
-      this.annotationOptions = null;
-    }
-
-    public ActionSuggestionOptions(
-        long referenceTimeMsUtc, AnnotatorModel.AnnotationOptions annotationOptions) {
-      this.referenceTimeMsUtc = referenceTimeMsUtc;
-      this.annotationOptions = annotationOptions;
-    }
-
-    public long getReferenceTimeMsUtc() {
-      return referenceTimeMsUtc;
-    }
-
-    public AnnotatorModel.AnnotationOptions getAnnotationOptions() {
-      return annotationOptions;
-    }
+    public ActionSuggestionOptions() {}
   }
 
   private static native long nativeNewActionsModel(int fd);
@@ -254,7 +252,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       ActionSuggestionOptions options,
       long annotatorPtr,
       Object appContext,
-      String deviceLocale,
+      String deviceLocales,
       boolean generateAndroidIntents);
 
   private native void nativeCloseActionsModel(long context);

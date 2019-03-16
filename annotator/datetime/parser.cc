@@ -23,6 +23,7 @@
 #include "utils/calendar/calendar.h"
 #include "utils/i18n/locale.h"
 #include "utils/strings/split.h"
+#include "utils/zlib/zlib_regex.h"
 
 namespace libtextclassifier3 {
 std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
@@ -51,9 +52,9 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
       if (pattern->regexes()) {
         for (const DatetimeModelPattern_::Regex* regex : *pattern->regexes()) {
           std::unique_ptr<UniLib::RegexPattern> regex_pattern =
-              UncompressMakeRegexPattern(unilib, regex->pattern(),
-                                         regex->compressed_pattern(),
-                                         decompressor);
+              UncompressMakeRegexPattern(
+                  unilib, regex->pattern(), regex->compressed_pattern(),
+                  model->lazy_regex_compilation(), decompressor);
           if (!regex_pattern) {
             TC3_LOG(ERROR) << "Couldn't create rule pattern.";
             return;
@@ -72,9 +73,9 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
   if (model->extractors() != nullptr) {
     for (const DatetimeModelExtractor* extractor : *model->extractors()) {
       std::unique_ptr<UniLib::RegexPattern> regex_pattern =
-          UncompressMakeRegexPattern(unilib, extractor->pattern(),
-                                     extractor->compressed_pattern(),
-                                     decompressor);
+          UncompressMakeRegexPattern(
+              unilib, extractor->pattern(), extractor->compressed_pattern(),
+              model->lazy_regex_compilation(), decompressor);
       if (!regex_pattern) {
         TC3_LOG(ERROR) << "Couldn't create extractor pattern";
         return;

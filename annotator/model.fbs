@@ -239,6 +239,9 @@ table Pattern {
 namespace libtextclassifier3;
 table RegexModel {
   patterns:[RegexModel_.Pattern];
+
+  // If true, will compile the regexes only on first use.
+  lazy_regex_compilation:bool = true;
 }
 
 // List of regex patterns.
@@ -302,6 +305,9 @@ table DatetimeModel {
   // If true, will generate the alternative interpretations for ambiguous
   // datetime expressions.
   generate_alternative_interpretations_when_ambiguous:bool = false;
+
+  // If true, will compile the regexes only on first use.
+  lazy_regex_compilation:bool = true;
 }
 
 namespace libtextclassifier3.DatetimeModelLibrary_;
@@ -324,6 +330,10 @@ table ModelTriggeringOptions {
 
   // The modes for which to enable the models.
   enabled_modes:ModeFlag = ALL;
+
+  // Comma-separated list of locales that dictionary classification supports as
+  // BCP 47 tags.
+  dictionary_locales:string;
 }
 
 // Options controlling the output of the classifier.
@@ -393,6 +403,8 @@ table Model {
 
   // Schema data for handling entity data.
   entity_data_schema:[ubyte];
+
+  number_annotator_options:NumberAnnotatorOptions;
 }
 
 // Role of the codepoints in the range.
@@ -624,6 +636,30 @@ table FeatureProcessorOptions {
   // If true, tokens will be also split when the codepoint's script_id changes
   // as defined in TokenizationCodepointRange.
   tokenize_on_script_change:bool = false;
+}
+
+namespace libtextclassifier3;
+table NumberAnnotatorOptions {
+  // If true, number annotations will be produced.
+  enabled:bool = false;
+
+  // Score to assign to the annotated numbers from the annotator.
+  score:float = 1;
+
+  // Priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
+
+  // The modes in which enable number annotations.
+  enabled_modes:ModeFlag = ALL;
+
+  // The annotation usecases for which to produce number annotations.
+  enabled_annotation_usecases:AnnotationUsecase = ANNOTATION_USECASE_ALL;
+
+  // A list of codepoints that can form a prefix of a valid number.
+  allowed_prefix_codepoints:[int];
+
+  // A list of codepoints that can form a suffix of a valid number.
+  allowed_suffix_codepoints:[int];
 }
 
 root_type libtextclassifier3.Model;

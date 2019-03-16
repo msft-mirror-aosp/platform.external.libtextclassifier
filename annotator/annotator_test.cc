@@ -23,12 +23,14 @@
 
 #include "annotator/model_generated.h"
 #include "annotator/types-test-util.h"
+#include "utils/testing/annotator.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace libtextclassifier3 {
 namespace {
 
+using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::IsEmpty;
 using testing::Pair;
@@ -46,6 +48,18 @@ MATCHER_P3(IsAnnotatedSpan, start, end, best_class, "") {
          testing::Value(FirstResult(arg.classification), best_class);
 }
 
+MATCHER_P2(IsDateResult, time_ms_utc, granularity, "") {
+  return testing::Value(arg.collection, "date") &&
+         testing::Value(arg.datetime_parse_result.time_ms_utc, time_ms_utc) &&
+         testing::Value(arg.datetime_parse_result.granularity, granularity);
+}
+
+MATCHER_P2(IsDatetimeResult, time_ms_utc, granularity, "") {
+  return testing::Value(arg.collection, "datetime") &&
+         testing::Value(arg.datetime_parse_result.time_ms_utc, time_ms_utc) &&
+         testing::Value(arg.datetime_parse_result.granularity, granularity);
+}
+
 std::string ReadFile(const std::string& file_name) {
   std::ifstream file_stream(file_name);
   return std::string(std::istreambuf_iterator<char>(file_stream), {});
@@ -54,6 +68,8 @@ std::string ReadFile(const std::string& file_name) {
 std::string GetModelPath() {
   return TC3_TEST_DATA_DIR;
 }
+
+std::string GetTestModelPath() { return GetModelPath() + "test_model.fb"; }
 
 // Create fake entity data schema meta data.
 void AddTestEntitySchemaData(ModelT* unpacked_model) {
@@ -85,6 +101,14 @@ void AddTestEntitySchemaData(ModelT* unpacked_model) {
                                  /*base_type=*/reflection::String),
           /*id=*/2,
           /*offset=*/8),
+      reflection::CreateField(
+          schema_builder,
+          /*name=*/schema_builder.CreateString("age"),
+          /*type=*/
+          reflection::CreateType(schema_builder,
+                                 /*base_type=*/reflection::Int),
+          /*id=*/3,
+          /*offset=*/10),
   };
   std::vector<flatbuffers::Offset<reflection::Enum>> enums;
   std::vector<flatbuffers::Offset<reflection::Object>> objects = {
@@ -120,12 +144,10 @@ TEST_F(AnnotatorTest, EmbeddingExecutorLoadingFails) {
   EXPECT_FALSE(classifier);
 }
 
-INSTANTIATE_TEST_SUITE_P(BoundsSensitive, AnnotatorTest,
-                         Values("test_model.fb"));
-
-TEST_P(AnnotatorTest, ClassifyText) {
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, ClassifyText) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   EXPECT_EQ("other",
@@ -149,21 +171,39 @@ TEST_P(AnnotatorTest, ClassifyText) {
   // Single word.
   EXPECT_EQ("other", FirstResult(classifier->ClassifyText("obama", {0, 5})));
   EXPECT_EQ("other", FirstResult(classifier->ClassifyText("asdf", {0, 4})));
-  EXPECT_EQ("<INVALID RESULTS>",
-            FirstResult(classifier->ClassifyText("asdf", {0, 0})));
 
-  // Junk.
-  EXPECT_EQ("<INVALID RESULTS>",
-            FirstResult(classifier->ClassifyText("", {0, 0})));
-  EXPECT_EQ("<INVALID RESULTS>", FirstResult(classifier->ClassifyText(
-                                     "a\n\n\n\nx x x\n\n\n\n\n\n", {1, 5})));
+  // Junk. These should not crash the test.
+  classifier->ClassifyText("", {0, 0});
+  classifier->ClassifyText("asdf", {0, 0});
+  classifier->ClassifyText("a\n\n\n\nx x x\n\n\n\n\n\n", {1, 5});
   // Test invalid utf8 input.
   EXPECT_EQ("<INVALID RESULTS>", FirstResult(classifier->ClassifyText(
                                      "\xf0\x9f\x98\x8b\x8b", {0, 0})));
 }
+#endif
 
-TEST_P(AnnotatorTest, ClassifyTextDisabledFail) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, ClassifyTextLocalesAndDictionary) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
+  ASSERT_TRUE(classifier);
+
+  EXPECT_EQ("other", FirstResult(classifier->ClassifyText("isotope", {0, 6})));
+
+  ClassificationOptions classification_options;
+  classification_options.detected_text_language_tags = "en";
+  EXPECT_EQ("dictionary", FirstResult(classifier->ClassifyText(
+                              "isotope", {0, 6}, classification_options)));
+
+  classification_options.detected_text_language_tags = "uz";
+  EXPECT_EQ("other", FirstResult(classifier->ClassifyText(
+                         "isotope", {0, 6}, classification_options)));
+}
+#endif
+
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, ClassifyTextDisabledFail) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   unpacked_model->classification_model.clear();
@@ -180,14 +220,14 @@ TEST_P(AnnotatorTest, ClassifyTextDisabledFail) {
   // The classification model is still needed for selection scores.
   ASSERT_FALSE(classifier);
 }
+#endif
 
-TEST_P(AnnotatorTest, ClassifyTextDisabled) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, ClassifyTextDisabled) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
-  unpacked_model->triggering_options.reset(new ModelTriggeringOptionsT);
-  unpacked_model->triggering_options->enabled_modes =
-      ModeFlag_ANNOTATION_AND_SELECTION;
+  unpacked_model->enabled_modes = ModeFlag_ANNOTATION_AND_SELECTION;
 
   flatbuffers::FlatBufferBuilder builder;
   FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
@@ -201,9 +241,11 @@ TEST_P(AnnotatorTest, ClassifyTextDisabled) {
       classifier->ClassifyText("Call me at (800) 123-456 today", {11, 24}),
       IsEmpty());
 }
+#endif
 
-TEST_P(AnnotatorTest, ClassifyTextFilteredCollections) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, ClassifyTextFilteredCollections) {
+  const std::string test_model = ReadFile(GetTestModelPath());
 
   std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
       test_model.c_str(), test_model.size(), &unilib_, &calendarlib_);
@@ -234,11 +276,14 @@ TEST_P(AnnotatorTest, ClassifyTextFilteredCollections) {
   EXPECT_EQ("address", FirstResult(classifier->ClassifyText(
                            "350 Third Street, Cambridge", {0, 27})));
 }
+#endif
 
+#ifdef TC3_UNILIB_ICU
 std::unique_ptr<RegexModel_::PatternT> MakePattern(
     const std::string& collection_name, const std::string& pattern,
     const bool enabled_for_classification, const bool enabled_for_selection,
-    const bool enabled_for_annotation, const float score) {
+    const bool enabled_for_annotation, const float score,
+    const float priority_score) {
   std::unique_ptr<RegexModel_::PatternT> result(new RegexModel_::PatternT);
   result->collection_name = collection_name;
   result->pattern = pattern;
@@ -249,13 +294,25 @@ std::unique_ptr<RegexModel_::PatternT> MakePattern(
   if (enabled_for_selection) enabled_modes |= ModeFlag_SELECTION;
   result->enabled_modes = static_cast<ModeFlag>(enabled_modes);
   result->target_classification_score = score;
-  result->priority_score = score;
+  result->priority_score = priority_score;
   return result;
 }
 
+// Shortcut function that doesn't need to specify the priority score.
+std::unique_ptr<RegexModel_::PatternT> MakePattern(
+    const std::string& collection_name, const std::string& pattern,
+    const bool enabled_for_classification, const bool enabled_for_selection,
+    const bool enabled_for_annotation, const float score) {
+  return MakePattern(collection_name, pattern, enabled_for_classification,
+                     enabled_for_selection, enabled_for_annotation,
+                     /*score=*/score,
+                     /*priority_score=*/score);
+}
+#endif  // TC3_UNILIB_ICU
+
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, ClassifyTextRegularExpression) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, ClassifyTextRegularExpression) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test regex models.
@@ -314,9 +371,11 @@ TEST_P(AnnotatorTest, ClassifyTextRegularExpression) {
                 "www.google.com every today!|Call me at (800) 123-456 today.",
                 {51, 65})));
 }
+#endif  // TC3_UNILIB_ICU
 
-TEST_P(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add fake entity schema metadata.
@@ -324,7 +383,8 @@ TEST_P(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
 
   // Add test regex models.
   unpacked_model->regex_model->patterns.push_back(MakePattern(
-      "person", "(Barack) (Obama)", /*enabled_for_classification=*/true,
+      "person_with_age", "(Barack) (Obama) is (\\d+) years old",
+      /*enabled_for_classification=*/true,
       /*enabled_for_selection=*/false, /*enabled_for_annotation=*/false, 1.0));
 
   // Use meta data to generate custom serialized entity data.
@@ -344,6 +404,8 @@ TEST_P(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
       new RegexModel_::Pattern_::CapturingGroupT);
   pattern->capturing_group.emplace_back(
       new RegexModel_::Pattern_::CapturingGroupT);
+  pattern->capturing_group.emplace_back(
+      new RegexModel_::Pattern_::CapturingGroupT);
   // Group 0 is the full match, capturing groups starting at 1.
   pattern->capturing_group[1]->entity_field_path.reset(
       new FlatbufferFieldPathT);
@@ -357,6 +419,12 @@ TEST_P(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
       new FlatbufferFieldT);
   pattern->capturing_group[2]->entity_field_path->field.back()->field_name =
       "last_name";
+  pattern->capturing_group[3]->entity_field_path.reset(
+      new FlatbufferFieldPathT);
+  pattern->capturing_group[3]->entity_field_path->field.emplace_back(
+      new FlatbufferFieldT);
+  pattern->capturing_group[3]->entity_field_path->field.back()->field_name =
+      "age";
 
   flatbuffers::FlatBufferBuilder builder;
   FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
@@ -366,10 +434,10 @@ TEST_P(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
       builder.GetSize(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
-  auto classifications = classifier->ClassifyText(
-      "this afternoon Barack Obama gave a speech at", {15, 27});
+  auto classifications =
+      classifier->ClassifyText("Barack Obama is 57 years old", {0, 28});
   EXPECT_EQ(1, classifications.size());
-  EXPECT_EQ("person", classifications[0].collection);
+  EXPECT_EQ("person_with_age", classifications[0].collection);
 
   // Check entity data.
   const flatbuffers::Table* entity =
@@ -379,13 +447,59 @@ TEST_P(AnnotatorTest, ClassifyTextRegularExpressionEntityData) {
             "Barack");
   EXPECT_EQ(entity->GetPointer<const flatbuffers::String*>(/*field=*/8)->str(),
             "Obama");
+  EXPECT_EQ(entity->GetField<int>(/*field=*/10, /*defaultval=*/0), 57);
   EXPECT_TRUE(entity->GetField<bool>(/*field=*/6, /*defaultval=*/false));
 }
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, SuggestSelectionRegularExpression) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, ClassifyTextPriorityResolution) {
+  const std::string test_model = ReadFile(GetTestModelPath());
+  std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
+  TC3_CHECK(libtextclassifier3::DecompressModel(unpacked_model.get()));
+  // Add test regex models.
+  unpacked_model->regex_model->patterns.clear();
+  unpacked_model->regex_model->patterns.push_back(MakePattern(
+      "flight1", "[a-zA-Z]{2}\\d{2,4}", /*enabled_for_classification=*/true,
+      /*enabled_for_selection=*/false, /*enabled_for_annotation=*/false,
+      /*score=*/1.0, /*priority_score=*/1.0));
+  unpacked_model->regex_model->patterns.push_back(MakePattern(
+      "flight2", "[a-zA-Z]{2}\\d{2,4}", /*enabled_for_classification=*/true,
+      /*enabled_for_selection=*/false, /*enabled_for_annotation=*/false,
+      /*score=*/1.0, /*priority_score=*/0.0));
+
+  {
+    flatbuffers::FlatBufferBuilder builder;
+    FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
+    std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
+        reinterpret_cast<const char*>(builder.GetBufferPointer()),
+        builder.GetSize(), &unilib_, &calendarlib_);
+    ASSERT_TRUE(classifier);
+
+    EXPECT_EQ("flight1",
+              FirstResult(classifier->ClassifyText(
+                  "Your flight LX373 is delayed by 3 hours.", {12, 17})));
+  }
+
+  unpacked_model->regex_model->patterns.back()->priority_score = 3.0;
+  {
+    flatbuffers::FlatBufferBuilder builder;
+    FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
+    std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
+        reinterpret_cast<const char*>(builder.GetBufferPointer()),
+        builder.GetSize(), &unilib_, &calendarlib_);
+    ASSERT_TRUE(classifier);
+
+    EXPECT_EQ("flight2",
+              FirstResult(classifier->ClassifyText(
+                  "Your flight LX373 is delayed by 3 hours.", {12, 17})));
+  }
+}
+#endif  // TC3_UNILIB_ICU
+
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, SuggestSelectionRegularExpression) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test regex models.
@@ -424,8 +538,8 @@ TEST_P(AnnotatorTest, SuggestSelectionRegularExpression) {
             std::make_pair(4, 23));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionRegularExpressionCustomSelectionBounds) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, SuggestSelectionRegularExpressionCustomSelectionBounds) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test regex models.
@@ -469,8 +583,8 @@ TEST_P(AnnotatorTest, SuggestSelectionRegularExpressionCustomSelectionBounds) {
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, SuggestSelectionRegularExpressionConflictsModelWins) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, SuggestSelectionRegularExpressionConflictsModelWins) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test regex models.
@@ -500,8 +614,8 @@ TEST_P(AnnotatorTest, SuggestSelectionRegularExpressionConflictsModelWins) {
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, SuggestSelectionRegularExpressionConflictsRegexWins) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, SuggestSelectionRegularExpressionConflictsRegexWins) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test regex models.
@@ -531,8 +645,8 @@ TEST_P(AnnotatorTest, SuggestSelectionRegularExpressionConflictsRegexWins) {
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, AnnotateRegex) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, AnnotateRegex) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test regex models.
@@ -569,9 +683,10 @@ TEST_P(AnnotatorTest, AnnotateRegex) {
 }
 #endif  // TC3_UNILIB_ICU
 
-TEST_P(AnnotatorTest, PhoneFiltering) {
+#ifdef TC3_UNILIB_ICU
+TEST_F(AnnotatorTest, PhoneFiltering) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   EXPECT_EQ("phone", FirstResult(classifier->ClassifyText(
@@ -581,10 +696,11 @@ TEST_P(AnnotatorTest, PhoneFiltering) {
   EXPECT_EQ("other", FirstResult(classifier->ClassifyText(
                          "phone: (123) 456 789,0001112", {7, 28})));
 }
+#endif  // TC3_UNILIB_ICU
 
-TEST_P(AnnotatorTest, SuggestSelection) {
+TEST_F(AnnotatorTest, SuggestSelection) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   EXPECT_EQ(classifier->SuggestSelection(
@@ -627,8 +743,8 @@ TEST_P(AnnotatorTest, SuggestSelection) {
             std::make_pair(11, 12));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionDisabledFail) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, SuggestSelectionDisabledFail) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Disable the selection model.
@@ -646,8 +762,8 @@ TEST_P(AnnotatorTest, SuggestSelectionDisabledFail) {
   ASSERT_FALSE(classifier);
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionDisabled) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, SuggestSelectionDisabled) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Disable the selection model.
@@ -668,15 +784,17 @@ TEST_P(AnnotatorTest, SuggestSelectionDisabled) {
       classifier->SuggestSelection("call me at 857 225 3556 today", {11, 14}),
       std::make_pair(11, 14));
 
+#ifdef TC3_UNILIB_ICU
   EXPECT_EQ("phone", FirstResult(classifier->ClassifyText(
                          "call me at (800) 123-456 today", {11, 24})));
+#endif
 
   EXPECT_THAT(classifier->Annotate("call me at (800) 123-456 today"),
               IsEmpty());
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionFilteredCollections) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, SuggestSelectionFilteredCollections) {
+  const std::string test_model = ReadFile(GetTestModelPath());
 
   std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
       test_model.c_str(), test_model.size(), &unilib_, &calendarlib_);
@@ -712,9 +830,9 @@ TEST_P(AnnotatorTest, SuggestSelectionFilteredCollections) {
             std::make_pair(0, 27));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionsAreSymmetric) {
+TEST_F(AnnotatorTest, SuggestSelectionsAreSymmetric) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   EXPECT_EQ(classifier->SuggestSelection("350 Third Street, Cambridge", {0, 3}),
@@ -729,9 +847,9 @@ TEST_P(AnnotatorTest, SuggestSelectionsAreSymmetric) {
             std::make_pair(6, 33));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionWithNewLine) {
+TEST_F(AnnotatorTest, SuggestSelectionWithNewLine) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   EXPECT_EQ(classifier->SuggestSelection("abc\n857 225 3556", {4, 7}),
@@ -744,9 +862,9 @@ TEST_P(AnnotatorTest, SuggestSelectionWithNewLine) {
             std::make_pair(0, 12));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionWithPunctuation) {
+TEST_F(AnnotatorTest, SuggestSelectionWithPunctuation) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   // From the right.
@@ -770,9 +888,9 @@ TEST_P(AnnotatorTest, SuggestSelectionWithPunctuation) {
             std::make_pair(16, 27));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionNoCrashWithJunk) {
+TEST_F(AnnotatorTest, SuggestSelectionNoCrashWithJunk) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   // Try passing in bunch of invalid selections.
@@ -793,9 +911,9 @@ TEST_P(AnnotatorTest, SuggestSelectionNoCrashWithJunk) {
             std::make_pair(-1, -1));
 }
 
-TEST_P(AnnotatorTest, SuggestSelectionSelectSpace) {
+TEST_F(AnnotatorTest, SuggestSelectionSelectSpace) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   EXPECT_EQ(
@@ -872,9 +990,9 @@ TEST_F(AnnotatorTest, SnapLeftIfWhitespaceSelection) {
             std::make_pair(0, 1));
 }
 
-TEST_P(AnnotatorTest, Annotate) {
+TEST_F(AnnotatorTest, Annotate) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   const std::string test_string =
@@ -897,9 +1015,50 @@ TEST_P(AnnotatorTest, Annotate) {
           .empty());
 }
 
+TEST_F(AnnotatorTest, AnnotateAnnotationsSuppressNumbers) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
+  ASSERT_TRUE(classifier);
+  AnnotationOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
 
-TEST_P(AnnotatorTest, AnnotateSmallBatches) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+  // Number annotator.
+  EXPECT_THAT(
+      classifier->Annotate("853 225 3556 and then turn it up 99%", options),
+      ElementsAreArray({IsAnnotatedSpan(0, 12, "phone"),
+                        IsAnnotatedSpan(33, 35, "number")}));
+}
+
+TEST_F(AnnotatorTest, AnnotateSplitLines) {
+  std::string model_buffer = ReadFile(GetTestModelPath());
+  model_buffer = ModifyAnnotatorModel(model_buffer, [](ModelT* model) {
+    model->selection_feature_options->only_use_line_with_click = true;
+  });
+  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
+      model_buffer.data(), model_buffer.size(), &unilib_, &calendarlib_);
+
+  ASSERT_TRUE(classifier);
+
+  const std::string str1 =
+      "hey, sorry, just finished up. i didn't hear back from you in time.";
+  const std::string str2 = "2000 Main Avenue, Apt #201, San Mateo";
+
+  const int kAnnotationLength = 26;
+  EXPECT_THAT(classifier->Annotate(str1), IsEmpty());
+  EXPECT_THAT(
+      classifier->Annotate(str2),
+      ElementsAreArray({IsAnnotatedSpan(0, kAnnotationLength, "address")}));
+
+  const std::string str3 = str1 + "\n" + str2;
+  EXPECT_THAT(
+      classifier->Annotate(str3),
+      ElementsAreArray({IsAnnotatedSpan(
+          str1.size() + 1, str1.size() + 1 + kAnnotationLength, "address")}));
+}
+
+
+TEST_F(AnnotatorTest, AnnotateSmallBatches) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Set the batch size.
@@ -929,8 +1088,8 @@ TEST_P(AnnotatorTest, AnnotateSmallBatches) {
 }
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, AnnotateFilteringDiscardAll) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, AnnotateFilteringDiscardAll) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   unpacked_model->triggering_options.reset(new ModelTriggeringOptionsT);
@@ -953,8 +1112,8 @@ TEST_P(AnnotatorTest, AnnotateFilteringDiscardAll) {
 }
 #endif  // TC3_UNILIB_ICU
 
-TEST_P(AnnotatorTest, AnnotateFilteringKeepAll) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, AnnotateFilteringKeepAll) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Add test thresholds.
@@ -976,8 +1135,8 @@ TEST_P(AnnotatorTest, AnnotateFilteringKeepAll) {
   EXPECT_EQ(classifier->Annotate(test_string).size(), 2);
 }
 
-TEST_P(AnnotatorTest, AnnotateDisabled) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, AnnotateDisabled) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Disable the model for annotation.
@@ -995,8 +1154,8 @@ TEST_P(AnnotatorTest, AnnotateDisabled) {
   EXPECT_THAT(classifier->Annotate(test_string), IsEmpty());
 }
 
-TEST_P(AnnotatorTest, AnnotateFilteredCollections) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, AnnotateFilteredCollections) {
+  const std::string test_model = ReadFile(GetTestModelPath());
 
   std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
       test_model.c_str(), test_model.size(), &unilib_, &calendarlib_);
@@ -1034,8 +1193,8 @@ TEST_P(AnnotatorTest, AnnotateFilteredCollections) {
 }
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, AnnotateFilteredCollectionsSuppress) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, AnnotateFilteredCollectionsSuppress) {
+  const std::string test_model = ReadFile(GetTestModelPath());
 
   std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
       test_model.c_str(), test_model.size(), &unilib_, &calendarlib_);
@@ -1080,104 +1239,156 @@ TEST_P(AnnotatorTest, AnnotateFilteredCollectionsSuppress) {
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_CALENDAR_ICU
-TEST_P(AnnotatorTest, ClassifyTextDate) {
+TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezone) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam());
+      Annotator::FromPath(GetTestModelPath());
   EXPECT_TRUE(classifier);
-
-  std::vector<ClassificationResult> result;
   ClassificationOptions options;
-
   options.reference_timezone = "Europe/Zurich";
-  result = classifier->ClassifyText("january 1, 2017", {0, 15}, options);
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_THAT(result[0].collection, "date");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 1483225200000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_DAY);
-  result.clear();
 
+  std::vector<ClassificationResult> result =
+      classifier->ClassifyText("january 1, 2017", {0, 15}, options);
+
+  EXPECT_THAT(result,
+              ElementsAre(IsDateResult(1483225200000,
+                                       DatetimeGranularity::GRANULARITY_DAY)));
+}
+#endif
+
+#ifdef TC3_CALENDAR_ICU
+TEST_F(AnnotatorTest, ClassifyTextDateInLATimezone) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath());
+  EXPECT_TRUE(classifier);
+  ClassificationOptions options;
   options.reference_timezone = "America/Los_Angeles";
-  result = classifier->ClassifyText("march 1, 2017", {0, 13}, options);
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_THAT(result[0].collection, "date");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 1488355200000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_DAY);
-  result.clear();
 
+  std::vector<ClassificationResult> result =
+      classifier->ClassifyText("march 1, 2017", {0, 13}, options);
+
+  EXPECT_THAT(result,
+              ElementsAre(IsDateResult(1488355200000,
+                                       DatetimeGranularity::GRANULARITY_DAY)));
+}
+#endif  // TC3_UNILIB_ICU
+
+#ifdef TC3_CALENDAR_ICU
+TEST_F(AnnotatorTest, ClassifyTextDateTimeInLATimezone) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath());
+  EXPECT_TRUE(classifier);
+  ClassificationOptions options;
   options.reference_timezone = "America/Los_Angeles";
-  result = classifier->ClassifyText("2018/01/01 10:30:20", {0, 19}, options);
-  ASSERT_EQ(result.size(), 2);  // Has 2 interpretations - a.m. or p.m.
-  EXPECT_THAT(result[0].collection, "datetime");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 1514831420000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_SECOND);
-  EXPECT_THAT(result[1].collection, "datetime");
-  EXPECT_EQ(result[1].datetime_parse_result.time_ms_utc, 1514874620000);
-  EXPECT_EQ(result[1].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_SECOND);
-  result.clear();
 
-  options.reference_timezone = "America/Los_Angeles";
-  result = classifier->ClassifyText("2018/01/01 22:00", {0, 16}, options);
-  ASSERT_EQ(result.size(), 1);  // Has only 1 interpretation - 10 p.m.
-  EXPECT_THAT(result[0].collection, "datetime");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 1514872800000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_MINUTE);
-  result.clear();
+  std::vector<ClassificationResult> result =
+      classifier->ClassifyText("2018/01/01 22:00", {0, 16}, options);
 
-  // Date on another line.
+  EXPECT_THAT(result,
+              ElementsAre(IsDatetimeResult(
+                  1514872800000, DatetimeGranularity::GRANULARITY_MINUTE)));
+}
+#endif  // TC3_UNILIB_ICU
+
+#ifdef TC3_CALENDAR_ICU
+TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLine) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath());
+  EXPECT_TRUE(classifier);
+  ClassificationOptions options;
   options.reference_timezone = "Europe/Zurich";
-  result = classifier->ClassifyText(
+
+  std::vector<ClassificationResult> result = classifier->ClassifyText(
       "hello world this is the first line\n"
       "january 1, 2017",
       {35, 50}, options);
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_THAT(result[0].collection, "date");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 1483225200000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_DAY);
+
+  EXPECT_THAT(result,
+              ElementsAre(IsDateResult(1483225200000,
+                                       DatetimeGranularity::GRANULARITY_DAY)));
 }
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_CALENDAR_ICU
-TEST_P(AnnotatorTest, ClassifyTextDatePriorities) {
+TEST_F(AnnotatorTest, ClassifyTextWhenLocaleUSParsesDateAsMonthDay) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam());
+      Annotator::FromPath(GetTestModelPath());
   EXPECT_TRUE(classifier);
-
   std::vector<ClassificationResult> result;
   ClassificationOptions options;
 
-  result.clear();
   options.reference_timezone = "Europe/Zurich";
   options.locales = "en-US";
-  result = classifier->ClassifyText("03.05.1970", {0, 10}, options);
+  result = classifier->ClassifyText("03.05.1970 00:00am", {0, 18}, options);
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_THAT(result[0].collection, "date");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 5439600000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_DAY);
-
-  result.clear();
-  options.reference_timezone = "Europe/Zurich";
-  options.locales = "de";
-  result = classifier->ClassifyText("03.05.1970", {0, 10}, options);
-
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_THAT(result[0].collection, "date");
-  EXPECT_EQ(result[0].datetime_parse_result.time_ms_utc, 10537200000);
-  EXPECT_EQ(result[0].datetime_parse_result.granularity,
-            DatetimeGranularity::GRANULARITY_DAY);
+  // In US, the date should be interpreted as <month>.<day>.
+  EXPECT_THAT(result,
+              ElementsAre(IsDatetimeResult(
+                  5439600000, DatetimeGranularity::GRANULARITY_MINUTE)));
 }
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_CALENDAR_ICU
-TEST_P(AnnotatorTest, SuggestTextDateDisabled) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, ClassifyTextWhenLocaleGermanyParsesDateAsMonthDay) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath());
+  EXPECT_TRUE(classifier);
+  std::vector<ClassificationResult> result;
+  ClassificationOptions options;
+
+  options.reference_timezone = "Europe/Zurich";
+  options.locales = "de";
+  result = classifier->ClassifyText("03.05.1970 00:00vorm", {0, 20}, options);
+
+  // In Germany, the date should be interpreted as <day>.<month>.
+  EXPECT_THAT(result,
+              ElementsAre(IsDatetimeResult(
+                  10537200000, DatetimeGranularity::GRANULARITY_MINUTE)));
+}
+#endif  // TC3_UNILIB_ICU
+
+#ifdef TC3_CALENDAR_ICU
+TEST_F(AnnotatorTest, ClassifyTextAmbiguousDatetime) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath());
+  EXPECT_TRUE(classifier);
+  ClassificationOptions options;
+  options.reference_timezone = "Europe/Zurich";
+  options.locales = "en-US";
+  const std::vector<ClassificationResult> result =
+      classifier->ClassifyText("set an alarm for 10:30", {17, 22}, options);
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          IsDatetimeResult(34200000, DatetimeGranularity::GRANULARITY_MINUTE),
+          IsDatetimeResult(77400000, DatetimeGranularity::GRANULARITY_MINUTE)));
+}
+#endif  // TC3_UNILIB_ICU
+
+#ifdef TC3_CALENDAR_ICU
+TEST_F(AnnotatorTest, AnnotateAmbiguousDatetime) {
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromPath(GetTestModelPath());
+  EXPECT_TRUE(classifier);
+  AnnotationOptions options;
+  options.reference_timezone = "Europe/Zurich";
+  options.locales = "en-US";
+  const std::vector<AnnotatedSpan> spans =
+      classifier->Annotate("set an alarm for 10:30", options);
+
+  ASSERT_EQ(spans.size(), 1);
+  const std::vector<ClassificationResult> result = spans[0].classification;
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          IsDatetimeResult(34200000, DatetimeGranularity::GRANULARITY_MINUTE),
+          IsDatetimeResult(77400000, DatetimeGranularity::GRANULARITY_MINUTE)));
+}
+#endif  // TC3_UNILIB_ICU
+
+#ifdef TC3_CALENDAR_ICU
+TEST_F(AnnotatorTest, SuggestTextDateDisabled) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Disable the patterns for selection.
@@ -1211,12 +1422,13 @@ class TestingAnnotator : public Annotator {
   using Annotator::ResolveConflicts;
 };
 
-AnnotatedSpan MakeAnnotatedSpan(CodepointSpan span,
-                                const std::string& collection,
-                                const float score) {
+AnnotatedSpan MakeAnnotatedSpan(
+    CodepointSpan span, const std::string& collection, const float score,
+    AnnotatedSpan::Source source = AnnotatedSpan::Source::OTHER) {
   AnnotatedSpan result;
   result.span = span;
   result.classification.push_back({collection, score});
+  result.source = source;
   return result;
 }
 
@@ -1225,9 +1437,12 @@ TEST_F(AnnotatorTest, ResolveConflictsTrivial) {
 
   std::vector<AnnotatedSpan> candidates{
       {MakeAnnotatedSpan({0, 1}, "phone", 1.0)}};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales,
+                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0}));
 }
@@ -1242,9 +1457,12 @@ TEST_F(AnnotatorTest, ResolveConflictsSequence) {
       MakeAnnotatedSpan({3, 4}, "phone", 1.0),
       MakeAnnotatedSpan({4, 5}, "phone", 1.0),
   }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales,
+                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 1, 2, 3, 4}));
 }
@@ -1257,9 +1475,12 @@ TEST_F(AnnotatorTest, ResolveConflictsThreeSpans) {
       MakeAnnotatedSpan({1, 5}, "phone", 0.5),  // Looser!
       MakeAnnotatedSpan({3, 7}, "phone", 1.0),
   }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales,
+                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 2}));
 }
@@ -1272,9 +1493,12 @@ TEST_F(AnnotatorTest, ResolveConflictsThreeSpansReversed) {
       MakeAnnotatedSpan({1, 5}, "phone", 1.0),
       MakeAnnotatedSpan({3, 7}, "phone", 0.6),  // Looser!
   }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales,
+                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({1}));
 }
@@ -1289,17 +1513,88 @@ TEST_F(AnnotatorTest, ResolveConflictsFiveSpans) {
       MakeAnnotatedSpan({8, 12}, "phone", 0.6),  // Looser!
       MakeAnnotatedSpan({11, 15}, "phone", 0.9),
   }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales,
+                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 2, 4}));
 }
 
+TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsAllowedKnowledgeFirst) {
+  TestingAnnotator classifier("", &unilib_, &calendarlib_);
+
+  std::vector<AnnotatedSpan> candidates{{
+      MakeAnnotatedSpan({0, 15}, "entity", 0.7,
+                        AnnotatedSpan::Source::KNOWLEDGE),
+      MakeAnnotatedSpan({5, 10}, "address", 0.6),
+  }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
+
+  std::vector<int> chosen;
+  classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              /*interpreter_manager=*/nullptr, &chosen);
+  EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
+}
+
+TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsAllowedKnowledgeSecond) {
+  TestingAnnotator classifier("", &unilib_, &calendarlib_);
+
+  std::vector<AnnotatedSpan> candidates{{
+      MakeAnnotatedSpan({0, 15}, "address", 0.7),
+      MakeAnnotatedSpan({5, 10}, "entity", 0.6,
+                        AnnotatedSpan::Source::KNOWLEDGE),
+  }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
+
+  std::vector<int> chosen;
+  classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              /*interpreter_manager=*/nullptr, &chosen);
+  EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
+}
+
+TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsAllowedBothKnowledge) {
+  TestingAnnotator classifier("", &unilib_, &calendarlib_);
+
+  std::vector<AnnotatedSpan> candidates{{
+      MakeAnnotatedSpan({0, 15}, "entity", 0.7,
+                        AnnotatedSpan::Source::KNOWLEDGE),
+      MakeAnnotatedSpan({5, 10}, "entity", 0.6,
+                        AnnotatedSpan::Source::KNOWLEDGE),
+  }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
+
+  std::vector<int> chosen;
+  classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              /*interpreter_manager=*/nullptr, &chosen);
+  EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
+}
+
+TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsNotAllowed) {
+  TestingAnnotator classifier("", &unilib_, &calendarlib_);
+
+  std::vector<AnnotatedSpan> candidates{{
+      MakeAnnotatedSpan({0, 15}, "address", 0.7),
+      MakeAnnotatedSpan({5, 10}, "date", 0.6),
+  }};
+  std::vector<Locale> locales = {Locale::FromBCP47("en")};
+
+  std::vector<int> chosen;
+  classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
+                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              /*interpreter_manager=*/nullptr, &chosen);
+  EXPECT_THAT(chosen, ElementsAreArray({0}));
+}
+
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, LongInput) {
+TEST_F(AnnotatorTest, LongInput) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   for (const auto& type_value_pair :
@@ -1330,9 +1625,9 @@ TEST_P(AnnotatorTest, LongInput) {
 #ifdef TC3_UNILIB_ICU
 // These coarse tests are there only to make sure the execution happens in
 // reasonable amount of time.
-TEST_P(AnnotatorTest, LongInputNoResultCheck) {
+TEST_F(AnnotatorTest, LongInputNoResultCheck) {
   std::unique_ptr<Annotator> classifier =
-      Annotator::FromPath(GetModelPath() + GetParam(), &unilib_, &calendarlib_);
+      Annotator::FromPath(GetTestModelPath(), &unilib_, &calendarlib_);
   ASSERT_TRUE(classifier);
 
   for (const std::string& value :
@@ -1349,8 +1644,8 @@ TEST_P(AnnotatorTest, LongInputNoResultCheck) {
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, MaxTokenLength) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, MaxTokenLength) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   std::unique_ptr<Annotator> classifier;
@@ -1386,8 +1681,8 @@ TEST_P(AnnotatorTest, MaxTokenLength) {
 #endif  // TC3_UNILIB_ICU
 
 #ifdef TC3_UNILIB_ICU
-TEST_P(AnnotatorTest, MinAddressTokenLength) {
-  const std::string test_model = ReadFile(GetModelPath() + GetParam());
+TEST_F(AnnotatorTest, MinAddressTokenLength) {
+  const std::string test_model = ReadFile(GetTestModelPath());
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   std::unique_ptr<Annotator> classifier;
@@ -1423,13 +1718,13 @@ TEST_P(AnnotatorTest, MinAddressTokenLength) {
 #endif  // TC3_UNILIB_ICU
 
 TEST_F(AnnotatorTest, VisitAnnotatorModel) {
-  EXPECT_TRUE(VisitAnnotatorModel<bool>(GetModelPath() + "test_model.fb",
-                                        [](const Model* model) {
-                                          if (model == nullptr) {
-                                            return false;
-                                          }
-                                          return true;
-                                        }));
+  EXPECT_TRUE(
+      VisitAnnotatorModel<bool>(GetTestModelPath(), [](const Model* model) {
+        if (model == nullptr) {
+          return false;
+        }
+        return true;
+      }));
   EXPECT_FALSE(VisitAnnotatorModel<bool>(
       GetModelPath() + "non_existing_model.fb", [](const Model* model) {
         if (model == nullptr) {

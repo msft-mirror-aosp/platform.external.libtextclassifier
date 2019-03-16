@@ -18,12 +18,15 @@
 
 #include <memory>
 
+#include "actions/lua-actions.h"
 #include "actions/types.h"
 #include "utils/base/logging.h"
+#include "utils/lua-utils.h"
 #include "utils/regex-match.h"
 #include "utils/strings/split.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/utf8/unicodetext.h"
+#include "utils/zlib/zlib_regex.h"
 #include "tensorflow/lite/string_util.h"
 
 namespace libtextclassifier3 {
@@ -46,7 +49,6 @@ const std::string& ActionsSuggestions::kShareLocation =
     *[]() { return new std::string("share_location"); }();
 
 namespace {
-constexpr const char* kAnyMatch = "*";
 
 const ActionsModel* LoadAndVerifyModel(const uint8_t* addr, int size) {
   flatbuffers::Verifier verifier(addr, size);
@@ -181,6 +183,12 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     return false;
   }
 
+  if (model_->lua_actions_script() != nullptr &&
+      !Compile(model_->lua_actions_script()->str(), &lua_bytecode_)) {
+    TC3_LOG(ERROR) << "Could not precompile lua actions snippet.";
+    return false;
+  }
+
   return true;
 }
 
@@ -210,70 +218,55 @@ bool ActionsSuggestions::InitializeRules(
     std::vector<CompiledRule>* compiled_rules) const {
   for (const RulesModel_::Rule* rule : *rules->rule()) {
     std::unique_ptr<UniLib::RegexPattern> compiled_pattern =
-        UncompressMakeRegexPattern(*unilib_, rule->pattern(),
-                                   rule->compressed_pattern(), decompressor);
+        UncompressMakeRegexPattern(
+            *unilib_, rule->pattern(), rule->compressed_pattern(),
+            rules->lazy_regex_compilation(), decompressor);
     if (compiled_pattern == nullptr) {
       TC3_LOG(ERROR) << "Failed to load rule pattern.";
       return false;
     }
-    compiled_rules->push_back({rule, std::move(compiled_pattern)});
+
+    // Check whether there is a check on the output.
+    std::unique_ptr<UniLib::RegexPattern> compiled_output_pattern;
+    if (rule->output_pattern() != nullptr ||
+        rule->compressed_output_pattern() != nullptr) {
+      compiled_output_pattern = UncompressMakeRegexPattern(
+          *unilib_, rule->output_pattern(), rule->compressed_output_pattern(),
+          rules->lazy_regex_compilation(), decompressor);
+      if (compiled_output_pattern == nullptr) {
+        TC3_LOG(ERROR) << "Failed to load rule output pattern.";
+        return false;
+      }
+    }
+
+    compiled_rules->emplace_back(rule, std::move(compiled_pattern),
+                                 std::move(compiled_output_pattern));
   }
 
   return true;
 }
 
-bool ActionsSuggestions::IsLocaleSupportedByModel(const Locale& locale) const {
-  if (!locale.IsValid()) {
-    return false;
-  }
-  if (locale.IsUnknown()) {
-    return model_->preconditions()->handle_unknown_locale_as_supported();
-  }
-  for (const Locale& model_locale : locales_) {
-    if (!model_locale.IsValid()) {
-      continue;
-    }
-    const bool language_matches = model_locale.Language().empty() ||
-                                  model_locale.Language() == kAnyMatch ||
-                                  model_locale.Language() == locale.Language();
-    const bool script_matches =
-        model_locale.Script().empty() || model_locale.Script() == kAnyMatch ||
-        locale.Script().empty() || model_locale.Script() == locale.Script();
-    const bool region_matches =
-        model_locale.Region().empty() || model_locale.Region() == kAnyMatch ||
-        locale.Region().empty() || model_locale.Region() == locale.Region();
-    if (language_matches && script_matches && region_matches) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool ActionsSuggestions::IsAnyLocaleSupportedByModel(
-    const std::vector<Locale>& locales) const {
-  if (locales.empty()) {
-    return model_->preconditions()->handle_missing_locale_as_supported();
-  }
-  for (const Locale& locale : locales) {
-    if (IsLocaleSupportedByModel(locale)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool ActionsSuggestions::IsLowConfidenceInput(const Conversation& conversation,
-                                              const int num_messages) const {
+bool ActionsSuggestions::IsLowConfidenceInput(
+    const Conversation& conversation, const int num_messages,
+    std::vector<int>* post_check_rules) const {
   for (int i = 1; i <= num_messages; i++) {
     const std::string& message =
         conversation.messages[conversation.messages.size() - i].text;
     const UnicodeText message_unicode(
         UTF8ToUnicodeText(message, /*do_copy=*/false));
-    for (const CompiledRule& rule : low_confidence_rules_) {
+    for (int low_confidence_rule = 0;
+         low_confidence_rule < low_confidence_rules_.size();
+         low_confidence_rule++) {
+      const CompiledRule& rule = low_confidence_rules_[low_confidence_rule];
       const std::unique_ptr<UniLib::RegexMatcher> matcher =
           rule.pattern->Matcher(message_unicode);
       int status = UniLib::RegexMatcher::kNoError;
       if (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
+        // Rule only applies to input-output pairs, so defer the check.
+        if (rule.output_pattern != nullptr) {
+          post_check_rules->push_back(low_confidence_rule);
+          continue;
+        }
         return true;
       }
     }
@@ -281,38 +274,140 @@ bool ActionsSuggestions::IsLowConfidenceInput(const Conversation& conversation,
   return false;
 }
 
-void ActionsSuggestions::SetupModelInput(
+bool ActionsSuggestions::FilterConfidenceOutput(
+    const std::vector<int>& post_check_rules,
+    std::vector<ActionSuggestion>* actions) const {
+  if (post_check_rules.empty() || actions->empty()) {
+    return true;
+  }
+  std::vector<ActionSuggestion> filtered_text_replies;
+  for (const ActionSuggestion& action : *actions) {
+    if (action.response_text.empty()) {
+      filtered_text_replies.push_back(action);
+      continue;
+    }
+    bool passes_post_check = true;
+    const UnicodeText text_reply_unicode(
+        UTF8ToUnicodeText(action.response_text, /*do_copy=*/false));
+    for (const int rule_id : post_check_rules) {
+      const std::unique_ptr<UniLib::RegexMatcher> matcher =
+          low_confidence_rules_[rule_id].output_pattern->Matcher(
+              text_reply_unicode);
+      if (matcher == nullptr) {
+        TC3_LOG(ERROR) << "Could not create matcher for post check rule.";
+        return false;
+      }
+      int status = UniLib::RegexMatcher::kNoError;
+      if (matcher->Find(&status) || status != UniLib::RegexMatcher::kNoError) {
+        passes_post_check = false;
+        break;
+      }
+    }
+    if (passes_post_check) {
+      filtered_text_replies.push_back(action);
+    }
+  }
+  *actions = std::move(filtered_text_replies);
+  return true;
+}
+
+ActionSuggestion ActionsSuggestions::SuggestionFromSpec(
+    const ActionSuggestionSpec* action, const std::string& default_type,
+    const std::string& default_response_text,
+    const std::string& default_serialized_entity_data,
+    const float default_score, const float default_priority_score) const {
+  ActionSuggestion suggestion;
+  suggestion.score = action != nullptr ? action->score() : default_score;
+  suggestion.priority_score =
+      action != nullptr ? action->priority_score() : default_priority_score;
+  suggestion.type = action != nullptr && action->type() != nullptr
+                        ? action->type()->str()
+                        : default_type;
+  suggestion.response_text =
+      action != nullptr && action->response_text() != nullptr
+          ? action->response_text()->str()
+          : default_response_text;
+  suggestion.serialized_entity_data =
+      action != nullptr && action->serialized_entity_data() != nullptr
+          ? action->serialized_entity_data()->str()
+          : default_serialized_entity_data;
+  return suggestion;
+}
+
+bool ActionsSuggestions::AllocateInput(const int conversation_length,
+                                       tflite::Interpreter* interpreter) const {
+  if (model_->tflite_model_spec()->resize_inputs()) {
+    if (model_->tflite_model_spec()->input_context() >= 0) {
+      interpreter->ResizeInputTensor(
+          model_->tflite_model_spec()->input_context(),
+          {1, conversation_length});
+    }
+    if (model_->tflite_model_spec()->input_user_id() >= 0) {
+      interpreter->ResizeInputTensor(
+          model_->tflite_model_spec()->input_user_id(),
+          {1, conversation_length});
+    }
+    if (model_->tflite_model_spec()->input_time_diffs() >= 0) {
+      interpreter->ResizeInputTensor(
+          model_->tflite_model_spec()->input_time_diffs(),
+          {1, conversation_length});
+    }
+  }
+  return interpreter->AllocateTensors() == kTfLiteOk;
+}
+
+bool ActionsSuggestions::SetupModelInput(
     const std::vector<std::string>& context, const std::vector<int>& user_ids,
     const std::vector<float>& time_diffs, const int num_suggestions,
+    const float confidence_threshold, const float diversification_distance,
+    const float empirical_probability_factor,
     tflite::Interpreter* interpreter) const {
+  if (!AllocateInput(context.size(), interpreter)) {
+    TC3_LOG(ERROR) << "TensorFlow Lite model allocation failed.";
+    return false;
+  }
   if (model_->tflite_model_spec()->input_context() >= 0) {
     model_executor_->SetInput<std::string>(
         model_->tflite_model_spec()->input_context(), context, interpreter);
   }
   if (model_->tflite_model_spec()->input_context_length() >= 0) {
-    *interpreter
-         ->tensor(interpreter->inputs()[model_->tflite_model_spec()
-                                            ->input_context_length()])
-         ->data.i64 = context.size();
+    model_executor_->SetInput<int>(
+        model_->tflite_model_spec()->input_context_length(), context.size(),
+        interpreter);
   }
   if (model_->tflite_model_spec()->input_user_id() >= 0) {
     model_executor_->SetInput<int>(model_->tflite_model_spec()->input_user_id(),
                                    user_ids, interpreter);
   }
   if (model_->tflite_model_spec()->input_num_suggestions() >= 0) {
-    *interpreter
-         ->tensor(interpreter->inputs()[model_->tflite_model_spec()
-                                            ->input_num_suggestions()])
-         ->data.i64 = num_suggestions;
+    model_executor_->SetInput<int>(
+        model_->tflite_model_spec()->input_num_suggestions(), num_suggestions,
+        interpreter);
   }
   if (model_->tflite_model_spec()->input_time_diffs() >= 0) {
     model_executor_->SetInput<float>(
         model_->tflite_model_spec()->input_time_diffs(), time_diffs,
         interpreter);
   }
+  if (model_->tflite_model_spec()->input_diversification_distance() >= 0) {
+    model_executor_->SetInput<float>(
+        model_->tflite_model_spec()->input_diversification_distance(),
+        diversification_distance, interpreter);
+  }
+  if (model_->tflite_model_spec()->input_confidence_threshold() >= 0) {
+    model_executor_->SetInput<float>(
+        model_->tflite_model_spec()->input_confidence_threshold(),
+        confidence_threshold, interpreter);
+  }
+  if (model_->tflite_model_spec()->input_empirical_probability_factor() >= 0) {
+    model_executor_->SetInput<float>(
+        model_->tflite_model_spec()->input_empirical_probability_factor(),
+        confidence_threshold, interpreter);
+  }
+  return true;
 }
 
-void ActionsSuggestions::ReadModelOutput(
+bool ActionsSuggestions::ReadModelOutput(
     tflite::Interpreter* interpreter, const ActionSuggestionOptions& options,
     ActionsSuggestionsResponse* response) const {
   // Read sensitivity and triggering score predictions.
@@ -323,11 +418,10 @@ void ActionsSuggestions::ReadModelOutput(
             interpreter);
     if (!triggering_score.is_valid() || triggering_score.size() == 0) {
       TC3_LOG(ERROR) << "Could not compute triggering score.";
-      return;
+      return false;
     }
     response->triggering_score = triggering_score.data()[0];
     response->output_filtered_min_triggering_score =
-        !options.ignore_min_replies_triggering_threshold &&
         (response->triggering_score <
          model_->preconditions()->min_smart_reply_triggering_score());
   }
@@ -339,7 +433,7 @@ void ActionsSuggestions::ReadModelOutput(
     if (!sensitive_topic_score.is_valid() ||
         sensitive_topic_score.dim(0) != 1) {
       TC3_LOG(ERROR) << "Could not compute sensitive topic score.";
-      return;
+      return false;
     }
     response->sensitivity_score = sensitive_topic_score.data()[0];
     response->output_filtered_sensitivity =
@@ -349,10 +443,11 @@ void ActionsSuggestions::ReadModelOutput(
 
   // Suppress model outputs.
   if (response->output_filtered_sensitivity) {
-    return;
+    return true;
   }
 
   // Read smart reply predictions.
+  std::vector<ActionSuggestion> text_replies;
   if (!response->output_filtered_min_triggering_score &&
       model_->tflite_model_spec()->output_replies() >= 0) {
     const std::vector<tflite::StringRef> replies =
@@ -360,7 +455,6 @@ void ActionsSuggestions::ReadModelOutput(
             model_->tflite_model_spec()->output_replies(), interpreter);
     TensorView<float> scores = model_executor_->OutputView<float>(
         model_->tflite_model_spec()->output_replies_scores(), interpreter);
-    std::vector<ActionSuggestion> text_replies;
     for (int i = 0; i < replies.size(); i++) {
       if (replies[i].len == 0) continue;
       response->actions.push_back({std::string(replies[i].str, replies[i].len),
@@ -374,44 +468,49 @@ void ActionsSuggestions::ReadModelOutput(
     const TensorView<float> actions_scores = model_executor_->OutputView<float>(
         model_->tflite_model_spec()->output_actions_scores(), interpreter);
     for (int i = 0; i < model_->action_type()->Length(); i++) {
+      const ActionTypeOptions* action_type = model_->action_type()->Get(i);
       // Skip disabled action classes, such as the default other category.
-      if (!(*model_->action_type())[i]->enabled()) {
+      if (!action_type->enabled()) {
         continue;
       }
       const float score = actions_scores.data()[i];
-      if (score < (*model_->action_type())[i]->min_triggering_score()) {
+      if (score < action_type->min_triggering_score()) {
         continue;
       }
-      const std::string& output_class =
-          (*model_->action_type())[i]->name()->str();
-      response->actions.push_back({/*response_text=*/"", output_class, score});
+      ActionSuggestion suggestion =
+          SuggestionFromSpec(action_type->action(),
+                             /*default_type=*/action_type->name()->str());
+      suggestion.score = score;
+      response->actions.push_back(suggestion);
     }
   }
+
+  return true;
 }
 
-void ActionsSuggestions::SuggestActionsFromModel(
+bool ActionsSuggestions::SuggestActionsFromModel(
     const Conversation& conversation, const int num_messages,
     const ActionSuggestionOptions& options,
-    ActionsSuggestionsResponse* response) const {
+    ActionsSuggestionsResponse* response,
+    std::unique_ptr<tflite::Interpreter>* interpreter) const {
   TC3_CHECK_LE(num_messages, conversation.messages.size());
 
   if (!model_executor_) {
-    return;
+    return true;
   }
-  std::unique_ptr<tflite::Interpreter> interpreter =
-      model_executor_->CreateInterpreter();
+  *interpreter = model_executor_->CreateInterpreter();
 
-  if (!interpreter) {
+  if (!*interpreter) {
     TC3_LOG(ERROR) << "Could not build TensorFlow Lite interpreter for the "
                       "actions suggestions model.";
-    return;
+    return false;
   }
 
-  if (interpreter->AllocateTensors() != kTfLiteOk) {
+  if ((*interpreter)->AllocateTensors() != kTfLiteOk) {
     TC3_LOG(ERROR)
         << "Failed to allocate TensorFlow Lite tensors for the actions "
            "suggestions model.";
-    return;
+    return false;
   }
 
   std::vector<std::string> context;
@@ -440,21 +539,39 @@ void ActionsSuggestions::SuggestActionsFromModel(
     time_diffs.push_back(time_diff_secs);
   }
 
-  SetupModelInput(context, user_ids, time_diffs,
-                  /*num_suggestions=*/model_->num_smart_replies(),
-                  interpreter.get());
-
-  if (interpreter->Invoke() != kTfLiteOk) {
-    TC3_LOG(ERROR) << "Failed to invoke TensorFlow Lite interpreter.";
-    return;
+  if (!SetupModelInput(
+          context, user_ids, time_diffs,
+          /*num_suggestions=*/model_->num_smart_replies(),
+          model_->preconditions()->confidence_threshold(),
+          model_->preconditions()->diversification_distance_threshold(),
+          model_->preconditions()->empirical_probability_factor(),
+          interpreter->get())) {
+    TC3_LOG(ERROR) << "Failed to setup input for TensorFlow Lite model.";
+    return false;
   }
 
-  ReadModelOutput(interpreter.get(), options, response);
+  if ((*interpreter)->Invoke() != kTfLiteOk) {
+    TC3_LOG(ERROR) << "Failed to invoke TensorFlow Lite interpreter.";
+    return false;
+  }
+
+  return ReadModelOutput(interpreter->get(), options, response);
+}
+
+AnnotationOptions ActionsSuggestions::AnnotationOptionsForMessage(
+    const ConversationMessage& message) const {
+  AnnotationOptions options;
+  options.detected_text_language_tags = message.detected_text_language_tags;
+  options.reference_time_ms_utc = message.reference_time_ms_utc;
+  options.reference_timezone = message.reference_timezone;
+  options.annotation_usecase =
+      model_->annotation_actions_spec()->annotation_usecase();
+  return options;
 }
 
 void ActionsSuggestions::SuggestActionsFromAnnotations(
     const Conversation& conversation, const ActionSuggestionOptions& options,
-    const Annotator* annotator, ActionsSuggestionsResponse* response) const {
+    const Annotator* annotator, std::vector<ActionSuggestion>* actions) const {
   if (model_->annotation_actions_spec() == nullptr ||
       model_->annotation_actions_spec()->annotation_mapping() == nullptr ||
       model_->annotation_actions_spec()->annotation_mapping()->size() == 0) {
@@ -462,11 +579,12 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
   }
 
   // Create actions based on the annotations present in the last message.
-  std::vector<AnnotatedSpan> annotations =
-      conversation.messages.back().annotations;
+  const ConversationMessage& message = conversation.messages.back();
+  std::vector<AnnotatedSpan> annotations = message.annotations;
+
   if (annotations.empty() && annotator != nullptr) {
-    annotations = annotator->Annotate(conversation.messages.back().text,
-                                      options.annotation_options);
+    annotations =
+        annotator->Annotate(message.text, AnnotationOptionsForMessage(message));
   }
   const int message_index = conversation.messages.size() - 1;
   std::vector<ActionSuggestionAnnotation> action_annotations;
@@ -480,27 +598,63 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
         annotation.classification[0];
 
     ActionSuggestionAnnotation action_annotation;
-    action_annotation.message_index = message_index;
-    action_annotation.span = annotation.span;
+    action_annotation.span = {
+        message_index, annotation.span,
+        UTF8ToUnicodeText(message.text, /*do_copy=*/false)
+            .UTF8Substring(annotation.span.first, annotation.span.second)};
     action_annotation.entity = classification_result;
     action_annotation.name = classification_result.collection;
-    action_annotation.text =
-        UTF8ToUnicodeText(conversation.messages.back().text,
-                          /*do_copy=*/false)
-            .UTF8Substring(annotation.span.first, annotation.span.second);
     action_annotations.push_back(action_annotation);
   }
 
   if (model_->annotation_actions_spec()->deduplicate_annotations()) {
     // Create actions only for deduplicated annotations.
     for (const int annotation_id : DeduplicateAnnotations(action_annotations)) {
-      CreateActionsFromAnnotation(message_index,
-                                  action_annotations[annotation_id], response);
+      SuggestActionsFromAnnotation(message_index,
+                                   action_annotations[annotation_id], actions);
     }
   } else {
     // Create actions for all annotations.
     for (const ActionSuggestionAnnotation& annotation : action_annotations) {
-      CreateActionsFromAnnotation(message_index, annotation, response);
+      SuggestActionsFromAnnotation(message_index, annotation, actions);
+    }
+  }
+}
+
+void ActionsSuggestions::SuggestActionsFromAnnotation(
+    const int message_index, const ActionSuggestionAnnotation& annotation,
+    std::vector<ActionSuggestion>* actions) const {
+  for (const AnnotationActionsSpec_::AnnotationMapping* mapping :
+       *model_->annotation_actions_spec()->annotation_mapping()) {
+    if (annotation.entity.collection ==
+        mapping->annotation_collection()->str()) {
+      if (annotation.entity.score < mapping->min_annotation_score()) {
+        continue;
+      }
+      ActionSuggestion suggestion = SuggestionFromSpec(mapping->action());
+      if (mapping->use_annotation_score()) {
+        suggestion.score = annotation.entity.score;
+      }
+
+      // Set annotation text as (additional) entity data field.
+      if (mapping->entity_field() != nullptr) {
+        std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+            entity_data_builder_->NewRoot();
+        TC3_CHECK(entity_data != nullptr);
+
+        // Merge existing static entity data.
+        if (!suggestion.serialized_entity_data.empty()) {
+          entity_data->MergeFromSerializedFlatbuffer(
+              StringPiece(suggestion.serialized_entity_data.c_str(),
+                          suggestion.serialized_entity_data.size()));
+        }
+
+        entity_data->ParseAndSet(mapping->entity_field(), annotation.span.text);
+        suggestion.serialized_entity_data = entity_data->Serialize();
+      }
+
+      suggestion.annotations = {annotation};
+      actions->push_back(suggestion);
     }
   }
 }
@@ -511,7 +665,7 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
 
   for (int i = 0; i < annotations.size(); i++) {
     const std::pair<std::string, std::string> key = {annotations[i].name,
-                                                     annotations[i].text};
+                                                     annotations[i].span.text};
     auto entry = deduplicated_annotations.find(key);
     if (entry != deduplicated_annotations.end()) {
       // Kepp the annotation with the higher score.
@@ -532,37 +686,6 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
   return result;
 }
 
-void ActionsSuggestions::CreateActionsFromAnnotation(
-    const int message_index, const ActionSuggestionAnnotation& annotation,
-    ActionsSuggestionsResponse* suggestions) const {
-  for (const AnnotationActionsSpec_::AnnotationMapping* mapping :
-       *model_->annotation_actions_spec()->annotation_mapping()) {
-    if (annotation.entity.collection ==
-        mapping->annotation_collection()->str()) {
-      if (annotation.entity.score < mapping->min_annotation_score()) {
-        continue;
-      }
-      const float score =
-          (mapping->use_annotation_score() ? annotation.entity.score
-                                           : mapping->action()->score());
-
-      std::string serialized_entity_data;
-      if (mapping->action()->serialized_entity_data()) {
-        serialized_entity_data =
-            mapping->action()->serialized_entity_data()->str();
-      }
-
-      suggestions->actions.push_back({
-          /*response_text=*/"",
-          /*type=*/mapping->action()->type()->str(),
-          /*score=*/score,
-          /*annotations=*/{annotation},
-          /*serialized_entity_data=*/serialized_entity_data,
-      });
-    }
-  }
-}
-
 bool ActionsSuggestions::HasEntityData(const RulesModel_::Rule* rule) const {
   for (const RulesModel_::Rule_::RuleActionSpec* rule_action :
        *rule->actions()) {
@@ -574,10 +697,44 @@ bool ActionsSuggestions::HasEntityData(const RulesModel_::Rule* rule) const {
   return false;
 }
 
+bool ActionsSuggestions::FillAnnotationFromMatchGroup(
+    const UniLib::RegexMatcher* matcher,
+    const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup* group,
+    const int message_index, ActionSuggestionAnnotation* annotation) const {
+  if (group->annotation_name() != nullptr ||
+      group->annotation_type() != nullptr) {
+    int status = UniLib::RegexMatcher::kNoError;
+    const CodepointSpan span = {matcher->Start(group->group_id(), &status),
+                                matcher->End(group->group_id(), &status)};
+    std::string text =
+        matcher->Group(group->group_id(), &status).ToUTF8String();
+    if (status != UniLib::RegexMatcher::kNoError) {
+      TC3_LOG(ERROR) << "Could not extract span from rule capturing group.";
+      return false;
+    }
+
+    // The capturing group was not part of the match.
+    if (span.first == kInvalidIndex || span.second == kInvalidIndex) {
+      return false;
+    }
+    annotation->span.span = span;
+    annotation->span.message_index = message_index;
+    annotation->span.text = text;
+    if (group->annotation_name() != nullptr) {
+      annotation->name = group->annotation_name()->str();
+    }
+    if (group->annotation_type() != nullptr) {
+      annotation->entity.collection = group->annotation_type()->str();
+    }
+  }
+  return true;
+}
+
 bool ActionsSuggestions::SuggestActionsFromRules(
     const Conversation& conversation,
-    ActionsSuggestionsResponse* suggestions) const {
+    std::vector<ActionSuggestion>* actions) const {
   // Create actions based on rules checking the last message.
+  const int message_index = conversation.messages.size() - 1;
   const std::string& message = conversation.messages.back().text;
   const UnicodeText message_unicode(
       UTF8ToUnicodeText(message, /*do_copy=*/false));
@@ -590,6 +747,7 @@ bool ActionsSuggestions::SuggestActionsFromRules(
       for (const RulesModel_::Rule_::RuleActionSpec* rule_action :
            *rule.rule->actions()) {
         const ActionSuggestionSpec* action = rule_action->action();
+        std::vector<ActionSuggestionAnnotation> annotations;
 
         std::string serialized_entity_data;
         if (has_entity_data) {
@@ -609,30 +767,53 @@ bool ActionsSuggestions::SuggestActionsFromRules(
           if (rule_action->capturing_group() != nullptr) {
             for (const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup*
                      group : *rule_action->capturing_group()) {
-              if (!SetFieldFromCapturingGroup(
+              if (group->entity_field() != nullptr &&
+                  !SetFieldFromCapturingGroup(
                       group->group_id(), group->entity_field(), matcher.get(),
                       entity_data.get())) {
                 TC3_LOG(ERROR)
                     << "Could not set entity data from rule capturing group.";
                 return false;
               }
+
+              // Create a text annotation for the group span.
+              ActionSuggestionAnnotation annotation;
+              if (FillAnnotationFromMatchGroup(matcher.get(), group,
+                                               message_index, &annotation)) {
+                annotations.push_back(annotation);
+              }
             }
           }
 
           serialized_entity_data = entity_data->Serialize();
         }
-        suggestions->actions.push_back(
-            {/*response_text=*/(action->response_text() != nullptr
-                                    ? action->response_text()->str()
-                                    : ""),
-             /*type=*/action->type()->str(),
-             /*score=*/action->score(),
-             /*annotations=*/{},
-             /*serialized_entity_data=*/serialized_entity_data});
+        ActionSuggestion suggestion = SuggestionFromSpec(action);
+        suggestion.annotations = annotations;
+        suggestion.serialized_entity_data = serialized_entity_data;
+        actions->push_back(suggestion);
       }
     }
   }
   return true;
+}
+
+bool ActionsSuggestions::SuggestActionsFromLua(
+    const Conversation& conversation, const TfLiteModelExecutor* model_executor,
+    const tflite::Interpreter* interpreter,
+    const reflection::Schema* annotation_entity_data_schema,
+    std::vector<ActionSuggestion>* actions) const {
+  if (lua_bytecode_.empty()) {
+    return true;
+  }
+
+  auto lua_actions = LuaActionsSuggestions::CreateLuaActionsSuggestions(
+      lua_bytecode_, conversation, model_executor, model_->tflite_model_spec(),
+      interpreter, entity_data_schema_, annotation_entity_data_schema);
+  if (lua_actions == nullptr) {
+    TC3_LOG(ERROR) << "Could not create lua actions.";
+    return false;
+  }
+  return lua_actions->SuggestActions(actions);
 }
 
 bool ActionsSuggestions::GatherActionsSuggestions(
@@ -657,18 +838,22 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return false;
   }
 
-  SuggestActionsFromAnnotations(conversation, options, annotator, response);
+  SuggestActionsFromAnnotations(conversation, options, annotator,
+                                &response->actions);
 
   int input_text_length = 0;
   int num_matching_locales = 0;
   for (int i = conversation.messages.size() - num_messages;
        i < conversation.messages.size(); i++) {
     input_text_length += conversation.messages[i].text.length();
-    std::vector<Locale> message_locales;
-    if (!ParseLocales(conversation.messages[i].locales, &message_locales)) {
+    std::vector<Locale> message_languages;
+    if (!ParseLocales(conversation.messages[i].detected_text_language_tags,
+                      &message_languages)) {
       continue;
     }
-    if (IsAnyLocaleSupportedByModel(message_locales)) {
+    if (Locale::IsAnyLocaleSupported(
+            message_languages, locales_,
+            model_->preconditions()->handle_unknown_locale_as_supported())) {
       ++num_matching_locales;
     }
   }
@@ -691,13 +876,18 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
-  if (IsLowConfidenceInput(conversation, num_messages)) {
-    TC3_LOG(INFO) << "Low confidence input.";
+  std::vector<int> post_check_rules;
+  if (IsLowConfidenceInput(conversation, num_messages, &post_check_rules)) {
     response->output_filtered_low_confidence = true;
     return true;
   }
 
-  SuggestActionsFromModel(conversation, num_messages, options, response);
+  std::unique_ptr<tflite::Interpreter> interpreter;
+  if (!SuggestActionsFromModel(conversation, num_messages, options, response,
+                               &interpreter)) {
+    TC3_LOG(ERROR) << "Could not run model.";
+    return false;
+  }
 
   // Suppress all predictions if the conversation was deemed sensitive.
   if (model_->preconditions()->suppress_on_sensitive_topic() &&
@@ -705,8 +895,21 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
-  if (!SuggestActionsFromRules(conversation, response)) {
+  if (!SuggestActionsFromLua(
+          conversation, model_executor_.get(), interpreter.get(),
+          annotator != nullptr ? annotator->entity_data_schema() : nullptr,
+          &response->actions)) {
+    TC3_LOG(ERROR) << "Could not suggest actions from script.";
+    return false;
+  }
+
+  if (!SuggestActionsFromRules(conversation, &response->actions)) {
     TC3_LOG(ERROR) << "Could not suggest actions from rules.";
+    return false;
+  }
+
+  if (!FilterConfidenceOutput(post_check_rules, &response->actions)) {
+    TC3_LOG(ERROR) << "Could not post-check actions.";
     return false;
   }
 
@@ -720,7 +923,10 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
   if (!GatherActionsSuggestions(conversation, annotator, options, &response)) {
     TC3_LOG(ERROR) << "Could not gather actions suggestions.";
     response.actions.clear();
-  } else if (!ranker_->RankActions(&response)) {
+  } else if (!ranker_->RankActions(&response, entity_data_schema_,
+                                   annotator != nullptr
+                                       ? annotator->entity_data_schema()
+                                       : nullptr)) {
     TC3_LOG(ERROR) << "Could not rank actions.";
     response.actions.clear();
   }
