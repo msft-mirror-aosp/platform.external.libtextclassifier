@@ -26,6 +26,7 @@ LOCAL_PATH := $(call my-dir)
 MY_LIBTEXTCLASSIFIER_WARNING_CFLAGS := \
     -Wall \
     -Werror \
+    -Wno-deprecated-declarations \
     -Wno-ignored-qualifiers \
     -Wno-missing-field-initializers \
     -Wno-sign-compare \
