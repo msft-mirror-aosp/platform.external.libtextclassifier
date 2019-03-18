@@ -97,9 +97,8 @@ void TfLiteModelExecutor::SetInput(const int input_index,
   for (const std::string& s : input_data) {
     buf.AddString(s.data(), s.length());
   }
-  // TODO(b/120230709): Use WriteToTensorAsVector() instead, once available in
-  // AOSP.
-  buf.WriteToTensor(interpreter->tensor(interpreter->inputs()[input_index]));
+  buf.WriteToTensorAsVector(
+            interpreter->tensor(interpreter->inputs()[input_index]));
 }
 
 template <>
