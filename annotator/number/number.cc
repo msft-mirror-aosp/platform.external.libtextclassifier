@@ -49,8 +49,8 @@ bool NumberAnnotator::ClassifyText(
 bool NumberAnnotator::FindAll(const UnicodeText& context,
                               AnnotationUsecase annotation_usecase,
                               std::vector<AnnotatedSpan>* result) const {
-  if (!options_->enabled() ||
-      (annotation_usecase & options_->enabled_annotation_usecases()) == 0) {
+  if (!options_->enabled() || ((1 << annotation_usecase) &
+                               options_->enabled_annotation_usecases()) == 0) {
     return true;
   }
 

@@ -23,7 +23,8 @@
 namespace libtextclassifier3 {
 namespace {
 
-class ResourcesTest : public testing::TestWithParam<bool> {
+class ResourcesTest
+    : public testing::TestWithParam<testing::tuple<bool, bool>> {
  protected:
   ResourcesTest() {}
 
@@ -114,8 +115,10 @@ class ResourcesTest : public testing::TestWithParam<bool> {
     test_resources.resource_entry.back()->resource.back()->content = "龍";
     test_resources.resource_entry.back()->resource.back()->locale.push_back(7);
 
-    if (GetParam()) {
-      EXPECT_TRUE(CompressResources(&test_resources));
+    if (compress()) {
+      EXPECT_TRUE(CompressResources(
+          &test_resources,
+          /*build_compression_dictionary=*/build_dictionary()));
     }
 
     flatbuffers::FlatBufferBuilder builder;
@@ -125,10 +128,14 @@ class ResourcesTest : public testing::TestWithParam<bool> {
         reinterpret_cast<const char*>(builder.GetBufferPointer()),
         builder.GetSize());
   }
+
+  bool compress() const { return testing::get<0>(GetParam()); }
+
+  bool build_dictionary() const { return testing::get<1>(GetParam()); }
 };
 
 INSTANTIATE_TEST_SUITE_P(Compression, ResourcesTest,
-                         testing::Values(false, true));
+                         testing::Combine(testing::Bool(), testing::Bool()));
 
 TEST_P(ResourcesTest, CorrectlyHandlesExactMatch) {
   std::string test_resources = BuildTestResources();

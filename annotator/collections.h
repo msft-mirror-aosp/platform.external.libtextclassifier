@@ -54,6 +54,11 @@ class Collections {
         *[]() { return new std::string("dictionary"); }();
     return value;
   }
+  static const std::string& Duration() {
+    static const std::string& value =
+        *[]() { return new std::string("duration"); }();
+    return value;
+  }
   static const std::string& Email() {
     static const std::string& value =
         *[]() { return new std::string("email"); }();

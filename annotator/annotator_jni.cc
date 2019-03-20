@@ -63,17 +63,63 @@ namespace libtextclassifier3 {
 using libtextclassifier3::CodepointSpan;
 
 namespace {
+class AnnotatorJniContext {
+ public:
+  static AnnotatorJniContext* Create(
+      const std::shared_ptr<libtextclassifier3::JniCache>& jni_cache,
+      std::unique_ptr<Annotator> model) {
+    if (jni_cache == nullptr || model == nullptr) {
+      return nullptr;
+    }
+    std::unique_ptr<IntentGenerator> intent_generator =
+        IntentGenerator::Create(model->model()->intent_options(),
+                                model->model()->resources(), jni_cache);
+    std::unique_ptr<RemoteActionTemplatesHandler> template_handler =
+        libtextclassifier3::RemoteActionTemplatesHandler::Create(jni_cache);
+    if (template_handler == nullptr) {
+      return nullptr;
+    }
+    return new AnnotatorJniContext(jni_cache, std::move(model),
+                                   std::move(intent_generator),
+                                   std::move(template_handler));
+  }
+
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache() const {
+    return jni_cache_;
+  }
+
+  Annotator* model() const { return model_.get(); }
+
+  IntentGenerator* intent_generator() const { return intent_generator_.get(); }
+
+  RemoteActionTemplatesHandler* template_handler() const {
+    return template_handler_.get();
+  }
+
+ private:
+  AnnotatorJniContext(
+      const std::shared_ptr<libtextclassifier3::JniCache>& jni_cache,
+      std::unique_ptr<Annotator> model,
+      std::unique_ptr<IntentGenerator> intent_generator,
+      std::unique_ptr<RemoteActionTemplatesHandler> template_handler)
+      : jni_cache_(jni_cache),
+        model_(std::move(model)),
+        intent_generator_(std::move(intent_generator)),
+        template_handler_(std::move(template_handler)) {}
+
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache_;
+  std::unique_ptr<Annotator> model_;
+  std::unique_ptr<IntentGenerator> intent_generator_;
+  std::unique_ptr<RemoteActionTemplatesHandler> template_handler_;
+};
 
 jobject ClassificationResultWithIntentsToJObject(
-    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
+    JNIEnv* env, const AnnotatorJniContext* model_context, jobject app_context,
     jclass result_class, jmethodID result_class_constructor,
     jclass datetime_parse_class, jmethodID datetime_parse_class_constructor,
-    const reflection::Schema* entity_data_schema,
-    const IntentGenerator* intent_generator,
-    const RemoteActionTemplatesHandler* remote_action_templates_handler,
     const jstring device_locales, const ClassificationOptions* options,
     const std::string& context, const CodepointSpan& selection_indices,
-    const ClassificationResult& classification_result, bool is_first) {
+    const ClassificationResult& classification_result, bool generate_intents) {
   jstring row_string =
       env->NewStringUTF(classification_result.collection.c_str());
 
@@ -144,43 +190,55 @@ jobject ClassificationResultWithIntentsToJObject(
   }
 
   jobject extras = nullptr;
-  if (entity_data_schema != nullptr &&
+  if (model_context->model()->entity_data_schema() != nullptr &&
       !classification_result.serialized_entity_data.empty()) {
-    extras = remote_action_templates_handler->EntityDataAsNamedVariantArray(
-        entity_data_schema, classification_result.serialized_entity_data);
+    extras = model_context->template_handler()->EntityDataAsNamedVariantArray(
+        model_context->model()->entity_data_schema(),
+        classification_result.serialized_entity_data);
+  }
+
+  jbyteArray serialized_entity_data = nullptr;
+  if (!classification_result.serialized_entity_data.empty()) {
+    serialized_entity_data =
+        env->NewByteArray(classification_result.serialized_entity_data.size());
+    env->SetByteArrayRegion(
+        serialized_entity_data, 0,
+        classification_result.serialized_entity_data.size(),
+        reinterpret_cast<const jbyte*>(
+            classification_result.serialized_entity_data.data()));
   }
 
   jobject remote_action_templates_result = nullptr;
   // Only generate RemoteActionTemplate for the top classification result
   // as classifyText does not need RemoteAction from other results anyway.
-  if (is_first && intent_generator != nullptr) {
+  if (generate_intents && model_context->intent_generator() != nullptr) {
     std::vector<RemoteActionTemplate> remote_action_templates;
-    if (intent_generator->GenerateIntents(device_locales, classification_result,
-                                          options->reference_time_ms_utc,
-                                          context, selection_indices,
-                                          &remote_action_templates)) {
+    if (model_context->intent_generator()->GenerateIntents(
+            device_locales, classification_result,
+            options->reference_time_ms_utc, context, selection_indices,
+            app_context, model_context->model()->entity_data_schema(),
+            &remote_action_templates)) {
       remote_action_templates_result =
-          remote_action_templates_handler->RemoteActionTemplatesToJObjectArray(
-              remote_action_templates);
+          model_context->template_handler()
+              ->RemoteActionTemplatesToJObjectArray(remote_action_templates);
     }
   }
 
-  return env->NewObject(
-      result_class, result_class_constructor, row_string,
-      static_cast<jfloat>(classification_result.score), row_datetime_parse,
-      serialized_knowledge_result, contact_name, contact_given_name,
-      contact_nickname, contact_email_address, contact_phone_number, contact_id,
-      app_name, app_package_name, extras, remote_action_templates_result);
+  return env->NewObject(result_class, result_class_constructor, row_string,
+                        static_cast<jfloat>(classification_result.score),
+                        row_datetime_parse, serialized_knowledge_result,
+                        contact_name, contact_given_name, contact_nickname,
+                        contact_email_address, contact_phone_number, contact_id,
+                        app_name, app_package_name, extras,
+                        serialized_entity_data, remote_action_templates_result);
 }
 
 jobjectArray ClassificationResultsWithIntentsToJObjectArray(
-    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
-    const reflection::Schema* entity_data_schema,
-    const IntentGenerator* intent_generator,
-    const RemoteActionTemplatesHandler* remote_action_templates_handler,
+    JNIEnv* env, const AnnotatorJniContext* model_context, jobject app_context,
     const jstring device_locales, const ClassificationOptions* options,
     const std::string& context, const CodepointSpan& selection_indices,
-    const std::vector<ClassificationResult>& classification_result) {
+    const std::vector<ClassificationResult>& classification_result,
+    bool generate_intents) {
   const ScopedLocalRef<jclass> result_class(
       env->FindClass(TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
                      "$ClassificationResult"),
@@ -204,7 +262,7 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
       "$DatetimeResult;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;"
       "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
       "Ljava/lang/String;[L" TC3_PACKAGE_PATH TC3_NAMED_VARIANT_CLASS_NAME_STR
-      ";[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
+      ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
   const jmethodID datetime_parse_class_constructor =
       env->GetMethodID(datetime_parse_class.get(), "<init>", "(JI)V");
 
@@ -212,11 +270,11 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
                                                    result_class.get(), nullptr);
   for (int i = 0; i < classification_result.size(); i++) {
     jobject result = ClassificationResultWithIntentsToJObject(
-        env, jni_cache, result_class.get(), result_class_constructor,
-        datetime_parse_class.get(), datetime_parse_class_constructor,
-        entity_data_schema, intent_generator, remote_action_templates_handler,
-        device_locales, options, context, selection_indices,
-        classification_result[i], /*is_first=*/i == 0);
+        env, model_context, app_context, result_class.get(),
+        result_class_constructor, datetime_parse_class.get(),
+        datetime_parse_class_constructor, device_locales, options, context,
+        selection_indices, classification_result[i],
+        generate_intents && (i == 0));
     env->SetObjectArrayElement(results, i, result);
     env->DeleteLocalRef(result);
   }
@@ -224,18 +282,17 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
 }
 
 jobjectArray ClassificationResultsToJObjectArray(
-    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
-    const reflection::Schema* entity_data_schema,
-    const std::vector<ClassificationResult>& classification_result,
-    const RemoteActionTemplatesHandler* remote_action_templates_handler) {
+    JNIEnv* env, const AnnotatorJniContext* model_context,
+    const std::vector<ClassificationResult>& classification_result) {
   return ClassificationResultsWithIntentsToJObjectArray(
-      env, jni_cache, entity_data_schema,
-      /*(unused) intent_generator=*/nullptr, remote_action_templates_handler,
+      env, model_context,
+      /*(unused) app_context=*/nullptr,
       /*(unused) devide_locale=*/nullptr,
       /*(unusued) options=*/nullptr,
       /*(unused) selection_text=*/"",
       /*(unused) selection_indices=*/{kInvalidIndex, kInvalidIndex},
-      classification_result);
+      classification_result,
+      /*generate_intents=*/false);
 }
 
 CodepointSpan ConvertIndicesBMPUTF8(const std::string& utf8_str,
@@ -333,6 +390,7 @@ jstring GetNameFromMmap(JNIEnv* env, libtextclassifier3::ScopedMmap* mmap) {
 
 }  // namespace libtextclassifier3
 
+using libtextclassifier3::AnnotatorJniContext;
 using libtextclassifier3::ClassificationResultsToJObjectArray;
 using libtextclassifier3::ClassificationResultsWithIntentsToJObjectArray;
 using libtextclassifier3::ConvertIndicesBMPToUTF8;
@@ -344,47 +402,47 @@ using libtextclassifier3::ToStlString;
 
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotator)
 (JNIEnv* env, jobject thiz, jint fd) {
-#ifdef TC3_USE_JAVAICU
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
       libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(
-      Annotator::FromFileDescriptor(fd, new UniLib(jni_cache),
-                                    new CalendarLib(jni_cache))
-          .release());
+#ifdef TC3_USE_JAVAICU
+  return reinterpret_cast<jlong>(AnnotatorJniContext::Create(
+      jni_cache, Annotator::FromFileDescriptor(fd, new UniLib(jni_cache),
+                                               new CalendarLib(jni_cache))));
 #else
-  return reinterpret_cast<jlong>(Annotator::FromFileDescriptor(fd).release());
+  return reinterpret_cast<jlong>(AnnotatorJniContext::Create(
+      jni_cache, Annotator::FromFileDescriptor(fd)));
 #endif
 }
 
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotatorFromPath)
 (JNIEnv* env, jobject thiz, jstring path) {
   const std::string path_str = ToStlString(env, path);
-#ifdef TC3_USE_JAVAICU
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
       libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(Annotator::FromPath(path_str,
-                                                     new UniLib(jni_cache),
-                                                     new CalendarLib(jni_cache))
-                                     .release());
+#ifdef TC3_USE_JAVAICU
+  return reinterpret_cast<jlong>(AnnotatorJniContext::Create(
+      jni_cache, Annotator::FromPath(path_str, new UniLib(jni_cache),
+                                     new CalendarLib(jni_cache))));
 #else
-  return reinterpret_cast<jlong>(Annotator::FromPath(path_str).release());
+  return reinterpret_cast<jlong>(
+      AnnotatorJniContext::Create(jni_cache, Annotator::FromPath(path_str)));
 #endif
 }
 
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME,
                nativeNewAnnotatorFromAssetFileDescriptor)
 (JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
-  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
-#ifdef TC3_USE_JAVAICU
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
       libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(
+  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
+#ifdef TC3_USE_JAVAICU
+  return reinterpret_cast<jlong>(AnnotatorJniContext::Create(
+      jni_cache,
       Annotator::FromFileDescriptor(fd, offset, size, new UniLib(jni_cache),
-                                    new CalendarLib(jni_cache))
-          .release());
+                                    new CalendarLib(jni_cache))));
 #else
-  return reinterpret_cast<jlong>(
-      Annotator::FromFileDescriptor(fd, offset, size).release());
+  return reinterpret_cast<jlong>(AnnotatorJniContext::Create(
+      jni_cache, Annotator::FromFileDescriptor(fd, offset, size)));
 #endif
 }
 
@@ -395,7 +453,7 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
     return false;
   }
 
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
+  Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
 
   std::string serialized_config_string;
   const int length = env->GetArrayLength(serialized_config);
@@ -414,7 +472,7 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
     return false;
   }
 
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
+  Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
 
   std::string serialized_config_string;
   const int length = env->GetArrayLength(serialized_config);
@@ -433,7 +491,7 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
     return false;
   }
 
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
+  Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
 
   std::string serialized_config_string;
   const int length = env->GetArrayLength(serialized_config);
@@ -445,15 +503,22 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
   return model->InitializeInstalledAppEngine(serialized_config_string);
 }
 
+TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeGetNativeModelPtr)
+(JNIEnv* env, jobject thiz, jlong ptr) {
+  if (!ptr) {
+    return 0L;
+  }
+  return reinterpret_cast<jlong>(
+      reinterpret_cast<AnnotatorJniContext*>(ptr)->model());
+}
+
 TC3_JNI_METHOD(jintArray, TC3_ANNOTATOR_CLASS_NAME, nativeSuggestSelection)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
  jint selection_end, jobject options) {
   if (!ptr) {
     return nullptr;
   }
-
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
-
+  const Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
   const std::string context_utf8 = ToStlString(env, context);
   CodepointSpan input_indices =
       ConvertIndicesBMPToUTF8(context_utf8, {selection_begin, selection_end});
@@ -474,7 +539,8 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeClassifyText)
   if (!ptr) {
     return nullptr;
   }
-  Annotator* ff_model = reinterpret_cast<Annotator*>(ptr);
+  const AnnotatorJniContext* model_context =
+      reinterpret_cast<AnnotatorJniContext*>(ptr);
 
   const std::string context_utf8 = ToStlString(env, context);
   const CodepointSpan input_indices =
@@ -482,30 +548,17 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeClassifyText)
   const libtextclassifier3::ClassificationOptions classification_options =
       FromJavaClassificationOptions(env, options);
   const std::vector<ClassificationResult> classification_result =
-      ff_model->ClassifyText(context_utf8, input_indices,
-                             classification_options);
-  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-      libtextclassifier3::JniCache::Create(env));
-  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
-      remote_actions_templates_handler =
-          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
-                                                                   jni_cache);
+      model_context->model()->ClassifyText(context_utf8, input_indices,
+                                           classification_options);
   if (app_context != nullptr) {
-    std::unique_ptr<libtextclassifier3::IntentGenerator> intent_generator;
-    intent_generator =
-        libtextclassifier3::IntentGenerator::CreateIntentGenerator(
-            ff_model->model()->intent_options(), ff_model->model()->resources(),
-            jni_cache, app_context, ff_model->entity_data_schema());
-
     return ClassificationResultsWithIntentsToJObjectArray(
-        env, jni_cache.get(), ff_model->entity_data_schema(),
-        intent_generator.get(), remote_actions_templates_handler.get(),
-        device_locales, &classification_options, context_utf8, input_indices,
-        classification_result);
+        env, model_context, app_context, device_locales,
+        &classification_options, context_utf8, input_indices,
+        classification_result,
+        /*generate_intents=*/true);
   }
-  return ClassificationResultsToJObjectArray(
-      env, jni_cache.get(), ff_model->entity_data_schema(),
-      classification_result, remote_actions_templates_handler.get());
+  return ClassificationResultsToJObjectArray(env, model_context,
+                                             classification_result);
 }
 
 TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
@@ -513,10 +566,12 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
   if (!ptr) {
     return nullptr;
   }
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
-  std::string context_utf8 = ToStlString(env, context);
-  std::vector<AnnotatedSpan> annotations =
-      model->Annotate(context_utf8, FromJavaAnnotationOptions(env, options));
+  const AnnotatorJniContext* model_context =
+      reinterpret_cast<AnnotatorJniContext*>(ptr);
+  const std::string context_utf8 = ToStlString(env, context);
+  const std::vector<AnnotatedSpan> annotations =
+      model_context->model()->Annotate(context_utf8,
+                                       FromJavaAnnotationOptions(env, options));
 
   jclass result_class = env->FindClass(
       TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$AnnotatedSpan");
@@ -532,14 +587,6 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
                        "(II[L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
                        "$ClassificationResult;)V");
 
-  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-      libtextclassifier3::JniCache::Create(env));
-
-  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
-      remote_actions_templates_handler =
-          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
-                                                                   jni_cache);
-
   jobjectArray results =
       env->NewObjectArray(annotations.size(), result_class, nullptr);
 
@@ -549,10 +596,8 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
     jobject result = env->NewObject(
         result_class, result_class_constructor,
         static_cast<jint>(span_bmp.first), static_cast<jint>(span_bmp.second),
-        ClassificationResultsToJObjectArray(
-            env, jni_cache.get(), model->entity_data_schema(),
-            annotations[i].classification,
-            remote_actions_templates_handler.get()));
+        ClassificationResultsToJObjectArray(env, model_context,
+                                            annotations[i].classification));
     env->SetObjectArrayElement(results, i, result);
     env->DeleteLocalRef(result);
   }
@@ -566,7 +611,7 @@ TC3_JNI_METHOD(jbyteArray, TC3_ANNOTATOR_CLASS_NAME,
   if (!ptr) {
     return nullptr;
   }
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
+  const Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
   const std::string id_utf8 = ToStlString(env, id);
   std::string serialized_knowledge_result;
   if (!model->LookUpKnowledgeEntity(id_utf8, &serialized_knowledge_result)) {
@@ -581,8 +626,9 @@ TC3_JNI_METHOD(jbyteArray, TC3_ANNOTATOR_CLASS_NAME,
 
 TC3_JNI_METHOD(void, TC3_ANNOTATOR_CLASS_NAME, nativeCloseAnnotator)
 (JNIEnv* env, jobject thiz, jlong ptr) {
-  Annotator* model = reinterpret_cast<Annotator*>(ptr);
-  delete model;
+  const AnnotatorJniContext* context =
+      reinterpret_cast<AnnotatorJniContext*>(ptr);
+  delete context;
 }
 
 TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetLanguage)

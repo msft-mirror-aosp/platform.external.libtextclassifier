@@ -29,6 +29,7 @@
 #include "utils/strings/stringpiece.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/variant.h"
+#include "utils/zlib/zlib.h"
 #include "flatbuffers/reflection_generated.h"
 
 #ifdef __cplusplus
@@ -749,47 +750,47 @@ class ActionsJniLuaEnvironment : public JniLuaEnvironment {
 
 }  // namespace
 
-std::unique_ptr<IntentGenerator> IntentGenerator::CreateIntentGenerator(
+std::unique_ptr<IntentGenerator> IntentGenerator::Create(
     const IntentFactoryModel* options, const ResourcePool* resources,
-    const std::shared_ptr<JniCache>& jni_cache, const jobject context,
-    const reflection::Schema* annotations_entity_data_schema,
-    const reflection::Schema* actions_entity_data_schema) {
-  // Normally this check would be performed by the Java compiler and we wouldn't
-  // need to worry about it here. But we can't depend on Android's SDK in Java,
-  // so we check the instance type here.
-  if (context != nullptr && !jni_cache->GetEnv()->IsInstanceOf(
-                                context, jni_cache->context_class.get())) {
-    TC3_LOG(ERROR) << "Provided context is not an android.content.Context";
+    const std::shared_ptr<JniCache>& jni_cache) {
+  std::unique_ptr<IntentGenerator> intent_generator(
+      new IntentGenerator(options, resources, jni_cache));
+
+  if (options == nullptr || options->generator() == nullptr) {
+    TC3_LOG(ERROR) << "No intent generator options.";
     return nullptr;
   }
 
-  return std::unique_ptr<IntentGenerator>(new IntentGenerator(
-      options, resources, jni_cache, context, annotations_entity_data_schema,
-      actions_entity_data_schema));
-}
-
-IntentGenerator::IntentGenerator(
-    const IntentFactoryModel* options, const ResourcePool* resources,
-    const std::shared_ptr<JniCache>& jni_cache, const jobject context,
-    const reflection::Schema* annotations_entity_data_schema,
-    const reflection::Schema* actions_entity_data_schema)
-    : options_(options),
-      resources_(Resources(resources)),
-      jni_cache_(jni_cache),
-      context_(context),
-      annotations_entity_data_schema_(annotations_entity_data_schema),
-      actions_entity_data_schema_(actions_entity_data_schema) {
-  if (options == nullptr || options->generator() == nullptr) {
-    return;
+  std::unique_ptr<ZlibDecompressor> zlib_decompressor =
+      ZlibDecompressor::Instance();
+  if (!zlib_decompressor) {
+    TC3_LOG(ERROR) << "Cannot initialize decompressor.";
+    return nullptr;
   }
 
   for (const IntentFactoryModel_::IntentGenerator* generator :
-       *options_->generator()) {
-    generators_[generator->type()->str()] =
-        std::string(reinterpret_cast<const char*>(
-                        generator->lua_template_generator()->data()),
-                    generator->lua_template_generator()->size());
+       *options->generator()) {
+    std::string lua_template_generator;
+    if (!zlib_decompressor->MaybeDecompressOptionallyCompressedBuffer(
+            generator->lua_template_generator(),
+            generator->compressed_lua_template_generator(),
+            &lua_template_generator)) {
+      TC3_LOG(ERROR) << "Could not decompress generator template.";
+      return nullptr;
+    }
+
+    std::string lua_code = lua_template_generator;
+    if (options->precompile_generators()) {
+      if (!Compile(lua_template_generator, &lua_code)) {
+        TC3_LOG(ERROR) << "Could not precompile generator template.";
+        return nullptr;
+      }
+    }
+
+    intent_generator->generators_[generator->type()->str()] = lua_code;
   }
+
+  return intent_generator;
 }
 
 std::vector<Locale> IntentGenerator::ParseDeviceLocales(
@@ -815,8 +816,9 @@ std::vector<Locale> IntentGenerator::ParseDeviceLocales(
 
 bool IntentGenerator::GenerateIntents(
     const jstring device_locales, const ClassificationResult& classification,
-    int64 reference_time_ms_utc, const std::string& text,
-    CodepointSpan selection_indices,
+    const int64 reference_time_ms_utc, const std::string& text,
+    const CodepointSpan selection_indices, const jobject context,
+    const reflection::Schema* annotations_entity_data_schema,
     std::vector<RemoteActionTemplate>* remote_actions) const {
   if (options_ == nullptr) {
     return false;
@@ -835,9 +837,9 @@ bool IntentGenerator::GenerateIntents(
 
   std::unique_ptr<AnnotatorJniEnvironment> interpreter(
       new AnnotatorJniEnvironment(
-          resources_, jni_cache_.get(), context_,
+          resources_, jni_cache_.get(), context,
           ParseDeviceLocales(device_locales), entity_text, classification,
-          reference_time_ms_utc, annotations_entity_data_schema_));
+          reference_time_ms_utc, annotations_entity_data_schema));
 
   if (!interpreter->Initialize()) {
     TC3_LOG(ERROR) << "Could not create Lua interpreter.";
@@ -849,7 +851,9 @@ bool IntentGenerator::GenerateIntents(
 
 bool IntentGenerator::GenerateIntents(
     const jstring device_locales, const ActionSuggestion& action,
-    const Conversation& conversation,
+    const Conversation& conversation, const jobject context,
+    const reflection::Schema* annotations_entity_data_schema,
+    const reflection::Schema* actions_entity_data_schema,
     std::vector<RemoteActionTemplate>* remote_actions) const {
   if (options_ == nullptr) {
     return false;
@@ -864,9 +868,9 @@ bool IntentGenerator::GenerateIntents(
 
   std::unique_ptr<ActionsJniLuaEnvironment> interpreter(
       new ActionsJniLuaEnvironment(
-          resources_, jni_cache_.get(), context_,
+          resources_, jni_cache_.get(), context,
           ParseDeviceLocales(device_locales), conversation, action,
-          actions_entity_data_schema_, annotations_entity_data_schema_));
+          actions_entity_data_schema, annotations_entity_data_schema));
 
   if (!interpreter->Initialize()) {
     TC3_LOG(ERROR) << "Could not create Lua interpreter.";

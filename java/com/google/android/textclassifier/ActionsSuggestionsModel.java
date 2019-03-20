@@ -32,43 +32,40 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   }
 
   private long actionsModelPtr;
-  private AnnotatorModel annotator;
 
   /**
    * Creates a new instance of Actions predictor, using the provided model image, given as a file
    * descriptor.
    */
-  public ActionsSuggestionsModel(int fileDescriptor) {
-    this(fileDescriptor, null);
-  }
-
-  public ActionsSuggestionsModel(int fileDescriptor, AnnotatorModel annotator) {
-    actionsModelPtr = nativeNewActionsModel(fileDescriptor);
+  public ActionsSuggestionsModel(int fileDescriptor, byte[] serializedPreconditions) {
+    actionsModelPtr = nativeNewActionsModel(fileDescriptor, serializedPreconditions);
     if (actionsModelPtr == 0L) {
       throw new IllegalArgumentException("Couldn't initialize actions model from file descriptor.");
     }
-    this.annotator = annotator;
+  }
+
+  public ActionsSuggestionsModel(int fileDescriptor) {
+    this(fileDescriptor, /* serializedPreconditions= */ null);
   }
 
   /**
    * Creates a new instance of Actions predictor, using the provided model image, given as a file
    * path.
    */
-  public ActionsSuggestionsModel(String path) {
-    this(path, null);
-  }
-
-  public ActionsSuggestionsModel(String path, AnnotatorModel annotator) {
-    actionsModelPtr = nativeNewActionsModelFromPath(path);
+  public ActionsSuggestionsModel(String path, byte[] serializedPreconditions) {
+    actionsModelPtr = nativeNewActionsModelFromPath(path, serializedPreconditions);
     if (actionsModelPtr == 0L) {
       throw new IllegalArgumentException("Couldn't initialize actions model from given file.");
     }
-    this.annotator = annotator;
+  }
+
+  public ActionsSuggestionsModel(String path) {
+    this(path, /* serializedPreconditions= */ null);
   }
 
   /** Suggests actions / replies to the given conversation. */
   public ActionSuggestion[] suggestActions(
-      Conversation conversation, ActionSuggestionOptions options) {
+      Conversation conversation, ActionSuggestionOptions options, AnnotatorModel annotator) {
     return nativeSuggestActions(
         actionsModelPtr,
         conversation,
@@ -83,7 +80,8 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       Conversation conversation,
       ActionSuggestionOptions options,
       Object appContext,
-      String deviceLocales) {
+      String deviceLocales,
+      AnnotatorModel annotator) {
     return nativeSuggestActions(
         actionsModelPtr,
         conversation,
@@ -133,6 +131,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     private final String actionType;
     private final float score;
     private final NamedVariant[] entityData;
+    private final byte[] serializedEntityData;
     private final RemoteActionTemplate[] remoteActionTemplates;
 
     public ActionSuggestion(
@@ -140,11 +139,13 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         String actionType,
         float score,
         NamedVariant[] entityData,
+        byte[] serializedEntityData,
         RemoteActionTemplate[] remoteActionTemplates) {
       this.responseText = responseText;
       this.actionType = actionType;
       this.score = score;
       this.entityData = entityData;
+      this.serializedEntityData = serializedEntityData;
       this.remoteActionTemplates = remoteActionTemplates;
     }
 
@@ -163,6 +164,10 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
     public NamedVariant[] getEntityData() {
       return entityData;
+    }
+
+    public byte[] getSerializedEntityData() {
+      return serializedEntityData;
     }
 
     public RemoteActionTemplate[] getRemoteActionTemplates() {
@@ -236,9 +241,10 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     public ActionSuggestionOptions() {}
   }
 
-  private static native long nativeNewActionsModel(int fd);
+  private static native long nativeNewActionsModel(int fd, byte[] serializedPreconditions);
 
-  private static native long nativeNewActionsModelFromPath(String path);
+  private static native long nativeNewActionsModelFromPath(
+      String path, byte[] preconditionsOverwrite);
 
   private static native String nativeGetLocales(int fd);
 
@@ -255,7 +261,5 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       String deviceLocales,
       boolean generateAndroidIntents);
 
-  private native void nativeCloseActionsModel(long context);
-
-  private native void nativeSetAnnotator(long annotatorPtr);
+  private native void nativeCloseActionsModel(long ptr);
 }
