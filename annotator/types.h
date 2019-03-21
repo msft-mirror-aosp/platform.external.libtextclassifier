@@ -216,6 +216,9 @@ struct ClassificationResult {
   std::string app_name, app_package_name;
   int64 numeric_value;
 
+  // Length of the parsed duration in milliseconds.
+  int64 duration_ms;
+
   // Internal score used for conflict resolution.
   float priority_score;
 

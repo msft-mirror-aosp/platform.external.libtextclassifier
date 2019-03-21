@@ -338,9 +338,22 @@ void Annotator::ValidateAndInitialize() {
 
   if (model_->number_annotator_options() &&
       model_->number_annotator_options()->enabled()) {
+    if (selection_feature_processor_ == nullptr) {
+      TC3_LOG(ERROR)
+          << "Could not initialize NumberAnnotator without a feature processor";
+      return;
+    }
+
     number_annotator_.reset(
         new NumberAnnotator(model_->number_annotator_options(),
                             selection_feature_processor_.get()));
+  }
+
+  if (model_->duration_annotator_options() &&
+      model_->duration_annotator_options()->enabled()) {
+    duration_annotator_.reset(
+        new DurationAnnotator(model_->duration_annotator_options(),
+                              selection_feature_processor_.get()));
   }
 
   if (model_->entity_data_schema()) {
@@ -641,6 +654,12 @@ CodepointSpan Annotator::SuggestSelection(
       !number_annotator_->FindAll(context_unicode, options.annotation_usecase,
                                   &candidates)) {
     TC3_LOG(ERROR) << "Number annotator failed in suggest selection.";
+    return original_click_indices;
+  }
+  if (duration_annotator_ != nullptr &&
+      !duration_annotator_->FindAll(tokens, options.annotation_usecase,
+                                    &candidates)) {
+    TC3_LOG(ERROR) << "Duration annotator failed in suggest selection.";
     return original_click_indices;
   }
 
@@ -1374,6 +1393,15 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, {number_annotator_result}});
   }
 
+  // Try the duration annotator.
+  ClassificationResult duration_annotator_result;
+  if (duration_annotator_ &&
+      duration_annotator_->ClassifyText(
+          UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
+          options.annotation_usecase, &duration_annotator_result)) {
+    candidates.push_back({selection_indices, {duration_annotator_result}});
+  }
+
   // Try the ML model.
   //
   // The output of the model is considered as an exclusive 1-of-N choice. That's
@@ -1613,7 +1641,15 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
   if (number_annotator_ != nullptr &&
       !number_annotator_->FindAll(context_unicode, options.annotation_usecase,
                                   &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run number annotator Chunk.";
+    TC3_LOG(ERROR) << "Couldn't run number annotator FindAll.";
+    return {};
+  }
+
+  // Annotate with the duration annotator.
+  if (duration_annotator_ != nullptr &&
+      !duration_annotator_->FindAll(tokens, options.annotation_usecase,
+                                    &candidates)) {
+    TC3_LOG(ERROR) << "Couldn't run duration annotator FindAll.";
     return {};
   }
 

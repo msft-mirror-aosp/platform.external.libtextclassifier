@@ -26,6 +26,7 @@ namespace builtin {
 TfLiteRegistration* Register_DIV();
 TfLiteRegistration* Register_FULLY_CONNECTED();
 TfLiteRegistration* Register_SOFTMAX();  // TODO(smillius): remove.
+TfLiteRegistration* Register_MEAN();
 }  // namespace builtin
 }  // namespace ops
 }  // namespace tflite
@@ -54,6 +55,8 @@ inline std::unique_ptr<tflite::OpResolver> BuildOpResolver() {
                        tflite::ops::builtin::Register_FULLY_CONNECTED());
   resolver->AddBuiltin(tflite::BuiltinOperator_SOFTMAX,
                        tflite::ops::builtin::Register_SOFTMAX());
+  resolver->AddBuiltin(tflite::BuiltinOperator_MEAN,
+                       tflite::ops::builtin::Register_MEAN());
   RegisterSelectedOps(resolver.get());
 #else
   std::unique_ptr<tflite::ops::builtin::BuiltinOpResolver> resolver(
