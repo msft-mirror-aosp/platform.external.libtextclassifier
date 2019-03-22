@@ -67,7 +67,8 @@ class RemoteActionTemplatesHandler {
       const std::string& serialized_entity_data) const;
 
  private:
-  RemoteActionTemplatesHandler(const std::shared_ptr<JniCache>& jni_cache)
+  explicit RemoteActionTemplatesHandler(
+      const std::shared_ptr<JniCache>& jni_cache)
       : jni_cache_(jni_cache),
         integer_class_(nullptr, jni_cache->jvm),
         remote_action_template_class_(nullptr, jni_cache->jvm),

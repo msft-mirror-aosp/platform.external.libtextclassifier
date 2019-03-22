@@ -32,6 +32,10 @@
 namespace libtextclassifier3 {
 namespace {
 
+using testing::AllOf;
+using testing::ElementsAre;
+using testing::Field;
+
 const DurationAnnotatorOptions* TestingDurationAnnotatorOptions() {
   static const flatbuffers::DetachedBuffer* options_data = []() {
     DurationAnnotatorOptionsT options;
@@ -73,6 +77,7 @@ FeatureProcessor BuildFeatureProcessor(const UniLib* unilib) {
     options.context_size = 1;
     options.max_selection_span = 1;
     options.snap_label_span_boundaries_to_containing_tokens = false;
+    options.ignored_span_boundary_codepoints.push_back(',');
 
     options.tokenization_codepoint_config.emplace_back(
         new TokenizationCodepointRangeT());
@@ -100,7 +105,7 @@ class DurationAnnotatorTest : public ::testing::Test {
         duration_annotator_(TestingDurationAnnotatorOptions(),
                             &feature_processor_) {}
 
-  std::vector<Token> Tokenize(const std::string& text) {
+  std::vector<Token> Tokenize(const UnicodeText& text) {
     return feature_processor_.Tokenize(text);
   }
 
@@ -115,8 +120,9 @@ TEST_F(DurationAnnotatorTest, ClassifiesSimpleDuration) {
       UTF8ToUnicodeText("Wake me up in 15 minutes ok?"), {14, 24},
       AnnotationUsecase_ANNOTATION_USECASE_RAW, &classification));
 
-  EXPECT_EQ(classification.collection, "duration");
-  EXPECT_EQ(classification.duration_ms, 15 * 60 * 1000);
+  EXPECT_THAT(classification,
+              AllOf(Field(&ClassificationResult::collection, "duration"),
+                    Field(&ClassificationResult::duration_ms, 15 * 60 * 1000)));
 }
 
 TEST_F(DurationAnnotatorTest, ClassifiesWhenTokensDontAlignWithSelection) {
@@ -125,123 +131,189 @@ TEST_F(DurationAnnotatorTest, ClassifiesWhenTokensDontAlignWithSelection) {
       UTF8ToUnicodeText("Wake me up in15 minutesok?"), {13, 23},
       AnnotationUsecase_ANNOTATION_USECASE_RAW, &classification));
 
-  EXPECT_EQ(classification.collection, "duration");
-  EXPECT_EQ(classification.duration_ms, 15 * 60 * 1000);
+  EXPECT_THAT(classification,
+              AllOf(Field(&ClassificationResult::collection, "duration"),
+                    Field(&ClassificationResult::duration_ms, 15 * 60 * 1000)));
 }
 
 TEST_F(DurationAnnotatorTest, FindsSimpleDuration) {
+  const UnicodeText text = UTF8ToUnicodeText("Wake me up in 15 minutes ok?");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Wake me up in 15 minutes ok?"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(14, 24));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 15 * 60 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(14, 24)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                15 * 60 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, FindsDurationWithHalfExpression) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for 3 and half minutes ok?");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for 3 and half minutes ok?"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(16, 34));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 3.5 * 60 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 34)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                3.5 * 60 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, FindsComposedDuration) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Wake me up in 3 hours and 5 seconds ok?");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Wake me up in 3 hours and 5 seconds ok?"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(14, 35));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms,
-            3 * 60 * 60 * 1000 + 5 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(14, 35)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                3 * 60 * 60 * 1000 + 5 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, FindsHalfAnHour) {
+  const UnicodeText text = UTF8ToUnicodeText("Set a timer for half an hour");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for half an hour"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(16, 28));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 0.5 * 60 * 60 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 28)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                0.5 * 60 * 60 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, FindsWhenHalfIsAfterGranularitySpecification) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for 1 hour and a half");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for 1 hour and a half"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(16, 33));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 1.5 * 60 * 60 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 33)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                1.5 * 60 * 60 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, FindsAnHourAndAHalf) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for an hour and a half");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for an hour and a half"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(19, 34));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 1.5 * 60 * 60 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(19, 34)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                1.5 * 60 * 60 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest,
        FindsCorrectlyWhenSecondsComeSecondAndDontHaveNumber) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for 10 minutes and a second ok?");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for 10 minutes and a second ok?"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(16, 39));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 10 * 60 * 1000 + 1 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 39)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                10 * 60 * 1000 + 1 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, DoesNotGreedilyTakeFillerWords) {
+  const UnicodeText text = UTF8ToUnicodeText(
+      "Set a timer for a a a 10 minutes and 2 seconds an and an ok?");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for a a a 10 minutes and 2 seconds an and an ok?"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
-  ASSERT_EQ(result.size(), 1);
-  EXPECT_EQ(result[0].span, CodepointSpan(22, 46));
-  ASSERT_EQ(result[0].classification.size(), 1);
-  EXPECT_EQ(result[0].classification[0].collection, "duration");
-  EXPECT_EQ(result[0].classification[0].duration_ms, 10 * 60 * 1000 + 2 * 1000);
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(22, 46)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                10 * 60 * 1000 + 2 * 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, DoesNotCrashWhenJustHalfIsSaid) {
+  const UnicodeText text = UTF8ToUnicodeText("Set a timer for half ok?");
+  std::vector<Token> tokens = Tokenize(text);
   std::vector<AnnotatedSpan> result;
   EXPECT_TRUE(duration_annotator_.FindAll(
-      Tokenize("Set a timer for half ok?"),
-      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
 
   ASSERT_EQ(result.size(), 0);
+}
+
+TEST_F(DurationAnnotatorTest, StripsPunctuationFromTokens) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for 10 ,minutes, ,and, ,2, seconds, ok?");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 46)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                10 * 60 * 1000 + 2 * 1000)))))));
 }
 
 }  // namespace

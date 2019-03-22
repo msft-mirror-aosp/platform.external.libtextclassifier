@@ -186,6 +186,12 @@ class FeatureProcessor {
       const UnicodeText::const_iterator& span_begin,
       const UnicodeText::const_iterator& span_end, CodepointSpan span) const;
 
+  // Same as above, but takes an optional buffer for saving the modified value.
+  // As an optimization, returns pointer to 'value' if nothing was stripped, or
+  // pointer to 'buffer' if something was stripped.
+  const std::string& StripBoundaryCodepoints(const std::string& value,
+                                             std::string* buffer) const;
+
  protected:
   // Returns the class id corresponding to the given string collection
   // identifier. There is a catch-all class id that the function returns for

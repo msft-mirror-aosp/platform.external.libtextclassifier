@@ -613,6 +613,23 @@ float FeatureProcessor::SupportedCodepointsRatio(
   return static_cast<float>(num_supported) / static_cast<float>(num_total);
 }
 
+const std::string& FeatureProcessor::StripBoundaryCodepoints(
+    const std::string& value, std::string* buffer) const {
+  const UnicodeText value_unicode = UTF8ToUnicodeText(value, /*do_copy=*/false);
+  const CodepointSpan initial_span{0, value_unicode.size_codepoints()};
+  const CodepointSpan stripped_span =
+      StripBoundaryCodepoints(value_unicode, initial_span);
+
+  if (initial_span != stripped_span) {
+    const UnicodeText stripped_token_value =
+        UnicodeText::Substring(value_unicode, stripped_span.first,
+                               stripped_span.second, /*do_copy=*/false);
+    *buffer = stripped_token_value.ToUTF8String();
+    return *buffer;
+  }
+  return value;
+}
+
 int FeatureProcessor::CollectionToLabel(const std::string& collection) const {
   const auto it = collection_to_label_.find(collection);
   if (it == collection_to_label_.end()) {

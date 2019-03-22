@@ -247,7 +247,8 @@ cc_library_shared {
     required: [
         "libtextclassifier_annotator_en_model",
         "libtextclassifier_annotator_universal_model",
-        "libtextclassifier_actions_suggestions_model",
+        "libtextclassifier_actions_suggestions_en_model",
+        "libtextclassifier_actions_suggestions_universal_model",
         "libtextclassifier_lang_id_model",
     ],
 
@@ -312,13 +313,21 @@ prebuilt_etc {
 // ---------------------------
 // Actions Suggestions models
 // ---------------------------
-// STOPSHIP: The model size is now around 7.5mb, we should trim it down before shipping it.
+// STOPSHIP: Remove libtextclassifier_actions_suggestions_en_model before Q is shipped.
 
 prebuilt_etc {
-    name: "libtextclassifier_actions_suggestions_model",
-    filename: "actions_suggestions.model",
+    name: "libtextclassifier_actions_suggestions_en_model",
+    filename: "actions_suggestions.en.model",
     owner: "google",
-    src: "models/actions_suggestions.model",
+    src: "models/actions_suggestions.en.model",
+    sub_dir: "textclassifier",
+}
+
+prebuilt_etc {
+    name: "libtextclassifier_actions_suggestions_universal_model",
+    filename: "actions_suggestions.universal.model",
+    owner: "google",
+    src: "models/actions_suggestions.universal.model",
     sub_dir: "textclassifier",
 }
 

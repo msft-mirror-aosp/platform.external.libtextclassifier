@@ -21,6 +21,7 @@
 #include <cmath>
 #include <iterator>
 #include <numeric>
+#include <unordered_map>
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 
@@ -33,6 +34,9 @@
 #include "utils/zlib/zlib_regex.h"
 
 namespace libtextclassifier3 {
+
+using SortedIntSet = std::set<int, std::function<bool(int, int)>>;
+
 const std::string& Annotator::kPhoneCollection =
     *[]() { return new std::string("phone"); }();
 const std::string& Annotator::kAddressCollection =
@@ -657,8 +661,8 @@ CodepointSpan Annotator::SuggestSelection(
     return original_click_indices;
   }
   if (duration_annotator_ != nullptr &&
-      !duration_annotator_->FindAll(tokens, options.annotation_usecase,
-                                    &candidates)) {
+      !duration_annotator_->FindAll(context_unicode, tokens,
+                                    options.annotation_usecase, &candidates)) {
     TC3_LOG(ERROR) << "Duration annotator failed in suggest selection.";
     return original_click_indices;
   }
@@ -776,25 +780,41 @@ bool Annotator::ResolveConflicts(
 }
 
 namespace {
-// An exclusive annotation is not allowed to overlap with any other exclusive
-// annotation.
-bool IsAnnotationExclusive(AnnotationUsecase annotation_usecase,
-                           const AnnotatedSpan& annotation) {
+// Returns true, if the given two sources do conflict in given annotation
+// usecase.
+//  - In SMART usecase, all sources do conflict, because there's only 1 possible
+//  annotation for a given span.
+//  - In RAW usecase, certain annotations are allowed to overlap (e.g. datetime
+//  and duration), while others not (e.g. duration and number).
+bool DoSourcesConflict(AnnotationUsecase annotation_usecase,
+                       const AnnotatedSpan::Source source1,
+                       const AnnotatedSpan::Source source2) {
+  uint32 source_mask =
+      (1 << static_cast<int>(source1)) | (1 << static_cast<int>(source2));
+
   switch (annotation_usecase) {
     case AnnotationUsecase_ANNOTATION_USECASE_SMART:
-      // In the SMART mode, all annotations are exclusive.
+      // In the SMART mode, all annotations conflict.
       return true;
+
     case AnnotationUsecase_ANNOTATION_USECASE_RAW:
-      // In the RAW mode, KNOWLEDGE annotations are not exclusive, but all
-      // OTHER annotations are.
-      switch (annotation.source) {
-        case AnnotatedSpan::Source::OTHER:
-          return true;
-        case AnnotatedSpan::Source::KNOWLEDGE:
-          return false;
+      // DURATION and DATETIME do not conflict. E.g. "let's meet in 3 hours",
+      // can have two non-conflicting annotations: "in 3 hours" (datetime), "3
+      // hours" (duration).
+      if ((source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::DURATION))) &&
+          (source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::DATETIME)))) {
+        return false;
       }
-    default:
-      // The other values should not appear.
+
+      // A KNOWLEDGE entity does not conflict with anything.
+      if ((source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::KNOWLEDGE)))) {
+        return false;
+      }
+
+      // Entities from other sources can conflict.
       return true;
   }
 }
@@ -836,27 +856,55 @@ bool Annotator::ResolveConflict(
   std::sort(conflicting_indices.begin(), conflicting_indices.end(),
             [&scores](int i, int j) { return scores[i] > scores[j]; });
 
-  // The set of indices of candidates which are exclusive annotations and have
-  // already been added to the output. See IsAnnotationExclusive() above.
-  // Keeps the candidates sorted by their position in the text (their left span
-  // index) for fast retrieval down.
-  std::set<int, std::function<bool(int, int)>> exclusive_indices(
-      [&candidates](int a, int b) {
-        return candidates[a].span.first < candidates[b].span.first;
-      });
+  // Here we keep a set of indices that were chosen, per-source, to enable
+  // effective computation.
+  std::unordered_map<AnnotatedSpan::Source, SortedIntSet>
+      chosen_indices_for_source_map;
 
   // Greedily place the candidates if they don't conflict with the already
   // placed ones.
   for (int i = 0; i < conflicting_indices.size(); ++i) {
     const int considered_candidate = conflicting_indices[i];
-    if (!IsAnnotationExclusive(annotation_usecase,
-                               candidates[considered_candidate])) {
-      chosen_indices->push_back(considered_candidate);
-    } else if (!DoesCandidateConflict(considered_candidate, candidates,
-                                      exclusive_indices)) {
-      chosen_indices->push_back(considered_candidate);
-      exclusive_indices.insert(considered_candidate);
+
+    // See if there is a conflict between the candidate and all already placed
+    // candidates.
+    bool conflict = false;
+    SortedIntSet* chosen_indices_for_source_ptr = nullptr;
+    for (auto& source_set_pair : chosen_indices_for_source_map) {
+      if (source_set_pair.first == candidates[considered_candidate].source) {
+        chosen_indices_for_source_ptr = &source_set_pair.second;
+      }
+
+      if (DoSourcesConflict(annotation_usecase, source_set_pair.first,
+                            candidates[considered_candidate].source) &&
+          DoesCandidateConflict(considered_candidate, candidates,
+                                source_set_pair.second)) {
+        conflict = true;
+        break;
+      }
     }
+
+    // Skip the candidate if a conflict was found.
+    if (conflict) {
+      continue;
+    }
+
+    // If the set of indices for the current source doesn't exist yet,
+    // initialize it.
+    if (chosen_indices_for_source_ptr == nullptr) {
+      SortedIntSet new_set([&candidates](int a, int b) {
+        return candidates[a].span.first < candidates[b].span.first;
+      });
+      chosen_indices_for_source_map[candidates[considered_candidate].source] =
+          std::move(new_set);
+      chosen_indices_for_source_ptr =
+          &chosen_indices_for_source_map[candidates[considered_candidate]
+                                             .source];
+    }
+
+    // Place the candidate to the output and to the per-source conflict set.
+    chosen_indices->push_back(considered_candidate);
+    chosen_indices_for_source_ptr->insert(considered_candidate);
   }
 
   std::sort(chosen_indices->begin(), chosen_indices->end());
@@ -1381,6 +1429,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   }
   if (!datetime_results.empty()) {
     candidates.push_back({selection_indices, std::move(datetime_results)});
+    candidates.back().source = AnnotatedSpan::Source::DATETIME;
   }
 
   // Try the number annotator.
@@ -1400,6 +1449,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
           UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
           options.annotation_usecase, &duration_annotator_result)) {
     candidates.push_back({selection_indices, {duration_annotator_result}});
+    candidates.back().source = AnnotatedSpan::Source::DURATION;
   }
 
   // Try the ML model.
@@ -1647,8 +1697,8 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
 
   // Annotate with the duration annotator.
   if (duration_annotator_ != nullptr &&
-      !duration_annotator_->FindAll(tokens, options.annotation_usecase,
-                                    &candidates)) {
+      !duration_annotator_->FindAll(context_unicode, tokens,
+                                    options.annotation_usecase, &candidates)) {
     TC3_LOG(ERROR) << "Couldn't run duration annotator FindAll.";
     return {};
   }
@@ -2118,6 +2168,7 @@ bool Annotator::DatetimeChunk(const UnicodeText& context_unicode,
           datetime_span.priority_score);
       annotated_span.classification.back().datetime_parse_result = parse_result;
     }
+    annotated_span.source = AnnotatedSpan::Source::DATETIME;
     result->push_back(std::move(annotated_span));
   }
   return true;

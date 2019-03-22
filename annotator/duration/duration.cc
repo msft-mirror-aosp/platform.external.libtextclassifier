@@ -93,7 +93,8 @@ bool DurationAnnotator::ClassifyText(
   const std::vector<Token> tokens = feature_processor_->Tokenize(selection);
 
   AnnotatedSpan annotated_span;
-  if (FindDurationStartingAt(tokens, 0, &annotated_span) != tokens.size()) {
+  if (FindDurationStartingAt(context, tokens, 0, &annotated_span) !=
+      tokens.size()) {
     return false;
   }
 
@@ -103,7 +104,8 @@ bool DurationAnnotator::ClassifyText(
   return true;
 }
 
-bool DurationAnnotator::FindAll(const std::vector<Token>& tokens,
+bool DurationAnnotator::FindAll(const UnicodeText& context,
+                                const std::vector<Token>& tokens,
                                 AnnotationUsecase annotation_usecase,
                                 std::vector<AnnotatedSpan>* results) const {
   if (!options_->enabled() || ((options_->enabled_annotation_usecases() &
@@ -113,7 +115,7 @@ bool DurationAnnotator::FindAll(const std::vector<Token>& tokens,
 
   for (int i = 0; i < tokens.size();) {
     AnnotatedSpan span;
-    const int next_i = FindDurationStartingAt(tokens, i, &span);
+    const int next_i = FindDurationStartingAt(context, tokens, i, &span);
     if (next_i != i) {
       results->push_back(span);
       i = next_i;
@@ -124,7 +126,8 @@ bool DurationAnnotator::FindAll(const std::vector<Token>& tokens,
   return true;
 }
 
-int DurationAnnotator::FindDurationStartingAt(const std::vector<Token>& tokens,
+int DurationAnnotator::FindDurationStartingAt(const UnicodeText& context,
+                                              const std::vector<Token>& tokens,
                                               int start_token_index,
                                               AnnotatedSpan* result) const {
   CodepointIndex start_index = kInvalidIndex;
@@ -185,8 +188,10 @@ int DurationAnnotator::FindDurationStartingAt(const std::vector<Token>& tokens,
     classification.duration_ms += ParsedDurationAtomsToMillis({atom});
   }
 
-  result->span = {start_index, end_index};
+  result->span = feature_processor_->StripBoundaryCodepoints(
+      context, {start_index, end_index});
   result->classification.push_back(classification);
+  result->source = AnnotatedSpan::Source::DURATION;
 
   return token_index;
 }
@@ -237,13 +242,17 @@ bool DurationAnnotator::ParseQuantityToken(const Token& token,
     return false;
   }
 
-  if (half_expressions_.find(token.value) != half_expressions_.end()) {
+  std::string token_value_buffer;
+  const std::string& token_value = feature_processor_->StripBoundaryCodepoints(
+      token.value, &token_value_buffer);
+
+  if (half_expressions_.find(token_value) != half_expressions_.end()) {
     value->plus_half = true;
     return true;
   }
 
   int32 parsed_value;
-  if (ParseInt32(token.value.c_str(), &parsed_value)) {
+  if (ParseInt32(token_value.c_str(), &parsed_value)) {
     value->value = parsed_value;
     return true;
   }
@@ -253,7 +262,11 @@ bool DurationAnnotator::ParseQuantityToken(const Token& token,
 
 bool DurationAnnotator::ParseDurationUnitToken(
     const Token& token, DurationUnit* duration_unit) const {
-  const auto it = token_value_to_duration_unit_.find(token.value);
+  std::string token_value_buffer;
+  const std::string& token_value = feature_processor_->StripBoundaryCodepoints(
+      token.value, &token_value_buffer);
+
+  const auto it = token_value_to_duration_unit_.find(token_value);
   if (it == token_value_to_duration_unit_.end()) {
     return false;
   }
@@ -263,7 +276,11 @@ bool DurationAnnotator::ParseDurationUnitToken(
 }
 
 bool DurationAnnotator::ParseFillerToken(const Token& token) const {
-  if (filler_expressions_.find(token.value) == filler_expressions_.end()) {
+  std::string token_value_buffer;
+  const std::string& token_value = feature_processor_->StripBoundaryCodepoints(
+      token.value, &token_value_buffer);
+
+  if (filler_expressions_.find(token_value) == filler_expressions_.end()) {
     return false;
   }
 

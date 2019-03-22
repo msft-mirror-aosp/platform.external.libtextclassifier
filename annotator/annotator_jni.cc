@@ -224,13 +224,14 @@ jobject ClassificationResultWithIntentsToJObject(
     }
   }
 
-  return env->NewObject(result_class, result_class_constructor, row_string,
-                        static_cast<jfloat>(classification_result.score),
-                        row_datetime_parse, serialized_knowledge_result,
-                        contact_name, contact_given_name, contact_nickname,
-                        contact_email_address, contact_phone_number, contact_id,
-                        app_name, app_package_name, extras,
-                        serialized_entity_data, remote_action_templates_result);
+  return env->NewObject(
+      result_class, result_class_constructor, row_string,
+      static_cast<jfloat>(classification_result.score), row_datetime_parse,
+      serialized_knowledge_result, contact_name, contact_given_name,
+      contact_nickname, contact_email_address, contact_phone_number, contact_id,
+      app_name, app_package_name, extras, serialized_entity_data,
+      remote_action_templates_result, classification_result.duration_ms,
+      classification_result.numeric_value);
 }
 
 jobjectArray ClassificationResultsWithIntentsToJObjectArray(
@@ -262,7 +263,8 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
       "$DatetimeResult;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;"
       "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
       "Ljava/lang/String;[L" TC3_PACKAGE_PATH TC3_NAMED_VARIANT_CLASS_NAME_STR
-      ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
+      ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR
+      ";JJ)V");
   const jmethodID datetime_parse_class_constructor =
       env->GetMethodID(datetime_parse_class.get(), "<init>", "(JI)V");
 

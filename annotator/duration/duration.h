@@ -75,7 +75,7 @@ class DurationAnnotator {
                     ClassificationResult* classification_result) const;
 
   // Finds all duration instances in the input text.
-  bool FindAll(const std::vector<Token>& tokens,
+  bool FindAll(const UnicodeText& context, const std::vector<Token>& tokens,
                AnnotationUsecase annotation_usecase,
                std::vector<AnnotatedSpan>* results) const;
 
@@ -102,7 +102,8 @@ class DurationAnnotator {
   };
 
   // Starts consuming tokens and returns the index past the last consumed token.
-  int FindDurationStartingAt(const std::vector<Token>& tokens,
+  int FindDurationStartingAt(const UnicodeText& context,
+                             const std::vector<Token>& tokens,
                              int start_token_index,
                              AnnotatedSpan* result) const;
 

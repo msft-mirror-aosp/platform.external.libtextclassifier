@@ -248,6 +248,8 @@ public final class AnnotatorModel implements AutoCloseable {
     private final NamedVariant[] entityData;
     private final byte[] serializedEntityData;
     private final RemoteActionTemplate[] remoteActionTemplates;
+    private final long durationMs;
+    private final long numericValue;
 
     public ClassificationResult(
         String collection,
@@ -264,7 +266,9 @@ public final class AnnotatorModel implements AutoCloseable {
         String appPackageName,
         NamedVariant[] entityData,
         byte[] serializedEntityData,
-        RemoteActionTemplate[] remoteActionTemplates) {
+        RemoteActionTemplate[] remoteActionTemplates,
+        long durationMs,
+        long numericValue) {
       this.collection = collection;
       this.score = score;
       this.datetimeResult = datetimeResult;
@@ -280,6 +284,8 @@ public final class AnnotatorModel implements AutoCloseable {
       this.entityData = entityData;
       this.serializedEntityData = serializedEntityData;
       this.remoteActionTemplates = remoteActionTemplates;
+      this.durationMs = durationMs;
+      this.numericValue = numericValue;
     }
 
     /** Returns the classified entity type. */
@@ -342,6 +348,14 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public RemoteActionTemplate[] getRemoteActionTemplates() {
       return remoteActionTemplates;
+    }
+
+    public long getDurationMs() {
+      return durationMs;
+    }
+
+    public long getNumericValue() {
+      return numericValue;
     }
   }
 

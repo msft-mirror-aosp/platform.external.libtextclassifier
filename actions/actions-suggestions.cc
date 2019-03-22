@@ -155,6 +155,11 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     return false;
   }
 
+  if (model_->smart_reply_action_type() == nullptr) {
+    TC3_LOG(ERROR) << "No smart reply action type specified.";
+    return false;
+  }
+
   if (!InitializeTriggeringPreconditions()) {
     TC3_LOG(ERROR) << "Could not initialize preconditions.";
     return false;
