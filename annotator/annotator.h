@@ -26,6 +26,7 @@
 
 #include "annotator/contact/contact-engine.h"
 #include "annotator/datetime/parser.h"
+#include "annotator/duration/duration.h"
 #include "annotator/feature-processor.h"
 #include "annotator/installed_app/installed-app-engine.h"
 #include "annotator/knowledge/knowledge-engine.h"
@@ -450,6 +451,7 @@ class Annotator {
   std::unique_ptr<const ContactEngine> contact_engine_;
   std::unique_ptr<const InstalledAppEngine> installed_app_engine_;
   std::unique_ptr<const NumberAnnotator> number_annotator_;
+  std::unique_ptr<const DurationAnnotator> duration_annotator_;
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;

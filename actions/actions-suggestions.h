@@ -23,9 +23,12 @@
 #include <vector>
 
 #include "actions/actions_model_generated.h"
+#include "actions/feature-processor.h"
+#include "actions/ngram-model.h"
 #include "actions/ranker.h"
 #include "actions/types.h"
 #include "annotator/annotator.h"
+#include "annotator/model-executor.h"
 #include "annotator/types.h"
 #include "utils/flatbuffers.h"
 #include "utils/i18n/locale.h"
@@ -46,18 +49,23 @@ struct ActionSuggestionOptions {
 class ActionsSuggestions {
  public:
   static std::unique_ptr<ActionsSuggestions> FromUnownedBuffer(
-      const uint8_t* buffer, const int size, const UniLib* unilib = nullptr);
+      const uint8_t* buffer, const int size, const UniLib* unilib = nullptr,
+      const std::string& triggering_preconditions_overlay = "");
   // Takes ownership of the mmap.
   static std::unique_ptr<ActionsSuggestions> FromScopedMmap(
       std::unique_ptr<libtextclassifier3::ScopedMmap> mmap,
-      const UniLib* unilib = nullptr);
+      const UniLib* unilib = nullptr,
+      const std::string& triggering_preconditions_overlay = "");
   static std::unique_ptr<ActionsSuggestions> FromFileDescriptor(
       const int fd, const int offset, const int size,
-      const UniLib* unilib = nullptr);
+      const UniLib* unilib = nullptr,
+      const std::string& triggering_preconditions_overlay = "");
   static std::unique_ptr<ActionsSuggestions> FromFileDescriptor(
-      const int fd, const UniLib* unilib = nullptr);
+      const int fd, const UniLib* unilib = nullptr,
+      const std::string& triggering_preconditions_overlay = "");
   static std::unique_ptr<ActionsSuggestions> FromPath(
-      const std::string& path, const UniLib* unilib = nullptr);
+      const std::string& path, const UniLib* unilib = nullptr,
+      const std::string& triggering_preconditions_overlay = "");
 
   ActionsSuggestionsResponse SuggestActions(
       const Conversation& conversation,
@@ -105,8 +113,20 @@ class ActionsSuggestions {
   bool InitializeRules(ZlibDecompressor* decompressor, const RulesModel* rules,
                        std::vector<CompiledRule>* compiled_rules) const;
 
-  bool AllocateInput(const int conversation_length,
+  // Prepare preconditions.
+  // Takes values from flag provided data, but falls back to model provided
+  // values for parameters that are not explicitly provided.
+  bool InitializeTriggeringPreconditions();
+
+  // Extracts input token features.
+  bool ExtractTokenFeatures(const std::vector<std::string>& context,
+                            std::vector<float>* embeddings,
+                            std::vector<int>* num_tokens_per_message,
+                            int* max_num_tokens_per_message) const;
+
+  bool AllocateInput(const int conversation_length, const int max_tokens,
                      tflite::Interpreter* interpreter) const;
+
   bool SetupModelInput(const std::vector<std::string>& context,
                        const std::vector<int>& user_ids,
                        const std::vector<float>& time_diffs,
@@ -202,6 +222,21 @@ class ActionsSuggestions {
   std::unique_ptr<ActionsSuggestionsRanker> ranker_;
 
   std::string lua_bytecode_;
+
+  // Triggering preconditions. These parameters can be backed by the model and
+  // (partially) be provided by flags.
+  TriggeringPreconditionsT preconditions_;
+  std::string triggering_preconditions_overlay_buffer_;
+  const TriggeringPreconditions* triggering_preconditions_overlay_;
+
+  // Feature extractor and options.
+  std::unique_ptr<const ActionsFeatureProcessor> feature_processor_;
+  std::unique_ptr<const EmbeddingExecutor> embedding_executor_;
+  std::vector<float> embedded_padding_token_;
+  int token_embedding_size_;
+
+  // Low confidence input ngram classifier.
+  std::unique_ptr<const NGramModel> ngram_model_;
 };
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.
