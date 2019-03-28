@@ -321,8 +321,9 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModel)
   }
 #ifdef TC3_UNILIB_JAVAICU
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
-      jni_cache, ActionsSuggestions::FromFileDescriptor(
-                     fd, new UniLib(jni_cache), preconditions)));
+      jni_cache,
+      ActionsSuggestions::FromFileDescriptor(
+          fd, std::unique_ptr<UniLib>(new UniLib(jni_cache)), preconditions)));
 #else
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
       jni_cache, ActionsSuggestions::FromFileDescriptor(fd, /*unilib=*/nullptr,
@@ -344,8 +345,9 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelFromPath)
   }
 #ifdef TC3_UNILIB_JAVAICU
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
-      jni_cache, ActionsSuggestions::FromPath(path_str, new UniLib(jni_cache),
-                                              preconditions)));
+      jni_cache, ActionsSuggestions::FromPath(
+                     path_str, std::unique_ptr<UniLib>(new UniLib(jni_cache)),
+                     preconditions)));
 #else
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
       jni_cache, ActionsSuggestions::FromPath(path_str, /*unilib=*/nullptr,
