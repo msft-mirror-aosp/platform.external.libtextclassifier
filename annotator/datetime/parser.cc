@@ -140,7 +140,7 @@ bool DatetimeParser::FindSpansUsingLocales(
       }
 
       if ((rules_[rule_id].pattern->enabled_annotation_usecases() &
-           annotation_usecase) == 0) {
+           (1 << annotation_usecase)) == 0) {
         continue;
       }
 
