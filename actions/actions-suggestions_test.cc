@@ -554,6 +554,8 @@ TEST_F(ActionsSuggestionsTest,
       ReadFile(GetModelPath() + kModelFileName);
   std::unique_ptr<ActionsModelT> actions_model =
       UnPackActionsModel(actions_model_string.c_str());
+  actions_model->low_confidence_rules.reset();
+
   // Add custom triggering rule.
   actions_model->rules.reset(new RulesModelT());
   actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
@@ -731,16 +733,16 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRules) {
 
   // Set capturing groups for entity data.
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT* greeting_group =
+      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* greeting_group =
       rule->actions.back()->capturing_group.back().get();
   greeting_group->group_id = 0;
   greeting_group->entity_field.reset(new FlatbufferFieldPathT);
   greeting_group->entity_field->field.emplace_back(new FlatbufferFieldT);
   greeting_group->entity_field->field.back()->field_name = "greeting";
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT* location_group =
+      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* location_group =
       rule->actions.back()->capturing_group.back().get();
   location_group->group_id = 1;
   location_group->entity_field.reset(new FlatbufferFieldPathT);
@@ -802,8 +804,8 @@ TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
 
   // Set capturing groups for entity data.
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT* code_group =
+      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* code_group =
       rule->actions.back()->capturing_group.back().get();
   code_group->group_id = 1;
   code_group->text_reply.reset(new ActionSuggestionSpecT);
@@ -915,8 +917,8 @@ TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
   action->priority_score = 2.0f;
   action->type = "test_code";
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::CapturingGroupT* code_group =
+      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* code_group =
       rule->actions.back()->capturing_group.back().get();
   code_group->group_id = 1;
   code_group->annotation_name = "code";

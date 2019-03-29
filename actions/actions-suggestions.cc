@@ -1035,7 +1035,7 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
 
 bool ActionsSuggestions::FillAnnotationFromMatchGroup(
     const UniLib::RegexMatcher* matcher,
-    const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup* group,
+    const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
     const int message_index, ActionSuggestionAnnotation* annotation) const {
   if (group->annotation_name() != nullptr ||
       group->annotation_type() != nullptr) {
@@ -1100,7 +1100,7 @@ bool ActionsSuggestions::SuggestActionsFromRules(
 
         // Add entity data from rule capturing groups.
         if (rule_action->capturing_group() != nullptr) {
-          for (const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup*
+          for (const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup*
                    group : *rule_action->capturing_group()) {
             if (group->entity_field() != nullptr) {
               TC3_CHECK(entity_data != nullptr);
