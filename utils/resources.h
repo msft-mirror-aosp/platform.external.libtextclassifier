@@ -63,8 +63,13 @@ class Resources {
 };
 
 // Compresses resources in place.
-bool CompressResources(ResourcePoolT* resources);
-std::string CompressSerializedResources(const std::string& resources);
+bool CompressResources(ResourcePoolT* resources,
+                       const bool build_compression_dictionary = false,
+                       const int dictionary_sample_every = 1);
+std::string CompressSerializedResources(
+    const std::string& resources,
+    const bool build_compression_dictionary = false,
+    const int dictionary_sample_every = 1);
 
 }  // namespace libtextclassifier3
 

@@ -216,6 +216,9 @@ struct ClassificationResult {
   std::string app_name, app_package_name;
   int64 numeric_value;
 
+  // Length of the parsed duration in milliseconds.
+  int64 duration_ms;
+
   // Internal score used for conflict resolution.
   float priority_score;
 
@@ -252,10 +255,7 @@ logging::LoggingStringStream& operator<<(
 
 // Represents a result of Annotate call.
 struct AnnotatedSpan {
-  enum class Source {
-    OTHER,
-    KNOWLEDGE,
-  };
+  enum class Source { OTHER, KNOWLEDGE, DURATION, DATETIME };
 
   // Unicode codepoint indices in the input string.
   CodepointSpan span = {kInvalidIndex, kInvalidIndex};

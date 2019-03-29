@@ -22,6 +22,7 @@
 
 #include "actions/actions_model_generated.h"
 #include "actions/test_utils.h"
+#include "actions/zlib-utils.h"
 #include "annotator/collections.h"
 #include "annotator/types.h"
 #include "utils/flatbuffers.h"
@@ -36,6 +37,8 @@ namespace {
 using testing::_;
 
 constexpr char kModelFileName[] = "actions_suggestions_test.model";
+constexpr char kHashGramModelFileName[] =
+    "actions_suggestions_test.hashgram.model";
 
 std::string ReadFile(const std::string& file_name) {
   std::ifstream file_stream(file_name);
@@ -51,6 +54,10 @@ class ActionsSuggestionsTest : public testing::Test {
   ActionsSuggestionsTest() : INIT_UNILIB_FOR_TESTING(unilib_) {}
   std::unique_ptr<ActionsSuggestions> LoadTestModel() {
     return ActionsSuggestions::FromPath(GetModelPath() + kModelFileName,
+                                        &unilib_);
+  }
+  std::unique_ptr<ActionsSuggestions> LoadHashGramTestModel() {
+    return ActionsSuggestions::FromPath(GetModelPath() + kHashGramModelFileName,
                                         &unilib_);
   }
   UniLib unilib_;
@@ -224,7 +231,8 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsAnnotationsNoDeduplication) {
 
 void TestSuggestActionsWithThreshold(
     const std::function<void(ActionsModelT*)>& set_value_fn,
-    const UniLib* unilib = nullptr, const int expected_size = 0) {
+    const UniLib* unilib = nullptr, const int expected_size = 0,
+    const std::string& preconditions_overwrite = "") {
   const std::string actions_model_string =
       ReadFile(GetModelPath() + kModelFileName);
   std::unique_ptr<ActionsModelT> actions_model =
@@ -236,7 +244,7 @@ void TestSuggestActionsWithThreshold(
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), unilib);
+          builder.GetSize(), unilib, preconditions_overwrite);
   ASSERT_TRUE(actions_suggestions);
   const ActionsSuggestionsResponse& response =
       actions_suggestions->SuggestActions(
@@ -251,6 +259,16 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsWithTriggeringScore) {
   TestSuggestActionsWithThreshold(
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->min_smart_reply_triggering_score = 1.0;
+      },
+      &unilib_,
+      /*expected_size=*/1 /*no smart reply, only actions*/
+  );
+}
+
+TEST_F(ActionsSuggestionsTest, SuggestActionsWithMinReplyScore) {
+  TestSuggestActionsWithThreshold(
+      [](ActionsModelT* actions_model) {
+        actions_model->preconditions->min_reply_score_threshold = 1.0;
       },
       &unilib_,
       /*expected_size=*/1 /*no smart reply, only actions*/
@@ -282,17 +300,30 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsWithMinInputLength) {
       &unilib_);
 }
 
+TEST_F(ActionsSuggestionsTest, SuggestActionsWithPreconditionsOverwrite) {
+  TriggeringPreconditionsT preconditions_overwrite;
+  preconditions_overwrite.max_input_length = 0;
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(
+      TriggeringPreconditions::Pack(builder, &preconditions_overwrite));
+  TestSuggestActionsWithThreshold(
+      // Keep model untouched.
+      [](ActionsModelT* actions_model) {}, &unilib_,
+      /*expected_size=*/0,
+      std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
+                  builder.GetSize()));
+}
+
 #ifdef TC3_UNILIB_ICU
 TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidence) {
   TestSuggestActionsWithThreshold(
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->suppress_on_low_confidence_input = true;
-        actions_model->preconditions->low_confidence_rules.reset(
-            new RulesModelT);
-        actions_model->preconditions->low_confidence_rules->rule.emplace_back(
+        actions_model->low_confidence_rules.reset(new RulesModelT);
+        actions_model->low_confidence_rules->rule.emplace_back(
             new RulesModel_::RuleT);
-        actions_model->preconditions->low_confidence_rules->rule.back()
-            ->pattern = "low-ground";
+        actions_model->low_confidence_rules->rule.back()->pattern =
+            "low-ground";
       },
       &unilib_);
 }
@@ -330,13 +361,12 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidenceInputOutput) {
 
   // Add input-output low confidence rule.
   actions_model->preconditions->suppress_on_low_confidence_input = true;
-  actions_model->preconditions->low_confidence_rules.reset(new RulesModelT);
-  actions_model->preconditions->low_confidence_rules->rule.emplace_back(
+  actions_model->low_confidence_rules.reset(new RulesModelT);
+  actions_model->low_confidence_rules->rule.emplace_back(
       new RulesModel_::RuleT);
-  actions_model->preconditions->low_confidence_rules->rule.back()->pattern =
-      "hello";
-  actions_model->preconditions->low_confidence_rules->rule.back()
-      ->output_pattern = "(?i:desaster)";
+  actions_model->low_confidence_rules->rule.back()->pattern = "hello";
+  actions_model->low_confidence_rules->rule.back()->output_pattern =
+      "(?i:desaster)";
 
   flatbuffers::FlatBufferBuilder builder;
   FinishActionsModelBuffer(builder,
@@ -345,6 +375,75 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidenceInputOutput) {
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
           builder.GetSize(), &unilib_);
+  ASSERT_TRUE(actions_suggestions);
+  const ActionsSuggestionsResponse& response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "hello there",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{}, /*locales=*/"en"}}});
+  EXPECT_THAT(response.actions,
+              ElementsAre(testing::Field(&ActionSuggestion::response_text,
+                                         "General Kenobi!"),
+                          _, _, _));
+}
+
+TEST_F(ActionsSuggestionsTest,
+       SuggestActionsLowConfidenceInputOutputOverwrite) {
+  const std::string actions_model_string =
+      ReadFile(GetModelPath() + kModelFileName);
+  std::unique_ptr<ActionsModelT> actions_model =
+      UnPackActionsModel(actions_model_string.c_str());
+  // Add custom triggering rule.
+  actions_model->rules.reset(new RulesModelT());
+  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
+  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  rule->pattern = "^(?i:hello\\s(there))$";
+  {
+    std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT> rule_action(
+        new RulesModel_::Rule_::RuleActionSpecT);
+    rule_action->action.reset(new ActionSuggestionSpecT);
+    rule_action->action->type = "text_reply";
+    rule_action->action->response_text = "General Desaster!";
+    rule_action->action->score = 1.0f;
+    rule_action->action->priority_score = 1.0f;
+    rule->actions.push_back(std::move(rule_action));
+  }
+  {
+    std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT> rule_action(
+        new RulesModel_::Rule_::RuleActionSpecT);
+    rule_action->action.reset(new ActionSuggestionSpecT);
+    rule_action->action->type = "text_reply";
+    rule_action->action->response_text = "General Kenobi!";
+    rule_action->action->score = 1.0f;
+    rule_action->action->priority_score = 1.0f;
+    rule->actions.push_back(std::move(rule_action));
+  }
+
+  // Add custom triggering rule via overwrite.
+  actions_model->preconditions->low_confidence_rules.reset();
+  TriggeringPreconditionsT preconditions;
+  preconditions.suppress_on_low_confidence_input = true;
+  preconditions.low_confidence_rules.reset(new RulesModelT);
+  preconditions.low_confidence_rules->rule.emplace_back(new RulesModel_::RuleT);
+  preconditions.low_confidence_rules->rule.back()->pattern = "hello";
+  preconditions.low_confidence_rules->rule.back()->output_pattern =
+      "(?i:desaster)";
+  flatbuffers::FlatBufferBuilder preconditions_builder;
+  preconditions_builder.Finish(
+      TriggeringPreconditions::Pack(preconditions_builder, &preconditions));
+  std::string serialize_preconditions = std::string(
+      reinterpret_cast<const char*>(preconditions_builder.GetBufferPointer()),
+      preconditions_builder.GetSize());
+
+  flatbuffers::FlatBufferBuilder builder;
+  FinishActionsModelBuffer(builder,
+                           ActionsModel::Pack(builder, actions_model.get()));
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      ActionsSuggestions::FromUnownedBuffer(
+          reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
+          builder.GetSize(), &unilib_, serialize_preconditions);
+
   ASSERT_TRUE(actions_suggestions);
   const ActionsSuggestionsResponse& response =
       actions_suggestions->SuggestActions(
@@ -458,6 +557,7 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRules) {
       ReadFile(GetModelPath() + kModelFileName);
   std::unique_ptr<ActionsModelT> actions_model =
       UnPackActionsModel(actions_model_string.c_str());
+  ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
   actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
@@ -552,6 +652,7 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
       ReadFile(GetModelPath() + kModelFileName);
   std::unique_ptr<ActionsModelT> actions_model =
       UnPackActionsModel(actions_model_string.c_str());
+  ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
   actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
@@ -601,6 +702,7 @@ TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
       ReadFile(GetModelPath() + kModelFileName);
   std::unique_ptr<ActionsModelT> actions_model =
       UnPackActionsModel(actions_model_string.c_str());
+  ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
   actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
@@ -674,6 +776,46 @@ TEST_F(ActionsSuggestionsTest, VisitActionsModel) {
                                          }
                                          return true;
                                        }));
+}
+
+TEST_F(ActionsSuggestionsTest, SuggestActionsWithHashGramModel) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadHashGramTestModel();
+  ASSERT_TRUE(actions_suggestions != nullptr);
+  {
+    const ActionsSuggestionsResponse& response =
+        actions_suggestions->SuggestActions(
+            {{{/*user_id=*/1, "hello",
+               /*reference_time_ms_utc=*/0,
+               /*reference_timezone=*/"Europe/Zurich",
+               /*annotations=*/{},
+               /*locales=*/"en"}}});
+    EXPECT_THAT(response.actions, testing::IsEmpty());
+  }
+  {
+    const ActionsSuggestionsResponse& response =
+        actions_suggestions->SuggestActions(
+            {{{/*user_id=*/1, "where are you",
+               /*reference_time_ms_utc=*/0,
+               /*reference_timezone=*/"Europe/Zurich",
+               /*annotations=*/{},
+               /*locales=*/"en"}}});
+    EXPECT_THAT(
+        response.actions,
+        ElementsAre(testing::Field(&ActionSuggestion::type, "share_location")));
+  }
+  {
+    const ActionsSuggestionsResponse& response =
+        actions_suggestions->SuggestActions(
+            {{{/*user_id=*/1, "do you know johns number",
+               /*reference_time_ms_utc=*/0,
+               /*reference_timezone=*/"Europe/Zurich",
+               /*annotations=*/{},
+               /*locales=*/"en"}}});
+    EXPECT_THAT(
+        response.actions,
+        ElementsAre(testing::Field(&ActionSuggestion::type, "share_contact")));
+  }
 }
 
 }  // namespace
