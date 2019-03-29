@@ -332,7 +332,7 @@ table RankingOptions {
 
 // Entity data to set from capturing groups.
 namespace libtextclassifier3.RulesModel_.Rule_.RuleActionSpec_;
-table CapturingGroup {
+table RuleCapturingGroup {
   // The id of group.
   group_id:int;
 
@@ -357,7 +357,7 @@ table RuleActionSpec {
   // The action.
   action:ActionSuggestionSpec;
 
-  capturing_group:[RuleActionSpec_.CapturingGroup];
+  capturing_group:[RuleActionSpec_.RuleCapturingGroup];
 }
 
 // List of regular expression matchers.
