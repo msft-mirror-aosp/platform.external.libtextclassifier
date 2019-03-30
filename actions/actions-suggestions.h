@@ -207,7 +207,7 @@ class ActionsSuggestions {
 
   bool FillAnnotationFromMatchGroup(
       const UniLib::RegexMatcher* matcher,
-      const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup* group,
+      const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
       const int message_index, ActionSuggestionAnnotation* annotation) const;
 
   const ActionsModel* model_;

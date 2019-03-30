@@ -376,8 +376,7 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
       annotator ? annotator->entity_data_schema() : nullptr;
   return ActionSuggestionsToJObjectArray(
       env, context, app_context, anntotations_entity_data_schema,
-      response.actions, conversation,
-      /*device_locales=*/nullptr, generate_intents);
+      response.actions, conversation, device_locales, generate_intents);
 }
 
 TC3_JNI_METHOD(void, TC3_ACTIONS_CLASS_NAME, nativeCloseActionsModel)
