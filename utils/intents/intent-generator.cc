@@ -548,6 +548,8 @@ RemoteActionTemplate JniLuaEnvironment::ReadRemoteActionTemplateResult() {
       result.title_with_entity = ReadString(/*index=*/-1).ToString();
     } else if (key.Equals("description")) {
       result.description = ReadString(/*index=*/-1).ToString();
+    } else if (key.Equals("description_with_app_name")) {
+      result.description_with_app_name = ReadString(/*index=*/-1).ToString();
     } else if (key.Equals("action")) {
       result.action = ReadString(/*index=*/-1).ToString();
     } else if (key.Equals("data")) {
