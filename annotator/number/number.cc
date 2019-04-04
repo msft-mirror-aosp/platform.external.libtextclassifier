@@ -49,8 +49,8 @@ bool NumberAnnotator::ClassifyText(
 bool NumberAnnotator::FindAll(const UnicodeText& context,
                               AnnotationUsecase annotation_usecase,
                               std::vector<AnnotatedSpan>* result) const {
-  if (!options_->enabled() ||
-      (annotation_usecase & options_->enabled_annotation_usecases()) == 0) {
+  if (!options_->enabled() || ((1 << annotation_usecase) &
+                               options_->enabled_annotation_usecases()) == 0) {
     return true;
   }
 
@@ -69,7 +69,7 @@ bool NumberAnnotator::FindAll(const UnicodeText& context,
       classification.priority_score = options_->priority_score();
 
       AnnotatedSpan annotated_span;
-      annotated_span.span = {token.start - num_prefix_codepoints,
+      annotated_span.span = {token.start + num_prefix_codepoints,
                              token.end - num_suffix_codepoints};
       annotated_span.classification.push_back(classification);
 
@@ -139,9 +139,18 @@ bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
   TC3_CHECK(result != nullptr && num_prefix_codepoints != nullptr &&
             num_suffix_codepoints != nullptr);
   auto it = text.begin();
+  auto it_end = text.end();
+
+  // Strip boundary codepoints from both ends.
+  const CodepointSpan original_span{0, text.size_codepoints()};
+  const CodepointSpan stripped_span =
+      feature_processor_->StripBoundaryCodepoints(text, original_span);
+  const int num_stripped_end = (original_span.second - stripped_span.second);
+  std::advance(it, stripped_span.first);
+  std::advance(it_end, -num_stripped_end);
 
   // Consume prefix codepoints.
-  *num_prefix_codepoints = 0;
+  *num_prefix_codepoints = stripped_span.first;
   while (it != text.end()) {
     if (allowed_prefix_codepoints_.find(*it) ==
         allowed_prefix_codepoints_.end()) {
@@ -161,7 +170,7 @@ bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
   // Consume suffix codepoints.
   bool valid_suffix = true;
   *num_suffix_codepoints = 0;
-  while (it != text.end()) {
+  while (it != it_end) {
     if (allowed_suffix_codepoints_.find(*it) ==
         allowed_suffix_codepoints_.end()) {
       valid_suffix = false;
@@ -171,6 +180,7 @@ bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
     ++it;
     ++(*num_suffix_codepoints);
   }
+  *num_suffix_codepoints += num_stripped_end;
   return valid_suffix;
 }
 

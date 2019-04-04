@@ -32,6 +32,10 @@
 namespace libtextclassifier3 {
 namespace {
 
+using testing::AllOf;
+using testing::ElementsAre;
+using testing::Field;
+
 const NumberAnnotatorOptions* TestingNumberAnnotatorOptions() {
   static const flatbuffers::DetachedBuffer* options_data = []() {
     NumberAnnotatorOptionsT options;
@@ -53,6 +57,7 @@ FeatureProcessor BuildFeatureProcessor(const UniLib* unilib) {
     options.context_size = 1;
     options.max_selection_span = 1;
     options.snap_label_span_boundaries_to_containing_tokens = false;
+    options.ignored_span_boundary_codepoints.push_back(',');
 
     options.tokenization_codepoint_config.emplace_back(
         new TokenizationCodepointRangeT());
@@ -124,14 +129,48 @@ TEST_F(NumberAnnotatorTest, FindsAllNumbersInText) {
   EXPECT_EQ(result[3].classification[0].numeric_value, 27);
 }
 
+TEST_F(NumberAnnotatorTest, FindsNumberWithPunctuation) {
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(number_annotator_.FindAll(
+      UTF8ToUnicodeText("Come at 9, ok?"),
+      AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(8, 9)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "number"),
+                          Field(&ClassificationResult::numeric_value, 9)))))));
+}
+
+TEST_F(NumberAnnotatorTest, HandlesNumbersAtBeginning) {
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(number_annotator_.FindAll(
+      UTF8ToUnicodeText("-5"), AnnotationUsecase_ANNOTATION_USECASE_RAW,
+      &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(0, 2)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "number"),
+                          Field(&ClassificationResult::numeric_value, -5)))))));
+}
+
 TEST_F(NumberAnnotatorTest, WhenLowestSupportedNumberParsesIt) {
   ClassificationResult classification_result;
   EXPECT_TRUE(number_annotator_.ClassifyText(
       UTF8ToUnicodeText("-999999999999999999"), {0, 19},
       AnnotationUsecase_ANNOTATION_USECASE_RAW, &classification_result));
 
-  EXPECT_EQ(classification_result.collection, "number");
-  EXPECT_EQ(classification_result.numeric_value, -999999999999999999L);
+  EXPECT_THAT(
+      classification_result,
+      AllOf(Field(&ClassificationResult::collection, "number"),
+            Field(&ClassificationResult::numeric_value, -999999999999999999L)));
 }
 
 TEST_F(NumberAnnotatorTest, WhenLargestSupportedNumberParsesIt) {
@@ -140,8 +179,10 @@ TEST_F(NumberAnnotatorTest, WhenLargestSupportedNumberParsesIt) {
       UTF8ToUnicodeText("999999999999999999"), {0, 18},
       AnnotationUsecase_ANNOTATION_USECASE_RAW, &classification_result));
 
-  EXPECT_EQ(classification_result.collection, "number");
-  EXPECT_EQ(classification_result.numeric_value, 999999999999999999L);
+  EXPECT_THAT(
+      classification_result,
+      AllOf(Field(&ClassificationResult::collection, "number"),
+            Field(&ClassificationResult::numeric_value, 999999999999999999L)));
 }
 
 TEST_F(NumberAnnotatorTest, WhenFirstLowestNonSupportedNumberDoesNotParseIt) {

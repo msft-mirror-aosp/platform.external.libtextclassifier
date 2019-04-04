@@ -33,6 +33,11 @@ struct RemoteActionTemplate {
   // Description shown for the action (see: RemoteAction.getContentDescription).
   Optional<std::string> description;
 
+  // Description shown for the action (see: RemoteAction.getContentDescription)
+  // when app name is available. Caller is expected to replace the placeholder
+  // by the name of the app that is going to handle the action.
+  Optional<std::string> description_with_app_name;
+
   // The action to set on the Intent (see: Intent.setAction).
   Optional<std::string> action;
 
@@ -61,19 +66,20 @@ struct RemoteActionTemplate {
 // Helper class to generate Android intents for text classifier results.
 class IntentGenerator {
  public:
-  static std::unique_ptr<IntentGenerator> CreateIntentGenerator(
+  static std::unique_ptr<IntentGenerator> Create(
       const IntentFactoryModel* options, const ResourcePool* resources,
-      const std::shared_ptr<JniCache>& jni_cache, const jobject context,
-      const reflection::Schema* annotations_entity_data_schema = nullptr,
-      const reflection::Schema* actions_entity_data_schema = nullptr);
+      const std::shared_ptr<JniCache>& jni_cache);
 
   // Generates intents for a classification result.
   // Returns true, if the intent generator snippets could be successfully run,
   // returns false otherwise.
   bool GenerateIntents(const jstring device_locales,
                        const ClassificationResult& classification,
-                       int64 reference_time_ms_utc, const std::string& text,
-                       CodepointSpan selection_indices,
+                       const int64 reference_time_ms_utc,
+                       const std::string& text,
+                       const CodepointSpan selection_indices,
+                       const jobject context,
+                       const reflection::Schema* annotations_entity_data_schema,
                        std::vector<RemoteActionTemplate>* remote_actions) const;
 
   // Generates intents for an action suggestion.
@@ -81,25 +87,24 @@ class IntentGenerator {
   // returns false otherwise.
   bool GenerateIntents(const jstring device_locales,
                        const ActionSuggestion& action,
-                       const Conversation& conversation,
+                       const Conversation& conversation, const jobject context,
+                       const reflection::Schema* annotations_entity_data_schema,
+                       const reflection::Schema* actions_entity_data_schema,
                        std::vector<RemoteActionTemplate>* remote_actions) const;
 
  private:
   IntentGenerator(const IntentFactoryModel* options,
                   const ResourcePool* resources,
-                  const std::shared_ptr<JniCache>& jni_cache,
-                  const jobject context,
-                  const reflection::Schema* annotations_entity_data_schema,
-                  const reflection::Schema* actions_entity_data_schema);
+                  const std::shared_ptr<JniCache>& jni_cache)
+      : options_(options),
+        resources_(Resources(resources)),
+        jni_cache_(jni_cache) {}
 
   std::vector<Locale> ParseDeviceLocales(const jstring device_locales) const;
 
   const IntentFactoryModel* options_;
   const Resources resources_;
   std::shared_ptr<JniCache> jni_cache_;
-  const jobject context_;
-  const reflection::Schema* const annotations_entity_data_schema_;
-  const reflection::Schema* const actions_entity_data_schema_;
   std::map<std::string, std::string> generators_;
 };
 

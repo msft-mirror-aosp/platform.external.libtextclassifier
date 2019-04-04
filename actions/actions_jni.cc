@@ -31,6 +31,7 @@
 #include "utils/intents/jni.h"
 #include "utils/java/jni-cache.h"
 #include "utils/java/scoped_local_ref.h"
+#include "utils/java/string_utils.h"
 #include "utils/memory/mmap.h"
 
 using libtextclassifier3::ActionsSuggestions;
@@ -39,6 +40,7 @@ using libtextclassifier3::ActionSuggestion;
 using libtextclassifier3::ActionSuggestionOptions;
 using libtextclassifier3::Annotator;
 using libtextclassifier3::Conversation;
+using libtextclassifier3::IntentGenerator;
 using libtextclassifier3::ScopedLocalRef;
 using libtextclassifier3::ToStlString;
 
@@ -52,6 +54,62 @@ using libtextclassifier3::UniLib;
 namespace libtextclassifier3 {
 
 namespace {
+
+// Cached state for model inference.
+// Keeps a jni cache, intent generator and model instance so that they don't
+// have to be recreated for each call.
+class ActionsSuggestionsJniContext {
+ public:
+  static ActionsSuggestionsJniContext* Create(
+      const std::shared_ptr<libtextclassifier3::JniCache>& jni_cache,
+      std::unique_ptr<ActionsSuggestions> model) {
+    if (jni_cache == nullptr || model == nullptr) {
+      return nullptr;
+    }
+    std::unique_ptr<IntentGenerator> intent_generator =
+        IntentGenerator::Create(model->model()->android_intent_options(),
+                                model->model()->resources(), jni_cache);
+    std::unique_ptr<RemoteActionTemplatesHandler> template_handler =
+        libtextclassifier3::RemoteActionTemplatesHandler::Create(jni_cache);
+
+    if (intent_generator == nullptr || template_handler == nullptr) {
+      return nullptr;
+    }
+
+    return new ActionsSuggestionsJniContext(jni_cache, std::move(model),
+                                            std::move(intent_generator),
+                                            std::move(template_handler));
+  }
+
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache() const {
+    return jni_cache_;
+  }
+
+  ActionsSuggestions* model() const { return model_.get(); }
+
+  IntentGenerator* intent_generator() const { return intent_generator_.get(); }
+
+  RemoteActionTemplatesHandler* template_handler() const {
+    return template_handler_.get();
+  }
+
+ private:
+  ActionsSuggestionsJniContext(
+      const std::shared_ptr<libtextclassifier3::JniCache>& jni_cache,
+      std::unique_ptr<ActionsSuggestions> model,
+      std::unique_ptr<IntentGenerator> intent_generator,
+      std::unique_ptr<RemoteActionTemplatesHandler> template_handler)
+      : jni_cache_(jni_cache),
+        model_(std::move(model)),
+        intent_generator_(std::move(intent_generator)),
+        template_handler_(std::move(template_handler)) {}
+
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache_;
+  std::unique_ptr<ActionsSuggestions> model_;
+  std::unique_ptr<IntentGenerator> intent_generator_;
+  std::unique_ptr<RemoteActionTemplatesHandler> template_handler_;
+};
+
 ActionSuggestionOptions FromJavaActionSuggestionOptions(JNIEnv* env,
                                                         jobject joptions) {
   ActionSuggestionOptions options = ActionSuggestionOptions::Default();
@@ -59,12 +117,12 @@ ActionSuggestionOptions FromJavaActionSuggestionOptions(JNIEnv* env,
 }
 
 jobjectArray ActionSuggestionsToJObjectArray(
-    JNIEnv* env, const libtextclassifier3::JniCache* jni_cache,
-    const reflection::Schema* entity_data_schema,
+    JNIEnv* env, const ActionsSuggestionsJniContext* context,
+    jobject app_context,
+    const reflection::Schema* annotations_entity_data_schema,
     const std::vector<ActionSuggestion>& action_result,
-    const Conversation& conversation, const IntentGenerator* intent_generator,
-    const RemoteActionTemplatesHandler* remote_action_templates_handler,
-    const jstring device_locales) {
+    const Conversation& conversation, const jstring device_locales,
+    const bool generate_intents) {
   const ScopedLocalRef<jclass> result_class(
       env->FindClass(TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR
                      "$ActionSuggestion"),
@@ -78,38 +136,52 @@ jobjectArray ActionSuggestionsToJObjectArray(
       result_class.get(), "<init>",
       "(Ljava/lang/String;Ljava/lang/String;F[L" TC3_PACKAGE_PATH
           TC3_NAMED_VARIANT_CLASS_NAME_STR
-      ";[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
+      ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";)V");
   const jobjectArray results =
       env->NewObjectArray(action_result.size(), result_class.get(), nullptr);
   for (int i = 0; i < action_result.size(); i++) {
     jobject extras = nullptr;
 
-    if (entity_data_schema != nullptr &&
+    const reflection::Schema* actions_entity_data_schema =
+        context->model()->entity_data_schema();
+    if (actions_entity_data_schema != nullptr &&
         !action_result[i].serialized_entity_data.empty()) {
-      extras = remote_action_templates_handler->EntityDataAsNamedVariantArray(
-          entity_data_schema, action_result[i].serialized_entity_data);
+      extras = context->template_handler()->EntityDataAsNamedVariantArray(
+          actions_entity_data_schema, action_result[i].serialized_entity_data);
+    }
+
+    jbyteArray serialized_entity_data = nullptr;
+    if (!action_result[i].serialized_entity_data.empty()) {
+      serialized_entity_data =
+          env->NewByteArray(action_result[i].serialized_entity_data.size());
+      env->SetByteArrayRegion(
+          serialized_entity_data, 0,
+          action_result[i].serialized_entity_data.size(),
+          reinterpret_cast<const jbyte*>(
+              action_result[i].serialized_entity_data.data()));
     }
 
     jobject remote_action_templates_result = nullptr;
-    if (intent_generator != nullptr) {
+    if (generate_intents) {
       std::vector<RemoteActionTemplate> remote_action_templates;
-      if (intent_generator->GenerateIntents(device_locales, action_result[i],
-                                            conversation,
-                                            &remote_action_templates)) {
+      if (context->intent_generator()->GenerateIntents(
+              device_locales, action_result[i], conversation, app_context,
+              actions_entity_data_schema, annotations_entity_data_schema,
+              &remote_action_templates)) {
         remote_action_templates_result =
-            remote_action_templates_handler
-                ->RemoteActionTemplatesToJObjectArray(remote_action_templates);
+            context->template_handler()->RemoteActionTemplatesToJObjectArray(
+                remote_action_templates);
       }
     }
 
-    ScopedLocalRef<jstring> reply =
-        jni_cache->ConvertToJavaString(action_result[i].response_text);
+    ScopedLocalRef<jstring> reply = context->jni_cache()->ConvertToJavaString(
+        action_result[i].response_text);
 
     ScopedLocalRef<jobject> result(env->NewObject(
         result_class.get(), result_class_constructor, reply.get(),
         env->NewStringUTF(action_result[i].type.c_str()),
         static_cast<jfloat>(action_result[i].score), extras,
-        remote_action_templates_result));
+        serialized_entity_data, remote_action_templates_result));
     env->SetObjectArrayElement(results, i, result.get());
   }
   return results;
@@ -231,51 +303,55 @@ jstring GetNameFromMmap(JNIEnv* env, libtextclassifier3::ScopedMmap* mmap) {
 }  // namespace
 }  // namespace libtextclassifier3
 
+using libtextclassifier3::ActionsSuggestionsJniContext;
 using libtextclassifier3::ActionSuggestionsToJObjectArray;
 using libtextclassifier3::FromJavaActionSuggestionOptions;
 using libtextclassifier3::FromJavaConversation;
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModel)
-(JNIEnv* env, jobject thiz, jint fd) {
+(JNIEnv* env, jobject thiz, jint fd, jbyteArray serialized_preconditions) {
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache =
+      libtextclassifier3::JniCache::Create(env);
+  std::string preconditions;
+  if (serialized_preconditions != nullptr &&
+      !libtextclassifier3::JByteArrayToString(env, serialized_preconditions,
+                                              &preconditions)) {
+    TC3_LOG(ERROR) << "Could not convert serialized preconditions.";
+    return 0;
+  }
 #ifdef TC3_UNILIB_JAVAICU
-  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-      libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(
-      ActionsSuggestions::FromFileDescriptor(fd, new UniLib(jni_cache))
-          .release());
+  return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
+      jni_cache,
+      ActionsSuggestions::FromFileDescriptor(
+          fd, std::unique_ptr<UniLib>(new UniLib(jni_cache)), preconditions)));
 #else
-  return reinterpret_cast<jlong>(
-      ActionsSuggestions::FromFileDescriptor(fd).release());
+  return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
+      jni_cache, ActionsSuggestions::FromFileDescriptor(fd, /*unilib=*/nullptr,
+                                                        preconditions)));
 #endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelFromPath)
-(JNIEnv* env, jobject thiz, jstring path) {
+(JNIEnv* env, jobject thiz, jstring path, jbyteArray serialized_preconditions) {
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache =
+      libtextclassifier3::JniCache::Create(env);
   const std::string path_str = ToStlString(env, path);
+  std::string preconditions;
+  if (serialized_preconditions != nullptr &&
+      !libtextclassifier3::JByteArrayToString(env, serialized_preconditions,
+                                              &preconditions)) {
+    TC3_LOG(ERROR) << "Could not convert serialized preconditions.";
+    return 0;
+  }
 #ifdef TC3_UNILIB_JAVAICU
-  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-      libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(
-      ActionsSuggestions::FromPath(path_str, new UniLib(jni_cache)).release());
+  return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
+      jni_cache, ActionsSuggestions::FromPath(
+                     path_str, std::unique_ptr<UniLib>(new UniLib(jni_cache)),
+                     preconditions)));
 #else
-  return reinterpret_cast<jlong>(
-      ActionsSuggestions::FromPath(path_str).release());
-#endif  // TC3_UNILIB_JAVAICU
-}
-
-TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME,
-               nativeNewActionModelsFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
-  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
-#ifdef TC3_UNILIB_JAVAICU
-  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-      libtextclassifier3::JniCache::Create(env));
-  return reinterpret_cast<jlong>(ActionsSuggestions::FromFileDescriptor(
-                                     fd, offset, size, new UniLib(jni_cache))
-                                     .release());
-#else
-  return reinterpret_cast<jlong>(
-      ActionsSuggestions::FromFileDescriptor(fd, offset, size).release());
+  return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
+      jni_cache, ActionsSuggestions::FromPath(path_str, /*unilib=*/nullptr,
+                                              preconditions)));
 #endif  // TC3_UNILIB_JAVAICU
 }
 
@@ -287,49 +363,27 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
     return nullptr;
   }
   const Conversation conversation = FromJavaConversation(env, jconversation);
-  const ActionSuggestionOptions actionSuggestionOptions =
+  const ActionSuggestionOptions options =
       FromJavaActionSuggestionOptions(env, joptions);
-  ActionsSuggestions* action_model = reinterpret_cast<ActionsSuggestions*>(ptr);
-  Annotator* annotator = reinterpret_cast<Annotator*>(annotatorPtr);
+  const ActionsSuggestionsJniContext* context =
+      reinterpret_cast<ActionsSuggestionsJniContext*>(ptr);
+  const Annotator* annotator = reinterpret_cast<Annotator*>(annotatorPtr);
 
-  const ActionsSuggestionsResponse response = action_model->SuggestActions(
-      conversation, annotator, actionSuggestionOptions);
+  const ActionsSuggestionsResponse response =
+      context->model()->SuggestActions(conversation, annotator, options);
 
-  std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
-      libtextclassifier3::JniCache::Create(env));
-
-  std::unique_ptr<libtextclassifier3::RemoteActionTemplatesHandler>
-      remote_actions_templates_handler =
-          libtextclassifier3::RemoteActionTemplatesHandler::Create(env,
-                                                                   jni_cache);
-
-  if (!generate_intents) {
-    return ActionSuggestionsToJObjectArray(
-        env, jni_cache.get(), action_model->entity_data_schema(),
-        response.actions, conversation,
-        /*intent_generator=*/nullptr,
-        /*remote_action_templates_handler=*/
-        remote_actions_templates_handler.get(),
-        /*device_locales=*/nullptr);
-  }
-
-  std::unique_ptr<libtextclassifier3::IntentGenerator> intent_generator =
-      libtextclassifier3::IntentGenerator::CreateIntentGenerator(
-          action_model->model()->android_intent_options(),
-          action_model->model()->resources(), jni_cache, app_context,
-          (annotator != nullptr ? annotator->entity_data_schema() : nullptr),
-          action_model->entity_data_schema());
-
+  const reflection::Schema* anntotations_entity_data_schema =
+      annotator ? annotator->entity_data_schema() : nullptr;
   return ActionSuggestionsToJObjectArray(
-      env, jni_cache.get(), action_model->entity_data_schema(),
-      response.actions, conversation, intent_generator.get(),
-      remote_actions_templates_handler.get(), device_locales);
+      env, context, app_context, anntotations_entity_data_schema,
+      response.actions, conversation, device_locales, generate_intents);
 }
 
 TC3_JNI_METHOD(void, TC3_ACTIONS_CLASS_NAME, nativeCloseActionsModel)
-(JNIEnv* env, jobject clazz, jlong ptr) {
-  ActionsSuggestions* model = reinterpret_cast<ActionsSuggestions*>(ptr);
-  delete model;
+(JNIEnv* env, jobject clazz, jlong model_ptr) {
+  const ActionsSuggestionsJniContext* context =
+      reinterpret_cast<ActionsSuggestionsJniContext*>(model_ptr);
+  delete context;
 }
 
 TC3_JNI_METHOD(jstring, TC3_ACTIONS_CLASS_NAME, nativeGetLocales)

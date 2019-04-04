@@ -21,6 +21,7 @@
 #include <cmath>
 #include <iterator>
 #include <numeric>
+#include <unordered_map>
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 
@@ -33,6 +34,9 @@
 #include "utils/zlib/zlib_regex.h"
 
 namespace libtextclassifier3 {
+
+using SortedIntSet = std::set<int, std::function<bool(int, int)>>;
+
 const std::string& Annotator::kPhoneCollection =
     *[]() { return new std::string("phone"); }();
 const std::string& Annotator::kAddressCollection =
@@ -143,6 +147,30 @@ std::unique_ptr<Annotator> Annotator::FromScopedMmap(
   return classifier;
 }
 
+std::unique_ptr<Annotator> Annotator::FromScopedMmap(
+    std::unique_ptr<ScopedMmap>* mmap, std::unique_ptr<UniLib> unilib,
+    std::unique_ptr<CalendarLib> calendarlib) {
+  if (!(*mmap)->handle().ok()) {
+    TC3_VLOG(1) << "Mmap failed.";
+    return nullptr;
+  }
+
+  const Model* model = LoadAndVerifyModel((*mmap)->handle().start(),
+                                          (*mmap)->handle().num_bytes());
+  if (model == nullptr) {
+    TC3_LOG(ERROR) << "Model verification failed.";
+    return nullptr;
+  }
+
+  auto classifier = std::unique_ptr<Annotator>(
+      new Annotator(mmap, model, std::move(unilib), std::move(calendarlib)));
+  if (!classifier->IsInitialized()) {
+    return nullptr;
+  }
+
+  return classifier;
+}
+
 std::unique_ptr<Annotator> Annotator::FromFileDescriptor(
     int fd, int offset, int size, const UniLib* unilib,
     const CalendarLib* calendarlib) {
@@ -151,9 +179,23 @@ std::unique_ptr<Annotator> Annotator::FromFileDescriptor(
 }
 
 std::unique_ptr<Annotator> Annotator::FromFileDescriptor(
+    int fd, int offset, int size, std::unique_ptr<UniLib> unilib,
+    std::unique_ptr<CalendarLib> calendarlib) {
+  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(fd, offset, size));
+  return FromScopedMmap(&mmap, std::move(unilib), std::move(calendarlib));
+}
+
+std::unique_ptr<Annotator> Annotator::FromFileDescriptor(
     int fd, const UniLib* unilib, const CalendarLib* calendarlib) {
   std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(fd));
   return FromScopedMmap(&mmap, unilib, calendarlib);
+}
+
+std::unique_ptr<Annotator> Annotator::FromFileDescriptor(
+    int fd, std::unique_ptr<UniLib> unilib,
+    std::unique_ptr<CalendarLib> calendarlib) {
+  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(fd));
+  return FromScopedMmap(&mmap, std::move(unilib), std::move(calendarlib));
 }
 
 std::unique_ptr<Annotator> Annotator::FromPath(const std::string& path,
@@ -161,6 +203,13 @@ std::unique_ptr<Annotator> Annotator::FromPath(const std::string& path,
                                                const CalendarLib* calendarlib) {
   std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(path));
   return FromScopedMmap(&mmap, unilib, calendarlib);
+}
+
+std::unique_ptr<Annotator> Annotator::FromPath(
+    const std::string& path, std::unique_ptr<UniLib> unilib,
+    std::unique_ptr<CalendarLib> calendarlib) {
+  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(path));
+  return FromScopedMmap(&mmap, std::move(unilib), std::move(calendarlib));
 }
 
 Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
@@ -171,6 +220,18 @@ Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
       unilib_(MaybeCreateUnilib(unilib, &owned_unilib_)),
       owned_calendarlib_(nullptr),
       calendarlib_(MaybeCreateCalendarlib(calendarlib, &owned_calendarlib_)) {
+  ValidateAndInitialize();
+}
+
+Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
+                     std::unique_ptr<UniLib> unilib,
+                     std::unique_ptr<CalendarLib> calendarlib)
+    : model_(model),
+      mmap_(std::move(*mmap)),
+      owned_unilib_(std::move(unilib)),
+      unilib_(owned_unilib_.get()),
+      owned_calendarlib_(std::move(calendarlib)),
+      calendarlib_(owned_calendarlib_.get()) {
   ValidateAndInitialize();
 }
 
@@ -290,8 +351,8 @@ void Annotator::ValidateAndInitialize() {
     embedding_executor_ = TFLiteEmbeddingExecutor::FromBuffer(
         model_->embedding_model(),
         model_->classification_feature_options()->embedding_size(),
-        model_->classification_feature_options()
-            ->embedding_quantization_bits());
+        model_->classification_feature_options()->embedding_quantization_bits(),
+        model_->embedding_pruning_mask());
     if (!embedding_executor_) {
       TC3_LOG(ERROR) << "Could not initialize embedding executor.";
       return;
@@ -338,9 +399,22 @@ void Annotator::ValidateAndInitialize() {
 
   if (model_->number_annotator_options() &&
       model_->number_annotator_options()->enabled()) {
+    if (selection_feature_processor_ == nullptr) {
+      TC3_LOG(ERROR)
+          << "Could not initialize NumberAnnotator without a feature processor";
+      return;
+    }
+
     number_annotator_.reset(
         new NumberAnnotator(model_->number_annotator_options(),
                             selection_feature_processor_.get()));
+  }
+
+  if (model_->duration_annotator_options() &&
+      model_->duration_annotator_options()->enabled()) {
+    duration_annotator_.reset(
+        new DurationAnnotator(model_->duration_annotator_options(),
+                              selection_feature_processor_.get()));
   }
 
   if (model_->entity_data_schema()) {
@@ -359,9 +433,18 @@ void Annotator::ValidateAndInitialize() {
     entity_data_builder_ = nullptr;
   }
 
-  if (model_->locales() &&
-      !ParseLocales(model_->locales()->c_str(), &model_locales_)) {
+  if (model_->triggering_locales() &&
+      !ParseLocales(model_->triggering_locales()->c_str(),
+                    &model_triggering_locales_)) {
     TC3_LOG(ERROR) << "Could not parse model supported locales.";
+    return;
+  }
+
+  if (model_->triggering_options() != nullptr &&
+      model_->triggering_options()->locales() != nullptr &&
+      !ParseLocales(model_->triggering_options()->locales()->c_str(),
+                    &ml_model_triggering_locales_)) {
+    TC3_LOG(ERROR) << "Could not parse supported ML model locales.";
     return;
   }
 
@@ -463,18 +546,6 @@ int CountDigits(const std::string& str, CodepointSpan selection_indices) {
   return count;
 }
 
-bool VerifyCandidate(const VerificationOptions* verification_options,
-                     const std::string& match) {
-  if (!verification_options) {
-    return true;
-  }
-  if (verification_options->verify_luhn_checksum() &&
-      !VerifyLuhnChecksum(match)) {
-    return false;
-  }
-  return true;
-}
-
 }  // namespace
 
 namespace internal {
@@ -555,6 +626,30 @@ float GetPriorityScore(
 }
 }  // namespace
 
+bool Annotator::VerifyRegexMatchCandidate(
+    const std::string& context, const VerificationOptions* verification_options,
+    const std::string& match, const UniLib::RegexMatcher* matcher) const {
+  if (verification_options == nullptr) {
+    return true;
+  }
+  if (verification_options->verify_luhn_checksum() &&
+      !VerifyLuhnChecksum(match)) {
+    return false;
+  }
+  const int lua_verifier = verification_options->lua_verifier();
+  if (lua_verifier >= 0) {
+    if (model_->regex_model()->lua_verifier() == nullptr ||
+        lua_verifier >= model_->regex_model()->lua_verifier()->size()) {
+      TC3_LOG(ERROR) << "Invalid lua verifier specified: " << lua_verifier;
+      return false;
+    }
+    return VerifyMatch(
+        context, matcher,
+        model_->regex_model()->lua_verifier()->Get(lua_verifier)->str());
+  }
+  return true;
+}
+
 CodepointSpan Annotator::SuggestSelection(
     const std::string& context, CodepointSpan click_indices,
     const SelectionOptions& options) const {
@@ -564,6 +659,19 @@ CodepointSpan Annotator::SuggestSelection(
     return original_click_indices;
   }
   if (!(model_->enabled_modes() & ModeFlag_SELECTION)) {
+    return original_click_indices;
+  }
+
+  std::vector<Locale> detected_text_language_tags;
+  if (!ParseLocales(options.detected_text_language_tags,
+                    &detected_text_language_tags)) {
+    TC3_LOG(WARNING)
+        << "Failed to parse the detected_text_language_tags in options: "
+        << options.detected_text_language_tags;
+  }
+  if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
+                                    model_triggering_locales_,
+                                    /*default_value=*/true)) {
     return original_click_indices;
   }
 
@@ -607,7 +715,8 @@ CodepointSpan Annotator::SuggestSelection(
                                          classification_executor_.get());
   std::vector<Token> tokens;
   if (!ModelSuggestSelection(context_unicode, click_indices,
-                             &interpreter_manager, &tokens, &candidates)) {
+                             detected_text_language_tags, &interpreter_manager,
+                             &tokens, &candidates)) {
     TC3_LOG(ERROR) << "Model suggest selection failed.";
     return original_click_indices;
   }
@@ -643,6 +752,12 @@ CodepointSpan Annotator::SuggestSelection(
     TC3_LOG(ERROR) << "Number annotator failed in suggest selection.";
     return original_click_indices;
   }
+  if (duration_annotator_ != nullptr &&
+      !duration_annotator_->FindAll(context_unicode, tokens,
+                                    options.annotation_usecase, &candidates)) {
+    TC3_LOG(ERROR) << "Duration annotator failed in suggest selection.";
+    return original_click_indices;
+  }
 
   // Sort candidates according to their position in the input, so that the next
   // code can assume that any connected component of overlapping spans forms a
@@ -652,13 +767,6 @@ CodepointSpan Annotator::SuggestSelection(
               return a.span.first < b.span.first;
             });
 
-  std::vector<Locale> detected_text_language_tags;
-  if (!ParseLocales(options.detected_text_language_tags,
-                    &detected_text_language_tags)) {
-    TC3_LOG(WARNING)
-        << "Failed to parse detected_text_language_tags in options: "
-        << options.detected_text_language_tags;
-  }
   std::vector<int> candidate_indices;
   if (!ResolveConflicts(candidates, context, tokens,
                         detected_text_language_tags, options.annotation_usecase,
@@ -757,25 +865,41 @@ bool Annotator::ResolveConflicts(
 }
 
 namespace {
-// An exclusive annotation is not allowed to overlap with any other exclusive
-// annotation.
-bool IsAnnotationExclusive(AnnotationUsecase annotation_usecase,
-                           const AnnotatedSpan& annotation) {
+// Returns true, if the given two sources do conflict in given annotation
+// usecase.
+//  - In SMART usecase, all sources do conflict, because there's only 1 possible
+//  annotation for a given span.
+//  - In RAW usecase, certain annotations are allowed to overlap (e.g. datetime
+//  and duration), while others not (e.g. duration and number).
+bool DoSourcesConflict(AnnotationUsecase annotation_usecase,
+                       const AnnotatedSpan::Source source1,
+                       const AnnotatedSpan::Source source2) {
+  uint32 source_mask =
+      (1 << static_cast<int>(source1)) | (1 << static_cast<int>(source2));
+
   switch (annotation_usecase) {
     case AnnotationUsecase_ANNOTATION_USECASE_SMART:
-      // In the SMART mode, all annotations are exclusive.
+      // In the SMART mode, all annotations conflict.
       return true;
+
     case AnnotationUsecase_ANNOTATION_USECASE_RAW:
-      // In the RAW mode, KNOWLEDGE annotations are not exclusive, but all
-      // OTHER annotations are.
-      switch (annotation.source) {
-        case AnnotatedSpan::Source::OTHER:
-          return true;
-        case AnnotatedSpan::Source::KNOWLEDGE:
-          return false;
+      // DURATION and DATETIME do not conflict. E.g. "let's meet in 3 hours",
+      // can have two non-conflicting annotations: "in 3 hours" (datetime), "3
+      // hours" (duration).
+      if ((source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::DURATION))) &&
+          (source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::DATETIME)))) {
+        return false;
       }
-    default:
-      // The other values should not appear.
+
+      // A KNOWLEDGE entity does not conflict with anything.
+      if ((source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::KNOWLEDGE)))) {
+        return false;
+      }
+
+      // Entities from other sources can conflict.
       return true;
   }
 }
@@ -817,27 +941,55 @@ bool Annotator::ResolveConflict(
   std::sort(conflicting_indices.begin(), conflicting_indices.end(),
             [&scores](int i, int j) { return scores[i] > scores[j]; });
 
-  // The set of indices of candidates which are exclusive annotations and have
-  // already been added to the output. See IsAnnotationExclusive() above.
-  // Keeps the candidates sorted by their position in the text (their left span
-  // index) for fast retrieval down.
-  std::set<int, std::function<bool(int, int)>> exclusive_indices(
-      [&candidates](int a, int b) {
-        return candidates[a].span.first < candidates[b].span.first;
-      });
+  // Here we keep a set of indices that were chosen, per-source, to enable
+  // effective computation.
+  std::unordered_map<AnnotatedSpan::Source, SortedIntSet>
+      chosen_indices_for_source_map;
 
   // Greedily place the candidates if they don't conflict with the already
   // placed ones.
   for (int i = 0; i < conflicting_indices.size(); ++i) {
     const int considered_candidate = conflicting_indices[i];
-    if (!IsAnnotationExclusive(annotation_usecase,
-                               candidates[considered_candidate])) {
-      chosen_indices->push_back(considered_candidate);
-    } else if (!DoesCandidateConflict(considered_candidate, candidates,
-                                      exclusive_indices)) {
-      chosen_indices->push_back(considered_candidate);
-      exclusive_indices.insert(considered_candidate);
+
+    // See if there is a conflict between the candidate and all already placed
+    // candidates.
+    bool conflict = false;
+    SortedIntSet* chosen_indices_for_source_ptr = nullptr;
+    for (auto& source_set_pair : chosen_indices_for_source_map) {
+      if (source_set_pair.first == candidates[considered_candidate].source) {
+        chosen_indices_for_source_ptr = &source_set_pair.second;
+      }
+
+      if (DoSourcesConflict(annotation_usecase, source_set_pair.first,
+                            candidates[considered_candidate].source) &&
+          DoesCandidateConflict(considered_candidate, candidates,
+                                source_set_pair.second)) {
+        conflict = true;
+        break;
+      }
     }
+
+    // Skip the candidate if a conflict was found.
+    if (conflict) {
+      continue;
+    }
+
+    // If the set of indices for the current source doesn't exist yet,
+    // initialize it.
+    if (chosen_indices_for_source_ptr == nullptr) {
+      SortedIntSet new_set([&candidates](int a, int b) {
+        return candidates[a].span.first < candidates[b].span.first;
+      });
+      chosen_indices_for_source_map[candidates[considered_candidate].source] =
+          std::move(new_set);
+      chosen_indices_for_source_ptr =
+          &chosen_indices_for_source_map[candidates[considered_candidate]
+                                             .source];
+    }
+
+    // Place the candidate to the output and to the per-source conflict set.
+    chosen_indices->push_back(considered_candidate);
+    chosen_indices_for_source_ptr->insert(considered_candidate);
   }
 
   std::sort(chosen_indices->begin(), chosen_indices->end());
@@ -847,10 +999,17 @@ bool Annotator::ResolveConflict(
 
 bool Annotator::ModelSuggestSelection(
     const UnicodeText& context_unicode, CodepointSpan click_indices,
+    const std::vector<Locale>& detected_text_language_tags,
     InterpreterManager* interpreter_manager, std::vector<Token>* tokens,
     std::vector<AnnotatedSpan>* result) const {
   if (model_->triggering_options() == nullptr ||
       !(model_->triggering_options()->enabled_modes() & ModeFlag_SELECTION)) {
+    return true;
+  }
+
+  if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
+                                    ml_model_triggering_locales_,
+                                    /*default_value=*/true)) {
     return true;
   }
 
@@ -1048,6 +1207,12 @@ bool Annotator::ModelClassifyText(
     return true;
   }
 
+  if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
+                                    ml_model_triggering_locales_,
+                                    /*default_value=*/true)) {
+    return true;
+  }
+
   if (cached_tokens.empty()) {
     *tokens = classification_feature_processor_->Tokenize(context);
   } else {
@@ -1183,7 +1348,7 @@ bool Annotator::ModelClassifyText(
           Collections::Dictionary()) {
     if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
                                       dictionary_locales_,
-                                      /*default_value*/ false)) {
+                                      /*default_value=*/false)) {
       *classification_results = {{Collections::Other(), 1.0}};
     }
   }
@@ -1214,8 +1379,9 @@ bool Annotator::RegexClassifyText(
     if (status != UniLib::RegexMatcher::kNoError) {
       return false;
     }
-    if (matches && VerifyCandidate(regex_pattern.config->verification_options(),
-                                   selection_text)) {
+    if (matches && VerifyRegexMatchCandidate(
+                       context, regex_pattern.config->verification_options(),
+                       selection_text, matcher.get())) {
       classification_result->push_back(
           {regex_pattern.config->collection_name()->str(),
            regex_pattern.config->target_classification_score(),
@@ -1299,6 +1465,19 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     return {};
   }
 
+  std::vector<Locale> detected_text_language_tags;
+  if (!ParseLocales(options.detected_text_language_tags,
+                    &detected_text_language_tags)) {
+    TC3_LOG(WARNING)
+        << "Failed to parse the detected_text_language_tags in options: "
+        << options.detected_text_language_tags;
+  }
+  if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
+                                    model_triggering_locales_,
+                                    /*default_value=*/true)) {
+    return {};
+  }
+
   if (!UTF8ToUnicodeText(context, /*do_copy=*/false).is_valid()) {
     return {};
   }
@@ -1362,6 +1541,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   }
   if (!datetime_results.empty()) {
     candidates.push_back({selection_indices, std::move(datetime_results)});
+    candidates.back().source = AnnotatedSpan::Source::DATETIME;
   }
 
   // Try the number annotator.
@@ -1374,18 +1554,21 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, {number_annotator_result}});
   }
 
+  // Try the duration annotator.
+  ClassificationResult duration_annotator_result;
+  if (duration_annotator_ &&
+      duration_annotator_->ClassifyText(
+          UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
+          options.annotation_usecase, &duration_annotator_result)) {
+    candidates.push_back({selection_indices, {duration_annotator_result}});
+    candidates.back().source = AnnotatedSpan::Source::DURATION;
+  }
+
   // Try the ML model.
   //
   // The output of the model is considered as an exclusive 1-of-N choice. That's
   // why it's inserted as only 1 AnnotatedSpan into candidates, as opposed to 1
   // span for each candidate, like e.g. the regex model.
-  std::vector<Locale> detected_text_language_tags;
-  if (!ParseLocales(options.detected_text_language_tags,
-                    &detected_text_language_tags)) {
-    TC3_LOG(WARNING)
-        << "Failed to parse the detected_text_language_tags in options: "
-        << options.detected_text_language_tags;
-  }
   InterpreterManager interpreter_manager(selection_executor_.get(),
                                          classification_executor_.get());
   std::vector<ClassificationResult> model_results;
@@ -1437,6 +1620,12 @@ bool Annotator::ModelAnnotate(
     std::vector<AnnotatedSpan>* result) const {
   if (model_->triggering_options() == nullptr ||
       !(model_->triggering_options()->enabled_modes() & ModeFlag_ANNOTATION)) {
+    return true;
+  }
+
+  if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
+                                    ml_model_triggering_locales_,
+                                    /*default_value=*/true)) {
     return true;
   }
 
@@ -1554,16 +1743,21 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
     return {};
   }
 
-  InterpreterManager interpreter_manager(selection_executor_.get(),
-                                         classification_executor_.get());
-
   std::vector<Locale> detected_text_language_tags;
   if (!ParseLocales(options.detected_text_language_tags,
                     &detected_text_language_tags)) {
     TC3_LOG(WARNING)
-        << "Failed to parse detected_text_language_tags in options: "
+        << "Failed to parse the detected_text_language_tags in options: "
         << options.detected_text_language_tags;
   }
+  if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
+                                    model_triggering_locales_,
+                                    /*default_value=*/true)) {
+    return {};
+  }
+
+  InterpreterManager interpreter_manager(selection_executor_.get(),
+                                         classification_executor_.get());
 
   // Annotate with the selection model.
   std::vector<Token> tokens;
@@ -1613,7 +1807,15 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
   if (number_annotator_ != nullptr &&
       !number_annotator_->FindAll(context_unicode, options.annotation_usecase,
                                   &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run number annotator Chunk.";
+    TC3_LOG(ERROR) << "Couldn't run number annotator FindAll.";
+    return {};
+  }
+
+  // Annotate with the duration annotator.
+  if (duration_annotator_ != nullptr &&
+      !duration_annotator_->FindAll(context_unicode, tokens,
+                                    options.annotation_usecase, &candidates)) {
+    TC3_LOG(ERROR) << "Couldn't run duration annotator FindAll.";
     return {};
   }
 
@@ -1780,8 +1982,10 @@ bool Annotator::RegexChunk(const UnicodeText& context_unicode,
     int status = UniLib::RegexMatcher::kNoError;
     while (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
       if (regex_pattern.config->verification_options()) {
-        if (!VerifyCandidate(regex_pattern.config->verification_options(),
-                             matcher->Group(1, &status).ToUTF8String())) {
+        if (!VerifyRegexMatchCandidate(
+                context_unicode.ToUTF8String(),
+                regex_pattern.config->verification_options(),
+                matcher->Group(1, &status).ToUTF8String(), matcher.get())) {
           continue;
         }
       }
@@ -2082,6 +2286,7 @@ bool Annotator::DatetimeChunk(const UnicodeText& context_unicode,
           datetime_span.priority_score);
       annotated_span.classification.back().datetime_parse_result = parse_result;
     }
+    annotated_span.source = AnnotatedSpan::Source::DATETIME;
     result->push_back(std::move(annotated_span));
   }
   return true;

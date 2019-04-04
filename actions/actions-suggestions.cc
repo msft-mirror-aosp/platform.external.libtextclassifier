@@ -20,7 +20,9 @@
 
 #include "actions/lua-actions.h"
 #include "actions/types.h"
+#include "actions/zlib-utils.h"
 #include "utils/base/logging.h"
+#include "utils/flatbuffers.h"
 #include "utils/lua-utils.h"
 #include "utils/regex-match.h"
 #include "utils/strings/split.h"
@@ -59,10 +61,29 @@ const ActionsModel* LoadAndVerifyModel(const uint8_t* addr, int size) {
   }
 }
 
+template <typename T>
+T ValueOrDefault(const flatbuffers::Table* values, const int32 field_offset,
+                 const T default_value) {
+  if (values == nullptr) {
+    return default_value;
+  }
+  return values->GetField<T>(field_offset, default_value);
+}
+
+// Returns number of (tail) messages of a conversation to consider.
+int NumMessagesToConsider(const Conversation& conversation,
+                          const int max_conversation_history_length) {
+  return ((max_conversation_history_length < 0 ||
+           conversation.messages.size() < max_conversation_history_length)
+              ? conversation.messages.size()
+              : max_conversation_history_length);
+}
+
 }  // namespace
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
-    const uint8_t* buffer, const int size, const UniLib* unilib) {
+    const uint8_t* buffer, const int size, const UniLib* unilib,
+    const std::string& triggering_preconditions_overlay) {
   auto actions = std::unique_ptr<ActionsSuggestions>(new ActionsSuggestions());
   const ActionsModel* model = LoadAndVerifyModel(buffer, size);
   if (model == nullptr) {
@@ -70,6 +91,8 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
   }
   actions->model_ = model;
   actions->SetOrCreateUnilib(unilib);
+  actions->triggering_preconditions_overlay_buffer_ =
+      triggering_preconditions_overlay;
   if (!actions->ValidateAndInitialize()) {
     return nullptr;
   }
@@ -77,8 +100,8 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
-    std::unique_ptr<libtextclassifier3::ScopedMmap> mmap,
-    const UniLib* unilib) {
+    std::unique_ptr<libtextclassifier3::ScopedMmap> mmap, const UniLib* unilib,
+    const std::string& triggering_preconditions_overlay) {
   if (!mmap->handle().ok()) {
     TC3_VLOG(1) << "Mmap failed.";
     return nullptr;
@@ -94,6 +117,36 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
   actions->model_ = model;
   actions->mmap_ = std::move(mmap);
   actions->SetOrCreateUnilib(unilib);
+  actions->triggering_preconditions_overlay_buffer_ =
+      triggering_preconditions_overlay;
+  if (!actions->ValidateAndInitialize()) {
+    return nullptr;
+  }
+  return actions;
+}
+
+std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
+    std::unique_ptr<libtextclassifier3::ScopedMmap> mmap,
+    std::unique_ptr<UniLib> unilib,
+    const std::string& triggering_preconditions_overlay) {
+  if (!mmap->handle().ok()) {
+    TC3_VLOG(1) << "Mmap failed.";
+    return nullptr;
+  }
+  const ActionsModel* model = LoadAndVerifyModel(
+      reinterpret_cast<const uint8_t*>(mmap->handle().start()),
+      mmap->handle().num_bytes());
+  if (!model) {
+    TC3_LOG(ERROR) << "Model verification failed.";
+    return nullptr;
+  }
+  auto actions = std::unique_ptr<ActionsSuggestions>(new ActionsSuggestions());
+  actions->model_ = model;
+  actions->mmap_ = std::move(mmap);
+  actions->owned_unilib_ = std::move(unilib);
+  actions->unilib_ = actions->owned_unilib_.get();
+  actions->triggering_preconditions_overlay_buffer_ =
+      triggering_preconditions_overlay;
   if (!actions->ValidateAndInitialize()) {
     return nullptr;
   }
@@ -101,24 +154,48 @@ std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromScopedMmap(
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromFileDescriptor(
-    const int fd, const int offset, const int size, const UniLib* unilib) {
+    const int fd, const int offset, const int size, const UniLib* unilib,
+    const std::string& triggering_preconditions_overlay) {
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd, offset, size));
-  return FromScopedMmap(std::move(mmap), unilib);
+  return FromScopedMmap(std::move(mmap), unilib,
+                        triggering_preconditions_overlay);
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromFileDescriptor(
-    const int fd, const UniLib* unilib) {
+    const int fd, const UniLib* unilib,
+    const std::string& triggering_preconditions_overlay) {
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd));
-  return FromScopedMmap(std::move(mmap), unilib);
+  return FromScopedMmap(std::move(mmap), unilib,
+                        triggering_preconditions_overlay);
+}
+
+std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromFileDescriptor(
+    const int fd, std::unique_ptr<UniLib> unilib,
+    const std::string& triggering_preconditions_overlay) {
+  std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
+      new libtextclassifier3::ScopedMmap(fd));
+  return FromScopedMmap(std::move(mmap), std::move(unilib),
+                        triggering_preconditions_overlay);
 }
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromPath(
-    const std::string& path, const UniLib* unilib) {
+    const std::string& path, const UniLib* unilib,
+    const std::string& triggering_preconditions_overlay) {
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(path));
-  return FromScopedMmap(std::move(mmap), unilib);
+  return FromScopedMmap(std::move(mmap), unilib,
+                        triggering_preconditions_overlay);
+}
+
+std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromPath(
+    const std::string& path, std::unique_ptr<UniLib> unilib,
+    const std::string& triggering_preconditions_overlay) {
+  std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
+      new libtextclassifier3::ScopedMmap(path));
+  return FromScopedMmap(std::move(mmap), std::move(unilib),
+                        triggering_preconditions_overlay);
 }
 
 void ActionsSuggestions::SetOrCreateUnilib(const UniLib* unilib) {
@@ -136,8 +213,13 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     return false;
   }
 
-  if (model_->preconditions() == nullptr) {
-    TC3_LOG(ERROR) << "No triggering conditions specified.";
+  if (model_->smart_reply_action_type() == nullptr) {
+    TC3_LOG(ERROR) << "No smart reply action type specified.";
+    return false;
+  }
+
+  if (!InitializeTriggeringPreconditions()) {
+    TC3_LOG(ERROR) << "Could not initialize preconditions.";
     return false;
   }
 
@@ -177,17 +259,126 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     entity_data_schema_ = nullptr;
   }
 
+  std::string actions_script;
+  if (GetUncompressedString(model_->lua_actions_script(),
+                            model_->compressed_lua_actions_script(),
+                            decompressor.get(), &actions_script) &&
+      !actions_script.empty()) {
+    if (!Compile(actions_script, &lua_bytecode_)) {
+      TC3_LOG(ERROR) << "Could not precompile lua actions snippet.";
+      return false;
+    }
+  }
+
   if (!(ranker_ = ActionsSuggestionsRanker::CreateActionsSuggestionsRanker(
-            model_->ranking_options()))) {
+            model_->ranking_options(), decompressor.get(),
+            model_->smart_reply_action_type()->str()))) {
     TC3_LOG(ERROR) << "Could not create an action suggestions ranker.";
     return false;
   }
 
-  if (model_->lua_actions_script() != nullptr &&
-      !Compile(model_->lua_actions_script()->str(), &lua_bytecode_)) {
-    TC3_LOG(ERROR) << "Could not precompile lua actions snippet.";
+  // Create feature processor if specified.
+  const ActionsTokenFeatureProcessorOptions* options =
+      model_->feature_processor_options();
+  if (options != nullptr) {
+    if (options->tokenizer_options() == nullptr) {
+      TC3_LOG(ERROR) << "No tokenizer options specified.";
+      return false;
+    }
+
+    feature_processor_.reset(new ActionsFeatureProcessor(options, unilib_));
+    embedding_executor_ = TFLiteEmbeddingExecutor::FromBuffer(
+        options->embedding_model(), options->embedding_size(),
+        options->embedding_quantization_bits());
+
+    if (embedding_executor_ == nullptr) {
+      TC3_LOG(ERROR) << "Could not initialize embedding executor.";
+      return false;
+    }
+
+    // Cache embedding of padding token.
+    if (!feature_processor_->AppendTokenFeatures(
+            Token(), embedding_executor_.get(), &embedded_padding_token_)) {
+      TC3_LOG(ERROR) << "Could not run token feature extractor.";
+      return false;
+    }
+    token_embedding_size_ = feature_processor_->GetTokenEmbeddingSize();
+  }
+
+  // Create low confidence model if specified.
+  if (model_->low_confidence_ngram_model() != nullptr) {
+    ngram_model_ = NGramModel::Create(model_->low_confidence_ngram_model(),
+                                      feature_processor_ == nullptr
+                                          ? nullptr
+                                          : feature_processor_->tokenizer(),
+                                      unilib_);
+    if (ngram_model_ == nullptr) {
+      TC3_LOG(ERROR) << "Could not create ngram linear regression model.";
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool ActionsSuggestions::InitializeTriggeringPreconditions() {
+  triggering_preconditions_overlay_ =
+      LoadAndVerifyFlatbuffer<TriggeringPreconditions>(
+          triggering_preconditions_overlay_buffer_);
+
+  if (triggering_preconditions_overlay_ == nullptr &&
+      !triggering_preconditions_overlay_buffer_.empty()) {
+    TC3_LOG(ERROR) << "Could not load triggering preconditions overwrites.";
     return false;
   }
+  const flatbuffers::Table* overlay =
+      reinterpret_cast<const flatbuffers::Table*>(
+          triggering_preconditions_overlay_);
+  const TriggeringPreconditions* defaults = model_->preconditions();
+  if (defaults == nullptr) {
+    TC3_LOG(ERROR) << "No triggering conditions specified.";
+    return false;
+  }
+
+  preconditions_.min_smart_reply_triggering_score = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_MIN_SMART_REPLY_TRIGGERING_SCORE,
+      defaults->min_smart_reply_triggering_score());
+  preconditions_.max_sensitive_topic_score = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_MAX_SENSITIVE_TOPIC_SCORE,
+      defaults->max_sensitive_topic_score());
+  preconditions_.suppress_on_sensitive_topic = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_SUPPRESS_ON_SENSITIVE_TOPIC,
+      defaults->suppress_on_sensitive_topic());
+  preconditions_.min_input_length =
+      ValueOrDefault(overlay, TriggeringPreconditions::VT_MIN_INPUT_LENGTH,
+                     defaults->min_input_length());
+  preconditions_.max_input_length =
+      ValueOrDefault(overlay, TriggeringPreconditions::VT_MAX_INPUT_LENGTH,
+                     defaults->max_input_length());
+  preconditions_.min_locale_match_fraction = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_MIN_LOCALE_MATCH_FRACTION,
+      defaults->min_locale_match_fraction());
+  preconditions_.handle_missing_locale_as_supported = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_HANDLE_MISSING_LOCALE_AS_SUPPORTED,
+      defaults->handle_missing_locale_as_supported());
+  preconditions_.handle_unknown_locale_as_supported = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_HANDLE_UNKNOWN_LOCALE_AS_SUPPORTED,
+      defaults->handle_unknown_locale_as_supported());
+  preconditions_.suppress_on_low_confidence_input = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_SUPPRESS_ON_LOW_CONFIDENCE_INPUT,
+      defaults->suppress_on_low_confidence_input());
+  preconditions_.diversification_distance_threshold = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_DIVERSIFICATION_DISTANCE_THRESHOLD,
+      defaults->diversification_distance_threshold());
+  preconditions_.confidence_threshold =
+      ValueOrDefault(overlay, TriggeringPreconditions::VT_CONFIDENCE_THRESHOLD,
+                     defaults->confidence_threshold());
+  preconditions_.empirical_probability_factor = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_EMPIRICAL_PROBABILITY_FACTOR,
+      defaults->empirical_probability_factor());
+  preconditions_.min_reply_score_threshold = ValueOrDefault(
+      overlay, TriggeringPreconditions::VT_MIN_REPLY_SCORE_THRESHOLD,
+      defaults->min_reply_score_threshold());
 
   return true;
 }
@@ -200,12 +391,31 @@ bool ActionsSuggestions::InitializeRules(ZlibDecompressor* decompressor) {
     }
   }
 
-  if (model_->preconditions()->suppress_on_low_confidence_input() &&
-      model_->preconditions()->low_confidence_rules() != nullptr) {
-    if (!InitializeRules(decompressor,
-                         model_->preconditions()->low_confidence_rules(),
+  if (model_->low_confidence_rules() != nullptr) {
+    if (!InitializeRules(decompressor, model_->low_confidence_rules(),
                          &low_confidence_rules_)) {
       TC3_LOG(ERROR) << "Could not initialize low confidence rules.";
+      return false;
+    }
+  }
+
+  // Extend by rules provided by the overwrite.
+  // NOTE: The rules from the original models are *not* cleared.
+  if (triggering_preconditions_overlay_ != nullptr &&
+      triggering_preconditions_overlay_->low_confidence_rules() != nullptr) {
+    // These rules are optionally compressed, but separately.
+    std::unique_ptr<ZlibDecompressor> overwrite_decompressor =
+        ZlibDecompressor::Instance();
+    if (overwrite_decompressor == nullptr) {
+      TC3_LOG(ERROR) << "Could not initialze decompressor for overwrite rules.";
+      return false;
+    }
+    if (!InitializeRules(
+            overwrite_decompressor.get(),
+            triggering_preconditions_overlay_->low_confidence_rules(),
+            &low_confidence_rules_)) {
+      TC3_LOG(ERROR)
+          << "Could not initialize low confidence rules from overwrite.";
       return false;
     }
   }
@@ -254,6 +464,15 @@ bool ActionsSuggestions::IsLowConfidenceInput(
         conversation.messages[conversation.messages.size() - i].text;
     const UnicodeText message_unicode(
         UTF8ToUnicodeText(message, /*do_copy=*/false));
+
+    // Run ngram linear regression model.
+    if (ngram_model_ != nullptr) {
+      if (ngram_model_->Eval(message_unicode)) {
+        return true;
+      }
+    }
+
+    // Run the regex based rules.
     for (int low_confidence_rule = 0;
          low_confidence_rule < low_confidence_rules_.size();
          low_confidence_rule++) {
@@ -334,25 +553,98 @@ ActionSuggestion ActionsSuggestions::SuggestionFromSpec(
   return suggestion;
 }
 
+bool ActionsSuggestions::ExtractTokenFeatures(
+    const std::vector<std::string>& context, std::vector<float>* embeddings,
+    std::vector<int>* num_tokens_per_message,
+    int* max_num_tokens_per_message) const {
+  if (feature_processor_ == nullptr) {
+    TC3_LOG(ERROR) << "Missing token feature extractor.";
+    return false;
+  }
+
+  // Tokenize and extract features from the input text.
+  const int num_messages = context.size();
+  std::vector<std::vector<Token>> tokens(num_messages);
+  num_tokens_per_message->resize(num_messages);
+  *max_num_tokens_per_message = 0;
+  for (int i = 0; i < num_messages; i++) {
+    tokens[i] = feature_processor_->tokenizer()->Tokenize(context[i]);
+    const int num_message_tokens = tokens[i].size();
+    (*num_tokens_per_message)[i] = num_message_tokens;
+    if (num_message_tokens > *max_num_tokens_per_message) {
+      *max_num_tokens_per_message = num_message_tokens;
+    }
+  }
+
+  // Overwrite the number of tokens if specified.
+  if (model_->feature_processor_options()->num_tokens_per_message() > 0) {
+    *max_num_tokens_per_message =
+        model_->feature_processor_options()->num_tokens_per_message();
+  }
+
+  if (*max_num_tokens_per_message <= 0) {
+    TC3_LOG(ERROR) << "Could not tokenize input.";
+    return false;
+  }
+
+  // Embed all tokens and add paddings to pad tokens of each message to the
+  // maximum number of tokens in a message of the conversation.
+  // If a number of tokens is specified in the model config, tokens at the
+  // beginning of a message are dropped if they don't fit in the limit.
+  for (int i = 0; i < num_messages; i++) {
+    const int start =
+        std::max<int>(tokens[i].size() - *max_num_tokens_per_message, 0);
+    for (int pos = start; pos < tokens[i].size(); pos++) {
+      if (!feature_processor_->AppendTokenFeatures(
+              tokens[i][pos], embedding_executor_.get(), embeddings)) {
+        TC3_LOG(ERROR) << "Could not run token feature extractor.";
+        return false;
+      }
+    }
+    // Add padding.
+    for (int k = tokens[i].size(); k < *max_num_tokens_per_message; k++) {
+      embeddings->insert(embeddings->end(), embedded_padding_token_.begin(),
+                         embedded_padding_token_.end());
+    }
+  }
+
+  return true;
+}
+
 bool ActionsSuggestions::AllocateInput(const int conversation_length,
+                                       const int max_tokens,
                                        tflite::Interpreter* interpreter) const {
   if (model_->tflite_model_spec()->resize_inputs()) {
     if (model_->tflite_model_spec()->input_context() >= 0) {
       interpreter->ResizeInputTensor(
-          model_->tflite_model_spec()->input_context(),
+          interpreter->inputs()[model_->tflite_model_spec()->input_context()],
           {1, conversation_length});
     }
     if (model_->tflite_model_spec()->input_user_id() >= 0) {
       interpreter->ResizeInputTensor(
-          model_->tflite_model_spec()->input_user_id(),
+          interpreter->inputs()[model_->tflite_model_spec()->input_user_id()],
           {1, conversation_length});
     }
     if (model_->tflite_model_spec()->input_time_diffs() >= 0) {
       interpreter->ResizeInputTensor(
-          model_->tflite_model_spec()->input_time_diffs(),
+          interpreter
+              ->inputs()[model_->tflite_model_spec()->input_time_diffs()],
           {1, conversation_length});
     }
+    if (model_->tflite_model_spec()->input_num_tokens() >= 0) {
+      interpreter->ResizeInputTensor(
+          interpreter
+              ->inputs()[model_->tflite_model_spec()->input_num_tokens()],
+          {conversation_length, max_tokens});
+    }
+    if (model_->tflite_model_spec()->input_token_embeddings() >= 0) {
+      interpreter->ResizeInputTensor(
+          interpreter
+              ->inputs()[model_->tflite_model_spec()->input_token_embeddings()],
+          {conversation_length, max_tokens, token_embedding_size_});
+    }
   }
+
   return interpreter->AllocateTensors() == kTfLiteOk;
 }
 
@@ -362,7 +654,20 @@ bool ActionsSuggestions::SetupModelInput(
     const float confidence_threshold, const float diversification_distance,
     const float empirical_probability_factor,
     tflite::Interpreter* interpreter) const {
-  if (!AllocateInput(context.size(), interpreter)) {
+  // Compute token embeddings.
+  std::vector<float> token_embeddings;
+  std::vector<int> num_tokens_per_message;
+  int max_tokens = 0;
+  if (model_->tflite_model_spec()->input_num_tokens() >= 0 ||
+      model_->tflite_model_spec()->input_token_embeddings() >= 0) {
+    if (!ExtractTokenFeatures(context, &token_embeddings,
+                              &num_tokens_per_message, &max_tokens)) {
+      TC3_LOG(ERROR) << "Could not compute token hashes.";
+      return false;
+    }
+  }
+
+  if (!AllocateInput(context.size(), max_tokens, interpreter)) {
     TC3_LOG(ERROR) << "TensorFlow Lite model allocation failed.";
     return false;
   }
@@ -404,6 +709,16 @@ bool ActionsSuggestions::SetupModelInput(
         model_->tflite_model_spec()->input_empirical_probability_factor(),
         confidence_threshold, interpreter);
   }
+  if (model_->tflite_model_spec()->input_num_tokens() >= 0) {
+    model_executor_->SetInput<int>(
+        model_->tflite_model_spec()->input_num_tokens(), num_tokens_per_message,
+        interpreter);
+  }
+  if (model_->tflite_model_spec()->input_token_embeddings() >= 0) {
+    model_executor_->SetInput<float>(
+        model_->tflite_model_spec()->input_token_embeddings(), token_embeddings,
+        interpreter);
+  }
   return true;
 }
 
@@ -423,7 +738,7 @@ bool ActionsSuggestions::ReadModelOutput(
     response->triggering_score = triggering_score.data()[0];
     response->output_filtered_min_triggering_score =
         (response->triggering_score <
-         model_->preconditions()->min_smart_reply_triggering_score());
+         preconditions_.min_smart_reply_triggering_score);
   }
   if (model_->tflite_model_spec()->output_sensitive_topic_score() >= 0) {
     const TensorView<float>& sensitive_topic_score =
@@ -438,7 +753,7 @@ bool ActionsSuggestions::ReadModelOutput(
     response->sensitivity_score = sensitive_topic_score.data()[0];
     response->output_filtered_sensitivity =
         (response->sensitivity_score >
-         model_->preconditions()->max_sensitive_topic_score());
+         preconditions_.max_sensitive_topic_score);
   }
 
   // Suppress model outputs.
@@ -457,9 +772,13 @@ bool ActionsSuggestions::ReadModelOutput(
         model_->tflite_model_spec()->output_replies_scores(), interpreter);
     for (int i = 0; i < replies.size(); i++) {
       if (replies[i].len == 0) continue;
+      const float score = scores.data()[i];
+      if (score < preconditions_.min_reply_score_threshold) {
+        continue;
+      }
       response->actions.push_back({std::string(replies[i].str, replies[i].len),
                                    model_->smart_reply_action_type()->str(),
-                                   scores.data()[i]});
+                                   score});
     }
   }
 
@@ -506,13 +825,6 @@ bool ActionsSuggestions::SuggestActionsFromModel(
     return false;
   }
 
-  if ((*interpreter)->AllocateTensors() != kTfLiteOk) {
-    TC3_LOG(ERROR)
-        << "Failed to allocate TensorFlow Lite tensors for the actions "
-           "suggestions model.";
-    return false;
-  }
-
   std::vector<std::string> context;
   std::vector<int> user_ids;
   std::vector<float> time_diffs;
@@ -539,13 +851,12 @@ bool ActionsSuggestions::SuggestActionsFromModel(
     time_diffs.push_back(time_diff_secs);
   }
 
-  if (!SetupModelInput(
-          context, user_ids, time_diffs,
-          /*num_suggestions=*/model_->num_smart_replies(),
-          model_->preconditions()->confidence_threshold(),
-          model_->preconditions()->diversification_distance_threshold(),
-          model_->preconditions()->empirical_probability_factor(),
-          interpreter->get())) {
+  if (!SetupModelInput(context, user_ids, time_diffs,
+                       /*num_suggestions=*/model_->num_smart_replies(),
+                       preconditions_.confidence_threshold,
+                       preconditions_.diversification_distance_threshold,
+                       preconditions_.empirical_probability_factor,
+                       interpreter->get())) {
     TC3_LOG(ERROR) << "Failed to setup input for TensorFlow Lite model.";
     return false;
   }
@@ -578,45 +889,81 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
     return;
   }
 
-  // Create actions based on the annotations present in the last message.
-  const ConversationMessage& message = conversation.messages.back();
-  std::vector<AnnotatedSpan> annotations = message.annotations;
+  // Create actions based on the annotations.
+  const int max_from_any_person =
+      model_->annotation_actions_spec()->max_history_from_any_person();
+  const int max_from_last_person =
+      model_->annotation_actions_spec()->max_history_from_last_person();
+  const int last_person = conversation.messages.back().user_id;
 
-  if (annotations.empty() && annotator != nullptr) {
-    annotations =
-        annotator->Annotate(message.text, AnnotationOptionsForMessage(message));
-  }
-  const int message_index = conversation.messages.size() - 1;
-  std::vector<ActionSuggestionAnnotation> action_annotations;
-  action_annotations.reserve(annotations.size());
-  for (const AnnotatedSpan& annotation : annotations) {
-    if (annotation.classification.empty()) {
-      continue;
+  int num_messages_last_person = 0;
+  int num_messages_any_person = 0;
+  bool all_from_last_person = true;
+  for (int message_index = conversation.messages.size() - 1; message_index >= 0;
+       message_index--) {
+    const ConversationMessage& message = conversation.messages[message_index];
+    std::vector<AnnotatedSpan> annotations = message.annotations;
+
+    // Update how many messages we have processed from the last person in the
+    // conversation and from any person in the conversation.
+    num_messages_any_person++;
+    if (all_from_last_person && message.user_id == last_person) {
+      num_messages_last_person++;
+    } else {
+      all_from_last_person = false;
     }
 
-    const ClassificationResult& classification_result =
-        annotation.classification[0];
-
-    ActionSuggestionAnnotation action_annotation;
-    action_annotation.span = {
-        message_index, annotation.span,
-        UTF8ToUnicodeText(message.text, /*do_copy=*/false)
-            .UTF8Substring(annotation.span.first, annotation.span.second)};
-    action_annotation.entity = classification_result;
-    action_annotation.name = classification_result.collection;
-    action_annotations.push_back(action_annotation);
-  }
-
-  if (model_->annotation_actions_spec()->deduplicate_annotations()) {
-    // Create actions only for deduplicated annotations.
-    for (const int annotation_id : DeduplicateAnnotations(action_annotations)) {
-      SuggestActionsFromAnnotation(message_index,
-                                   action_annotations[annotation_id], actions);
+    if (num_messages_any_person > max_from_any_person &&
+        (!all_from_last_person ||
+         num_messages_last_person > max_from_last_person)) {
+      break;
     }
-  } else {
-    // Create actions for all annotations.
-    for (const ActionSuggestionAnnotation& annotation : action_annotations) {
-      SuggestActionsFromAnnotation(message_index, annotation, actions);
+
+    if (message.user_id == kLocalUserId) {
+      if (model_->annotation_actions_spec()->only_until_last_sent()) {
+        break;
+      }
+      if (!model_->annotation_actions_spec()->include_local_user_messages()) {
+        continue;
+      }
+    }
+
+    if (annotations.empty() && annotator != nullptr) {
+      annotations = annotator->Annotate(message.text,
+                                        AnnotationOptionsForMessage(message));
+    }
+    std::vector<ActionSuggestionAnnotation> action_annotations;
+    action_annotations.reserve(annotations.size());
+    for (const AnnotatedSpan& annotation : annotations) {
+      if (annotation.classification.empty()) {
+        continue;
+      }
+
+      const ClassificationResult& classification_result =
+          annotation.classification[0];
+
+      ActionSuggestionAnnotation action_annotation;
+      action_annotation.span = {
+          message_index, annotation.span,
+          UTF8ToUnicodeText(message.text, /*do_copy=*/false)
+              .UTF8Substring(annotation.span.first, annotation.span.second)};
+      action_annotation.entity = classification_result;
+      action_annotation.name = classification_result.collection;
+      action_annotations.push_back(action_annotation);
+    }
+
+    if (model_->annotation_actions_spec()->deduplicate_annotations()) {
+      // Create actions only for deduplicated annotations.
+      for (const int annotation_id :
+           DeduplicateAnnotations(action_annotations)) {
+        SuggestActionsFromAnnotation(
+            message_index, action_annotations[annotation_id], actions);
+      }
+    } else {
+      // Create actions for all annotations.
+      for (const ActionSuggestionAnnotation& annotation : action_annotations) {
+        SuggestActionsFromAnnotation(message_index, annotation, actions);
+      }
     }
   }
 }
@@ -686,20 +1033,9 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
   return result;
 }
 
-bool ActionsSuggestions::HasEntityData(const RulesModel_::Rule* rule) const {
-  for (const RulesModel_::Rule_::RuleActionSpec* rule_action :
-       *rule->actions()) {
-    if (rule_action->action()->serialized_entity_data() != nullptr ||
-        rule_action->capturing_group() != nullptr) {
-      return true;
-    }
-  }
-  return false;
-}
-
 bool ActionsSuggestions::FillAnnotationFromMatchGroup(
     const UniLib::RegexMatcher* matcher,
-    const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup* group,
+    const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
     const int message_index, ActionSuggestionAnnotation* annotation) const {
   if (group->annotation_name() != nullptr ||
       group->annotation_type() != nullptr) {
@@ -742,55 +1078,78 @@ bool ActionsSuggestions::SuggestActionsFromRules(
     const std::unique_ptr<UniLib::RegexMatcher> matcher =
         rule.pattern->Matcher(message_unicode);
     int status = UniLib::RegexMatcher::kNoError;
-    const bool has_entity_data = HasEntityData(rule.rule);
     while (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
       for (const RulesModel_::Rule_::RuleActionSpec* rule_action :
            *rule.rule->actions()) {
         const ActionSuggestionSpec* action = rule_action->action();
         std::vector<ActionSuggestionAnnotation> annotations;
 
-        std::string serialized_entity_data;
-        if (has_entity_data) {
-          TC3_CHECK(entity_data_builder_ != nullptr);
-          std::unique_ptr<ReflectiveFlatbuffer> entity_data =
-              entity_data_builder_->NewRoot();
+        bool sets_entity_data = false;
+        std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+            entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                            : nullptr;
+
+        // Set static entity data.
+        if (action != nullptr && action->serialized_entity_data() != nullptr) {
           TC3_CHECK(entity_data != nullptr);
+          sets_entity_data = true;
+          entity_data->MergeFromSerializedFlatbuffer(
+              StringPiece(action->serialized_entity_data()->c_str(),
+                          action->serialized_entity_data()->size()));
+        }
 
-          // Set static entity data.
-          if (action->serialized_entity_data() != nullptr) {
-            entity_data->MergeFromSerializedFlatbuffer(
-                StringPiece(action->serialized_entity_data()->c_str(),
-                            action->serialized_entity_data()->size()));
-          }
-
-          // Add entity data from rule capturing groups.
-          if (rule_action->capturing_group() != nullptr) {
-            for (const RulesModel_::Rule_::RuleActionSpec_::CapturingGroup*
-                     group : *rule_action->capturing_group()) {
-              if (group->entity_field() != nullptr &&
-                  !SetFieldFromCapturingGroup(
+        // Add entity data from rule capturing groups.
+        if (rule_action->capturing_group() != nullptr) {
+          for (const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup*
+                   group : *rule_action->capturing_group()) {
+            if (group->entity_field() != nullptr) {
+              TC3_CHECK(entity_data != nullptr);
+              sets_entity_data = true;
+              if (!SetFieldFromCapturingGroup(
                       group->group_id(), group->entity_field(), matcher.get(),
                       entity_data.get())) {
                 TC3_LOG(ERROR)
                     << "Could not set entity data from rule capturing group.";
                 return false;
               }
+            }
 
-              // Create a text annotation for the group span.
-              ActionSuggestionAnnotation annotation;
-              if (FillAnnotationFromMatchGroup(matcher.get(), group,
-                                               message_index, &annotation)) {
-                annotations.push_back(annotation);
+            // Create a text annotation for the group span.
+            ActionSuggestionAnnotation annotation;
+            if (FillAnnotationFromMatchGroup(matcher.get(), group,
+                                             message_index, &annotation)) {
+              annotations.push_back(annotation);
+            }
+
+            // Create text reply.
+            if (group->text_reply() != nullptr) {
+              int status = UniLib::RegexMatcher::kNoError;
+              const std::string group_text =
+                  matcher->Group(group->group_id(), &status).ToUTF8String();
+              if (status != UniLib::RegexMatcher::kNoError) {
+                TC3_LOG(ERROR) << "Could get text from capturing group.";
+                return false;
               }
+              if (group_text.empty()) {
+                // The group was not part of the match, ignore and continue.
+                continue;
+              }
+              actions->push_back(SuggestionFromSpec(
+                  group->text_reply(),
+                  /*default_type=*/model_->smart_reply_action_type()->str(),
+                  /*default_response_text=*/group_text));
             }
           }
-
-          serialized_entity_data = entity_data->Serialize();
         }
-        ActionSuggestion suggestion = SuggestionFromSpec(action);
-        suggestion.annotations = annotations;
-        suggestion.serialized_entity_data = serialized_entity_data;
-        actions->push_back(suggestion);
+
+        if (action != nullptr) {
+          ActionSuggestion suggestion = SuggestionFromSpec(action);
+          suggestion.annotations = annotations;
+          if (sets_entity_data) {
+            suggestion.serialized_entity_data = entity_data->Serialize();
+          }
+          actions->push_back(suggestion);
+        }
       }
     }
   }
@@ -824,14 +1183,8 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
-  const int conversation_history_length = conversation.messages.size();
-  const int max_conversation_history_length =
-      model_->max_conversation_history_length();
-  const int num_messages =
-      ((max_conversation_history_length < 0 ||
-        conversation_history_length < max_conversation_history_length)
-           ? conversation_history_length
-           : max_conversation_history_length);
+  const int num_messages = NumMessagesToConsider(
+      conversation, model_->max_conversation_history_length());
 
   if (num_messages <= 0) {
     TC3_LOG(INFO) << "No messages provided for actions suggestions.";
@@ -853,15 +1206,15 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     }
     if (Locale::IsAnyLocaleSupported(
             message_languages, locales_,
-            model_->preconditions()->handle_unknown_locale_as_supported())) {
+            preconditions_.handle_unknown_locale_as_supported)) {
       ++num_matching_locales;
     }
   }
 
   // Bail out if we are provided with too few or too much input.
-  if (input_text_length < model_->preconditions()->min_input_length() ||
-      (model_->preconditions()->max_input_length() >= 0 &&
-       input_text_length > model_->preconditions()->max_input_length())) {
+  if (input_text_length < preconditions_.min_input_length ||
+      (preconditions_.max_input_length >= 0 &&
+       input_text_length > preconditions_.max_input_length)) {
     TC3_LOG(INFO) << "Too much or not enough input for inference.";
     return response;
   }
@@ -869,15 +1222,15 @@ bool ActionsSuggestions::GatherActionsSuggestions(
   // Bail out if the text does not look like it can be handled by the model.
   const float matching_fraction =
       static_cast<float>(num_matching_locales) / num_messages;
-  if (matching_fraction <
-      model_->preconditions()->min_locale_match_fraction()) {
+  if (matching_fraction < preconditions_.min_locale_match_fraction) {
     TC3_LOG(INFO) << "Not enough locale matches.";
     response->output_filtered_locale_mismatch = true;
     return true;
   }
 
   std::vector<int> post_check_rules;
-  if (IsLowConfidenceInput(conversation, num_messages, &post_check_rules)) {
+  if (preconditions_.suppress_on_low_confidence_input &&
+      IsLowConfidenceInput(conversation, num_messages, &post_check_rules)) {
     response->output_filtered_low_confidence = true;
     return true;
   }
@@ -890,7 +1243,7 @@ bool ActionsSuggestions::GatherActionsSuggestions(
   }
 
   // Suppress all predictions if the conversation was deemed sensitive.
-  if (model_->preconditions()->suppress_on_sensitive_topic() &&
+  if (preconditions_.suppress_on_sensitive_topic &&
       response->output_filtered_sensitivity) {
     return true;
   }
@@ -908,7 +1261,8 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return false;
   }
 
-  if (!FilterConfidenceOutput(post_check_rules, &response->actions)) {
+  if (preconditions_.suppress_on_low_confidence_input &&
+      !FilterConfidenceOutput(post_check_rules, &response->actions)) {
     TC3_LOG(ERROR) << "Could not post-check actions.";
     return false;
   }
@@ -923,7 +1277,7 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
   if (!GatherActionsSuggestions(conversation, annotator, options, &response)) {
     TC3_LOG(ERROR) << "Could not gather actions suggestions.";
     response.actions.clear();
-  } else if (!ranker_->RankActions(&response, entity_data_schema_,
+  } else if (!ranker_->RankActions(conversation, &response, entity_data_schema_,
                                    annotator != nullptr
                                        ? annotator->entity_data_schema()
                                        : nullptr)) {

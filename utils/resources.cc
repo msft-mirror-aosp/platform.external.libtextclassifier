@@ -128,8 +128,9 @@ bool Resources::GetResourceContent(const std::vector<Locale>& locales,
     *result = resource->content()->str();
     return true;
   } else if (resource->compressed_content() != nullptr) {
-    std::unique_ptr<ZlibDecompressor> decompressor =
-        ZlibDecompressor::Instance();
+    std::unique_ptr<ZlibDecompressor> decompressor = ZlibDecompressor::Instance(
+        resources_->compression_dictionary()->data(),
+        resources_->compression_dictionary()->size());
     if (decompressor != nullptr &&
         decompressor->MaybeDecompress(resource->compressed_content(), result)) {
       return true;
@@ -138,15 +139,48 @@ bool Resources::GetResourceContent(const std::vector<Locale>& locales,
   return false;
 }
 
-bool CompressResources(ResourcePoolT* resources) {
+bool CompressResources(ResourcePoolT* resources,
+                       const bool build_compression_dictionary,
+                       const int dictionary_sample_every) {
+  std::vector<unsigned char> dictionary;
+  if (build_compression_dictionary) {
+    {
+      // Build up a compression dictionary.
+      std::unique_ptr<ZlibCompressor> compressor = ZlibCompressor::Instance();
+      int i = 0;
+      for (auto& entry : resources->resource_entry) {
+        for (auto& resource : entry->resource) {
+          if (resource->content.empty()) {
+            continue;
+          }
+          i++;
+
+          // Use a sample of the entries to build up a custom compression
+          // dictionary. Using all entries will generally not give a benefit
+          // for small data sizes, so we subsample here.
+          if (i % dictionary_sample_every != 0) {
+            continue;
+          }
+          CompressedBufferT compressed_content;
+          compressor->Compress(resource->content, &compressed_content);
+        }
+      }
+      compressor->GetDictionary(&dictionary);
+      resources->compression_dictionary.assign(
+          dictionary.data(), dictionary.data() + dictionary.size());
+    }
+  }
+
   for (auto& entry : resources->resource_entry) {
     for (auto& resource : entry->resource) {
       if (resource->content.empty()) {
         continue;
       }
-
       // Try compressing the data.
-      std::unique_ptr<ZlibCompressor> compressor = ZlibCompressor::Instance();
+      std::unique_ptr<ZlibCompressor> compressor =
+          build_compression_dictionary
+              ? ZlibCompressor::Instance(dictionary.data(), dictionary.size())
+              : ZlibCompressor::Instance();
       if (!compressor) {
         TC3_LOG(ERROR) << "Cannot create zlib compressor.";
         return false;
@@ -154,6 +188,7 @@ bool CompressResources(ResourcePoolT* resources) {
 
       CompressedBufferT compressed_content;
       compressor->Compress(resource->content, &compressed_content);
+
       // Only keep compressed version if smaller.
       if (compressed_content.uncompressed_size >
           compressed_content.buffer.size()) {
@@ -166,11 +201,13 @@ bool CompressResources(ResourcePoolT* resources) {
   return true;
 }
 
-std::string CompressSerializedResources(const std::string& resources) {
+std::string CompressSerializedResources(const std::string& resources,
+                                        const int dictionary_sample_every) {
   std::unique_ptr<ResourcePoolT> unpacked_resources(
       flatbuffers::GetRoot<ResourcePool>(resources.data())->UnPack());
   TC3_CHECK(unpacked_resources != nullptr);
-  TC3_CHECK(CompressResources(unpacked_resources.get()));
+  TC3_CHECK(
+      CompressResources(unpacked_resources.get(), dictionary_sample_every));
   flatbuffers::FlatBufferBuilder builder;
   builder.Finish(ResourcePool::Pack(builder, unpacked_resources.get()));
   return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
