@@ -18,8 +18,11 @@
 #define LIBTEXTCLASSIFIER_UTILS_I18N_LOCALE_H_
 
 #include <string>
+#include <vector>
 
 #include "utils/base/integral_types.h"
+#include "utils/base/logging.h"
+#include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {
 
@@ -43,6 +46,15 @@ class Locale {
   std::string Region() const { return region_; }
 
   bool IsValid() const { return is_valid_; }
+  bool IsUnknown() const;
+
+  // Returns whether any of the given locales is supported by any of the
+  // supported locales. Returns default value if the given 'locales' list, or
+  // 'supported_locales' list is empty or an unknown locale is found.
+  // Locale::FromBCP47("*") means any locale.
+  static bool IsAnyLocaleSupported(const std::vector<Locale>& locales,
+                                   const std::vector<Locale>& supported_locales,
+                                   bool default_value);
 
  private:
   Locale(const std::string& language, const std::string& script,
@@ -52,11 +64,22 @@ class Locale {
         region_(region),
         is_valid_(true) {}
 
+  static bool IsLocaleSupported(const Locale& locale,
+                                const std::vector<Locale>& supported_locales,
+                                bool default_value);
+
   std::string language_;
   std::string script_;
   std::string region_;
   bool is_valid_;
 };
+
+// Pretty-printing function for Locale.
+logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
+                                         const Locale& locale);
+
+// Parses a comma-separated list of BCP47 tags.
+bool ParseLocales(StringPiece locales_list, std::vector<Locale>* locales);
 
 }  // namespace libtextclassifier3
 

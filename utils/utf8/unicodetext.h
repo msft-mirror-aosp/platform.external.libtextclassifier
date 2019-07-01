@@ -75,7 +75,7 @@ class UnicodeText {
     typedef const_iterator CI;
 
    public:
-    typedef std::input_iterator_tag iterator_category;
+    typedef std::bidirectional_iterator_tag iterator_category;
     typedef char32 value_type;
     typedef int difference_type;
     typedef void pointer;            // (Not needed.)
@@ -172,8 +172,11 @@ class UnicodeText {
   void clear();
 
   std::string ToUTF8String() const;
-  static std::string UTF8Substring(const const_iterator& first,
-                                   const const_iterator& last);
+  std::string UTF8Substring(int begin_codepoint, int end_codepoint) const;
+  static std::string UTF8Substring(const const_iterator& it_begin,
+                                   const const_iterator& it_end);
+  static UnicodeText Substring(const UnicodeText& text, int begin_codepoint,
+                               int end_codepoint, bool do_copy = true);
 
  private:
   friend class const_iterator;
@@ -214,9 +217,10 @@ typedef std::pair<UnicodeText::const_iterator, UnicodeText::const_iterator>
 // std::string, or from ::string to std::string, because if this happens it
 // often results in invalid memory access to a temporary object created during
 // such conversion (if do_copy == false).
-UnicodeText UTF8ToUnicodeText(const char* utf8_buf, int len, bool do_copy);
-UnicodeText UTF8ToUnicodeText(const char* utf8_buf, bool do_copy);
-UnicodeText UTF8ToUnicodeText(const std::string& str, bool do_copy);
+UnicodeText UTF8ToUnicodeText(const char* utf8_buf, int len,
+                              bool do_copy = true);
+UnicodeText UTF8ToUnicodeText(const char* utf8_buf, bool do_copy = true);
+UnicodeText UTF8ToUnicodeText(const std::string& str, bool do_copy = true);
 UnicodeText UTF8ToUnicodeText(const std::string& str);
 
 }  // namespace libtextclassifier3

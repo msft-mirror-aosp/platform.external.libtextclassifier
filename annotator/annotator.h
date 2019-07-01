@@ -22,28 +22,52 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
+#include "annotator/contact/contact-engine.h"
 #include "annotator/datetime/parser.h"
+#include "annotator/duration/duration.h"
 #include "annotator/feature-processor.h"
+#include "annotator/installed_app/installed-app-engine.h"
 #include "annotator/knowledge/knowledge-engine.h"
 #include "annotator/model-executor.h"
 #include "annotator/model_generated.h"
+#include "annotator/number/number.h"
 #include "annotator/strip-unpaired-brackets.h"
 #include "annotator/types.h"
 #include "annotator/zlib-utils.h"
+#include "utils/flatbuffers.h"
+#include "utils/i18n/locale.h"
 #include "utils/memory/mmap.h"
 #include "utils/utf8/unilib.h"
 #include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3 {
 
+// Aliases for long enum values.
+const AnnotationUsecase ANNOTATION_USECASE_SMART =
+    AnnotationUsecase_ANNOTATION_USECASE_SMART;
+const AnnotationUsecase ANNOTATION_USECASE_RAW =
+    AnnotationUsecase_ANNOTATION_USECASE_RAW;
+
 struct SelectionOptions {
   // Comma-separated list of locale specification for the input text (BCP 47
   // tags).
   std::string locales;
 
-  static SelectionOptions Default() { return SelectionOptions(); }
+  // Comma-separated list of BCP 47 language tags.
+  std::string detected_text_language_tags;
+
+  // Tailors the output annotations according to the specified use-case.
+  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
+
+  bool operator==(const SelectionOptions& other) const {
+    return this->locales == other.locales &&
+           this->annotation_usecase == other.annotation_usecase &&
+           this->detected_text_language_tags ==
+               other.detected_text_language_tags;
+  }
 };
 
 struct ClassificationOptions {
@@ -59,7 +83,20 @@ struct ClassificationOptions {
   // tags).
   std::string locales;
 
-  static ClassificationOptions Default() { return ClassificationOptions(); }
+  // Comma-separated list of language tags.
+  std::string detected_text_language_tags;
+
+  // Tailors the output annotations according to the specified use-case.
+  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
+
+  bool operator==(const ClassificationOptions& other) const {
+    return this->reference_time_ms_utc == other.reference_time_ms_utc &&
+           this->reference_timezone == other.reference_timezone &&
+           this->locales == other.locales &&
+           this->detected_text_language_tags ==
+               other.detected_text_language_tags &&
+           this->annotation_usecase == other.annotation_usecase;
+  }
 };
 
 struct AnnotationOptions {
@@ -75,7 +112,28 @@ struct AnnotationOptions {
   // tags).
   std::string locales;
 
-  static AnnotationOptions Default() { return AnnotationOptions(); }
+  // Comma-separated list of language tags.
+  std::string detected_text_language_tags;
+
+  // List of entity types that should be used for annotation.
+  std::unordered_set<std::string> entity_types;
+
+  // If true, serialized_entity_data in the results is populated."
+  bool is_serialized_entity_data_enabled = false;
+
+  // Tailors the output annotations according to the specified use-case.
+  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
+
+  bool operator==(const AnnotationOptions& other) const {
+    return this->reference_time_ms_utc == other.reference_time_ms_utc &&
+           this->reference_timezone == other.reference_timezone &&
+           this->locales == other.locales &&
+           this->detected_text_language_tags ==
+               other.detected_text_language_tags &&
+           this->annotation_usecase == other.annotation_usecase &&
+           this->is_serialized_entity_data_enabled ==
+               other.is_serialized_entity_data_enabled;
+  }
 };
 
 // Holds TFLite interpreters for selection and classification models.
@@ -105,6 +163,23 @@ class InterpreterManager {
   std::unique_ptr<tflite::Interpreter> classification_interpreter_;
 };
 
+// Stores entity types enabled for annotation, and provides operator() for
+// checking whether a given entity type is enabled.
+class EnabledEntityTypes {
+ public:
+  explicit EnabledEntityTypes(
+      const std::unordered_set<std::string>& entity_types)
+      : entity_types_(entity_types) {}
+
+  bool operator()(const std::string& entity_type) const {
+    return entity_types_.empty() ||
+           entity_types_.find(entity_type) != entity_types_.cend();
+  }
+
+ private:
+  const std::unordered_set<std::string>& entity_types_;
+};
+
 // A text processing model that provides text classification, annotation,
 // selection suggestion for various types.
 // NOTE: This class is not thread-safe.
@@ -117,21 +192,39 @@ class Annotator {
   static std::unique_ptr<Annotator> FromScopedMmap(
       std::unique_ptr<ScopedMmap>* mmap, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr);
+  static std::unique_ptr<Annotator> FromScopedMmap(
+      std::unique_ptr<ScopedMmap>* mmap, std::unique_ptr<UniLib> unilib,
+      std::unique_ptr<CalendarLib> calendarlib);
   static std::unique_ptr<Annotator> FromFileDescriptor(
       int fd, int offset, int size, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr);
   static std::unique_ptr<Annotator> FromFileDescriptor(
+      int fd, int offset, int size, std::unique_ptr<UniLib> unilib,
+      std::unique_ptr<CalendarLib> calendarlib);
+  static std::unique_ptr<Annotator> FromFileDescriptor(
       int fd, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr);
+  static std::unique_ptr<Annotator> FromFileDescriptor(
+      int fd, std::unique_ptr<UniLib> unilib,
+      std::unique_ptr<CalendarLib> calendarlib);
   static std::unique_ptr<Annotator> FromPath(
       const std::string& path, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr);
+  static std::unique_ptr<Annotator> FromPath(
+      const std::string& path, std::unique_ptr<UniLib> unilib,
+      std::unique_ptr<CalendarLib> calendarlib);
 
   // Returns true if the model is ready for use.
   bool IsInitialized() { return initialized_; }
 
   // Initializes the knowledge engine with the given config.
   bool InitializeKnowledgeEngine(const std::string& serialized_config);
+
+  // Initializes the contact engine with the given config.
+  bool InitializeContactEngine(const std::string& serialized_config);
+
+  // Initializes the installed app engine with the given config.
+  bool InitializeInstalledAppEngine(const std::string& serialized_config);
 
   // Runs inference for given a context and current selection (i.e. index
   // of the first and one past last selected characters (utf8 codepoint
@@ -143,20 +236,27 @@ class Annotator {
   // Requires that the model is a smart selection model.
   CodepointSpan SuggestSelection(
       const std::string& context, CodepointSpan click_indices,
-      const SelectionOptions& options = SelectionOptions::Default()) const;
+      const SelectionOptions& options = SelectionOptions()) const;
 
   // Classifies the selected text given the context string.
   // Returns an empty result if an error occurs.
   std::vector<ClassificationResult> ClassifyText(
       const std::string& context, CodepointSpan selection_indices,
-      const ClassificationOptions& options =
-          ClassificationOptions::Default()) const;
+      const ClassificationOptions& options = ClassificationOptions()) const;
 
   // Annotates given input text. The annotations are sorted by their position
   // in the context string and exclude spans classified as 'other'.
   std::vector<AnnotatedSpan> Annotate(
       const std::string& context,
-      const AnnotationOptions& options = AnnotationOptions::Default()) const;
+      const AnnotationOptions& options = AnnotationOptions()) const;
+
+  // Looks up a knowledge entity by its id. If successful, populates the
+  // serialized knowledge result and returns true.
+  bool LookUpKnowledgeEntity(const std::string& id,
+                             std::string* serialized_knowledge_result) const;
+
+  const Model* model() const;
+  const reflection::Schema* entity_data_schema() const;
 
   // Exposes the feature processor for tests and evaluations.
   const FeatureProcessor* SelectionFeatureProcessorForTests() const;
@@ -165,18 +265,11 @@ class Annotator {
   // Exposes the date time parser for tests and evaluations.
   const DatetimeParser* DatetimeParserForTests() const;
 
-  // String collection names for various classes.
-  static const std::string& kOtherCollection;
   static const std::string& kPhoneCollection;
   static const std::string& kAddressCollection;
   static const std::string& kDateCollection;
   static const std::string& kUrlCollection;
-  static const std::string& kFlightCollection;
   static const std::string& kEmailCollection;
-  static const std::string& kIbanCollection;
-  static const std::string& kPaymentCardCollection;
-  static const std::string& kIsbnCollection;
-  static const std::string& kTrackingNumberCollection;
 
  protected:
   struct ScoredChunk {
@@ -188,11 +281,14 @@ class Annotator {
   // Takes ownership of 'mmap', and thus owns the buffer that backs 'model'.
   Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
             const UniLib* unilib, const CalendarLib* calendarlib);
+  Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
+            std::unique_ptr<UniLib> unilib,
+            std::unique_ptr<CalendarLib> calendarlib);
 
   // Constructs, validates and initializes text classifier from given model.
   // Does not own the buffer that backs 'model'.
-  explicit Annotator(const Model* model, const UniLib* unilib,
-                     const CalendarLib* calendarlib);
+  Annotator(const Model* model, const UniLib* unilib,
+            const CalendarLib* calendarlib);
 
   // Checks that model contains all required fields, and initializes internal
   // datastructures.
@@ -208,6 +304,8 @@ class Annotator {
   bool ResolveConflicts(const std::vector<AnnotatedSpan>& candidates,
                         const std::string& context,
                         const std::vector<Token>& cached_tokens,
+                        const std::vector<Locale>& detected_text_language_tags,
+                        AnnotationUsecase annotation_usecase,
                         InterpreterManager* interpreter_manager,
                         std::vector<int>* result) const;
 
@@ -217,31 +315,45 @@ class Annotator {
   bool ResolveConflict(const std::string& context,
                        const std::vector<Token>& cached_tokens,
                        const std::vector<AnnotatedSpan>& candidates,
+                       const std::vector<Locale>& detected_text_language_tags,
                        int start_index, int end_index,
+                       AnnotationUsecase annotation_usecase,
                        InterpreterManager* interpreter_manager,
                        std::vector<int>* chosen_indices) const;
 
   // Gets selection candidates from the ML model.
   // Provides the tokens produced during tokenization of the context string for
   // reuse.
-  bool ModelSuggestSelection(const UnicodeText& context_unicode,
-                             CodepointSpan click_indices,
-                             InterpreterManager* interpreter_manager,
-                             std::vector<Token>* tokens,
-                             std::vector<AnnotatedSpan>* result) const;
+  bool ModelSuggestSelection(
+      const UnicodeText& context_unicode, CodepointSpan click_indices,
+      const std::vector<Locale>& detected_text_language_tags,
+      InterpreterManager* interpreter_manager, std::vector<Token>* tokens,
+      std::vector<AnnotatedSpan>* result) const;
 
   // Classifies the selected text given the context string with the
   // classification model.
   // Returns true if no error occurred.
   bool ModelClassifyText(
       const std::string& context, const std::vector<Token>& cached_tokens,
+      const std::vector<Locale>& locales, CodepointSpan selection_indices,
+      InterpreterManager* interpreter_manager,
+      FeatureProcessor::EmbeddingCache* embedding_cache,
+      std::vector<ClassificationResult>* classification_results,
+      std::vector<Token>* tokens) const;
+
+  // Same as above but doesn't output tokens.
+  bool ModelClassifyText(
+      const std::string& context, const std::vector<Token>& cached_tokens,
+      const std::vector<Locale>& detected_text_language_tags,
       CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
 
+  // Same as above but doesn't take cached tokens and doesn't output tokens.
   bool ModelClassifyText(
-      const std::string& context, CodepointSpan selection_indices,
-      InterpreterManager* interpreter_manager,
+      const std::string& context,
+      const std::vector<Locale>& detected_text_language_tags,
+      CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
 
@@ -251,17 +363,17 @@ class Annotator {
   TokenSpan ClassifyTextUpperBoundNeededTokens() const;
 
   // Classifies the selected text with the regular expressions models.
-  // Returns true if any regular expression matched and the result was set.
-  bool RegexClassifyText(const std::string& context,
-                         CodepointSpan selection_indices,
-                         ClassificationResult* classification_result) const;
+  // Returns true if no error happened, false otherwise.
+  bool RegexClassifyText(
+      const std::string& context, CodepointSpan selection_indices,
+      std::vector<ClassificationResult>* classification_result) const;
 
   // Classifies the selected text with the date time model.
-  // Returns true if there was a match and the result was set.
-  bool DatetimeClassifyText(const std::string& context,
-                            CodepointSpan selection_indices,
-                            const ClassificationOptions& options,
-                            ClassificationResult* classification_result) const;
+  // Returns true if no error happened, false otherwise.
+  bool DatetimeClassifyText(
+      const std::string& context, CodepointSpan selection_indices,
+      const ClassificationOptions& options,
+      std::vector<ClassificationResult>* classification_results) const;
 
   // Chunks given input text with the selection model and classifies the spans
   // with the classification model.
@@ -270,6 +382,7 @@ class Annotator {
   // Provides the tokens produced during tokenization of the context string for
   // reuse.
   bool ModelAnnotate(const std::string& context,
+                     const std::vector<Locale>& detected_text_language_tags,
                      InterpreterManager* interpreter_manager,
                      std::vector<Token>* tokens,
                      std::vector<AnnotatedSpan>* result) const;
@@ -309,13 +422,16 @@ class Annotator {
   // Produces chunks isolated by a set of regular expressions.
   bool RegexChunk(const UnicodeText& context_unicode,
                   const std::vector<int>& rules,
-                  std::vector<AnnotatedSpan>* result) const;
+                  std::vector<AnnotatedSpan>* result,
+                  bool is_serialized_entity_data_enabled) const;
 
   // Produces chunks from the datetime parser.
   bool DatetimeChunk(const UnicodeText& context_unicode,
                      int64 reference_time_ms_utc,
                      const std::string& reference_timezone,
                      const std::string& locales, ModeFlag mode,
+                     AnnotationUsecase annotation_usecase,
+                     bool is_serialized_entity_data_enabled,
                      std::vector<AnnotatedSpan>* result) const;
 
   // Returns whether a classification should be filtered.
@@ -323,6 +439,25 @@ class Annotator {
   bool FilteredForClassification(
       const ClassificationResult& classification) const;
   bool FilteredForSelection(const AnnotatedSpan& span) const;
+
+  // Computes the selection boundaries from a regular expression match.
+  CodepointSpan ComputeSelectionBoundaries(
+      const UniLib::RegexMatcher* match,
+      const RegexModel_::Pattern* config) const;
+
+  // Returns whether a regex pattern provides entity data from a match.
+  bool HasEntityData(const RegexModel_::Pattern* pattern) const;
+
+  // Constructs and serializes entity data from regex matches.
+  bool SerializedEntityDataFromRegexMatch(
+      const RegexModel_::Pattern* pattern, UniLib::RegexMatcher* matcher,
+      std::string* serialized_entity_data) const;
+
+  // Verifies a regex match and returns true if verification was successful.
+  bool VerifyRegexMatchCandidate(
+      const std::string& context,
+      const VerificationOptions* verification_options, const std::string& match,
+      const UniLib::RegexMatcher* matcher) const;
 
   const Model* model_;
 
@@ -337,12 +472,15 @@ class Annotator {
 
  private:
   struct CompiledRegexPattern {
-    std::string collection_name;
-    float target_classification_score;
-    float priority_score;
+    const RegexModel_::Pattern* config;
     std::unique_ptr<UniLib::RegexPattern> pattern;
-    const VerificationOptions* verification_options;
   };
+
+  // Removes annotations the entity type of which is not in the set of enabled
+  // entity types.
+  void RemoveNotEnabledEntityTypes(
+      const EnabledEntityTypes& is_entity_type_enabled,
+      std::vector<AnnotatedSpan>* annotated_spans) const;
 
   std::unique_ptr<ScopedMmap> mmap_;
   bool initialized_ = false;
@@ -354,7 +492,6 @@ class Annotator {
   std::unordered_set<std::string> filtered_collections_selection_;
 
   std::vector<CompiledRegexPattern> regex_patterns_;
-  std::unordered_set<int> regex_approximate_match_pattern_ids_;
 
   // Indices into regex_patterns_ for the different modes.
   std::vector<int> annotation_regex_patterns_, classification_regex_patterns_,
@@ -366,6 +503,23 @@ class Annotator {
   const CalendarLib* calendarlib_;
 
   std::unique_ptr<const KnowledgeEngine> knowledge_engine_;
+  std::unique_ptr<const ContactEngine> contact_engine_;
+  std::unique_ptr<const InstalledAppEngine> installed_app_engine_;
+  std::unique_ptr<const NumberAnnotator> number_annotator_;
+  std::unique_ptr<const DurationAnnotator> duration_annotator_;
+
+  // Builder for creating extra data.
+  const reflection::Schema* entity_data_schema_;
+  std::unique_ptr<ReflectiveFlatbufferBuilder> entity_data_builder_;
+
+  // Locales for which the entire model triggers.
+  std::vector<Locale> model_triggering_locales_;
+
+  // Locales for which the ML model triggers.
+  std::vector<Locale> ml_model_triggering_locales_;
+
+  // Locales that the dictionary classification support.
+  std::vector<Locale> dictionary_locales_;
 };
 
 namespace internal {
@@ -387,6 +541,23 @@ std::vector<Token> CopyCachedTokens(const std::vector<Token>& cached_tokens,
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.
 const Model* ViewModel(const void* buffer, int size);
+
+// Opens model from given path and runs a function, passing the loaded Model
+// flatbuffer as an argument.
+//
+// This is mainly useful if we don't want to pay the cost for the model
+// initialization because we'll be only reading some flatbuffer values from the
+// file.
+template <typename ReturnType, typename Func>
+ReturnType VisitAnnotatorModel(const std::string& path, Func function) {
+  ScopedMmap mmap(path);
+  if (!mmap.handle().ok()) {
+    function(/*model=*/nullptr);
+  }
+  const Model* model =
+      ViewModel(mmap.handle().start(), mmap.handle().num_bytes());
+  return function(model);
+}
 
 }  // namespace libtextclassifier3
 
