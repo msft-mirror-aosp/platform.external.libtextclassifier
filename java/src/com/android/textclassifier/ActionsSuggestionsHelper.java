@@ -73,7 +73,7 @@ public final class ActionsSuggestionsHelper {
      */
     public static ActionsSuggestionsModel.ConversationMessage[] toNativeMessages(
             List<ConversationActions.Message> messages,
-            Function<CharSequence, String> languageDetector) {
+            Function<CharSequence, List<String>> languageDetector) {
         List<ConversationActions.Message> messagesWithText =
                 messages.stream()
                         .filter(message -> !TextUtils.isEmpty(message.getText()))
@@ -100,7 +100,7 @@ public final class ActionsSuggestionsHelper {
                             message.getText().toString(),
                             referenceTime,
                             timeZone,
-                            languageDetector.apply(message.getText())));
+                            String.join(",", languageDetector.apply(message.getText()))));
         }
         return nativeMessages.toArray(
                 new ActionsSuggestionsModel.ConversationMessage[nativeMessages.size()]);

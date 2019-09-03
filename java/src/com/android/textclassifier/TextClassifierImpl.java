@@ -73,7 +73,6 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -221,7 +220,11 @@ final class TextClassifierImpl {
             if (string.length() > 0
                     && rangeLength <= mSettings.getSuggestSelectionMaxRangeLength()) {
                 final String localesString = concatenateLocales(request.getDefaultLocales());
-                final String detectLanguageTags = detectLanguageTagsFromText(request.getText());
+                final String detectLanguageTags =
+                        String.join(
+                                ",",
+                                detectLanguages(request.getText(), getLangIdThreshold())
+                                        .getEntities());
                 final ZonedDateTime refTime = ZonedDateTime.now();
                 final AnnotatorModel annotatorImpl = getAnnotatorImpl(request.getDefaultLocales());
                 final int[] startEnd =
@@ -280,17 +283,17 @@ final class TextClassifierImpl {
     TextClassification classifyText(TextClassification.Request request) {
         Preconditions.checkNotNull(request);
         checkMainThread();
-        if (mSettings.isUserLanguageProfileEnabled()) {
-            ListenableFuture<Void> ignoredResult =
-                    mLanguageProfileUpdater.updateFromClassifyTextAsync(
-                            request, this::detectLanguageTagsFromText);
-        }
         try {
+            List<String> detectLanguageTags =
+                    detectLanguages(request.getText(), getLangIdThreshold()).getEntities();
+            if (mSettings.isUserLanguageProfileEnabled()) {
+                ListenableFuture<Void> ignoredResult =
+                        mLanguageProfileUpdater.updateFromClassifyTextAsync(detectLanguageTags);
+            }
             final int rangeLength = request.getEndIndex() - request.getStartIndex();
             final String string = request.getText().toString();
             if (string.length() > 0 && rangeLength <= mSettings.getClassifyTextMaxRangeLength()) {
                 final String localesString = concatenateLocales(request.getDefaultLocales());
-                final String detectLanguageTags = detectLanguageTagsFromText(request.getText());
                 final ZonedDateTime refTime =
                         request.getReferenceTime() != null
                                 ? request.getReferenceTime()
@@ -305,7 +308,7 @@ final class TextClassifierImpl {
                                                 refTime.toInstant().toEpochMilli(),
                                                 refTime.getZone().getId(),
                                                 localesString,
-                                                detectLanguageTags),
+                                                String.join(",", detectLanguageTags)),
                                         mContext,
                                         getResourceLocalesString());
                 if (results.length > 0) {
@@ -346,7 +349,10 @@ final class TextClassifierImpl {
                                                     request.getEntityConfig().getHints()))
                             : mSettings.getEntityListDefault();
             final String localesString = concatenateLocales(request.getDefaultLocales());
-            final String detectLanguageTags = detectLanguageTagsFromText(request.getText());
+            final String detectLanguageTags =
+                    String.join(
+                            ",",
+                            detectLanguages(request.getText(), getLangIdThreshold()).getEntities());
             final AnnotatorModel annotatorImpl = getAnnotatorImpl(request.getDefaultLocales());
             final boolean isSerializedEntityDataEnabled =
                     ExtrasUtils.isSerializedEntityDataEnabled(request);
@@ -453,9 +459,11 @@ final class TextClassifierImpl {
         Preconditions.checkNotNull(request);
         checkMainThread();
         if (mSettings.isUserLanguageProfileEnabled()) {
+            // FIXME: Reuse the LangID result.
             ListenableFuture<Void> ignoredResult =
                     mLanguageProfileUpdater.updateFromConversationActionsAsync(
-                            request, this::detectLanguageTagsFromText);
+                            request,
+                            text -> detectLanguages(text, getLangIdThreshold()).getEntities());
         }
         try {
             ActionsSuggestionsModel actionsImpl = getActionsImpl();
@@ -465,7 +473,8 @@ final class TextClassifierImpl {
             }
             ActionsSuggestionsModel.ConversationMessage[] nativeMessages =
                     ActionsSuggestionsHelper.toNativeMessages(
-                            request.getConversation(), this::detectLanguageTagsFromText);
+                            request.getConversation(),
+                            text -> detectLanguages(text, getLangIdThreshold()).getEntities());
             if (nativeMessages.length == 0) {
                 return mFallback.suggestConversationActions(request);
             }
@@ -539,36 +548,6 @@ final class TextClassifierImpl {
                             mActionModelInUse.getSupportedLocales());
             return new ConversationActions(conversationActions, resultId);
         }
-    }
-
-    @Nullable
-    private String detectLanguageTagsFromText(CharSequence text) {
-        if (!mSettings.isDetectLanguagesFromTextEnabled()) {
-            return null;
-        }
-        // FIXME: Fix the threshold!
-        final float threshold = getLangIdThreshold();
-        if (threshold < 0 || threshold > 1) {
-            TcLog.w(
-                    TAG,
-                    "[detectLanguageTagsFromText] unexpected threshold is found: " + threshold);
-            return null;
-        }
-        TextLanguage.Request request = new TextLanguage.Request.Builder(text).build();
-        TextLanguage textLanguage = detectLanguage(request);
-        int localeHypothesisCount = textLanguage.getLocaleHypothesisCount();
-        List<String> languageTags = new ArrayList<>();
-        for (int i = 0; i < localeHypothesisCount; i++) {
-            ULocale locale = textLanguage.getLocale(i);
-            if (textLanguage.getConfidenceScore(locale) < threshold) {
-                break;
-            }
-            languageTags.add(locale.toLanguageTag());
-        }
-        if (languageTags.isEmpty()) {
-            return null;
-        }
-        return String.join(",", languageTags);
     }
 
     private Collection<String> resolveActionTypesFromRequest(ConversationActions.Request request) {
@@ -840,8 +819,7 @@ final class TextClassifierImpl {
      * @param end the end index of the text to detect its language
      */
     // TODO: Revisit this algorithm.
-    private EntityConfidence detectLanguages(String text, int start, int end)
-            throws FileNotFoundException {
+    private EntityConfidence detectLanguages(String text, int start, int end) {
         Preconditions.checkArgument(start >= 0);
         Preconditions.checkArgument(end <= text.length());
         Preconditions.checkArgument(start <= end);
@@ -854,6 +832,9 @@ final class TextClassifierImpl {
         // Original detection score to surrounding text detection score ratios.
         final float subjectTextScoreRatio = langIdContextSettings[2];
         final float moreTextScoreRatio = 1f - subjectTextScoreRatio;
+        // Use a significant threshold here to avoid a long tail of languages with super
+        // low score. TODO: Read this from the model file.
+        final float significantThreshold = 0.1f;
         TcLog.v(
                 TAG,
                 String.format(
@@ -867,11 +848,11 @@ final class TextClassifierImpl {
                         moreTextScoreRatio));
 
         if (end - start < minimumTextSize && penalizeRatio <= 0) {
-            return new EntityConfidence(Collections.emptyMap());
+            return EntityConfidence.EMPTY;
         }
 
         final String subject = text.substring(start, end);
-        final EntityConfidence scores = detectLanguages(subject);
+        final EntityConfidence scores = detectLanguages(subject, significantThreshold);
 
         if (subject.length() >= minimumTextSize
                 || subject.length() == text.length()
@@ -883,9 +864,9 @@ final class TextClassifierImpl {
         if (moreTextScoreRatio >= 0) {
             // Attempt to grow the detection text to be at least minimumTextSize long.
             final String moreText = StringUtils.getSubString(text, start, end, minimumTextSize);
-            moreTextScores = detectLanguages(moreText);
+            moreTextScores = detectLanguages(moreText, significantThreshold);
         } else {
-            moreTextScores = new EntityConfidence(Collections.emptyMap());
+            moreTextScores = EntityConfidence.EMPTY;
         }
 
         // Combine the original detection scores with the those returned after including more text.
@@ -904,13 +885,24 @@ final class TextClassifierImpl {
         return new EntityConfidence(newScores);
     }
 
-    /** Detect languages for the specified text. */
-    private EntityConfidence detectLanguages(String text) throws FileNotFoundException {
-        final LangIdModel langId = getLangIdImpl();
-        final LangIdModel.LanguageResult[] langResults = langId.detectLanguages(text);
+    /**
+     * Detects languages for the specified text. Only returns languages with score that is higher
+     * than or equal to the specified threshold.
+     */
+    private EntityConfidence detectLanguages(CharSequence text, float threshold) {
+        final LangIdModel langId;
+        try {
+            langId = getLangIdImpl();
+        } catch (FileNotFoundException e) {
+            TcLog.e(TAG, "detectLanguages: Failed to call getLangIdImpl ", e);
+            return EntityConfidence.EMPTY;
+        }
+        final LangIdModel.LanguageResult[] langResults = langId.detectLanguages(text.toString());
         final Map<String, Float> languagesMap = new ArrayMap<>();
         for (LangIdModel.LanguageResult langResult : langResults) {
-            languagesMap.put(langResult.getLanguage(), langResult.getScore());
+            if (langResult.getScore() >= threshold) {
+                languagesMap.put(langResult.getLanguage(), langResult.getScore());
+            }
         }
         return new EntityConfidence(languagesMap);
     }

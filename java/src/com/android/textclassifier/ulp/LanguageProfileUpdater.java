@@ -19,7 +19,6 @@ package com.android.textclassifier.ulp;
 import android.content.Context;
 import android.util.LruCache;
 import android.view.textclassifier.ConversationActions;
-import android.view.textclassifier.TextClassification;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -36,6 +35,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
@@ -46,7 +46,6 @@ import javax.annotation.Nullable;
 public class LanguageProfileUpdater {
     private static final String TAG = "LanguageProfileUpdater";
     private static final int MAX_CACHE_SIZE = 20;
-    private static final String SPLIT_TAG = ",";
     private static final String DEFAULT_NOTIFICATION_KEY = "DEFAULT_KEY";
 
     static final String NOTIFICATION_KEY = "notificationKey";
@@ -67,25 +66,17 @@ public class LanguageProfileUpdater {
         mExecutorService = executorService;
     }
 
-    /**
-     * Updates info in user language profile. Should be called in {@code suggestConversationActions}
-     * when a new notification containing message appears.
-     *
-     * @param request {@link ConversationActions.Request} object which was passed to the {@code
-     *     suggestConversationActions}, containing needed data about notification.
-     * @param languageDetector reference to a method returning list of a locals of languages,
-     *     detected from the passed argument in "langTag1,langTag2,...,langTagN" format.
-     */
+    /** Updates counts of languages found in suggestConversationActions. */
     public ListenableFuture<Void> updateFromConversationActionsAsync(
-            ConversationActions.Request request, Function<CharSequence, String> languageDetector) {
+            ConversationActions.Request request,
+            Function<CharSequence, List<String>> languageDetector) {
         return runAsync(
                 () -> {
                     ConversationActions.Message msg = getMessageFromRequest(request);
                     if (msg == null) {
                         return null;
                     }
-                    String[] languageTags =
-                            getLanguageTag(msg.getText().toString(), languageDetector);
+                    List<String> languageTags = languageDetector.apply(msg.getText().toString());
                     String notificationKey =
                             request.getExtras()
                                     .getString(NOTIFICATION_KEY, DEFAULT_NOTIFICATION_KEY);
@@ -100,23 +91,13 @@ public class LanguageProfileUpdater {
                 });
     }
 
-    /**
-     * Updates info in user language profile. Should be called in {@code classifyText} when user
-     * makes selection.
-     *
-     * @param request {@link TextClassification.Request} object which was passed to {@code
-     *     classifyText}.
-     * @param languageDetector reference to a method returning list of a locals of languages,
-     *     detected from the passed argument in "langTag1,langTag2,...,langTagN" format.
-     */
-    public ListenableFuture<Void> updateFromClassifyTextAsync(
-            TextClassification.Request request, Function<CharSequence, String> languageDetector) {
+    /** Updates counts of languages found in classifyText. */
+    public ListenableFuture<Void> updateFromClassifyTextAsync(List<String> detectedLanguageTags) {
         return runAsync(
                 () -> {
-                    String text = request.getText().toString();
-                    String[] languageTags = getLanguageTag(text, languageDetector);
-                    for (String tag : languageTags) {
-                        increaseSignalCountInDatabase(tag, LanguageSignalInfo.CLASSIFY_TEXT, 1);
+                    for (String languageTag : detectedLanguageTags) {
+                        increaseSignalCountInDatabase(
+                                languageTag, LanguageSignalInfo.CLASSIFY_TEXT, /* increment= */ 1);
                     }
                     return null;
                 });
@@ -164,14 +145,6 @@ public class LanguageProfileUpdater {
             return true;
         }
         return false;
-    }
-
-    private String[] getLanguageTag(String text, Function<CharSequence, String> languageDetector) {
-        String languages = languageDetector.apply(text);
-        if (languages == null) {
-            return new String[0];
-        }
-        return languages.split(SPLIT_TAG);
     }
 
     private long getMessageReferenceTime(ConversationActions.Message msg) {
