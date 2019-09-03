@@ -174,7 +174,6 @@ public final class DefaultTextClassifierService extends TextClassifierService {
                 new FutureCallback<Void>() {
                     @Override
                     public void onSuccess(Void result) {
-                        TcLog.d(TAG, "onSuccess");
                     }
 
                     @Override
