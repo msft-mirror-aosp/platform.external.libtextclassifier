@@ -16,6 +16,12 @@
  * limitations under the License.
  */
 -->
+
+<!--
+  This manifest file is for the standalone TCS used for testing.
+  The TCS is typically shipped as part of ExtServices and is configured
+  in ExtServices's manifest.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           package="com.android.textclassifier"
           android:versionCode="1"
