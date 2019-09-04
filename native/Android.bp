@@ -46,12 +46,6 @@ cc_library_static {
     stl: "libc++_static",
 }
 
-java_library_static {
-    name: "libtextclassifier-java",
-    sdk_version: "core_current",
-    srcs: ["java/**/*.java"],
-}
-
 cc_defaults {
     name: "libtextclassifier_defaults",
 
@@ -131,8 +125,8 @@ genrule_defaults {
 	name: "fbgen",
     tools: ["flatc"],
     // "depfile" is used here in conjunction with flatc's -M to gather the deps
-    cmd: "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier -M $(in) >$(depfile) && " +
-        "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier -o $$(dirname $(out)) $(in)",
+    cmd: "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -M $(in) >$(depfile) && " +
+        "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -o $$(dirname $(out)) $(in)",
     depfile: true,
 }
 
