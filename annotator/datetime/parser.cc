@@ -23,6 +23,7 @@
 #include "utils/calendar/calendar.h"
 #include "utils/i18n/locale.h"
 #include "utils/strings/split.h"
+#include "utils/zlib/zlib_regex.h"
 
 namespace libtextclassifier3 {
 std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
@@ -51,9 +52,9 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
       if (pattern->regexes()) {
         for (const DatetimeModelPattern_::Regex* regex : *pattern->regexes()) {
           std::unique_ptr<UniLib::RegexPattern> regex_pattern =
-              UncompressMakeRegexPattern(unilib, regex->pattern(),
-                                         regex->compressed_pattern(),
-                                         decompressor);
+              UncompressMakeRegexPattern(
+                  unilib, regex->pattern(), regex->compressed_pattern(),
+                  model->lazy_regex_compilation(), decompressor);
           if (!regex_pattern) {
             TC3_LOG(ERROR) << "Couldn't create rule pattern.";
             return;
@@ -72,9 +73,9 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
   if (model->extractors() != nullptr) {
     for (const DatetimeModelExtractor* extractor : *model->extractors()) {
       std::unique_ptr<UniLib::RegexPattern> regex_pattern =
-          UncompressMakeRegexPattern(unilib, extractor->pattern(),
-                                     extractor->compressed_pattern(),
-                                     decompressor);
+          UncompressMakeRegexPattern(
+              unilib, extractor->pattern(), extractor->compressed_pattern(),
+              model->lazy_regex_compilation(), decompressor);
       if (!regex_pattern) {
         TC3_LOG(ERROR) << "Couldn't create extractor pattern";
         return;
@@ -103,6 +104,8 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
   }
 
   use_extractors_for_locating_ = model->use_extractors_for_locating();
+  generate_alternative_interpretations_when_ambiguous_ =
+      model->generate_alternative_interpretations_when_ambiguous();
 
   initialized_ = true;
 }
@@ -110,17 +113,18 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
 bool DatetimeParser::Parse(
     const std::string& input, const int64 reference_time_ms_utc,
     const std::string& reference_timezone, const std::string& locales,
-    ModeFlag mode, bool anchor_start_end,
+    ModeFlag mode, AnnotationUsecase annotation_usecase, bool anchor_start_end,
     std::vector<DatetimeParseResultSpan>* results) const {
   return Parse(UTF8ToUnicodeText(input, /*do_copy=*/false),
                reference_time_ms_utc, reference_timezone, locales, mode,
-               anchor_start_end, results);
+               annotation_usecase, anchor_start_end, results);
 }
 
 bool DatetimeParser::FindSpansUsingLocales(
     const std::vector<int>& locale_ids, const UnicodeText& input,
     const int64 reference_time_ms_utc, const std::string& reference_timezone,
-    ModeFlag mode, bool anchor_start_end, const std::string& reference_locale,
+    ModeFlag mode, AnnotationUsecase annotation_usecase, bool anchor_start_end,
+    const std::string& reference_locale,
     std::unordered_set<int>* executed_rules,
     std::vector<DatetimeParseResultSpan>* found_spans) const {
   for (const int locale_id : locale_ids) {
@@ -132,6 +136,11 @@ bool DatetimeParser::FindSpansUsingLocales(
     for (const int rule_id : rules_it->second) {
       // Skip rules that were already executed in previous locales.
       if (executed_rules->find(rule_id) != executed_rules->end()) {
+        continue;
+      }
+
+      if ((rules_[rule_id].pattern->enabled_annotation_usecases() &
+           (1 << annotation_usecase)) == 0) {
         continue;
       }
 
@@ -154,7 +163,7 @@ bool DatetimeParser::FindSpansUsingLocales(
 bool DatetimeParser::Parse(
     const UnicodeText& input, const int64 reference_time_ms_utc,
     const std::string& reference_timezone, const std::string& locales,
-    ModeFlag mode, bool anchor_start_end,
+    ModeFlag mode, AnnotationUsecase annotation_usecase, bool anchor_start_end,
     std::vector<DatetimeParseResultSpan>* results) const {
   std::vector<DatetimeParseResultSpan> found_spans;
   std::unordered_set<int> executed_rules;
@@ -162,16 +171,16 @@ bool DatetimeParser::Parse(
   const std::vector<int> requested_locales =
       ParseAndExpandLocales(locales, &reference_locale);
   if (!FindSpansUsingLocales(requested_locales, input, reference_time_ms_utc,
-                             reference_timezone, mode, anchor_start_end,
-                             reference_locale, &executed_rules, &found_spans)) {
+                             reference_timezone, mode, annotation_usecase,
+                             anchor_start_end, reference_locale,
+                             &executed_rules, &found_spans)) {
     return false;
   }
 
   std::vector<std::pair<DatetimeParseResultSpan, int>> indexed_found_spans;
-  int counter = 0;
-  for (const auto& found_span : found_spans) {
-    indexed_found_spans.push_back({found_span, counter});
-    counter++;
+  indexed_found_spans.reserve(found_spans.size());
+  for (int i = 0; i < found_spans.size(); i++) {
+    indexed_found_spans.push_back({found_spans[i], i});
   }
 
   // Resolve conflicts by always picking the longer span and breaking ties by
@@ -224,21 +233,28 @@ bool DatetimeParser::HandleParseMatch(
   }
 
   DatetimeParseResultSpan parse_result;
+  std::vector<DatetimeParseResult> alternatives;
   if (!ExtractDatetime(rule, matcher, reference_time_ms_utc, reference_timezone,
-                       reference_locale, locale_id, &(parse_result.data),
+                       reference_locale, locale_id, &alternatives,
                        &parse_result.span)) {
     return false;
   }
+
   if (!use_extractors_for_locating_) {
     parse_result.span = {start, end};
   }
+
   if (parse_result.span.first != kInvalidIndex &&
       parse_result.span.second != kInvalidIndex) {
     parse_result.target_classification_score =
         rule.pattern->target_classification_score();
     parse_result.priority_score = rule.pattern->priority_score();
-    result->push_back(parse_result);
+
+    for (DatetimeParseResult& alternative : alternatives) {
+      parse_result.data.push_back(alternative);
+    }
   }
+  result->push_back(parse_result);
   return true;
 }
 
@@ -329,60 +345,54 @@ std::vector<int> DatetimeParser::ParseAndExpandLocales(
   return result;
 }
 
-namespace {
+void DatetimeParser::FillInterpretations(
+    const DateParseData& parse,
+    std::vector<DateParseData>* interpretations) const {
+  DatetimeGranularity granularity = calendarlib_.GetGranularity(parse);
 
-DatetimeGranularity GetGranularity(const DateParseData& data) {
-  DatetimeGranularity granularity = DatetimeGranularity::GRANULARITY_YEAR;
-  if ((data.field_set_mask & DateParseData::YEAR_FIELD) ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::YEAR))) {
-    granularity = DatetimeGranularity::GRANULARITY_YEAR;
+  DateParseData modified_parse(parse);
+  // If the relation field is not set, but relation_type field *is*, assume
+  // the relation field is NEXT_OR_SAME. This is necessary to handle e.g.
+  // "monday 3pm" (otherwise only "this monday 3pm" would work).
+  if (!(modified_parse.field_set_mask &
+        DateParseData::Fields::RELATION_FIELD) &&
+      (modified_parse.field_set_mask &
+       DateParseData::Fields::RELATION_TYPE_FIELD)) {
+    modified_parse.relation = DateParseData::Relation::NEXT_OR_SAME;
+    modified_parse.field_set_mask |= DateParseData::Fields::RELATION_FIELD;
   }
-  if ((data.field_set_mask & DateParseData::MONTH_FIELD) ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::MONTH))) {
-    granularity = DatetimeGranularity::GRANULARITY_MONTH;
+
+  // Multiple interpretations of ambiguous datetime expressions are generated
+  // here.
+  if (granularity > DatetimeGranularity::GRANULARITY_DAY &&
+      (modified_parse.field_set_mask & DateParseData::Fields::HOUR_FIELD) &&
+      modified_parse.hour <= 12 &&
+      !(modified_parse.field_set_mask & DateParseData::Fields::AMPM_FIELD)) {
+    // If it's not clear if the time is AM or PM, generate all variants.
+    interpretations->push_back(modified_parse);
+    interpretations->back().field_set_mask |= DateParseData::Fields::AMPM_FIELD;
+    interpretations->back().ampm = DateParseData::AMPM::AM;
+
+    interpretations->push_back(modified_parse);
+    interpretations->back().field_set_mask |= DateParseData::Fields::AMPM_FIELD;
+    interpretations->back().ampm = DateParseData::AMPM::PM;
+  } else {
+    // Otherwise just generate 1 variant.
+    interpretations->push_back(modified_parse);
   }
-  if (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-      (data.relation_type == DateParseData::RelationType::WEEK)) {
-    granularity = DatetimeGranularity::GRANULARITY_WEEK;
-  }
-  if (data.field_set_mask & DateParseData::DAY_FIELD ||
-      (data.field_set_mask & DateParseData::RELATION_FIELD &&
-       (data.relation == DateParseData::Relation::NOW ||
-        data.relation == DateParseData::Relation::TOMORROW ||
-        data.relation == DateParseData::Relation::YESTERDAY)) ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::MONDAY ||
-        data.relation_type == DateParseData::RelationType::TUESDAY ||
-        data.relation_type == DateParseData::RelationType::WEDNESDAY ||
-        data.relation_type == DateParseData::RelationType::THURSDAY ||
-        data.relation_type == DateParseData::RelationType::FRIDAY ||
-        data.relation_type == DateParseData::RelationType::SATURDAY ||
-        data.relation_type == DateParseData::RelationType::SUNDAY ||
-        data.relation_type == DateParseData::RelationType::DAY))) {
-    granularity = DatetimeGranularity::GRANULARITY_DAY;
-  }
-  if (data.field_set_mask & DateParseData::HOUR_FIELD) {
-    granularity = DatetimeGranularity::GRANULARITY_HOUR;
-  }
-  if (data.field_set_mask & DateParseData::MINUTE_FIELD) {
-    granularity = DatetimeGranularity::GRANULARITY_MINUTE;
-  }
-  if (data.field_set_mask & DateParseData::SECOND_FIELD) {
-    granularity = DatetimeGranularity::GRANULARITY_SECOND;
-  }
-  return granularity;
+  // TODO(zilka): Add support for generating alternatives for "monday" -> "this
+  // monday", "next monday", "last monday". The previous implementation did not
+  // work as expected, because didn't work correctly for this/previous day of
+  // week, and resulted sometimes results in the same date being proposed.
 }
-
-}  // namespace
 
 bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
                                      const UniLib::RegexMatcher& matcher,
                                      const int64 reference_time_ms_utc,
                                      const std::string& reference_timezone,
                                      const std::string& reference_locale,
-                                     int locale_id, DatetimeParseResult* result,
+                                     int locale_id,
+                                     std::vector<DatetimeParseResult>* results,
                                      CodepointSpan* result_span) const {
   DateParseData parse;
   DatetimeExtractor extractor(rule, matcher, locale_id, unilib_,
@@ -392,14 +402,23 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
     return false;
   }
 
-  result->granularity = GetGranularity(parse);
-
-  if (!calendarlib_.InterpretParseData(
-          parse, reference_time_ms_utc, reference_timezone, reference_locale,
-          result->granularity, &(result->time_ms_utc))) {
-    return false;
+  std::vector<DateParseData> interpretations;
+  if (generate_alternative_interpretations_when_ambiguous_) {
+    FillInterpretations(parse, &interpretations);
+  } else {
+    interpretations.push_back(parse);
   }
 
+  results->reserve(results->size() + interpretations.size());
+  for (const DateParseData& interpretation : interpretations) {
+    DatetimeParseResult result;
+    if (!calendarlib_.InterpretParseData(
+            interpretation, reference_time_ms_utc, reference_timezone,
+            reference_locale, &(result.time_ms_utc), &(result.granularity))) {
+      return false;
+    }
+    results->push_back(result);
+  }
   return true;
 }
 

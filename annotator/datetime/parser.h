@@ -47,14 +47,22 @@ class DatetimeParser {
   // beginning of 'input' and end at the end of it.
   bool Parse(const std::string& input, int64 reference_time_ms_utc,
              const std::string& reference_timezone, const std::string& locales,
-             ModeFlag mode, bool anchor_start_end,
+             ModeFlag mode, AnnotationUsecase annotation_usecase,
+             bool anchor_start_end,
              std::vector<DatetimeParseResultSpan>* results) const;
 
   // Same as above but takes UnicodeText.
   bool Parse(const UnicodeText& input, int64 reference_time_ms_utc,
              const std::string& reference_timezone, const std::string& locales,
-             ModeFlag mode, bool anchor_start_end,
+             ModeFlag mode, AnnotationUsecase annotation_usecase,
+             bool anchor_start_end,
              std::vector<DatetimeParseResultSpan>* results) const;
+
+#ifdef TC3_TEST_ONLY
+  void TestOnlySetGenerateAlternativeInterpretationsWhenAmbiguous(bool value) {
+    generate_alternative_interpretations_when_ambiguous_ = value;
+  }
+#endif  // TC3_TEST_ONLY
 
  protected:
   DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
@@ -71,7 +79,8 @@ class DatetimeParser {
   bool FindSpansUsingLocales(
       const std::vector<int>& locale_ids, const UnicodeText& input,
       const int64 reference_time_ms_utc, const std::string& reference_timezone,
-      ModeFlag mode, bool anchor_start_end, const std::string& reference_locale,
+      ModeFlag mode, AnnotationUsecase annotation_usecase,
+      bool anchor_start_end, const std::string& reference_locale,
       std::unordered_set<int>* executed_rules,
       std::vector<DatetimeParseResultSpan>* found_spans) const;
 
@@ -82,13 +91,16 @@ class DatetimeParser {
                      bool anchor_start_end,
                      std::vector<DatetimeParseResultSpan>* result) const;
 
+  void FillInterpretations(const DateParseData& parse,
+                           std::vector<DateParseData>* interpretations) const;
+
   // Converts the current match in 'matcher' into DatetimeParseResult.
   bool ExtractDatetime(const CompiledRule& rule,
                        const UniLib::RegexMatcher& matcher,
                        int64 reference_time_ms_utc,
                        const std::string& reference_timezone,
                        const std::string& reference_locale, int locale_id,
-                       DatetimeParseResult* result,
+                       std::vector<DatetimeParseResult>* results,
                        CodepointSpan* result_span) const;
 
   // Parse and extract information from current match in 'matcher'.
@@ -111,6 +123,7 @@ class DatetimeParser {
   std::unordered_map<std::string, int> locale_string_to_id_;
   std::vector<int> default_locale_ids_;
   bool use_extractors_for_locating_;
+  bool generate_alternative_interpretations_when_ambiguous_;
 };
 
 }  // namespace libtextclassifier3

@@ -16,24 +16,142 @@
 
 #include "utils/tflite-model-executor.h"
 
-#include "tensorflow/lite/kernels/register.h"
 #include "utils/base/logging.h"
+#include "tensorflow/lite/kernels/register.h"
 
 // Forward declaration of custom TensorFlow Lite ops for registration.
 namespace tflite {
 namespace ops {
 namespace builtin {
-TfLiteRegistration* Register_DIV();
+TfLiteRegistration* Register_ADD();
+TfLiteRegistration* Register_CONCATENATION();
+TfLiteRegistration* Register_CONV_2D();
 TfLiteRegistration* Register_FULLY_CONNECTED();
-TfLiteRegistration* Register_SOFTMAX();  // TODO(smillius): remove.
+TfLiteRegistration* Register_L2_NORMALIZATION();
+TfLiteRegistration* Register_MUL();
+TfLiteRegistration* Register_RESHAPE();
+TfLiteRegistration* Register_SOFTMAX();
+TfLiteRegistration* Register_GATHER();
+TfLiteRegistration* Register_TRANSPOSE();
+TfLiteRegistration* Register_SUB();
+TfLiteRegistration* Register_DIV();
+TfLiteRegistration* Register_STRIDED_SLICE();
+TfLiteRegistration* Register_EXP();
+TfLiteRegistration* Register_TOPK_V2();
+TfLiteRegistration* Register_SPLIT();
+TfLiteRegistration* Register_CAST();
+TfLiteRegistration* Register_MAXIMUM();
+TfLiteRegistration* Register_MINIMUM();
+TfLiteRegistration* Register_NEG();
+TfLiteRegistration* Register_SLICE();
+TfLiteRegistration* Register_LOG();
+TfLiteRegistration* Register_SUM();
+TfLiteRegistration* Register_PACK();
+TfLiteRegistration* Register_DEQUANTIZE();
+TfLiteRegistration* Register_MEAN();
 }  // namespace builtin
 }  // namespace ops
 }  // namespace tflite
 
-void RegisterSelectedOps(::tflite::MutableOpResolver* resolver) {
-  resolver->AddBuiltin(::tflite::BuiltinOperator_FULLY_CONNECTED,
-                       ::tflite::ops::builtin::Register_FULLY_CONNECTED());
+#ifdef TC3_WITH_ACTIONS_OPS
+#include "utils/tflite/dist_diversification.h"
+#include "utils/tflite/text_encoder.h"
+#include "utils/tflite/token_encoder.h"
+
+void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
+  resolver->AddBuiltin(tflite::BuiltinOperator_ADD,
+                       tflite::ops::builtin::Register_ADD(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_CONCATENATION,
+                       tflite::ops::builtin::Register_CONCATENATION(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_CONV_2D,
+                       tflite::ops::builtin::Register_CONV_2D(),
+                       /*min_version=*/1,
+                       /*max_version=*/3);
+  resolver->AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED,
+                       tflite::ops::builtin::Register_FULLY_CONNECTED(),
+                       /*min_version=*/1,
+                       /*max_version=*/4);
+  resolver->AddBuiltin(tflite::BuiltinOperator_L2_NORMALIZATION,
+                       tflite::ops::builtin::Register_L2_NORMALIZATION(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_MUL,
+                       tflite::ops::builtin::Register_MUL());
+  resolver->AddBuiltin(tflite::BuiltinOperator_RESHAPE,
+                       tflite::ops::builtin::Register_RESHAPE());
+  resolver->AddBuiltin(tflite::BuiltinOperator_SOFTMAX,
+                       tflite::ops::builtin::Register_SOFTMAX(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_GATHER,
+                       tflite::ops::builtin::Register_GATHER(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_TRANSPOSE,
+                       tflite::ops::builtin::Register_TRANSPOSE(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_SUB,
+                       tflite::ops::builtin::Register_SUB(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_DIV,
+                       tflite::ops::builtin::Register_DIV());
+  resolver->AddBuiltin(tflite::BuiltinOperator_STRIDED_SLICE,
+                       tflite::ops::builtin::Register_STRIDED_SLICE(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_EXP,
+                       tflite::ops::builtin::Register_EXP());
+  resolver->AddBuiltin(tflite::BuiltinOperator_TOPK_V2,
+                       tflite::ops::builtin::Register_TOPK_V2(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_SPLIT,
+                       tflite::ops::builtin::Register_SPLIT(),
+                       /*min_version=*/1,
+                       /*max_version=*/3);
+  resolver->AddBuiltin(tflite::BuiltinOperator_CAST,
+                       tflite::ops::builtin::Register_CAST());
+  resolver->AddBuiltin(tflite::BuiltinOperator_MAXIMUM,
+                       tflite::ops::builtin::Register_MAXIMUM(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_MINIMUM,
+                       tflite::ops::builtin::Register_MINIMUM(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_NEG,
+                       tflite::ops::builtin::Register_NEG());
+  resolver->AddBuiltin(tflite::BuiltinOperator_SLICE,
+                       tflite::ops::builtin::Register_SLICE(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_LOG,
+                       tflite::ops::builtin::Register_LOG());
+  resolver->AddBuiltin(tflite::BuiltinOperator_SUM,
+                       tflite::ops::builtin::Register_SUM());
+  resolver->AddBuiltin(tflite::BuiltinOperator_PACK,
+                       tflite::ops::builtin::Register_PACK(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_DEQUANTIZE,
+                       tflite::ops::builtin::Register_DEQUANTIZE(),
+                       /*min_version=*/1,
+                       /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_MEAN,
+                       tflite::ops::builtin::Register_MEAN());
 }
+#else
+void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
+  resolver->AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED,
+                       tflite::ops::builtin::Register_FULLY_CONNECTED());
+}
+#endif  // TC3_WITH_ACTIONS_OPS
 
 namespace libtextclassifier3 {
 
@@ -41,17 +159,19 @@ inline std::unique_ptr<tflite::OpResolver> BuildOpResolver() {
 #ifdef TC3_USE_SELECTIVE_REGISTRATION
   std::unique_ptr<tflite::MutableOpResolver> resolver(
       new tflite::MutableOpResolver);
-  resolver->AddBuiltin(tflite::BuiltinOperator_DIV,
-                       tflite::ops::builtin::Register_DIV());
-  resolver->AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED,
-                       tflite::ops::builtin::Register_FULLY_CONNECTED());
-  resolver->AddBuiltin(tflite::BuiltinOperator_SOFTMAX,
-                       tflite::ops::builtin::Register_SOFTMAX());
   RegisterSelectedOps(resolver.get());
 #else
   std::unique_ptr<tflite::ops::builtin::BuiltinOpResolver> resolver(
       new tflite::ops::builtin::BuiltinOpResolver);
 #endif
+#ifdef TC3_WITH_ACTIONS_OPS
+  resolver->AddCustom("DistanceDiversification",
+                      tflite::ops::custom::Register_DISTANCE_DIVERSIFICATION());
+  resolver->AddCustom("TextEncoder",
+                      tflite::ops::custom::Register_TEXT_ENCODER());
+  resolver->AddCustom("TokenEncoder",
+                      tflite::ops::custom::Register_TOKEN_ENCODER());
+#endif  // TC3_WITH_ACTIONS_OPS
   return std::unique_ptr<tflite::OpResolver>(std::move(resolver));
 }
 
@@ -98,12 +218,12 @@ void TfLiteModelExecutor::SetInput(const int input_index,
     buf.AddString(s.data(), s.length());
   }
   buf.WriteToTensorAsVector(
-            interpreter->tensor(interpreter->inputs()[input_index]));
+      interpreter->tensor(interpreter->inputs()[input_index]));
 }
 
 template <>
 std::vector<tflite::StringRef> TfLiteModelExecutor::Output(
-    const int output_index, tflite::Interpreter* interpreter) const {
+    const int output_index, const tflite::Interpreter* interpreter) const {
   const TfLiteTensor* output_tensor =
       interpreter->tensor(interpreter->outputs()[output_index]);
   const int num_strings = tflite::GetStringCount(output_tensor);
@@ -116,7 +236,7 @@ std::vector<tflite::StringRef> TfLiteModelExecutor::Output(
 
 template <>
 std::vector<std::string> TfLiteModelExecutor::Output(
-    const int output_index, tflite::Interpreter* interpreter) const {
+    const int output_index, const tflite::Interpreter* interpreter) const {
   std::vector<std::string> output;
   for (const tflite::StringRef& s :
        Output<tflite::StringRef>(output_index, interpreter)) {
