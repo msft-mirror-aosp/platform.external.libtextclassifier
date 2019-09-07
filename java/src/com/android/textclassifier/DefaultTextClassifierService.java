@@ -173,8 +173,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
                 result,
                 new FutureCallback<Void>() {
                     @Override
-                    public void onSuccess(Void result) {
-                    }
+                    public void onSuccess(Void result) {}
 
                     @Override
                     public void onFailure(Throwable t) {

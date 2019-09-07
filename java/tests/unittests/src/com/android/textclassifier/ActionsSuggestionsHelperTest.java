@@ -58,8 +58,8 @@ import java.util.function.Function;
 @RunWith(AndroidJUnit4.class)
 public class ActionsSuggestionsHelperTest {
     private static final String LOCALE_TAG = Locale.US.toLanguageTag();
-    private static final Function<CharSequence, String> LANGUAGE_DETECTOR =
-            charSequence -> LOCALE_TAG;
+    private static final Function<CharSequence, List<String>> LANGUAGE_DETECTOR =
+            charSequence -> Collections.singletonList(LOCALE_TAG);
 
     @Test
     public void testToNativeMessages_emptyInput() {

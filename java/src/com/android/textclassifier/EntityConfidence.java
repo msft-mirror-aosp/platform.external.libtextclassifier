@@ -29,6 +29,8 @@ import java.util.Map;
 /** Helper object for setting and getting entity scores for classified text. */
 final class EntityConfidence {
 
+    static final EntityConfidence EMPTY = new EntityConfidence(Collections.emptyMap());
+
     private final ArrayMap<String, Float> mEntityConfidence = new ArrayMap<>();
     private final ArrayList<String> mSortedEntities = new ArrayList<>();
 
