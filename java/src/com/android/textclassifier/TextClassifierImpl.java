@@ -832,9 +832,6 @@ final class TextClassifierImpl {
         // Original detection score to surrounding text detection score ratios.
         final float subjectTextScoreRatio = langIdContextSettings[2];
         final float moreTextScoreRatio = 1f - subjectTextScoreRatio;
-        // Use a significant threshold here to avoid a long tail of languages with super
-        // low score. TODO: Read this from the model file.
-        final float significantThreshold = 0.1f;
         TcLog.v(
                 TAG,
                 String.format(
@@ -852,7 +849,7 @@ final class TextClassifierImpl {
         }
 
         final String subject = text.substring(start, end);
-        final EntityConfidence scores = detectLanguages(subject, significantThreshold);
+        final EntityConfidence scores = detectLanguages(subject, /* threshold= */ 0f);
 
         if (subject.length() >= minimumTextSize
                 || subject.length() == text.length()
@@ -864,7 +861,7 @@ final class TextClassifierImpl {
         if (moreTextScoreRatio >= 0) {
             // Attempt to grow the detection text to be at least minimumTextSize long.
             final String moreText = StringUtils.getSubString(text, start, end, minimumTextSize);
-            moreTextScores = detectLanguages(moreText, significantThreshold);
+            moreTextScores = detectLanguages(moreText, /* threshold= */ 0f);
         } else {
             moreTextScores = EntityConfidence.EMPTY;
         }
