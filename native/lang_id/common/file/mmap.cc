@@ -20,9 +20,14 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef _WIN32
+#include <winbase.h>
+#include <windows.h>
+#else
 #include <sys/mman.h>
-#include <sys/stat.h>
 #include <unistd.h>
+#endif
+#include <sys/stat.h>
 
 #include "lang_id/common/lite_base/logging.h"
 #include "lang_id/common/lite_base/macros.h"
@@ -31,13 +36,119 @@ namespace libtextclassifier3 {
 namespace mobile {
 
 namespace {
-inline string GetLastSystemError() {
-  return string(strerror(errno));
+inline MmapHandle GetErrorMmapHandle() { return MmapHandle(nullptr, 0); }
+}  // anonymous namespace
+
+#ifdef _WIN32
+
+namespace {
+inline std::string GetLastSystemError() {
+  LPTSTR message_buffer;
+  DWORD error_code = GetLastError();
+  FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                    FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL, error_code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPTSTR)&message_buffer, 0, NULL);
+  std::string result(message_buffer);
+  LocalFree(message_buffer);
+  return result;
 }
 
-inline MmapHandle GetErrorMmapHandle() {
-  return MmapHandle(nullptr, 0);
+// Class for automatically closing a Win32 HANDLE on exit from a scope.
+class Win32HandleCloser {
+ public:
+  explicit Win32HandleCloser(HANDLE handle) : handle_(handle) {}
+  ~Win32HandleCloser() {
+    bool result = CloseHandle(handle_);
+    if (!result) {
+      const DWORD last_error = GetLastError();
+      SAFTM_LOG(ERROR) << "Error closing handle: " << last_error << ": "
+                       << GetLastSystemError();
+    }
+  }
+
+ private:
+  const HANDLE handle_;
+
+  SAFTM_DISALLOW_COPY_AND_ASSIGN(Win32HandleCloser);
+};
+}  // namespace
+
+MmapHandle MmapFile(const std::string &filename) {
+  HANDLE handle =
+      CreateFile(filename.c_str(),  // File to open.
+                 GENERIC_READ,      // Open for reading.
+                 FILE_SHARE_READ,   // Share for reading.
+                 NULL,              // Default security.
+                 OPEN_EXISTING,     // Existing file only.
+                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,  // Normal file.
+                 NULL);  // No attr. template.
+  if (handle == INVALID_HANDLE_VALUE) {
+    const std::string last_error = GetLastSystemError();
+    SAFTM_LOG(ERROR) << "Error opening " << filename << ": " << last_error;
+    return GetErrorMmapHandle();
+  }
+
+  // Make sure we close handle no matter how we exit this function.
+  Win32HandleCloser handle_closer(handle);
+
+  return MmapFile(handle);
 }
+
+MmapHandle MmapFile(HANDLE file_handle) {
+  // Get the file size.
+  DWORD file_size_high = 0;
+  DWORD file_size_low = GetFileSize(file_handle, &file_size_high);
+  if (file_size_low == INVALID_FILE_SIZE && GetLastError() != NO_ERROR) {
+    const std::string last_error = GetLastSystemError();
+    SAFTM_LOG(ERROR) << "Unable to stat fd: " << last_error;
+    return GetErrorMmapHandle();
+  }
+  size_t file_size_in_bytes = (static_cast<size_t>(file_size_high) << 32) +
+                              static_cast<size_t>(file_size_low);
+
+  // Create a file mapping object that refers to the file.
+  HANDLE file_mapping_object =
+      CreateFileMappingA(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
+  if (file_mapping_object == NULL) {
+    const std::string last_error = GetLastSystemError();
+    SAFTM_LOG(ERROR) << "Error while mmapping: " << last_error;
+    return GetErrorMmapHandle();
+  }
+  Win32HandleCloser handle_closer(file_mapping_object);
+
+  // Map the file mapping object into memory.
+  void *mmap_addr =
+      MapViewOfFile(file_mapping_object, FILE_MAP_READ, 0, 0,  // File offset.
+                    0  // Number of bytes to map; 0 means map the whole file.
+      );
+  if (mmap_addr == nullptr) {
+    const std::string last_error = GetLastSystemError();
+    SAFTM_LOG(ERROR) << "Error while mmapping: " << last_error;
+    return GetErrorMmapHandle();
+  }
+
+  return MmapHandle(mmap_addr, file_size_in_bytes);
+}
+
+bool Unmap(MmapHandle mmap_handle) {
+  if (!mmap_handle.ok()) {
+    // Unmapping something that hasn't been mapped is trivially successful.
+    return true;
+  }
+  bool succeeded = UnmapViewOfFile(mmap_handle.start());
+  if (!succeeded) {
+    const std::string last_error = GetLastSystemError();
+    SAFTM_LOG(ERROR) << "Error during Unmap / UnmapViewOfFile: " << last_error;
+    return false;
+  }
+  return true;
+}
+
+#else
+
+namespace {
+inline std::string GetLastSystemError() { return std::string(strerror(errno)); }
 
 class FileCloser {
  public:
@@ -45,7 +156,7 @@ class FileCloser {
   ~FileCloser() {
     int result = close(fd_);
     if (result != 0) {
-      const string last_error = GetLastSystemError();
+      const std::string last_error = GetLastSystemError();
       SAFTM_LOG(ERROR) << "Error closing file descriptor: " << last_error;
     }
   }
@@ -56,11 +167,11 @@ class FileCloser {
 };
 }  // namespace
 
-MmapHandle MmapFile(const string &filename) {
+MmapHandle MmapFile(const std::string &filename) {
   int fd = open(filename.c_str(), O_RDONLY);
 
   if (fd < 0) {
-    const string last_error = GetLastSystemError();
+    const std::string last_error = GetLastSystemError();
     SAFTM_LOG(ERROR) << "Error opening " << filename << ": " << last_error;
     return GetErrorMmapHandle();
   }
@@ -77,7 +188,7 @@ MmapHandle MmapFile(int fd) {
   // Get file stats to obtain file size.
   struct stat sb;
   if (fstat(fd, &sb) != 0) {
-    const string last_error = GetLastSystemError();
+    const std::string last_error = GetLastSystemError();
     SAFTM_LOG(ERROR) << "Unable to stat fd: " << last_error;
     return GetErrorMmapHandle();
   }
@@ -108,7 +219,7 @@ MmapHandle MmapFile(int fd) {
       // file_size_in_bytes (2nd argument) means we map all bytes from the file.
       0);
   if (mmap_addr == MAP_FAILED) {
-    const string last_error = GetLastSystemError();
+    const std::string last_error = GetLastSystemError();
     SAFTM_LOG(ERROR) << "Error while mmapping: " << last_error;
     return GetErrorMmapHandle();
   }
@@ -122,12 +233,14 @@ bool Unmap(MmapHandle mmap_handle) {
     return true;
   }
   if (munmap(mmap_handle.start(), mmap_handle.num_bytes()) != 0) {
-    const string last_error = GetLastSystemError();
+    const std::string last_error = GetLastSystemError();
     SAFTM_LOG(ERROR) << "Error during Unmap / munmap: " << last_error;
     return false;
   }
   return true;
 }
+
+#endif
 
 }  // namespace mobile
 }  // namespace nlp_saft

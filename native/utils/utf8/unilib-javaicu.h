@@ -45,9 +45,11 @@ class UniLib {
   bool IsClosingBracket(char32 codepoint) const;
   bool IsWhitespace(char32 codepoint) const;
   bool IsDigit(char32 codepoint) const;
+  bool IsLower(char32 codepoint) const;
   bool IsUpper(char32 codepoint) const;
 
   char32 ToLower(char32 codepoint) const;
+  char32 ToUpper(char32 codepoint) const;
   char32 GetPairedBracket(char32 codepoint) const;
 
   // Forward declaration for friend.

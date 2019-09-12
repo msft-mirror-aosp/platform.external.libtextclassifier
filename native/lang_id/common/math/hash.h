@@ -51,7 +51,7 @@ static inline uint32 Hash32WithDefaultSeed(const char *data, size_t n) {
   return Hash32(data, n, 0xBEEF);
 }
 
-static inline uint32 Hash32WithDefaultSeed(const string &input) {
+static inline uint32 Hash32WithDefaultSeed(const std::string &input) {
   return Hash32WithDefaultSeed(input.data(), input.size());
 }
 

@@ -103,6 +103,11 @@ public final class LangIdModel implements AutoCloseable {
     return nativeGetVersionFromFd(fd);
   }
 
+  // Visible for testing.
+  float getLangIdNoiseThreshold() {
+    return nativeGetLangIdNoiseThreshold(modelPtr);
+  }
+
   private static native long nativeNew(int fd);
 
   private static native long nativeNewFromPath(String path);
@@ -116,4 +121,6 @@ public final class LangIdModel implements AutoCloseable {
   private static native int nativeGetVersionFromFd(int fd);
 
   private native float nativeGetLangIdThreshold(long nativePtr);
+
+  private native float nativeGetLangIdNoiseThreshold(long nativePtr);
 }

@@ -58,7 +58,7 @@ class DatetimeExtractor {
         unilib_(unilib),
         rules_(extractor_rules),
         type_and_locale_to_rule_(type_and_locale_to_extractor_rule) {}
-  bool Extract(DateParseData* result, CodepointSpan* result_span) const;
+  bool Extract(DatetimeParsedData* result, CodepointSpan* result_span) const;
 
  private:
   bool RuleIdForType(DatetimeExtractorType type, int* rule_id) const;
@@ -86,19 +86,18 @@ class DatetimeExtractor {
   bool ParseWrittenNumber(const UnicodeText& input, int* parsed_number) const;
   bool ParseYear(const UnicodeText& input, int* parsed_year) const;
   bool ParseMonth(const UnicodeText& input, int* parsed_month) const;
-  bool ParseAMPM(const UnicodeText& input,
-                 DateParseData::AMPM* parsed_ampm) const;
-  bool ParseRelation(const UnicodeText& input,
-                     DateParseData::Relation* parsed_relation) const;
+  bool ParseMeridiem(const UnicodeText& input, int* parsed_meridiem) const;
+  bool ParseRelativeValue(
+      const UnicodeText& input,
+      DatetimeComponent::RelativeQualifier* parsed_relative_value) const;
   bool ParseRelationDistance(const UnicodeText& input,
                              int* parsed_distance) const;
-  bool ParseTimeUnit(const UnicodeText& input,
-                     DateParseData::TimeUnit* parsed_time_unit) const;
-  bool ParseRelationType(
+  bool ParseFieldType(
       const UnicodeText& input,
-      DateParseData::RelationType* parsed_relation_type) const;
-  bool ParseWeekday(const UnicodeText& input,
-                    DateParseData::RelationType* parsed_weekday) const;
+      DatetimeComponent::ComponentType* parsed_field_type) const;
+  bool ParseDayOfWeek(const UnicodeText& input, int* parsed_day_of_week) const;
+  bool ParseRelationAndConvertToRelativeCount(const UnicodeText& input,
+                                              int* relative_count) const;
 
   const CompiledRule& rule_;
   const UniLib::RegexMatcher& matcher_;

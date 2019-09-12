@@ -36,7 +36,7 @@ struct LoggingStringStream {
   // Needed for invocation in SAFTM_CHECK macro.
   explicit operator bool() const { return true; }
 
-  string message;
+  std::string message;
 };
 
 template <typename T>
@@ -53,7 +53,7 @@ inline LoggingStringStream &operator<<(LoggingStringStream &stream,
 }
 
 inline LoggingStringStream &operator<<(LoggingStringStream &stream,
-                                       const string &message) {
+                                       const std::string &message) {
   stream.message.append(message);
   return stream;
 }

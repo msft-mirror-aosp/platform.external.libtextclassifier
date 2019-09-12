@@ -31,6 +31,11 @@
 
 namespace libtextclassifier3 {
 
+class ReflectiveFlatBuffer;
+class RepeatedField;
+template <typename T>
+class TypedRepeatedField;
+
 // Loads and interprets the buffer as 'FlatbufferMessage' and verifies its
 // integrity.
 template <typename FlatbufferMessage>
@@ -110,81 +115,6 @@ class ReflectiveFlatbuffer {
   ReflectiveFlatbuffer(const reflection::Schema* schema,
                        const reflection::Object* type)
       : schema_(schema), type_(type) {}
-
-  // Encapsulates a repeated field.
-  // Serves as a common base class for repeated fields.
-  class RepeatedField {
-   public:
-    virtual ~RepeatedField() {}
-
-    virtual flatbuffers::uoffset_t Serialize(
-        flatbuffers::FlatBufferBuilder* builder) const = 0;
-  };
-
-  // Represents a repeated field of particular type.
-  template <typename T>
-  class TypedRepeatedField : public RepeatedField {
-   public:
-    void Add(const T value) { items_.push_back(value); }
-
-    flatbuffers::uoffset_t Serialize(
-        flatbuffers::FlatBufferBuilder* builder) const override {
-      return builder->CreateVector(items_).o;
-    }
-
-   private:
-    std::vector<T> items_;
-  };
-
-  // Specialization for strings.
-  template <>
-  class TypedRepeatedField<std::string> : public RepeatedField {
-   public:
-    void Add(const std::string& value) { items_.push_back(value); }
-
-    flatbuffers::uoffset_t Serialize(
-        flatbuffers::FlatBufferBuilder* builder) const override {
-      std::vector<flatbuffers::Offset<flatbuffers::String>> offsets(
-          items_.size());
-      for (int i = 0; i < items_.size(); i++) {
-        offsets[i] = builder->CreateString(items_[i]);
-      }
-      return builder->CreateVector(offsets).o;
-    }
-
-   private:
-    std::vector<std::string> items_;
-  };
-
-  // Specialization for repeated sub-messages.
-  template <>
-  class TypedRepeatedField<ReflectiveFlatbuffer> : public RepeatedField {
-   public:
-    TypedRepeatedField<ReflectiveFlatbuffer>(
-        const reflection::Schema* const schema,
-        const reflection::Type* const type)
-        : schema_(schema), type_(type) {}
-
-    ReflectiveFlatbuffer* Add() {
-      items_.emplace_back(new ReflectiveFlatbuffer(
-          schema_, schema_->objects()->Get(type_->index())));
-      return items_.back().get();
-    }
-
-    flatbuffers::uoffset_t Serialize(
-        flatbuffers::FlatBufferBuilder* builder) const override {
-      std::vector<flatbuffers::Offset<void>> offsets(items_.size());
-      for (int i = 0; i < items_.size(); i++) {
-        offsets[i] = items_[i]->Serialize(builder);
-      }
-      return builder->CreateVector(offsets).o;
-    }
-
-   private:
-    const reflection::Schema* const schema_;
-    const reflection::Type* const type_;
-    std::vector<std::unique_ptr<ReflectiveFlatbuffer>> items_;
-  };
 
   // Gets the field information for a field name, returns nullptr if the
   // field was not defined.
@@ -330,6 +260,81 @@ class ReflectiveFlatbufferBuilder {
 
  private:
   const reflection::Schema* const schema_;
+};
+
+// Encapsulates a repeated field.
+// Serves as a common base class for repeated fields.
+class RepeatedField {
+ public:
+  virtual ~RepeatedField() {}
+
+  virtual flatbuffers::uoffset_t Serialize(
+      flatbuffers::FlatBufferBuilder* builder) const = 0;
+};
+
+// Represents a repeated field of particular type.
+template <typename T>
+class TypedRepeatedField : public RepeatedField {
+ public:
+  void Add(const T value) { items_.push_back(value); }
+
+  flatbuffers::uoffset_t Serialize(
+      flatbuffers::FlatBufferBuilder* builder) const override {
+    return builder->CreateVector(items_).o;
+  }
+
+ private:
+  std::vector<T> items_;
+};
+
+// Specialization for strings.
+template <>
+class TypedRepeatedField<std::string> : public RepeatedField {
+ public:
+  void Add(const std::string& value) { items_.push_back(value); }
+
+  flatbuffers::uoffset_t Serialize(
+      flatbuffers::FlatBufferBuilder* builder) const override {
+    std::vector<flatbuffers::Offset<flatbuffers::String>> offsets(
+        items_.size());
+    for (int i = 0; i < items_.size(); i++) {
+      offsets[i] = builder->CreateString(items_[i]);
+    }
+    return builder->CreateVector(offsets).o;
+  }
+
+ private:
+  std::vector<std::string> items_;
+};
+
+// Specialization for repeated sub-messages.
+template <>
+class TypedRepeatedField<ReflectiveFlatbuffer> : public RepeatedField {
+ public:
+  TypedRepeatedField<ReflectiveFlatbuffer>(
+      const reflection::Schema* const schema,
+      const reflection::Type* const type)
+      : schema_(schema), type_(type) {}
+
+  ReflectiveFlatbuffer* Add() {
+    items_.emplace_back(new ReflectiveFlatbuffer(
+        schema_, schema_->objects()->Get(type_->index())));
+    return items_.back().get();
+  }
+
+  flatbuffers::uoffset_t Serialize(
+      flatbuffers::FlatBufferBuilder* builder) const override {
+    std::vector<flatbuffers::Offset<void>> offsets(items_.size());
+    for (int i = 0; i < items_.size(); i++) {
+      offsets[i] = items_[i]->Serialize(builder);
+    }
+    return builder->CreateVector(offsets).o;
+  }
+
+ private:
+  const reflection::Schema* const schema_;
+  const reflection::Type* const type_;
+  std::vector<std::unique_ptr<ReflectiveFlatbuffer>> items_;
 };
 
 }  // namespace libtextclassifier3

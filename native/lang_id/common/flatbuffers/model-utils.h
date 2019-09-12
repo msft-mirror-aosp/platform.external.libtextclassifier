@@ -46,7 +46,7 @@ inline const Model *GetVerifiedModelFromBytes(mobile::StringPiece bytes) {
 // Returns the |model| input with specified |name|.  Returns nullptr if no such
 // input exists.  If |model| contains multiple inputs with that |name|, returns
 // the first one (model builders should avoid building such models).
-const ModelInput *GetInputByName(const Model *model, const string &name);
+const ModelInput *GetInputByName(const Model *model, const std::string &name);
 
 // Returns a StringPiece pointing to the bytes for the content of |input|.  In
 // case of errors, returns StringPiece(nullptr, 0).

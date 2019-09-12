@@ -44,7 +44,7 @@ inline bool IsTokenSeparator(int num_bytes, const char *curr) {
 // we append the original UTF8 character.
 inline SAFTM_ATTRIBUTE_ALWAYS_INLINE void AppendLowerCase(const char *curr,
                                                           int num_bytes,
-                                                          string *word) {
+                                                          std::string *word) {
   if (num_bytes == 1) {
     // Optimize the ASCII case.
     word->push_back(tolower(*curr));
@@ -126,7 +126,7 @@ void TokenizerForLangId::Tokenize(StringPiece text,
 
     // If control reaches this point, we are at beginning of a non-empty token.
     sentence->emplace_back();
-    string *word = &(sentence->back());
+    std::string *word = &(sentence->back());
 
     // Add special token-start character.
     word->push_back('^');

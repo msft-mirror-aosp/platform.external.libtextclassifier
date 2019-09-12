@@ -169,7 +169,8 @@ class FeatureProcessor {
 
   // Splits context to several segments.
   std::vector<UnicodeTextRange> SplitContext(
-      const UnicodeText& context_unicode) const;
+      const UnicodeText& context_unicode,
+      const bool use_pipe_character_for_newline) const;
 
   // Strips boundary codepoints from the span in context and returns the new
   // start and end indices. If the span comprises entirely of boundary
@@ -177,20 +178,49 @@ class FeatureProcessor {
   CodepointSpan StripBoundaryCodepoints(const std::string& context,
                                         CodepointSpan span) const;
 
+  // Same as previous, but also takes the ignored span boundary codepoints.
+  CodepointSpan StripBoundaryCodepoints(
+      const std::string& context, CodepointSpan span,
+      const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+      const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+      const;
+
   // Same as above but takes UnicodeText.
   CodepointSpan StripBoundaryCodepoints(const UnicodeText& context_unicode,
                                         CodepointSpan span) const;
+
+  // Same as the previous, but also takes the ignored span boundary codepoints.
+  CodepointSpan StripBoundaryCodepoints(
+      const UnicodeText& context_unicode, CodepointSpan span,
+      const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+      const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+      const;
 
   // Same as above but takes a pair of iterators for the span, for efficiency.
   CodepointSpan StripBoundaryCodepoints(
       const UnicodeText::const_iterator& span_begin,
       const UnicodeText::const_iterator& span_end, CodepointSpan span) const;
 
+  // Same as previous, but also takes the ignored span boundary codepoints.
+  CodepointSpan StripBoundaryCodepoints(
+      const UnicodeText::const_iterator& span_begin,
+      const UnicodeText::const_iterator& span_end, CodepointSpan span,
+      const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+      const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+      const;
+
   // Same as above, but takes an optional buffer for saving the modified value.
   // As an optimization, returns pointer to 'value' if nothing was stripped, or
   // pointer to 'buffer' if something was stripped.
   const std::string& StripBoundaryCodepoints(const std::string& value,
                                              std::string* buffer) const;
+
+  // Same as previous, but also takes the ignored span boundary codepoints.
+  const std::string& StripBoundaryCodepoints(
+      const std::string& value, std::string* buffer,
+      const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+      const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+      const;
 
  protected:
   // Returns the class id corresponding to the given string collection
@@ -237,6 +267,12 @@ class FeatureProcessor {
       const UnicodeText::const_iterator& span_end,
       bool count_from_beginning) const;
 
+  // Same as previous, but also takes the ignored span boundary codepoints.
+  int CountIgnoredSpanBoundaryCodepoints(
+      const UnicodeText::const_iterator& span_start,
+      const UnicodeText::const_iterator& span_end, bool count_from_beginning,
+      const std::unordered_set<int>& ignored_span_boundary_codepoints) const;
+
   // Finds the center token index in tokens vector, using the method defined
   // in options_.
   int FindCenterToken(CodepointSpan span,
@@ -271,7 +307,7 @@ class FeatureProcessor {
  private:
   // Set of codepoints that will be stripped from beginning and end of
   // predicted spans.
-  std::set<int32> ignored_span_boundary_codepoints_;
+  std::unordered_set<int32> ignored_span_boundary_codepoints_;
 
   const FeatureProcessorOptions* const options_;
 

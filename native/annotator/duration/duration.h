@@ -50,7 +50,11 @@ BuildTokenToDurationUnitMapping(const DurationAnnotatorOptions* options);
 
 // Creates a set of strings from a flatbuffer string vector.
 std::unordered_set<std::string> BuildStringSet(
-    const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*);
+    const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*
+        strings);
+
+// Creates a set of ints from a flatbuffer int vector.
+std::unordered_set<int32> BuildInt32Set(const flatbuffers::Vector<int32>* ints);
 
 }  // namespace internal
 
@@ -66,7 +70,9 @@ class DurationAnnotator {
         filler_expressions_(
             internal::BuildStringSet(options->filler_expressions())),
         half_expressions_(
-            internal::BuildStringSet(options->half_expressions())) {}
+            internal::BuildStringSet(options->half_expressions())),
+        sub_token_separator_codepoints_(internal::BuildInt32Set(
+            options->sub_token_separator_codepoints())) {}
 
   // Classifies given text, and if it is a duration, it passes the result in
   // 'classification_result' and returns true, otherwise returns false.
@@ -110,6 +116,8 @@ class DurationAnnotator {
   bool ParseQuantityToken(const Token& token, ParsedDurationAtom* value) const;
   bool ParseDurationUnitToken(const Token& token,
                               internal::DurationUnit* duration_unit) const;
+  bool ParseQuantityDurationUnitToken(const Token& token,
+                                      ParsedDurationAtom* value) const;
   bool ParseFillerToken(const Token& token) const;
 
   int64 ParsedDurationAtomsToMillis(
@@ -121,6 +129,7 @@ class DurationAnnotator {
       token_value_to_duration_unit_;
   const std::unordered_set<std::string> filler_expressions_;
   const std::unordered_set<std::string> half_expressions_;
+  const std::unordered_set<int32> sub_token_separator_codepoints_;
 };
 
 }  // namespace libtextclassifier3

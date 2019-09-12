@@ -14,28 +14,23 @@
  * limitations under the License.
  */
 
-package com.google.android.textclassifier.utils.calendar;
+#ifndef LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_COMMON_H_
+#define LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_COMMON_H_
 
-import static com.google.common.truth.Truth.assertThat;
+#include "utils/base/integral_types.h"
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
+namespace libtextclassifier3 {
 
-/** This is just a launcher of the tests because we need a valid JNIEnv in the C++ test. */
-@RunWith(JUnit4.class)
-public class CalendarJavaIcuTest {
+bool IsOpeningBracket(char32 codepoint);
+bool IsClosingBracket(char32 codepoint);
+bool IsWhitespace(char32 codepoint);
+bool IsDigit(char32 codepoint);
+bool IsLower(char32 codepoint);
+bool IsUpper(char32 codepoint);
+char32 ToLower(char32 codepoint);
+char32 ToUpper(char32 codepoint);
+char32 GetPairedBracket(char32 codepoint);
 
-  @Before
-  public void setUp() throws Exception {
-    System.loadLibrary("calendar-javaicu_test-lib");
-  }
+}  // namespace libtextclassifier3
 
-  private native boolean testsMain();
-
-  @Test
-  public void testNative() {
-    assertThat(testsMain()).isTrue();
-  }
-}
+#endif  // LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_COMMON_H_

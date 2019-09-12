@@ -16,6 +16,7 @@
 
 #include "utils/utf8/unilib_test-include.h"
 
+#include "utils/utf8/unicodetext.h"
 #include "gmock/gmock.h"
 
 namespace libtextclassifier3 {
@@ -34,9 +35,15 @@ TEST_F(UniLibTest, CharacterClassesAscii) {
   EXPECT_FALSE(unilib_.IsUpper(')'));
   EXPECT_TRUE(unilib_.IsUpper('A'));
   EXPECT_TRUE(unilib_.IsUpper('Z'));
+  EXPECT_FALSE(unilib_.IsLower(')'));
+  EXPECT_TRUE(unilib_.IsLower('a'));
+  EXPECT_TRUE(unilib_.IsLower('z'));
   EXPECT_EQ(unilib_.ToLower('A'), 'a');
   EXPECT_EQ(unilib_.ToLower('Z'), 'z');
   EXPECT_EQ(unilib_.ToLower(')'), ')');
+  EXPECT_EQ(unilib_.ToUpper('a'), 'A');
+  EXPECT_EQ(unilib_.ToUpper('z'), 'Z');
+  EXPECT_EQ(unilib_.ToUpper(')'), ')');
   EXPECT_EQ(unilib_.GetPairedBracket(')'), '(');
   EXPECT_EQ(unilib_.GetPairedBracket('}'), '{');
 }
@@ -55,9 +62,21 @@ TEST_F(UniLibTest, CharacterClassesUnicode) {
   EXPECT_TRUE(unilib_.IsUpper(0x0391));           // GREEK CAPITAL ALPHA
   EXPECT_TRUE(unilib_.IsUpper(0x03AB));        // GREEK CAPITAL UPSILON W DIAL
   EXPECT_FALSE(unilib_.IsUpper(0x03AC));       // GREEK SMALL ALPHA WITH TONOS
+  EXPECT_TRUE(unilib_.IsLower(0x03AC));        // GREEK SMALL ALPHA WITH TONOS
+  EXPECT_TRUE(unilib_.IsLower(0x03B1));        // GREEK SMALL ALPHA
+  EXPECT_TRUE(unilib_.IsLower(0x03CB));        // GREEK SMALL UPSILON
+  EXPECT_TRUE(unilib_.IsLower(0x0211));        // SMALL R WITH DOUBLE GRAVE
+  EXPECT_TRUE(unilib_.IsLower(0x03C0));        // GREEK SMALL PI
+  EXPECT_TRUE(unilib_.IsLower(0x007a));        // SMALL Z
+  EXPECT_FALSE(unilib_.IsLower(0x005a));       // CAPITAL Z
+  EXPECT_FALSE(unilib_.IsLower(0x0212));       // CAPITAL R WITH DOUBLE GRAVE
+  EXPECT_FALSE(unilib_.IsLower(0x0391));       // GREEK CAPITAL ALPHA
   EXPECT_EQ(unilib_.ToLower(0x0391), 0x03B1);  // GREEK ALPHA
   EXPECT_EQ(unilib_.ToLower(0x03AB), 0x03CB);  // GREEK UPSILON WITH DIALYTIKA
   EXPECT_EQ(unilib_.ToLower(0x03C0), 0x03C0);  // GREEK SMALL PI
+  EXPECT_EQ(unilib_.ToUpper(0x03B1), 0x0391);  // GREEK ALPHA
+  EXPECT_EQ(unilib_.ToUpper(0x03CB), 0x03AB);  // GREEK UPSILON WITH DIALYTIKA
+  EXPECT_EQ(unilib_.ToUpper(0x0391), 0x0391);  // GREEK CAPITAL ALPHA
 
   EXPECT_EQ(unilib_.GetPairedBracket(0x0F3C), 0x0F3D);
   EXPECT_EQ(unilib_.GetPairedBracket(0x0F3D), 0x0F3C);

@@ -65,7 +65,7 @@ static inline int OneCharLen(const char *src) {
 // Preconditions: data != nullptr.
 const char *GetSafeEndOfUtf8String(const char *data, size_t size);
 
-static inline const char *GetSafeEndOfUtf8String(const string &text) {
+static inline const char *GetSafeEndOfUtf8String(const std::string &text) {
   return GetSafeEndOfUtf8String(text.data(), text.size());
 }
 

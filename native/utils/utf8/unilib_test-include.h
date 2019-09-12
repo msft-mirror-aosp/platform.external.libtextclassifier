@@ -26,6 +26,9 @@
 extern JNIEnv* g_jenv;
 #define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR(JniCache::Create(g_jenv))
 #include "utils/utf8/unilib-javaicu.h"
+#elif defined TC3_UNILIB_APPLE
+#include "utils/utf8/unilib-apple.h"
+#define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()
 #elif defined TC3_UNILIB_DUMMY
 #include "utils/utf8/unilib-dummy.h"
 #define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()

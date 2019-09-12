@@ -41,10 +41,10 @@ namespace mobile {
 // string that contains the representation of v.  For examples, see
 // str-cat_test.cc.
 template <typename T>
-inline string LiteStrCat(T v) {
+inline std::string LiteStrCat(T v) {
 #ifdef COMPILER_MSVC
   std::stringstream stream;
-  stream << input;
+  stream << v;
   return stream.str();
 #else
   return std::to_string(v);
@@ -52,42 +52,42 @@ inline string LiteStrCat(T v) {
 }
 
 template <>
-inline string LiteStrCat(const char *v) {
-  return string(v);
+inline std::string LiteStrCat(const char *v) {
+  return std::string(v);
 }
 
-// TODO(salcianu): use a reference type (const string &).  For some reason, I
-// couldn't get that to work on a first try.
+// TODO(salcianu): use a reference type (const std::string &).  For some reason,
+// I couldn't get that to work on a first try.
 template <>
-inline string LiteStrCat(string v) {
+inline std::string LiteStrCat(std::string v) {
   return v;
 }
 
 template <>
-inline string LiteStrCat(char v) {
-  return string(1, v);
+inline std::string LiteStrCat(char v) {
+  return std::string(1, v);
 }
 
 // Less efficient but more compact version of absl::LiteStrAppend().
 template <typename T>
-inline void LiteStrAppend(string *dest, T v) {
+inline void LiteStrAppend(std::string *dest, T v) {
   dest->append(LiteStrCat(v));  // NOLINT
 }
 
 template <typename T1, typename T2>
-inline void LiteStrAppend(string *dest, T1 v1, T2 v2) {
+inline void LiteStrAppend(std::string *dest, T1 v1, T2 v2) {
   dest->append(LiteStrCat(v1));  // NOLINT
   dest->append(LiteStrCat(v2));  // NOLINT
 }
 
 template <typename T1, typename T2, typename T3>
-inline void LiteStrAppend(string *dest, T1 v1, T2 v2, T3 v3) {
+inline void LiteStrAppend(std::string *dest, T1 v1, T2 v2, T3 v3) {
   LiteStrAppend(dest, v1, v2);
   dest->append(LiteStrCat(v3));  // NOLINT
 }
 
 template <typename T1, typename T2, typename T3, typename T4>
-inline void LiteStrAppend(string *dest, T1 v1, T2 v2, T3 v3, T4 v4) {
+inline void LiteStrAppend(std::string *dest, T1 v1, T2 v2, T3 v3, T4 v4) {
   LiteStrAppend(dest, v1, v2, v3);
   dest->append(LiteStrCat(v4));  // NOLINT
 }

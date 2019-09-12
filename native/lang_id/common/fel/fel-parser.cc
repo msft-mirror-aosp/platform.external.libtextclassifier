@@ -17,6 +17,7 @@
 #include "lang_id/common/fel/fel-parser.h"
 
 #include <ctype.h>
+
 #include <string>
 
 #include "lang_id/common/lite_base/logging.h"
@@ -46,7 +47,7 @@ inline bool IsValidCharInsideNumber(char c) {
 }
 }  // namespace
 
-bool FELParser::Initialize(const string &source) {
+bool FELParser::Initialize(const std::string &source) {
   // Initialize parser state.
   source_ = source;
   current_ = source_.begin();
@@ -57,9 +58,9 @@ bool FELParser::Initialize(const string &source) {
   return NextItem();
 }
 
-void FELParser::ReportError(const string &error_message) {
+void FELParser::ReportError(const std::string &error_message) {
   const int position = item_start_ - line_start_ + 1;
-  const string line(line_start_, current_);
+  const std::string line(line_start_, current_);
 
   SAFTM_LOG(ERROR) << "Error in feature model, line " << item_line_number_
                    << ", position " << position << ": " << error_message
@@ -104,7 +105,7 @@ bool FELParser::NextItem() {
 
   // Parse number.
   if (IsValidCharAtStartOfNumber(CurrentChar())) {
-    string::iterator start = current_;
+    std::string::iterator start = current_;
     Next();
     while (!eos() && IsValidCharInsideNumber(CurrentChar())) Next();
     item_text_.assign(start, current_);
@@ -115,7 +116,7 @@ bool FELParser::NextItem() {
   // Parse string.
   if (CurrentChar() == '"') {
     Next();
-    string::iterator start = current_;
+    std::string::iterator start = current_;
     while (CurrentChar() != '"') {
       if (eos()) {
         ReportError("Unterminated string");
@@ -131,7 +132,7 @@ bool FELParser::NextItem() {
 
   // Parse identifier name.
   if (IsValidCharAtStartOfIdentifier(CurrentChar())) {
-    string::iterator start = current_;
+    std::string::iterator start = current_;
     while (!eos() && IsValidCharInsideIdentifier(CurrentChar())) {
       Next();
     }
@@ -146,7 +147,7 @@ bool FELParser::NextItem() {
   return true;
 }
 
-bool FELParser::Parse(const string &source,
+bool FELParser::Parse(const std::string &source,
                       FeatureExtractorDescriptor *result) {
   // Initialize parser.
   if (!Initialize(source)) {
@@ -159,7 +160,7 @@ bool FELParser::Parse(const string &source,
       ReportError("Feature type name expected");
       return false;
     }
-    string name = item_text_;
+    std::string name = item_text_;
     if (!NextItem()) {
       return false;
     }
@@ -204,7 +205,7 @@ bool FELParser::ParseFeature(FeatureFunctionDescriptor *result) {
       ReportError("Feature name expected");
       return false;
     }
-    string name = item_text_;
+    std::string name = item_text_;
     if (!NextItem()) return false;
 
     // Set feature name.
@@ -219,7 +220,7 @@ bool FELParser::ParseFeature(FeatureFunctionDescriptor *result) {
       ReportError("Feature type name expected");
       return false;
     }
-    string type = item_text_;
+    std::string type = item_text_;
     if (!NextItem()) return false;
 
     // Parse sub-feature.
@@ -234,7 +235,7 @@ bool FELParser::ParseFeature(FeatureFunctionDescriptor *result) {
         ReportError("Feature type name expected");
         return false;
       }
-      string type = item_text_;
+      std::string type = item_text_;
       if (!NextItem()) return false;
 
       // Parse sub-feature.
@@ -259,7 +260,7 @@ bool FELParser::ParseParameter(FeatureFunctionDescriptor *result) {
     // Set default argument for feature.
     result->set_argument(argument);
   } else if (item_type_ == NAME) {
-    string name = item_text_;
+    std::string name = item_text_;
     if (!NextItem()) return false;
     if (item_type_ != '=') {
       ReportError("= expected");
@@ -270,7 +271,7 @@ bool FELParser::ParseParameter(FeatureFunctionDescriptor *result) {
       ReportError("Parameter value expected");
       return false;
     }
-    string value = item_text_;
+    std::string value = item_text_;
     if (!NextItem()) return false;
 
     // Add parameter to feature.

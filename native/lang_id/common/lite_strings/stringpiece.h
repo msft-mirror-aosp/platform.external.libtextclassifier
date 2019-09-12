@@ -49,10 +49,10 @@ class StringPiece {
 
   // Intentionally no "explicit" keyword: in function calls, we want strings to
   // be converted to StringPiece implicitly.
-  StringPiece(const string &s)  // NOLINT
+  StringPiece(const std::string &s)  // NOLINT
       : StringPiece(s.data(), s.size()) {}
 
-  StringPiece(const string &s, int offset, int len)
+  StringPiece(const std::string &s, int offset, int len)
       : StringPiece(s.data() + offset, len) {}
 
   char operator[](size_t i) const { return start_[i]; }
@@ -67,9 +67,9 @@ class StringPiece {
   bool empty() const { return size() == 0; }
 
   template <typename A>
-  explicit operator basic_string<char, std::char_traits<char>, A>() const {
+  explicit operator std::basic_string<char, std::char_traits<char>, A>() const {
     if (!data()) return {};
-    return basic_string<char, std::char_traits<char>, A>(data(), size());
+    return std::basic_string<char, std::char_traits<char>, A>(data(), size());
   }
 
  private:

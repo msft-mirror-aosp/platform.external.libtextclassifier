@@ -178,14 +178,14 @@ class ComponentRegistry {
     return (cell == nullptr) ? nullptr : cell->value();
   }
 
-  T *Lookup(const string &key) const { return Lookup(key.c_str()); }
+  T *Lookup(const std::string &key) const { return Lookup(key.c_str()); }
 
   // Returns name of this ComponentRegistry.
   const char *name() const { return name_; }
 
   // Fills *names with names of all components registered in this
   // ComponentRegistry.  Previous content of *names is cleared out.
-  void GetComponentNames(std::vector<string> *names) {
+  void GetComponentNames(std::vector<std::string> *names) {
     names->clear();
     for (const Cell *c = head_; c!= nullptr; c = c->next()) {
       names->emplace_back(c->key());
@@ -247,7 +247,7 @@ class RegisterableClass {
   // case of errors (e.g., unknown component).
   //
   // Passes ownership of the returned pointer to the caller.
-  static T *Create(const string &name) {  // NOLINT
+  static T *Create(const std::string &name) {  // NOLINT
     auto *factory = registry()->Lookup(name);
     if (factory == nullptr) {
       SAFTM_LOG(ERROR) << "Unknown RegisterableClass " << name;

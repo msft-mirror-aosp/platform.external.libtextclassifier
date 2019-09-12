@@ -16,13 +16,16 @@
 
 #include "lang_id/fb_model/lang-id-from-fb.h"
 
+#include <string>
+
 #include "lang_id/fb_model/model-provider-from-fb.h"
 
 namespace libtextclassifier3 {
 namespace mobile {
 namespace lang_id {
 
-std::unique_ptr<LangId> GetLangIdFromFlatbufferFile(const string &filename) {
+std::unique_ptr<LangId> GetLangIdFromFlatbufferFile(
+    const std::string &filename) {
   std::unique_ptr<ModelProvider> model_provider(
       new ModelProviderFromFlatbuffer(filename));
 
@@ -31,7 +34,8 @@ std::unique_ptr<LangId> GetLangIdFromFlatbufferFile(const string &filename) {
       new LangId(std::move(model_provider)));
 }
 
-std::unique_ptr<LangId> GetLangIdFromFlatbufferFileDescriptor(int fd) {
+std::unique_ptr<LangId> GetLangIdFromFlatbufferFileDescriptor(
+    FileDescriptorOrHandle fd) {
   std::unique_ptr<ModelProvider> model_provider(
       new ModelProviderFromFlatbuffer(fd));
 

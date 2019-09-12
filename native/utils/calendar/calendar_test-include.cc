@@ -19,29 +19,24 @@
 namespace libtextclassifier3 {
 namespace test_internal {
 
+static constexpr int kWednesday = 4;
+
 TEST_F(CalendarTest, Interface) {
   int64 time;
   DatetimeGranularity granularity;
   std::string timezone;
-  bool result = calendarlib_.InterpretParseData(
-      DateParseData{/*field_set_mask=*/0, /*year=*/0, /*month=*/0,
-                    /*day_of_month=*/0, /*hour=*/0, /*minute=*/0, /*second=*/0,
-                    /*ampm=*/static_cast<DateParseData::AMPM>(0),
-                    /*zone_offset=*/0, /*dst_offset=*/0,
-                    static_cast<DateParseData::Relation>(0),
-                    static_cast<DateParseData::RelationType>(0),
-                    /*relation_distance=*/0},
-      0L, "Zurich", "en-CH", &time, &granularity);
+  DatetimeParsedData data;
+  bool result = calendarlib_.InterpretParseData(data, 0L, "Zurich", "en-CH",
+                                                &time, &granularity);
   TC3_LOG(INFO) << result;
 }
 
 TEST_F(CalendarTest, SetsZeroTimeWhenNotRelative) {
   int64 time;
   DatetimeGranularity granularity;
-  DateParseData data;
+  DatetimeParsedData data;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::YEAR, 2018);
 
-  data.year = 2018;
-  data.field_set_mask = DateParseData::YEAR_FIELD;
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
@@ -58,50 +53,44 @@ TEST_F(CalendarTest, SetsZeroTimeWhenNotRelative) {
 TEST_F(CalendarTest, RoundingToGranularityBasic) {
   int64 time;
   DatetimeGranularity granularity;
-  DateParseData data;
+  DatetimeParsedData data;
 
-  data.year = 2018;
-  data.field_set_mask = DateParseData::YEAR_FIELD;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::YEAR, 2018);
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH", &time, &granularity));
   EXPECT_EQ(time, 1514761200000L /* Jan 01 2018 00:00:00 */);
 
-  data.month = 4;
-  data.field_set_mask |= DateParseData::MONTH_FIELD;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::MONTH, 4);
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH", &time, &granularity));
   EXPECT_EQ(time, 1522533600000L /* Apr 01 2018 00:00:00 */);
 
-  data.day_of_month = 25;
-  data.field_set_mask |= DateParseData::DAY_FIELD;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_MONTH, 25);
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH", &time, &granularity));
   EXPECT_EQ(time, 1524607200000L /* Apr 25 2018 00:00:00 */);
 
-  data.hour = 9;
-  data.field_set_mask |= DateParseData::HOUR_FIELD;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::HOUR, 9);
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH", &time, &granularity));
   EXPECT_EQ(time, 1524639600000L /* Apr 25 2018 09:00:00 */);
 
-  data.minute = 33;
-  data.field_set_mask |= DateParseData::MINUTE_FIELD;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::MINUTE, 33);
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH", &time, &granularity));
   EXPECT_EQ(time, 1524641580000 /* Apr 25 2018 09:33:00 */);
 
-  data.second = 59;
-  data.field_set_mask |= DateParseData::SECOND_FIELD;
+  data.SetAbsoluteValue(DatetimeComponent::ComponentType::SECOND, 59);
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
@@ -113,11 +102,10 @@ TEST_F(CalendarTest, RoundingToGranularityWeek) {
   int64 time;
   DatetimeGranularity granularity;
   // Prepare data structure that means: "next week"
-  DateParseData data;
-  data.field_set_mask =
-      DateParseData::RELATION_FIELD | DateParseData::RELATION_TYPE_FIELD;
-  data.relation = DateParseData::Relation::NEXT;
-  data.relation_type = DateParseData::RelationType::WEEK;
+  DatetimeParsedData data;
+  data.SetRelativeValue(DatetimeComponent::ComponentType::WEEK,
+                        DatetimeComponent::RelativeQualifier::NEXT);
+  data.SetRelativeCount(DatetimeComponent::ComponentType::WEEK, 1);
 
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       data,
@@ -133,28 +121,20 @@ TEST_F(CalendarTest, RoundingToGranularityWeek) {
 }
 
 TEST_F(CalendarTest, RelativeTime) {
-  const int field_mask = DateParseData::RELATION_FIELD |
-                         DateParseData::RELATION_TYPE_FIELD |
-                         DateParseData::RELATION_DISTANCE_FIELD;
   const int64 ref_time = 1524648839000L; /* 25 April 2018 09:33:59 */
   int64 time;
   DatetimeGranularity granularity;
 
   // Two Weds from now.
-  const DateParseData future_wed_parse = {
-      field_mask,
-      /*year=*/0,
-      /*month=*/0,
-      /*day_of_month=*/0,
-      /*hour=*/0,
-      /*minute=*/0,
-      /*second=*/0,
-      static_cast<DateParseData::AMPM>(0),
-      /*zone_offset=*/0,
-      /*dst_offset=*/0,
-      DateParseData::Relation::FUTURE,
-      DateParseData::RelationType::WEDNESDAY,
-      /*relation_distance=*/2};
+  DatetimeParsedData future_wed_parse;
+  future_wed_parse.SetRelativeValue(
+      DatetimeComponent::ComponentType::DAY_OF_WEEK,
+      DatetimeComponent::RelativeQualifier::FUTURE);
+  future_wed_parse.SetRelativeCount(
+      DatetimeComponent::ComponentType::DAY_OF_WEEK, 2);
+  future_wed_parse.SetAbsoluteValue(
+      DatetimeComponent::ComponentType::DAY_OF_WEEK, kWednesday);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       future_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
@@ -162,79 +142,59 @@ TEST_F(CalendarTest, RelativeTime) {
   EXPECT_EQ(granularity, GRANULARITY_DAY);
 
   // Next Wed.
-  const DateParseData next_wed_parse = {field_mask,
-                                        /*year=*/0,
-                                        /*month=*/0,
-                                        /*day_of_month=*/0,
-                                        /*hour=*/0,
-                                        /*minute=*/0,
-                                        /*second=*/0,
-                                        static_cast<DateParseData::AMPM>(0),
-                                        /*zone_offset=*/0,
-                                        /*dst_offset=*/0,
-                                        DateParseData::Relation::NEXT,
-                                        DateParseData::RelationType::WEDNESDAY,
-                                        /*relation_distance=*/0};
+  DatetimeParsedData next_wed_parse;
+  next_wed_parse.SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  kWednesday);
+  next_wed_parse.SetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  DatetimeComponent::RelativeQualifier::NEXT);
+  next_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  1);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       next_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
-  EXPECT_EQ(time, 1525253639000L /* Wed May 02 2018 11:33:59 */);
+  EXPECT_EQ(time, 1525212000000L /* Wed May 02 2018 00:00:00 */);
   EXPECT_EQ(granularity, GRANULARITY_DAY);
 
   // Same Wed.
-  const DateParseData same_wed_parse = {field_mask,
-                                        /*year=*/0,
-                                        /*month=*/0,
-                                        /*day_of_month=*/0,
-                                        /*hour=*/0,
-                                        /*minute=*/0,
-                                        /*second=*/0,
-                                        static_cast<DateParseData::AMPM>(0),
-                                        /*zone_offset=*/0,
-                                        /*dst_offset=*/0,
-                                        DateParseData::Relation::NEXT_OR_SAME,
-                                        DateParseData::RelationType::WEDNESDAY,
-                                        /*relation_distance=*/0};
+  DatetimeParsedData same_wed_parse;
+  same_wed_parse.SetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  DatetimeComponent::RelativeQualifier::THIS);
+  same_wed_parse.SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  kWednesday);
+  same_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  1);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       same_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
-  EXPECT_EQ(time, 1524648839000L /* Wed Apr 25 2018 11:33:59 */);
+  EXPECT_EQ(time, 1524607200000L /* Wed Apr 25 2018 00:00:00 */);
   EXPECT_EQ(granularity, GRANULARITY_DAY);
 
   // Previous Wed.
-  const DateParseData last_wed_parse = {field_mask,
-                                        /*year=*/0,
-                                        /*month=*/0,
-                                        /*day_of_month=*/0,
-                                        /*hour=*/0,
-                                        /*minute=*/0,
-                                        /*second=*/0,
-                                        static_cast<DateParseData::AMPM>(0),
-                                        /*zone_offset=*/0,
-                                        /*dst_offset=*/0,
-                                        DateParseData::Relation::LAST,
-                                        DateParseData::RelationType::WEDNESDAY,
-                                        /*relation_distance=*/0};
+  DatetimeParsedData last_wed_parse;
+  last_wed_parse.SetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  DatetimeComponent::RelativeQualifier::LAST);
+  last_wed_parse.SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  kWednesday);
+  last_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  1);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       last_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
-  EXPECT_EQ(time, 1524044039000L /* Wed Apr 18 2018 11:33:59 */);
+  EXPECT_EQ(time, 1524002400000L /* Wed Apr 18 2018 00:00:00 */);
   EXPECT_EQ(granularity, GRANULARITY_DAY);
 
   // Two Weds ago.
-  const DateParseData past_wed_parse = {field_mask,
-                                        /*year=*/0,
-                                        /*month=*/0,
-                                        /*day_of_month=*/0,
-                                        /*hour=*/0,
-                                        /*minute=*/0,
-                                        /*second=*/0,
-                                        static_cast<DateParseData::AMPM>(0),
-                                        /*zone_offset=*/0,
-                                        /*dst_offset=*/0,
-                                        DateParseData::Relation::PAST,
-                                        DateParseData::RelationType::WEDNESDAY,
-                                        /*relation_distance=*/2};
+  DatetimeParsedData past_wed_parse;
+  past_wed_parse.SetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  DatetimeComponent::RelativeQualifier::PAST);
+  past_wed_parse.SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  kWednesday);
+  past_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                  2);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       past_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
@@ -242,20 +202,12 @@ TEST_F(CalendarTest, RelativeTime) {
   EXPECT_EQ(granularity, GRANULARITY_DAY);
 
   // In 3 hours.
-  const DateParseData in_3_hours_parse = {
-      field_mask,
-      /*year=*/0,
-      /*month=*/0,
-      /*day_of_month=*/0,
-      /*hour=*/0,
-      /*minute=*/0,
-      /*second=*/0,
-      /*ampm=*/static_cast<DateParseData::AMPM>(0),
-      /*zone_offset=*/0,
-      /*dst_offset=*/0,
-      DateParseData::Relation::FUTURE,
-      DateParseData::RelationType::HOUR,
-      /*relation_distance=*/3};
+  DatetimeParsedData in_3_hours_parse;
+  in_3_hours_parse.SetRelativeValue(
+      DatetimeComponent::ComponentType::HOUR,
+      DatetimeComponent::RelativeQualifier::FUTURE);
+  in_3_hours_parse.SetRelativeCount(DatetimeComponent::ComponentType::HOUR, 3);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       in_3_hours_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
@@ -263,20 +215,13 @@ TEST_F(CalendarTest, RelativeTime) {
   EXPECT_EQ(granularity, GRANULARITY_HOUR);
 
   // In 5 minutes.
-  const DateParseData in_5_minutes_parse = {
-      field_mask,
-      /*year=*/0,
-      /*month=*/0,
-      /*day_of_month=*/0,
-      /*hour=*/0,
-      /*minute=*/0,
-      /*second=*/0,
-      /*ampm=*/static_cast<DateParseData::AMPM>(0),
-      /*zone_offset=*/0,
-      /*dst_offset=*/0,
-      DateParseData::Relation::FUTURE,
-      DateParseData::RelationType::MINUTE,
-      /*relation_distance=*/5};
+  DatetimeParsedData in_5_minutes_parse;
+  in_5_minutes_parse.SetRelativeValue(
+      DatetimeComponent::ComponentType::MINUTE,
+      DatetimeComponent::RelativeQualifier::FUTURE);
+  in_5_minutes_parse.SetRelativeCount(DatetimeComponent::ComponentType::MINUTE,
+                                      5);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       in_5_minutes_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));
@@ -284,20 +229,13 @@ TEST_F(CalendarTest, RelativeTime) {
   EXPECT_EQ(granularity, GRANULARITY_MINUTE);
 
   // In 10 seconds.
-  const DateParseData in_10_seconds_parse = {
-      field_mask,
-      /*year=*/0,
-      /*month=*/0,
-      /*day_of_month=*/0,
-      /*hour=*/0,
-      /*minute=*/0,
-      /*second=*/0,
-      /*ampm=*/static_cast<DateParseData::AMPM>(0),
-      /*zone_offset=*/0,
-      /*dst_offset=*/0,
-      DateParseData::Relation::FUTURE,
-      DateParseData::RelationType::SECOND,
-      /*relation_distance=*/10};
+  DatetimeParsedData in_10_seconds_parse;
+  in_10_seconds_parse.SetRelativeValue(
+      DatetimeComponent::ComponentType::SECOND,
+      DatetimeComponent::RelativeQualifier::FUTURE);
+  in_10_seconds_parse.SetRelativeCount(DatetimeComponent::ComponentType::SECOND,
+                                       10);
+
   ASSERT_TRUE(calendarlib_.InterpretParseData(
       in_10_seconds_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US", &time, &granularity));

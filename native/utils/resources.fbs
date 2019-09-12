@@ -19,22 +19,22 @@ include "utils/zlib/buffer.fbs";
 namespace libtextclassifier3;
 table Resource {
   locale:[int];
-  content:string;
+  content:string (shared);
   compressed_content:CompressedBuffer;
 }
 
 namespace libtextclassifier3;
 table ResourceEntry {
-  name:string (key);
+  name:string (key, shared);
   resource:[Resource];
 }
 
 // BCP 47 tag for the supported locale.
 namespace libtextclassifier3;
 table LanguageTag {
-  language:string;
-  script:string;
-  region:string;
+  language:string (shared);
+  script:string (shared);
+  region:string (shared);
 }
 
 namespace libtextclassifier3;

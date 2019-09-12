@@ -22,6 +22,7 @@
 #define NLP_SAFT_COMPONENTS_COMMON_MOBILE_FEL_WORKSPACE_H_
 
 #include <stddef.h>
+
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -69,11 +70,11 @@ class WorkspaceRegistry {
   // Returns the index of a named workspace, adding it to the registry first
   // if necessary.
   template <class W>
-  int Request(const string &name) {
+  int Request(const std::string &name) {
     const int id = TypeId<W>::type_id;
     max_workspace_id_ = std::max(id, max_workspace_id_);
     workspace_types_[id] = W::TypeName();
-    std::vector<string> &names = workspace_names_[id];
+    std::vector<std::string> &names = workspace_names_[id];
     for (int i = 0; i < names.size(); ++i) {
       if (names[i] == name) return i;
     }
@@ -86,20 +87,20 @@ class WorkspaceRegistry {
     return max_workspace_id_;
   }
 
-  const std::unordered_map<int, std::vector<string> > &WorkspaceNames()
+  const std::unordered_map<int, std::vector<std::string> > &WorkspaceNames()
       const {
     return workspace_names_;
   }
 
   // Returns a string describing the registered workspaces.
-  string DebugString() const;
+  std::string DebugString() const;
 
  private:
   // Workspace type names, indexed as workspace_types_[typeid].
-  std::unordered_map<int, string> workspace_types_;
+  std::unordered_map<int, std::string> workspace_types_;
 
   // Workspace names, indexed as workspace_names_[typeid][workspace].
-  std::unordered_map<int, std::vector<string> > workspace_names_;
+  std::unordered_map<int, std::vector<std::string> > workspace_names_;
 
   // The maximum workspace id that has been registered.
   int max_workspace_id_ = 0;
@@ -182,7 +183,7 @@ class VectorIntWorkspace : public Workspace {
   VectorIntWorkspace(int size, int value);
 
   // Returns the name of this type of workspace.
-  static string TypeName();
+  static std::string TypeName();
 
   // Returns the i'th element.
   int element(int i) const { return elements_[i]; }

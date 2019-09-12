@@ -17,8 +17,8 @@
 #include "utils/base/logging.h"
 
 #include <stdlib.h>
+
 #include <exception>
-#include <iostream>
 
 #include "utils/base/logging_raw.h"
 

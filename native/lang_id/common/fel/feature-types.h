@@ -44,21 +44,21 @@ typedef Predicate FeatureValue;
 class FeatureType {
  public:
   // Initializes a feature type.
-  explicit FeatureType(const string &name)
-      : name_(name), base_(0),
-        is_continuous_(name.find("continuous") != string::npos) {
-  }
+  explicit FeatureType(const std::string &name)
+      : name_(name),
+        base_(0),
+        is_continuous_(name.find("continuous") != std::string::npos) {}
 
   virtual ~FeatureType() {}
 
   // Converts a feature value to a name.
-  virtual string GetFeatureValueName(FeatureValue value) const = 0;
+  virtual std::string GetFeatureValueName(FeatureValue value) const = 0;
 
   // Returns the size of the feature values domain.
   virtual int64 GetDomainSize() const = 0;
 
   // Returns the feature type name.
-  const string &name() const { return name_; }
+  const std::string &name() const { return name_; }
 
   Predicate base() const { return base_; }
   void set_base(Predicate base) { base_ = base; }
@@ -68,7 +68,7 @@ class FeatureType {
 
  private:
   // Feature type name.
-  string name_;
+  std::string name_;
 
   // "Base" feature value: i.e. a "slot" in a global ordering of features.
   Predicate base_;
@@ -91,8 +91,8 @@ class FeatureType {
 //   };
 class EnumFeatureType : public FeatureType {
  public:
-  EnumFeatureType(const string &name,
-                  const std::map<FeatureValue, string> &value_names)
+  EnumFeatureType(const std::string &name,
+                  const std::map<FeatureValue, std::string> &value_names)
       : FeatureType(name), value_names_(value_names) {
     for (const auto &pair : value_names) {
       SAFTM_CHECK_GE(pair.first, 0)
@@ -102,7 +102,7 @@ class EnumFeatureType : public FeatureType {
   }
 
   // Returns the feature name for a given feature value.
-  string GetFeatureValueName(FeatureValue value) const override {
+  std::string GetFeatureValueName(FeatureValue value) const override {
     auto it = value_names_.find(value);
     if (it == value_names_.end()) {
       SAFTM_LOG(ERROR) << "Invalid feature value " << value << " for "
@@ -121,17 +121,18 @@ class EnumFeatureType : public FeatureType {
   FeatureValue domain_size_ = 0;
 
   // Names of feature values.
-  std::map<FeatureValue, string> value_names_;
+  std::map<FeatureValue, std::string> value_names_;
 };
 
 // Feature type for binary features.
 class BinaryFeatureType : public FeatureType {
  public:
-  BinaryFeatureType(const string &name, const string &off, const string &on)
+  BinaryFeatureType(const std::string &name, const std::string &off,
+                    const std::string &on)
       : FeatureType(name), off_(off), on_(on) {}
 
   // Returns the feature name for a given feature value.
-  string GetFeatureValueName(FeatureValue value) const override {
+  std::string GetFeatureValueName(FeatureValue value) const override {
     if (value == 0) return off_;
     if (value == 1) return on_;
     return "";
@@ -142,19 +143,19 @@ class BinaryFeatureType : public FeatureType {
 
  private:
   // Feature value names for on and off.
-  string off_;
-  string on_;
+  std::string off_;
+  std::string on_;
 };
 
 // Feature type for numeric features.
 class NumericFeatureType : public FeatureType {
  public:
   // Initializes numeric feature.
-  NumericFeatureType(const string &name, FeatureValue size)
+  NumericFeatureType(const std::string &name, FeatureValue size)
       : FeatureType(name), size_(size) {}
 
   // Returns numeric feature value.
-  string GetFeatureValueName(FeatureValue value) const override {
+  std::string GetFeatureValueName(FeatureValue value) const override {
     if (value < 0) return "";
     return LiteStrCat(value);
   }
@@ -170,14 +171,14 @@ class NumericFeatureType : public FeatureType {
 // Feature type for byte features, including an "outside" value.
 class ByteFeatureType : public NumericFeatureType {
  public:
-  explicit ByteFeatureType(const string &name)
+  explicit ByteFeatureType(const std::string &name)
       : NumericFeatureType(name, 257) {}
 
-  string GetFeatureValueName(FeatureValue value) const override {
+  std::string GetFeatureValueName(FeatureValue value) const override {
     if (value == 256) {
       return "<NULL>";
     }
-    string result;
+    std::string result;
     result += static_cast<char>(value);
     return result;
   }

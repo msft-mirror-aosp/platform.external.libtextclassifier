@@ -40,14 +40,14 @@ namespace mobile {
 // underflows.
 bool LiteAtoi(const char *c_str, int *value);
 
-inline bool LiteAtoi(const string &s, int *value) {
+inline bool LiteAtoi(const std::string &s, int *value) {
   return LiteAtoi(s.c_str(), value);
 }
 
 inline bool LiteAtoi(StringPiece sp, int *value) {
   // Unfortunately, we can't directly call LiteAtoi(sp.data()): LiteAtoi(const
   // char *) needs a zero-terminated string.
-  const string temp(sp.data(), sp.size());
+  const std::string temp(sp.data(), sp.size());
   return LiteAtoi(temp.c_str(), value);
 }
 
@@ -57,14 +57,14 @@ inline bool LiteAtoi(StringPiece sp, int *value) {
 // TODO(salcianu): fix that.
 bool LiteAtof(const char *c_str, float *value);
 
-inline bool LiteAtof(const string &s, float *value) {
+inline bool LiteAtof(const std::string &s, float *value) {
   return LiteAtof(s.c_str(), value);
 }
 
 inline bool LiteAtof(StringPiece sp, float *value) {
   // Unfortunately, we can't directly call LiteAtoi(sp.data()): LiteAtoi(const
   // char *) needs a zero-terminated string.
-  const string temp(sp.data(), sp.size());
+  const std::string temp(sp.data(), sp.size());
   return LiteAtof(temp.c_str(), value);
 }
 

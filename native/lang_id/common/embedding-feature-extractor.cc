@@ -35,10 +35,10 @@ namespace mobile {
 
 bool GenericEmbeddingFeatureExtractor::Setup(TaskContext *context) {
   // Don't use version to determine how to get feature FML.
-  const string features = context->Get(GetParamName("features"), "");
-  const string embedding_names =
+  const std::string features = context->Get(GetParamName("features"), "");
+  const std::string embedding_names =
       context->Get(GetParamName("embedding_names"), "");
-  const string embedding_dims =
+  const std::string embedding_dims =
       context->Get(GetParamName("embedding_dims"), "");
 
   // NOTE: unfortunately, LiteStrSplit returns a vector of StringPieces pointing

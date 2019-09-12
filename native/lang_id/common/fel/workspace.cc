@@ -29,12 +29,12 @@ int GetFreshTypeId() {
   return counter++;
 }
 
-string WorkspaceRegistry::DebugString() const {
-  string str;
+std::string WorkspaceRegistry::DebugString() const {
+  std::string str;
   for (auto &it : workspace_names_) {
-    const string &type_name = workspace_types_.at(it.first);
+    const std::string &type_name = workspace_types_.at(it.first);
     for (size_t index = 0; index < it.second.size(); ++index) {
-      const string &workspace_name = it.second[index];
+      const std::string &workspace_name = it.second[index];
       str.append("\n  ");
       str.append(type_name);
       str.append(" :: ");
@@ -52,7 +52,7 @@ VectorIntWorkspace::VectorIntWorkspace(int size, int value)
 VectorIntWorkspace::VectorIntWorkspace(const std::vector<int> &elements)
     : elements_(elements) {}
 
-string VectorIntWorkspace::TypeName() { return "Vector"; }
+std::string VectorIntWorkspace::TypeName() { return "Vector"; }
 
 }  // namespace mobile
 }  // namespace nlp_saft

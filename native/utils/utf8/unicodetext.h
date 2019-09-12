@@ -119,11 +119,12 @@ class UnicodeText {
     }
 
     int utf8_length() const {
-      if (it_[0] < 0x80) {
+      const unsigned char byte = static_cast<unsigned char>(it_[0]);
+      if (byte < 0x80) {
         return 1;
-      } else if (it_[0] < 0xE0) {
+      } else if (byte < 0xE0) {
         return 2;
-      } else if (it_[0] < 0xF0) {
+      } else if (byte < 0xF0) {
         return 3;
       } else {
         return 4;

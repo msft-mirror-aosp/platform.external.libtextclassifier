@@ -22,36 +22,31 @@
 
 namespace libtextclassifier3 {
 namespace {
-bool CreateRepeatedField(
-    const reflection::Schema* schema, const reflection::Type* type,
-    std::unique_ptr<ReflectiveFlatbuffer::RepeatedField>* repeated_field) {
+bool CreateRepeatedField(const reflection::Schema* schema,
+                         const reflection::Type* type,
+                         std::unique_ptr<RepeatedField>* repeated_field) {
   switch (type->element()) {
     case reflection::Bool:
-      repeated_field->reset(new ReflectiveFlatbuffer::TypedRepeatedField<bool>);
+      repeated_field->reset(new TypedRepeatedField<bool>);
       return true;
     case reflection::Int:
-      repeated_field->reset(new ReflectiveFlatbuffer::TypedRepeatedField<int>);
+      repeated_field->reset(new TypedRepeatedField<int>);
       return true;
     case reflection::Long:
-      repeated_field->reset(
-          new ReflectiveFlatbuffer::TypedRepeatedField<int64>);
+      repeated_field->reset(new TypedRepeatedField<int64>);
       return true;
     case reflection::Float:
-      repeated_field->reset(
-          new ReflectiveFlatbuffer::TypedRepeatedField<float>);
+      repeated_field->reset(new TypedRepeatedField<float>);
       return true;
     case reflection::Double:
-      repeated_field->reset(
-          new ReflectiveFlatbuffer::TypedRepeatedField<double>);
+      repeated_field->reset(new TypedRepeatedField<double>);
       return true;
     case reflection::String:
-      repeated_field->reset(
-          new ReflectiveFlatbuffer::TypedRepeatedField<std::string>);
+      repeated_field->reset(new TypedRepeatedField<std::string>);
       return true;
     case reflection::Obj:
       repeated_field->reset(
-          new ReflectiveFlatbuffer::TypedRepeatedField<ReflectiveFlatbuffer>(
-              schema, type));
+          new TypedRepeatedField<ReflectiveFlatbuffer>(schema, type));
       return true;
     default:
       TC3_LOG(ERROR) << "Unsupported type: " << type->element();
@@ -237,8 +232,7 @@ ReflectiveFlatbuffer* ReflectiveFlatbuffer::Mutable(
   return it->second.get();
 }
 
-ReflectiveFlatbuffer::RepeatedField* ReflectiveFlatbuffer::Repeated(
-    StringPiece field_name) {
+RepeatedField* ReflectiveFlatbuffer::Repeated(StringPiece field_name) {
   if (const reflection::Field* field = GetFieldOrNull(field_name)) {
     return Repeated(field);
   }
@@ -246,8 +240,7 @@ ReflectiveFlatbuffer::RepeatedField* ReflectiveFlatbuffer::Repeated(
   return nullptr;
 }
 
-ReflectiveFlatbuffer::RepeatedField* ReflectiveFlatbuffer::Repeated(
-    const reflection::Field* field) {
+RepeatedField* ReflectiveFlatbuffer::Repeated(const reflection::Field* field) {
   if (field->type()->base_type() != reflection::Vector) {
     TC3_LOG(ERROR) << "Field is not of type Vector.";
     return nullptr;

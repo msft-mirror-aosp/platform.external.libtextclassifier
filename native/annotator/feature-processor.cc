@@ -147,7 +147,8 @@ void FeatureProcessor::StripTokensFromOtherLines(
 void FeatureProcessor::StripTokensFromOtherLines(
     const UnicodeText& context_unicode, CodepointSpan span,
     std::vector<Token>* tokens) const {
-  std::vector<UnicodeTextRange> lines = SplitContext(context_unicode);
+  std::vector<UnicodeTextRange> lines =
+      SplitContext(context_unicode, options_->use_pipe_character_for_newline());
 
   auto span_start = context_unicode.begin();
   if (span.first > 0) {
@@ -485,6 +486,15 @@ int FeatureProcessor::CountIgnoredSpanBoundaryCodepoints(
     const UnicodeText::const_iterator& span_start,
     const UnicodeText::const_iterator& span_end,
     bool count_from_beginning) const {
+  return CountIgnoredSpanBoundaryCodepoints(span_start, span_end,
+                                            count_from_beginning,
+                                            ignored_span_boundary_codepoints_);
+}
+
+int FeatureProcessor::CountIgnoredSpanBoundaryCodepoints(
+    const UnicodeText::const_iterator& span_start,
+    const UnicodeText::const_iterator& span_end, bool count_from_beginning,
+    const std::unordered_set<int>& ignored_span_boundary_codepoints) const {
   if (span_start == span_end) {
     return 0;
   }
@@ -507,8 +517,8 @@ int FeatureProcessor::CountIgnoredSpanBoundaryCodepoints(
 
   // Move until we encounter a non-ignored character.
   int num_ignored = 0;
-  while (ignored_span_boundary_codepoints_.find(*it) !=
-         ignored_span_boundary_codepoints_.end()) {
+  while (ignored_span_boundary_codepoints.find(*it) !=
+         ignored_span_boundary_codepoints.end()) {
     ++num_ignored;
 
     if (it == it_last) {
@@ -549,22 +559,48 @@ void FindSubstrings(const UnicodeText& t, const std::set<char32>& codepoints,
 }  // namespace
 
 std::vector<UnicodeTextRange> FeatureProcessor::SplitContext(
-    const UnicodeText& context_unicode) const {
+    const UnicodeText& context_unicode,
+    const bool use_pipe_character_for_newline) const {
   std::vector<UnicodeTextRange> lines;
-  const std::set<char32> codepoints{{'\n', '|'}};
+  std::set<char32> codepoints{'\n'};
+  if (use_pipe_character_for_newline) {
+    codepoints.insert('|');
+  }
   FindSubstrings(context_unicode, codepoints, &lines);
   return lines;
 }
 
 CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
     const std::string& context, CodepointSpan span) const {
+  return StripBoundaryCodepoints(context, span,
+                                 ignored_span_boundary_codepoints_,
+                                 ignored_span_boundary_codepoints_);
+}
+
+CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
+    const std::string& context, CodepointSpan span,
+    const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+    const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+    const {
   const UnicodeText context_unicode =
       UTF8ToUnicodeText(context, /*do_copy=*/false);
-  return StripBoundaryCodepoints(context_unicode, span);
+  return StripBoundaryCodepoints(context_unicode, span,
+                                 ignored_prefix_span_boundary_codepoints,
+                                 ignored_suffix_span_boundary_codepoints);
 }
 
 CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
     const UnicodeText& context_unicode, CodepointSpan span) const {
+  return StripBoundaryCodepoints(context_unicode, span,
+                                 ignored_span_boundary_codepoints_,
+                                 ignored_span_boundary_codepoints_);
+}
+
+CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
+    const UnicodeText& context_unicode, CodepointSpan span,
+    const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+    const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+    const {
   if (context_unicode.empty() || !ValidNonEmptySpan(span)) {
     return span;
   }
@@ -574,20 +610,35 @@ CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
   UnicodeText::const_iterator span_end = context_unicode.begin();
   std::advance(span_end, span.second);
 
-  return StripBoundaryCodepoints(span_begin, span_end, span);
+  return StripBoundaryCodepoints(span_begin, span_end, span,
+                                 ignored_prefix_span_boundary_codepoints,
+                                 ignored_suffix_span_boundary_codepoints);
 }
 
 CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
     const UnicodeText::const_iterator& span_begin,
     const UnicodeText::const_iterator& span_end, CodepointSpan span) const {
+  return StripBoundaryCodepoints(span_begin, span_end, span,
+                                 ignored_span_boundary_codepoints_,
+                                 ignored_span_boundary_codepoints_);
+}
+
+CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
+    const UnicodeText::const_iterator& span_begin,
+    const UnicodeText::const_iterator& span_end, CodepointSpan span,
+    const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+    const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+    const {
   if (!ValidNonEmptySpan(span) || span_begin == span_end) {
     return span;
   }
 
   const int start_offset = CountIgnoredSpanBoundaryCodepoints(
-      span_begin, span_end, /*count_from_beginning=*/true);
+      span_begin, span_end, /*count_from_beginning=*/true,
+      ignored_prefix_span_boundary_codepoints);
   const int end_offset = CountIgnoredSpanBoundaryCodepoints(
-      span_begin, span_end, /*count_from_beginning=*/false);
+      span_begin, span_end, /*count_from_beginning=*/false,
+      ignored_suffix_span_boundary_codepoints);
 
   if (span.first + start_offset < span.second - end_offset) {
     return {span.first + start_offset, span.second - end_offset};
@@ -615,10 +666,21 @@ float FeatureProcessor::SupportedCodepointsRatio(
 
 const std::string& FeatureProcessor::StripBoundaryCodepoints(
     const std::string& value, std::string* buffer) const {
+  return StripBoundaryCodepoints(value, buffer,
+                                 ignored_span_boundary_codepoints_,
+                                 ignored_span_boundary_codepoints_);
+}
+
+const std::string& FeatureProcessor::StripBoundaryCodepoints(
+    const std::string& value, std::string* buffer,
+    const std::unordered_set<int>& ignored_prefix_span_boundary_codepoints,
+    const std::unordered_set<int>& ignored_suffix_span_boundary_codepoints)
+    const {
   const UnicodeText value_unicode = UTF8ToUnicodeText(value, /*do_copy=*/false);
   const CodepointSpan initial_span{0, value_unicode.size_codepoints()};
-  const CodepointSpan stripped_span =
-      StripBoundaryCodepoints(value_unicode, initial_span);
+  const CodepointSpan stripped_span = StripBoundaryCodepoints(
+      value_unicode, initial_span, ignored_prefix_span_boundary_codepoints,
+      ignored_suffix_span_boundary_codepoints);
 
   if (initial_span != stripped_span) {
     const UnicodeText stripped_token_value =

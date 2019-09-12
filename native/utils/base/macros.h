@@ -21,6 +21,9 @@
 
 namespace libtextclassifier3 {
 
+#define TC3_ARRAYSIZE(a) \
+  ((sizeof(a) / sizeof(*(a))) / (size_t)(!(sizeof(a) % sizeof(*(a)))))
+
 #if LANG_CXX11
 #define TC3_DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName &) = delete;         \

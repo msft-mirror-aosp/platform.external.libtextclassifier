@@ -137,7 +137,7 @@ struct AnnotationOptions {
 };
 
 // Holds TFLite interpreters for selection and classification models.
-// NOTE: his class is not thread-safe, thus should NOT be re-used across
+// NOTE: This class is not thread-safe, thus should NOT be re-used across
 // threads.
 class InterpreterManager {
  public:
@@ -452,6 +452,15 @@ class Annotator {
   bool SerializedEntityDataFromRegexMatch(
       const RegexModel_::Pattern* pattern, UniLib::RegexMatcher* matcher,
       std::string* serialized_entity_data) const;
+
+  // For knowledge candidates which have a ContactPointer, fill in the
+  // appropriate contact metadata, if possible.
+  void AddContactMetadataToKnowledgeClassificationResults(
+      std::vector<AnnotatedSpan>* candidates) const;
+
+  // Gets priority score from the list of classification results.
+  float GetPriorityScore(
+      const std::vector<ClassificationResult>& classification) const;
 
   // Verifies a regex match and returns true if verification was successful.
   bool VerifyRegexMatchCandidate(

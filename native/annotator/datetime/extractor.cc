@@ -20,14 +20,20 @@
 
 namespace libtextclassifier3 {
 
-bool DatetimeExtractor::Extract(DateParseData* result,
+bool DatetimeExtractor::Extract(DatetimeParsedData* result,
                                 CodepointSpan* result_span) const {
-  result->field_set_mask = 0;
   *result_span = {kInvalidIndex, kInvalidIndex};
 
   if (rule_.regex->groups() == nullptr) {
     return false;
   }
+
+  // In the current implementation of extractor, the assumption is that there
+  // can only be one relative field.
+  DatetimeComponent::ComponentType component_type;
+  DatetimeComponent::RelativeQualifier relative_qualifier =
+      DatetimeComponent::RelativeQualifier::UNSPECIFIED;
+  int relative_count = 0;
 
   for (int group_id = 0; group_id < rule_.regex->groups()->size(); group_id++) {
     UnicodeText group_text;
@@ -44,85 +50,115 @@ bool DatetimeExtractor::Extract(DateParseData* result,
     if (group_text.empty()) {
       continue;
     }
+
     switch (group_type) {
       case DatetimeGroupType_GROUP_YEAR: {
-        if (!ParseYear(group_text, &(result->year))) {
+        int year;
+        if (!ParseYear(group_text, &(year))) {
           TC3_LOG(ERROR) << "Couldn't extract YEAR.";
           return false;
         }
-        result->field_set_mask |= DateParseData::YEAR_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::YEAR, year);
         break;
       }
       case DatetimeGroupType_GROUP_MONTH: {
-        if (!ParseMonth(group_text, &(result->month))) {
+        int month;
+        if (!ParseMonth(group_text, &(month))) {
           TC3_LOG(ERROR) << "Couldn't extract MONTH.";
           return false;
         }
-        result->field_set_mask |= DateParseData::MONTH_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::MONTH,
+                                 month);
         break;
       }
       case DatetimeGroupType_GROUP_DAY: {
-        if (!ParseDigits(group_text, &(result->day_of_month))) {
+        int day_of_month;
+        if (!ParseDigits(group_text, &(day_of_month))) {
           TC3_LOG(ERROR) << "Couldn't extract DAY.";
           return false;
         }
-        result->field_set_mask |= DateParseData::DAY_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_MONTH,
+                                 day_of_month);
         break;
       }
       case DatetimeGroupType_GROUP_HOUR: {
-        if (!ParseDigits(group_text, &(result->hour))) {
+        int hour;
+        if (!ParseDigits(group_text, &(hour))) {
           TC3_LOG(ERROR) << "Couldn't extract HOUR.";
           return false;
         }
-        result->field_set_mask |= DateParseData::HOUR_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::HOUR, hour);
         break;
       }
       case DatetimeGroupType_GROUP_MINUTE: {
-        if (!ParseDigits(group_text, &(result->minute))) {
+        int minute;
+        if (!ParseDigits(group_text, &(minute))) {
           TC3_LOG(ERROR) << "Couldn't extract MINUTE.";
           return false;
         }
-        result->field_set_mask |= DateParseData::MINUTE_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::MINUTE,
+                                 minute);
         break;
       }
       case DatetimeGroupType_GROUP_SECOND: {
-        if (!ParseDigits(group_text, &(result->second))) {
+        int second;
+        if (!ParseDigits(group_text, &(second))) {
           TC3_LOG(ERROR) << "Couldn't extract SECOND.";
           return false;
         }
-        result->field_set_mask |= DateParseData::SECOND_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::SECOND,
+                                 second);
         break;
       }
       case DatetimeGroupType_GROUP_AMPM: {
-        if (!ParseAMPM(group_text, &(result->ampm))) {
+        int meridiem;
+        if (!ParseMeridiem(group_text, &(meridiem))) {
           TC3_LOG(ERROR) << "Couldn't extract AMPM.";
           return false;
         }
-        result->field_set_mask |= DateParseData::AMPM_FIELD;
+        result->SetAbsoluteValue(DatetimeComponent::ComponentType::MERIDIEM,
+                                 meridiem);
         break;
       }
       case DatetimeGroupType_GROUP_RELATIONDISTANCE: {
-        if (!ParseRelationDistance(group_text, &(result->relation_distance))) {
+        relative_count = 0;
+        if (!ParseRelationDistance(group_text, &(relative_count))) {
           TC3_LOG(ERROR) << "Couldn't extract RELATION_DISTANCE_FIELD.";
           return false;
         }
-        result->field_set_mask |= DateParseData::RELATION_DISTANCE_FIELD;
         break;
       }
       case DatetimeGroupType_GROUP_RELATION: {
-        if (!ParseRelation(group_text, &(result->relation))) {
+        if (!ParseRelativeValue(group_text, &relative_qualifier)) {
           TC3_LOG(ERROR) << "Couldn't extract RELATION_FIELD.";
           return false;
         }
-        result->field_set_mask |= DateParseData::RELATION_FIELD;
+        ParseRelationAndConvertToRelativeCount(group_text, &relative_count);
+        if (relative_qualifier ==
+                DatetimeComponent::RelativeQualifier::TOMORROW ||
+            relative_qualifier == DatetimeComponent::RelativeQualifier::NOW ||
+            relative_qualifier ==
+                DatetimeComponent::RelativeQualifier::YESTERDAY) {
+          if (!ParseFieldType(group_text, &component_type)) {
+            TC3_LOG(ERROR) << "Couldn't extract RELATION_TYPE_FIELD.";
+            return false;
+          }
+        }
         break;
       }
       case DatetimeGroupType_GROUP_RELATIONTYPE: {
-        if (!ParseRelationType(group_text, &(result->relation_type))) {
+        if (!ParseFieldType(group_text, &component_type)) {
           TC3_LOG(ERROR) << "Couldn't extract RELATION_TYPE_FIELD.";
           return false;
         }
-        result->field_set_mask |= DateParseData::RELATION_TYPE_FIELD;
+        if (component_type == DatetimeComponent::ComponentType::DAY_OF_WEEK) {
+          int day_of_week;
+          if (!ParseDayOfWeek(group_text, &day_of_week)) {
+            TC3_LOG(ERROR) << "Couldn't extract RELATION_TYPE_FIELD.";
+            return false;
+          }
+          result->SetAbsoluteValue(component_type, day_of_week);
+        }
         break;
       }
       case DatetimeGroupType_GROUP_DUMMY1:
@@ -136,6 +172,11 @@ bool DatetimeExtractor::Extract(DateParseData* result,
       TC3_LOG(ERROR) << "Couldn't update span.";
       return false;
     }
+  }
+
+  if (relative_qualifier != DatetimeComponent::RelativeQualifier::UNSPECIFIED) {
+    result->SetRelativeValue(component_type, relative_qualifier);
+    result->SetRelativeCount(component_type, relative_count);
   }
 
   if (result_span->first == kInvalidIndex ||
@@ -280,7 +321,6 @@ bool DatetimeExtractor::ParseWrittenNumber(const UnicodeText& input,
     if (!matcher) {
       return false;
     }
-
     int status;
     while (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
       int span_start = matcher->Start(&status);
@@ -336,6 +376,7 @@ bool DatetimeExtractor::ParseYear(const UnicodeText& input,
     return false;
   }
 
+  // Logic to decide if XX will be 20XX or 19XX
   if (*parsed_year < 100) {
     if (*parsed_year < 50) {
       *parsed_year += 2000;
@@ -375,14 +416,14 @@ bool DatetimeExtractor::ParseMonth(const UnicodeText& input,
   return false;
 }
 
-bool DatetimeExtractor::ParseAMPM(const UnicodeText& input,
-                                  DateParseData::AMPM* parsed_ampm) const {
+bool DatetimeExtractor::ParseMeridiem(const UnicodeText& input,
+                                      int* parsed_meridiem) const {
   return MapInput(input,
                   {
-                      {DatetimeExtractorType_AM, DateParseData::AMPM::AM},
-                      {DatetimeExtractorType_PM, DateParseData::AMPM::PM},
+                      {DatetimeExtractorType_AM, 0 /* AM */},
+                      {DatetimeExtractorType_PM, 1 /* PM */},
                   },
-                  parsed_ampm);
+                  parsed_meridiem);
 }
 
 bool DatetimeExtractor::ParseRelationDistance(const UnicodeText& input,
@@ -396,49 +437,99 @@ bool DatetimeExtractor::ParseRelationDistance(const UnicodeText& input,
   return false;
 }
 
-bool DatetimeExtractor::ParseRelation(
-    const UnicodeText& input, DateParseData::Relation* parsed_relation) const {
-  return MapInput(
-      input,
-      {
-          {DatetimeExtractorType_NOW, DateParseData::Relation::NOW},
-          {DatetimeExtractorType_YESTERDAY, DateParseData::Relation::YESTERDAY},
-          {DatetimeExtractorType_TOMORROW, DateParseData::Relation::TOMORROW},
-          {DatetimeExtractorType_NEXT, DateParseData::Relation::NEXT},
-          {DatetimeExtractorType_NEXT_OR_SAME,
-           DateParseData::Relation::NEXT_OR_SAME},
-          {DatetimeExtractorType_LAST, DateParseData::Relation::LAST},
-          {DatetimeExtractorType_PAST, DateParseData::Relation::PAST},
-          {DatetimeExtractorType_FUTURE, DateParseData::Relation::FUTURE},
-      },
-      parsed_relation);
+bool DatetimeExtractor::ParseRelativeValue(
+    const UnicodeText& input,
+    DatetimeComponent::RelativeQualifier* parsed_relative_value) const {
+  return MapInput(input,
+                  {
+                      {DatetimeExtractorType_NOW,
+                       DatetimeComponent::RelativeQualifier::NOW},
+                      {DatetimeExtractorType_YESTERDAY,
+                       DatetimeComponent::RelativeQualifier::YESTERDAY},
+                      {DatetimeExtractorType_TOMORROW,
+                       DatetimeComponent::RelativeQualifier::TOMORROW},
+                      {DatetimeExtractorType_NEXT,
+                       DatetimeComponent::RelativeQualifier::NEXT},
+                      {DatetimeExtractorType_NEXT_OR_SAME,
+                       DatetimeComponent::RelativeQualifier::THIS},
+                      {DatetimeExtractorType_LAST,
+                       DatetimeComponent::RelativeQualifier::LAST},
+                      {DatetimeExtractorType_PAST,
+                       DatetimeComponent::RelativeQualifier::PAST},
+                      {DatetimeExtractorType_FUTURE,
+                       DatetimeComponent::RelativeQualifier::FUTURE},
+                  },
+                  parsed_relative_value);
 }
 
-bool DatetimeExtractor::ParseRelationType(
+bool DatetimeExtractor::ParseRelationAndConvertToRelativeCount(
+    const UnicodeText& input, int* relative_count) const {
+  return MapInput(input,
+                  {
+                      {DatetimeExtractorType_NOW, 0},
+                      {DatetimeExtractorType_YESTERDAY, -1},
+                      {DatetimeExtractorType_TOMORROW, 1},
+                      {DatetimeExtractorType_NEXT, 1},
+                      {DatetimeExtractorType_NEXT_OR_SAME, 1},
+                      {DatetimeExtractorType_LAST, -1},
+                  },
+                  relative_count);
+}
+
+bool DatetimeExtractor::ParseDayOfWeek(const UnicodeText& input,
+                                       int* parsed_day_of_week) const {
+  return MapInput(input,
+                  {
+                      {DatetimeExtractorType_SUNDAY, kSunday},
+                      {DatetimeExtractorType_MONDAY, kMonday},
+                      {DatetimeExtractorType_TUESDAY, kTuesday},
+                      {DatetimeExtractorType_WEDNESDAY, kWednesday},
+                      {DatetimeExtractorType_THURSDAY, kThursday},
+                      {DatetimeExtractorType_FRIDAY, kFriday},
+                      {DatetimeExtractorType_SATURDAY, kSaturday},
+                  },
+                  parsed_day_of_week);
+}
+
+bool DatetimeExtractor::ParseFieldType(
     const UnicodeText& input,
-    DateParseData::RelationType* parsed_relation_type) const {
+    DatetimeComponent::ComponentType* parsed_field_type) const {
   return MapInput(
       input,
       {
-          {DatetimeExtractorType_MONDAY, DateParseData::RelationType::MONDAY},
-          {DatetimeExtractorType_TUESDAY, DateParseData::RelationType::TUESDAY},
+          {DatetimeExtractorType_MONDAY,
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
+          {DatetimeExtractorType_TUESDAY,
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
           {DatetimeExtractorType_WEDNESDAY,
-           DateParseData::RelationType::WEDNESDAY},
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
           {DatetimeExtractorType_THURSDAY,
-           DateParseData::RelationType::THURSDAY},
-          {DatetimeExtractorType_FRIDAY, DateParseData::RelationType::FRIDAY},
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
+          {DatetimeExtractorType_FRIDAY,
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
           {DatetimeExtractorType_SATURDAY,
-           DateParseData::RelationType::SATURDAY},
-          {DatetimeExtractorType_SUNDAY, DateParseData::RelationType::SUNDAY},
-          {DatetimeExtractorType_SECONDS, DateParseData::RelationType::SECOND},
-          {DatetimeExtractorType_MINUTES, DateParseData::RelationType::MINUTE},
-          {DatetimeExtractorType_HOURS, DateParseData::RelationType::HOUR},
-          {DatetimeExtractorType_DAY, DateParseData::RelationType::DAY},
-          {DatetimeExtractorType_WEEK, DateParseData::RelationType::WEEK},
-          {DatetimeExtractorType_MONTH, DateParseData::RelationType::MONTH},
-          {DatetimeExtractorType_YEAR, DateParseData::RelationType::YEAR},
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
+          {DatetimeExtractorType_SUNDAY,
+           DatetimeComponent::ComponentType::DAY_OF_WEEK},
+          {DatetimeExtractorType_SECONDS,
+           DatetimeComponent::ComponentType::SECOND},
+          {DatetimeExtractorType_MINUTES,
+           DatetimeComponent::ComponentType::MINUTE},
+          {DatetimeExtractorType_NOW,
+           DatetimeComponent::ComponentType::DAY_OF_MONTH},
+          {DatetimeExtractorType_HOURS, DatetimeComponent::ComponentType::HOUR},
+          {DatetimeExtractorType_DAY,
+           DatetimeComponent::ComponentType::DAY_OF_MONTH},
+          {DatetimeExtractorType_TOMORROW,
+           DatetimeComponent::ComponentType::DAY_OF_MONTH},
+          {DatetimeExtractorType_YESTERDAY,
+           DatetimeComponent::ComponentType::DAY_OF_MONTH},
+          {DatetimeExtractorType_WEEK, DatetimeComponent::ComponentType::WEEK},
+          {DatetimeExtractorType_MONTH,
+           DatetimeComponent::ComponentType::MONTH},
+          {DatetimeExtractorType_YEAR, DatetimeComponent::ComponentType::YEAR},
       },
-      parsed_relation_type);
+      parsed_field_type);
 }
 
 }  // namespace libtextclassifier3

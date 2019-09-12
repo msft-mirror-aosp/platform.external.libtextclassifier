@@ -16,11 +16,13 @@
 
 #include "lang_id/common/embedding-network-params.h"
 
+#include <string>
+
 #include "lang_id/common/lite_base/logging.h"
 
 namespace libtextclassifier3 {
 
-QuantizationType ParseQuantizationType(const string &s) {
+QuantizationType ParseQuantizationType(const std::string &s) {
   if (s == "NONE") {
     return QuantizationType::NONE;
   }

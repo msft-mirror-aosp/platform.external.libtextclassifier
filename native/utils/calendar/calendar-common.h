@@ -37,19 +37,19 @@ namespace calendar {
 template <class TCalendar>
 class CalendarLibTempl {
  public:
-  bool InterpretParseData(const DateParseData& parse_data,
+  bool InterpretParseData(const DatetimeParsedData& parse_data,
                           int64 reference_time_ms_utc,
                           const std::string& reference_timezone,
                           const std::string& reference_locale,
                           TCalendar* calendar,
                           DatetimeGranularity* granularity) const;
 
-  DatetimeGranularity GetGranularity(const DateParseData& data) const;
+  DatetimeGranularity GetGranularity(const DatetimeParsedData& data) const;
 
  private:
   // Adjusts the calendar's time instant according to a relative date reference
   // in the parsed data.
-  bool ApplyRelationField(const DateParseData& parse_data,
+  bool ApplyRelationField(const DatetimeParsedData& parse_data,
                           TCalendar* calendar) const;
 
   // Round the time instant's precision down to the given granularity.
@@ -64,13 +64,13 @@ class CalendarLibTempl {
   //   Wednesday at least 4 weeks from now.
   // If allow_today is true, the same day of the week may be kept
   // if it already matches the relation type.
-  bool AdjustByRelation(DateParseData::RelationType relation_type, int distance,
+  bool AdjustByRelation(DatetimeComponent date_time_component, int distance,
                         bool allow_today, TCalendar* calendar) const;
 };
 
 template <class TCalendar>
 bool CalendarLibTempl<TCalendar>::InterpretParseData(
-    const DateParseData& parse_data, int64 reference_time_ms_utc,
+    const DatetimeParsedData& parse_data, int64 reference_time_ms_utc,
     const std::string& reference_timezone, const std::string& reference_locale,
     TCalendar* calendar, DatetimeGranularity* granularity) const {
   TC3_CALENDAR_CHECK(calendar->Initialize(reference_timezone, reference_locale,
@@ -81,23 +81,26 @@ bool CalendarLibTempl<TCalendar>::InterpretParseData(
 
   // Apply each of the parsed fields in order of increasing granularity.
   static const int64 kMillisInHour = 1000 * 60 * 60;
-  if (parse_data.field_set_mask & DateParseData::Fields::ZONE_OFFSET_FIELD) {
-    TC3_CALENDAR_CHECK(
-        calendar->SetZoneOffset(parse_data.zone_offset * kMillisInHour))
+  if (parse_data.HasFieldType(DatetimeComponent::ComponentType::ZONE_OFFSET)) {
+    int zone_offset;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::ZONE_OFFSET,
+                             &zone_offset);
+    TC3_CALENDAR_CHECK(calendar->SetZoneOffset(zone_offset * kMillisInHour))
   }
-  if (parse_data.field_set_mask & DateParseData::Fields::DST_OFFSET_FIELD) {
-    TC3_CALENDAR_CHECK(
-        calendar->SetDstOffset(parse_data.dst_offset * kMillisInHour))
-  }
-  if (parse_data.field_set_mask & DateParseData::Fields::RELATION_FIELD) {
-    TC3_CALENDAR_CHECK(ApplyRelationField(parse_data, calendar));
-    // Don't round to the granularity for relative expressions that specify the
-    // distance. So that, e.g. "in 2 hours" when it's 8:35:03 will result in
-    // 10:35:03.
-    if (parse_data.field_set_mask &
-        DateParseData::Fields::RELATION_DISTANCE_FIELD) {
-      should_round_to_granularity = false;
+
+  if (parse_data.HasFieldType(DatetimeComponent::ComponentType::DST_OFFSET)) {
+    int dst_offset;
+    if (parse_data.GetFieldValue(DatetimeComponent::ComponentType::DST_OFFSET,
+                                 &dst_offset)) {
+      TC3_CALENDAR_CHECK(calendar->SetDstOffset(dst_offset * kMillisInHour))
     }
+  }
+  std::vector<DatetimeComponent> relative_components;
+  parse_data.GetRelativeDatetimeComponents(&relative_components);
+  if (!relative_components.empty()) {
+    TC3_CALENDAR_CHECK(ApplyRelationField(parse_data, calendar));
+    const DatetimeComponent& relative_component = relative_components.back();
+    should_round_to_granularity = relative_component.ShouldRoundToGranularity();
   } else {
     // By default, the parsed time is interpreted to be on the reference day.
     // But a parsed date should have time 0:00:00 unless specified.
@@ -106,35 +109,56 @@ bool CalendarLibTempl<TCalendar>::InterpretParseData(
     TC3_CALENDAR_CHECK(calendar->SetSecond(0))
     TC3_CALENDAR_CHECK(calendar->SetMillisecond(0))
   }
-  if (parse_data.field_set_mask & DateParseData::Fields::YEAR_FIELD) {
-    TC3_CALENDAR_CHECK(calendar->SetYear(parse_data.year))
+  if (parse_data.HasAbsoluteValue(DatetimeComponent::ComponentType::YEAR)) {
+    int year;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::YEAR, &year);
+    TC3_CALENDAR_CHECK(calendar->SetYear(year))
   }
-  if (parse_data.field_set_mask & DateParseData::Fields::MONTH_FIELD) {
+  if (parse_data.HasAbsoluteValue(DatetimeComponent::ComponentType::MONTH)) {
+    int month;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::MONTH, &month);
     // ICU has months starting at 0, Java and Datetime parser at 1, so we
     // need to subtract 1.
-    TC3_CALENDAR_CHECK(calendar->SetMonth(parse_data.month - 1))
-  }
-  if (parse_data.field_set_mask & DateParseData::Fields::DAY_FIELD) {
-    TC3_CALENDAR_CHECK(calendar->SetDayOfMonth(parse_data.day_of_month))
-  }
-  if (parse_data.field_set_mask & DateParseData::Fields::HOUR_FIELD) {
-    if (parse_data.field_set_mask & DateParseData::Fields::AMPM_FIELD &&
-        parse_data.ampm == DateParseData::AMPM::PM && parse_data.hour < 12) {
-      TC3_CALENDAR_CHECK(calendar->SetHourOfDay(parse_data.hour + 12))
-    } else if (parse_data.ampm == DateParseData::AMPM::AM &&
-               parse_data.hour == 12) {
-      // Do nothing. 12am == 0.
-    } else {
-      TC3_CALENDAR_CHECK(calendar->SetHourOfDay(parse_data.hour))
-    }
-  }
-  if (parse_data.field_set_mask & DateParseData::Fields::MINUTE_FIELD) {
-    TC3_CALENDAR_CHECK(calendar->SetMinute(parse_data.minute))
-  }
-  if (parse_data.field_set_mask & DateParseData::Fields::SECOND_FIELD) {
-    TC3_CALENDAR_CHECK(calendar->SetSecond(parse_data.second))
+    TC3_CALENDAR_CHECK(calendar->SetMonth(month - 1))
   }
 
+  if (parse_data.HasAbsoluteValue(
+          DatetimeComponent::ComponentType::DAY_OF_MONTH)) {
+    int day_of_month;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::DAY_OF_MONTH,
+                             &day_of_month);
+    TC3_CALENDAR_CHECK(calendar->SetDayOfMonth(day_of_month))
+  }
+  if (parse_data.HasAbsoluteValue(DatetimeComponent::ComponentType::HOUR)) {
+    int hour;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::HOUR, &hour);
+    if (parse_data.HasFieldType(DatetimeComponent::ComponentType::MERIDIEM)) {
+      int merdiem;
+      parse_data.GetFieldValue(DatetimeComponent::ComponentType::MERIDIEM,
+                               &merdiem);
+      if (merdiem == 1 && hour < 12) {
+        TC3_CALENDAR_CHECK(calendar->SetHourOfDay(hour + 12))
+      } else if (merdiem == 0 && hour == 12) {
+        // Set hour of the day's value to zero (12am == 0:00 in 24 hour format).
+        // Please see issue b/139923083.
+        TC3_CALENDAR_CHECK(calendar->SetHourOfDay(0));
+      } else {
+        TC3_CALENDAR_CHECK(calendar->SetHourOfDay(hour))
+      }
+    } else {
+      TC3_CALENDAR_CHECK(calendar->SetHourOfDay(hour))
+    }
+  }
+  if (parse_data.HasAbsoluteValue(DatetimeComponent::ComponentType::MINUTE)) {
+    int minute;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::MINUTE, &minute);
+    TC3_CALENDAR_CHECK(calendar->SetMinute(minute))
+  }
+  if (parse_data.HasAbsoluteValue(DatetimeComponent::ComponentType::SECOND)) {
+    int second;
+    parse_data.GetFieldValue(DatetimeComponent::ComponentType::SECOND, &second);
+    TC3_CALENDAR_CHECK(calendar->SetSecond(second))
+  }
   if (should_round_to_granularity) {
     TC3_CALENDAR_CHECK(RoundToGranularity(*granularity, calendar))
   }
@@ -143,58 +167,55 @@ bool CalendarLibTempl<TCalendar>::InterpretParseData(
 
 template <class TCalendar>
 bool CalendarLibTempl<TCalendar>::ApplyRelationField(
-    const DateParseData& parse_data, TCalendar* calendar) const {
-  constexpr int relation_type_mask = DateParseData::Fields::RELATION_TYPE_FIELD;
-  constexpr int relation_distance_mask =
-      DateParseData::Fields::RELATION_DISTANCE_FIELD;
-  switch (parse_data.relation) {
-    case DateParseData::Relation::UNSPECIFIED:
+    const DatetimeParsedData& parse_data, TCalendar* calendar) const {
+  std::vector<DatetimeComponent> relative_date_time_components;
+  parse_data.GetRelativeDatetimeComponents(&relative_date_time_components);
+  if (relative_date_time_components.empty()) {
+    // There is no relative field set in the parsed data.
+    return false;
+  }
+  // Current only one relative date time component is possible.
+  DatetimeComponent relative_date_time_component =
+      relative_date_time_components.back();
+
+  switch (relative_date_time_component.relative_qualifier) {
+    case DatetimeComponent::RelativeQualifier::UNSPECIFIED:
       TC3_LOG(ERROR) << "UNSPECIFIED RelationType.";
       return false;
-    case DateParseData::Relation::NEXT:
-      if (parse_data.field_set_mask & relation_type_mask) {
-        TC3_CALENDAR_CHECK(AdjustByRelation(parse_data.relation_type,
-                                            /*distance=*/1,
-                                            /*allow_today=*/false, calendar));
-      }
+    case DatetimeComponent::RelativeQualifier::NEXT:
+      TC3_CALENDAR_CHECK(AdjustByRelation(relative_date_time_component,
+                                          /*distance=*/1,
+                                          /*allow_today=*/false, calendar));
       return true;
-    case DateParseData::Relation::NEXT_OR_SAME:
-      if (parse_data.field_set_mask & relation_type_mask) {
-        TC3_CALENDAR_CHECK(AdjustByRelation(parse_data.relation_type,
-                                            /*distance=*/1,
-                                            /*allow_today=*/true, calendar))
-      }
+    case DatetimeComponent::RelativeQualifier::THIS:
+      TC3_CALENDAR_CHECK(AdjustByRelation(relative_date_time_component,
+                                          /*distance=*/1,
+                                          /*allow_today=*/true, calendar))
       return true;
-    case DateParseData::Relation::LAST:
-      if (parse_data.field_set_mask & relation_type_mask) {
-        TC3_CALENDAR_CHECK(AdjustByRelation(parse_data.relation_type,
-                                            /*distance=*/-1,
-                                            /*allow_today=*/false, calendar))
-      }
+    case DatetimeComponent::RelativeQualifier::LAST:
+      TC3_CALENDAR_CHECK(AdjustByRelation(relative_date_time_component,
+                                          /*distance=*/-1,
+                                          /*allow_today=*/false, calendar))
       return true;
-    case DateParseData::Relation::NOW:
+    case DatetimeComponent::RelativeQualifier::NOW:
       return true;  // NOOP
-    case DateParseData::Relation::TOMORROW:
+    case DatetimeComponent::RelativeQualifier::TOMORROW:
       TC3_CALENDAR_CHECK(calendar->AddDayOfMonth(1));
       return true;
-    case DateParseData::Relation::YESTERDAY:
+    case DatetimeComponent::RelativeQualifier::YESTERDAY:
       TC3_CALENDAR_CHECK(calendar->AddDayOfMonth(-1));
       return true;
-    case DateParseData::Relation::PAST:
-      if ((parse_data.field_set_mask & relation_type_mask) &&
-          (parse_data.field_set_mask & relation_distance_mask)) {
-        TC3_CALENDAR_CHECK(AdjustByRelation(parse_data.relation_type,
-                                            -parse_data.relation_distance,
-                                            /*allow_today=*/false, calendar))
-      }
+    case DatetimeComponent::RelativeQualifier::PAST:
+      TC3_CALENDAR_CHECK(
+          AdjustByRelation(relative_date_time_component,
+                           -relative_date_time_component.relative_count,
+                           /*allow_today=*/false, calendar))
       return true;
-    case DateParseData::Relation::FUTURE:
-      if ((parse_data.field_set_mask & relation_type_mask) &&
-          (parse_data.field_set_mask & relation_distance_mask)) {
-        TC3_CALENDAR_CHECK(AdjustByRelation(parse_data.relation_type,
-                                            parse_data.relation_distance,
-                                            /*allow_today=*/false, calendar))
-      }
+    case DatetimeComponent::RelativeQualifier::FUTURE:
+      TC3_CALENDAR_CHECK(
+          AdjustByRelation(relative_date_time_component,
+                           relative_date_time_component.relative_count,
+                           /*allow_today=*/false, calendar))
       return true;
   }
   return false;
@@ -242,17 +263,11 @@ bool CalendarLibTempl<TCalendar>::RoundToGranularity(
 
 template <class TCalendar>
 bool CalendarLibTempl<TCalendar>::AdjustByRelation(
-    DateParseData::RelationType relation_type, int distance, bool allow_today,
+    DatetimeComponent date_time_component, int distance, bool allow_today,
     TCalendar* calendar) const {
   const int distance_sign = distance < 0 ? -1 : 1;
-  switch (relation_type) {
-    case DateParseData::RelationType::MONDAY:
-    case DateParseData::RelationType::TUESDAY:
-    case DateParseData::RelationType::WEDNESDAY:
-    case DateParseData::RelationType::THURSDAY:
-    case DateParseData::RelationType::FRIDAY:
-    case DateParseData::RelationType::SATURDAY:
-    case DateParseData::RelationType::SUNDAY:
+  switch (date_time_component.component_type) {
+    case DatetimeComponent::ComponentType::DAY_OF_WEEK:
       if (!allow_today) {
         // If we're not including the same day as the reference, skip it.
         TC3_CALENDAR_CHECK(calendar->AddDayOfMonth(distance_sign))
@@ -261,40 +276,40 @@ bool CalendarLibTempl<TCalendar>::AdjustByRelation(
       while (distance != 0) {
         int day_of_week;
         TC3_CALENDAR_CHECK(calendar->GetDayOfWeek(&day_of_week))
-        if (day_of_week == static_cast<int>(relation_type)) {
+        if (day_of_week == (date_time_component.value)) {
           distance += -distance_sign;
           if (distance == 0) break;
         }
         TC3_CALENDAR_CHECK(calendar->AddDayOfMonth(distance_sign))
       }
       return true;
-    case DateParseData::RelationType::SECOND:
+    case DatetimeComponent::ComponentType::SECOND:
       TC3_CALENDAR_CHECK(calendar->AddSecond(distance));
       return true;
-    case DateParseData::RelationType::MINUTE:
+    case DatetimeComponent::ComponentType::MINUTE:
       TC3_CALENDAR_CHECK(calendar->AddMinute(distance));
       return true;
-    case DateParseData::RelationType::HOUR:
+    case DatetimeComponent::ComponentType::HOUR:
       TC3_CALENDAR_CHECK(calendar->AddHourOfDay(distance));
       return true;
-    case DateParseData::RelationType::DAY:
+    case DatetimeComponent::ComponentType::DAY_OF_MONTH:
       TC3_CALENDAR_CHECK(calendar->AddDayOfMonth(distance));
       return true;
-    case DateParseData::RelationType::WEEK:
+    case DatetimeComponent::ComponentType::WEEK:
       TC3_CALENDAR_CHECK(calendar->AddDayOfMonth(7 * distance))
       TC3_CALENDAR_CHECK(calendar->SetDayOfWeek(1))
       return true;
-    case DateParseData::RelationType::MONTH:
+    case DatetimeComponent::ComponentType::MONTH:
       TC3_CALENDAR_CHECK(calendar->AddMonth(distance))
       TC3_CALENDAR_CHECK(calendar->SetDayOfMonth(1))
       return true;
-    case DateParseData::RelationType::YEAR:
+    case DatetimeComponent::ComponentType::YEAR:
       TC3_CALENDAR_CHECK(calendar->AddYear(distance))
       TC3_CALENDAR_CHECK(calendar->SetDayOfYear(1))
       return true;
     default:
       TC3_LOG(ERROR) << "Unknown relation type: "
-                     << static_cast<int>(relation_type);
+                     << static_cast<int>(date_time_component.component_type);
       return false;
   }
   return false;
@@ -302,55 +317,8 @@ bool CalendarLibTempl<TCalendar>::AdjustByRelation(
 
 template <class TCalendar>
 DatetimeGranularity CalendarLibTempl<TCalendar>::GetGranularity(
-    const DateParseData& data) const {
-  DatetimeGranularity granularity = DatetimeGranularity::GRANULARITY_YEAR;
-  if ((data.field_set_mask & DateParseData::YEAR_FIELD) ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::YEAR))) {
-    granularity = DatetimeGranularity::GRANULARITY_YEAR;
-  }
-  if ((data.field_set_mask & DateParseData::MONTH_FIELD) ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::MONTH))) {
-    granularity = DatetimeGranularity::GRANULARITY_MONTH;
-  }
-  if (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-      (data.relation_type == DateParseData::RelationType::WEEK)) {
-    granularity = DatetimeGranularity::GRANULARITY_WEEK;
-  }
-  if (data.field_set_mask & DateParseData::DAY_FIELD ||
-      (data.field_set_mask & DateParseData::RELATION_FIELD &&
-       (data.relation == DateParseData::Relation::NOW ||
-        data.relation == DateParseData::Relation::TOMORROW ||
-        data.relation == DateParseData::Relation::YESTERDAY)) ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::MONDAY ||
-        data.relation_type == DateParseData::RelationType::TUESDAY ||
-        data.relation_type == DateParseData::RelationType::WEDNESDAY ||
-        data.relation_type == DateParseData::RelationType::THURSDAY ||
-        data.relation_type == DateParseData::RelationType::FRIDAY ||
-        data.relation_type == DateParseData::RelationType::SATURDAY ||
-        data.relation_type == DateParseData::RelationType::SUNDAY ||
-        data.relation_type == DateParseData::RelationType::DAY))) {
-    granularity = DatetimeGranularity::GRANULARITY_DAY;
-  }
-  if (data.field_set_mask & DateParseData::HOUR_FIELD ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::HOUR))) {
-    granularity = DatetimeGranularity::GRANULARITY_HOUR;
-  }
-  if (data.field_set_mask & DateParseData::MINUTE_FIELD ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       data.relation_type == DateParseData::RelationType::MINUTE)) {
-    granularity = DatetimeGranularity::GRANULARITY_MINUTE;
-  }
-  if (data.field_set_mask & DateParseData::SECOND_FIELD ||
-      (data.field_set_mask & DateParseData::RELATION_TYPE_FIELD &&
-       (data.relation_type == DateParseData::RelationType::SECOND))) {
-    granularity = DatetimeGranularity::GRANULARITY_SECOND;
-  }
-
-  return granularity;
+    const DatetimeParsedData& data) const {
+  return data.GetFinestGranularity();
 }
 
 };  // namespace calendar

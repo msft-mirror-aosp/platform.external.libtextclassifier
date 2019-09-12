@@ -30,7 +30,7 @@ namespace mobile {
 namespace lang_id {
 
 bool RelevantScriptFeature::Setup(TaskContext *context) {
-  string script_detector_name = GetParameter(
+  std::string script_detector_name = GetParameter(
       "script_detector_name", /* default_value = */ "tiny-script-detector");
 
   // We don't use absl::WrapUnique, nor the rest of absl, see http://b/71873194
@@ -60,7 +60,7 @@ void RelevantScriptFeature::Evaluate(
   // counts[s] is the number of characters with script s.
   std::vector<int> counts(num_supported_scripts_);
   int total_count = 0;
-  for (const string &word : sentence) {
+  for (const std::string &word : sentence) {
     const char *const word_end = word.data() + word.size();
     const char *curr = word.data();
 

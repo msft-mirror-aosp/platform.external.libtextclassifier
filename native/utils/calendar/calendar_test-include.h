@@ -20,8 +20,13 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_TEST_INCLUDE_H_
 #define LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_TEST_INCLUDE_H_
 
+#include "gtest/gtest.h"
+
 #if defined TC3_CALENDAR_ICU
 #include "utils/calendar/calendar-icu.h"
+#define TC3_TESTING_CREATE_CALENDARLIB_INSTANCE(VAR) VAR()
+#elif defined TC3_CALENDAR_APPLE
+#include "utils/calendar/calendar-apple.h"
 #define TC3_TESTING_CREATE_CALENDARLIB_INSTANCE(VAR) VAR()
 #elif defined TC3_CALENDAR_JAVAICU
 #include <jni.h>
@@ -32,9 +37,6 @@ extern JNIEnv* g_jenv;
 #else
 #error Unsupported calendar implementation.
 #endif
-#include "utils/base/logging.h"
-
-#include "gtest/gtest.h"
 
 // This can get overridden in the javaicu version which needs to pass an JNIEnv*
 // argument to the constructor.

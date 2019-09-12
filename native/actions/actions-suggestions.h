@@ -258,7 +258,8 @@ class ActionsSuggestions {
   bool FillAnnotationFromMatchGroup(
       const UniLib::RegexMatcher* matcher,
       const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
-      const int message_index, ActionSuggestionAnnotation* annotation) const;
+      const std::string& group_match_text, const int message_index,
+      ActionSuggestionAnnotation* annotation) const;
 
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap_;
 

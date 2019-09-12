@@ -35,7 +35,6 @@
 
 namespace libtextclassifier3 {
 namespace {
-using testing::_;
 
 constexpr char kModelFileName[] = "actions_suggestions_test.model";
 constexpr char kHashGramModelFileName[] =
@@ -167,7 +166,7 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsFromDuplicatedAnnotations) {
   flight_annotation2.span = {35, 39};
   flight_annotation2.classification = {ClassificationResult("flight", 3.0)};
   AnnotatedSpan email_annotation;
-  email_annotation.span = {55, 68};
+  email_annotation.span = {43, 56};
   email_annotation.classification = {ClassificationResult("email", 2.0)};
 
   const ActionsSuggestionsResponse& response =
@@ -208,7 +207,7 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsAnnotationsNoDeduplication) {
   flight_annotation2.span = {35, 39};
   flight_annotation2.classification = {ClassificationResult("flight", 3.0)};
   AnnotatedSpan email_annotation;
-  email_annotation.span = {55, 68};
+  email_annotation.span = {43, 56};
   email_annotation.classification = {ClassificationResult("email", 2.0)};
 
   const ActionsSuggestionsResponse& response =

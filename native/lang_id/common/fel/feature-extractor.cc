@@ -16,6 +16,8 @@
 
 #include "lang_id/common/fel/feature-extractor.h"
 
+#include <string>
+
 #include "lang_id/common/fel/feature-types.h"
 #include "lang_id/common/fel/fel-parser.h"
 #include "lang_id/common/lite_base/logging.h"
@@ -30,7 +32,7 @@ GenericFeatureExtractor::GenericFeatureExtractor() {}
 
 GenericFeatureExtractor::~GenericFeatureExtractor() {}
 
-bool GenericFeatureExtractor::Parse(const string &source) {
+bool GenericFeatureExtractor::Parse(const std::string &source) {
   // Parse feature specification into descriptor.
   FELParser parser;
 
@@ -61,8 +63,8 @@ bool GenericFeatureExtractor::InitializeFeatureTypes() {
   return true;
 }
 
-string GenericFeatureFunction::GetParameter(const string &name,
-                                            const string &default_value) const {
+std::string GenericFeatureFunction::GetParameter(
+    const std::string &name, const std::string &default_value) const {
   // Find named parameter in feature descriptor.
   for (int i = 0; i < descriptor_->parameter_size(); ++i) {
     if (name == descriptor_->parameter(i).name()) {
@@ -76,9 +78,9 @@ GenericFeatureFunction::GenericFeatureFunction() {}
 
 GenericFeatureFunction::~GenericFeatureFunction() { delete feature_type_; }
 
-int GenericFeatureFunction::GetIntParameter(const string &name,
+int GenericFeatureFunction::GetIntParameter(const std::string &name,
                                             int default_value) const {
-  string value_str = GetParameter(name, "");
+  std::string value_str = GetParameter(name, "");
   if (value_str.empty()) {
     // Parameter not specified, use default value for it.
     return default_value;
@@ -92,9 +94,9 @@ int GenericFeatureFunction::GetIntParameter(const string &name,
   return value;
 }
 
-bool GenericFeatureFunction::GetBoolParameter(const string &name,
+bool GenericFeatureFunction::GetBoolParameter(const std::string &name,
                                               bool default_value) const {
-  string value = GetParameter(name, "");
+  std::string value = GetParameter(name, "");
   if (value.empty()) return default_value;
   if (value == "true") return true;
   if (value == "false") return false;
@@ -121,8 +123,8 @@ FeatureType *GenericFeatureFunction::GetFeatureType() const {
   return nullptr;
 }
 
-string GenericFeatureFunction::name() const {
-  string output;
+std::string GenericFeatureFunction::name() const {
+  std::string output;
   if (descriptor_->name().empty()) {
     if (!prefix_.empty()) {
       output.append(prefix_);

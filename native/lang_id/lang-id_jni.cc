@@ -34,7 +34,8 @@ using libtextclassifier3::mobile::lang_id::LangIdResult;
 
 namespace {
 jobjectArray LangIdResultToJObjectArray(JNIEnv* env,
-                                        const LangIdResult& lang_id_result) {
+                                        const LangIdResult& lang_id_result,
+                                        const float significant_threshold) {
   const ScopedLocalRef<jclass> result_class(
       env->FindClass(TC3_PACKAGE_PATH TC3_LANG_ID_CLASS_NAME_STR
                      "$LanguageResult"),
@@ -44,10 +45,14 @@ jobjectArray LangIdResultToJObjectArray(JNIEnv* env,
     return nullptr;
   }
 
-  // clang-format off
-  const std::vector<std::pair<std::string, float>>& predictions =
-      lang_id_result.predictions;
-  // clang-format on
+  std::vector<std::pair<std::string, float>> predictions;
+  std::copy_if(lang_id_result.predictions.begin(),
+               lang_id_result.predictions.end(),
+               std::back_inserter(predictions),
+               [significant_threshold](std::pair<std::string, float> pair) {
+                 return pair.second >= significant_threshold;
+               });
+
   const jmethodID result_class_constructor =
       env->GetMethodID(result_class.get(), "<init>", "(Ljava/lang/String;F)V");
   const jobjectArray results =
@@ -60,6 +65,10 @@ jobjectArray LangIdResultToJObjectArray(JNIEnv* env,
     env->SetObjectArrayElement(results, i, result.get());
   }
   return results;
+}
+
+float GetNoiseThreshold(const LangId& model) {
+  return model.GetFloatProperty("text_classifier_langid_noise_threshold", -1.0);
 }
 }  // namespace
 
@@ -90,10 +99,16 @@ TC3_JNI_METHOD(jobjectArray, TC3_LANG_ID_CLASS_NAME, nativeDetectLanguages)
   }
 
   const std::string text_str = ToStlString(env, text);
+  const float noise_threshold = GetNoiseThreshold(*model);
+  // Speed up the things by specifying the max results we want. For example, if
+  // the noise threshold is 0.1, we don't need more than 10 results.
+  const int max_results =
+      noise_threshold < 0.01
+          ? -1  // -1 means FindLanguages returns all predictions
+          : static_cast<int>(1 / noise_threshold) + 1;
   LangIdResult result;
-  model->FindLanguages(text_str, &result);
-
-  return LangIdResultToJObjectArray(env, result);
+  model->FindLanguages(text_str, &result, max_results);
+  return LangIdResultToJObjectArray(env, result, noise_threshold);
 }
 
 TC3_JNI_METHOD(void, TC3_LANG_ID_CLASS_NAME, nativeClose)
@@ -131,4 +146,13 @@ TC3_JNI_METHOD(jfloat, TC3_LANG_ID_CLASS_NAME, nativeGetLangIdThreshold)
   }
   LangId* model = reinterpret_cast<LangId*>(ptr);
   return model->GetFloatProperty("text_classifier_langid_threshold", -1.0);
+}
+
+TC3_JNI_METHOD(jfloat, TC3_LANG_ID_CLASS_NAME, nativeGetLangIdNoiseThreshold)
+(JNIEnv* env, jobject thizz, jlong ptr) {
+  if (!ptr) {
+    return -1.0;
+  }
+  LangId* model = reinterpret_cast<LangId*>(ptr);
+  return GetNoiseThreshold(*model);
 }

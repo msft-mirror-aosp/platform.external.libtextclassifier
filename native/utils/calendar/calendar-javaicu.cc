@@ -67,20 +67,13 @@ bool Calendar::Initialize(const std::string& time_zone,
   }
 
   // We'll assume the day indices match later on, so verify it here.
-  if (jni_cache_->calendar_sunday !=
-          static_cast<int>(DateParseData::RelationType::SUNDAY) ||
-      jni_cache_->calendar_monday !=
-          static_cast<int>(DateParseData::RelationType::MONDAY) ||
-      jni_cache_->calendar_tuesday !=
-          static_cast<int>(DateParseData::RelationType::TUESDAY) ||
-      jni_cache_->calendar_wednesday !=
-          static_cast<int>(DateParseData::RelationType::WEDNESDAY) ||
-      jni_cache_->calendar_thursday !=
-          static_cast<int>(DateParseData::RelationType::THURSDAY) ||
-      jni_cache_->calendar_friday !=
-          static_cast<int>(DateParseData::RelationType::FRIDAY) ||
-      jni_cache_->calendar_saturday !=
-          static_cast<int>(DateParseData::RelationType::SATURDAY)) {
+  if (jni_cache_->calendar_sunday != kSunday ||
+      jni_cache_->calendar_monday != kMonday ||
+      jni_cache_->calendar_tuesday != kTuesday ||
+      jni_cache_->calendar_wednesday != kWednesday ||
+      jni_cache_->calendar_thursday != kThursday ||
+      jni_cache_->calendar_friday != kFriday ||
+      jni_cache_->calendar_saturday != kSaturday) {
     TC3_LOG(ERROR) << "day of the week indices mismatch";
     return false;
   }

@@ -28,21 +28,68 @@ bool NumberAnnotator::ClassifyText(
     const UnicodeText& context, CodepointSpan selection_indices,
     AnnotationUsecase annotation_usecase,
     ClassificationResult* classification_result) const {
-  int64 parsed_value;
+  if (!options_->enabled() || ((1 << annotation_usecase) &
+                               options_->enabled_annotation_usecases()) == 0) {
+    return false;
+  }
+
+  int64 parsed_int_value;
+  double parsed_double_value;
   int num_prefix_codepoints;
   int num_suffix_codepoints;
-  if (ParseNumber(UnicodeText::Substring(context, selection_indices.first,
-                                         selection_indices.second),
-                  &parsed_value, &num_prefix_codepoints,
-                  &num_suffix_codepoints)) {
-    ClassificationResult classification{Collections::Number(), 1.0};
+  const UnicodeText substring_selected = UnicodeText::Substring(
+      context, selection_indices.first, selection_indices.second);
+  if (ParseNumber(substring_selected, &parsed_int_value, &parsed_double_value,
+                  &num_prefix_codepoints, &num_suffix_codepoints)) {
     TC3_CHECK(classification_result != nullptr);
-    classification_result->collection = Collections::Number();
     classification_result->score = options_->score();
     classification_result->priority_score = options_->priority_score();
-    classification_result->numeric_value = parsed_value;
-    return true;
+    classification_result->numeric_value = parsed_int_value;
+    classification_result->numeric_double_value = parsed_double_value;
+
+    if (num_suffix_codepoints == 0) {
+      classification_result->collection = Collections::Number();
+      return true;
+    }
+
+    // If the selection ends in %, the parseNumber returns true with
+    // num_suffix_codepoints = 1 => percent
+    if (options_->enable_percentage() &&
+        GetPercentSuffixLength(
+            context, context.size_codepoints(),
+            selection_indices.second - num_suffix_codepoints) ==
+            num_suffix_codepoints) {
+      classification_result->collection = Collections::Percentage();
+      classification_result->priority_score =
+          options_->percentage_priority_score();
+      return true;
+    }
+  } else if (options_->enable_percentage()) {
+    // If the substring selected is a percent matching the form: 5 percent,
+    // 5 pct or 5 pc => percent.
+    std::vector<AnnotatedSpan> results;
+    FindAll(substring_selected, annotation_usecase, &results);
+    for (auto& result : results) {
+      if (result.classification.empty() ||
+          result.classification[0].collection != Collections::Percentage()) {
+        continue;
+      }
+      if (result.span.first == 0 &&
+          result.span.second == substring_selected.size_codepoints()) {
+        TC3_CHECK(classification_result != nullptr);
+        classification_result->collection = Collections::Percentage();
+        classification_result->score = options_->score();
+        classification_result->priority_score =
+            options_->percentage_priority_score();
+        classification_result->numeric_value =
+            result.classification[0].numeric_value;
+        classification_result->numeric_double_value =
+            result.classification[0].numeric_double_value;
+        return true;
+      }
+    }
   }
+
   return false;
 }
 
@@ -58,14 +105,16 @@ bool NumberAnnotator::FindAll(const UnicodeText& context,
   for (const Token& token : tokens) {
     const UnicodeText token_text =
         UTF8ToUnicodeText(token.value, /*do_copy=*/false);
-    int64 parsed_value;
+    int64 parsed_int_value;
+    double parsed_double_value;
     int num_prefix_codepoints;
     int num_suffix_codepoints;
-    if (ParseNumber(token_text, &parsed_value, &num_prefix_codepoints,
-                    &num_suffix_codepoints)) {
+    if (ParseNumber(token_text, &parsed_int_value, &parsed_double_value,
+                    &num_prefix_codepoints, &num_suffix_codepoints)) {
       ClassificationResult classification{Collections::Number(),
                                           options_->score()};
-      classification.numeric_value = parsed_value;
+      classification.numeric_value = parsed_int_value;
+      classification.numeric_double_value = parsed_double_value;
       classification.priority_score = options_->priority_score();
 
       AnnotatedSpan annotated_span;
@@ -77,27 +126,45 @@ bool NumberAnnotator::FindAll(const UnicodeText& context,
     }
   }
 
+  if (options_->enable_percentage()) {
+    FindPercentages(context, result);
+  }
+
   return true;
 }
 
-std::unordered_set<int> NumberAnnotator::FlatbuffersVectorToSet(
-    const flatbuffers::Vector<int32_t>* codepoints) {
-  if (codepoints == nullptr) {
-    return std::unordered_set<int>{};
+std::unordered_set<int> NumberAnnotator::FlatbuffersIntVectorToSet(
+    const flatbuffers::Vector<int32_t>* ints) {
+  if (ints == nullptr) {
+    return {};
   }
+  return {ints->begin(), ints->end()};
+}
 
-  std::unordered_set<int> result;
-  for (const int codepoint : *codepoints) {
-    result.insert(codepoint);
+std::vector<uint32> NumberAnnotator::FlatbuffersIntVectorToStdVector(
+    const flatbuffers::Vector<int32_t>* ints) {
+  if (ints == nullptr) {
+    return {};
   }
-  return result;
+  return {ints->begin(), ints->end()};
 }
 
 namespace {
+bool ParseNextNumericCodepoint(int32 codepoint, int64* current_value) {
+  if (*current_value > INT64_MAX / 10) {
+    return false;
+  }
+
+  // NOTE: This currently just works with ASCII numbers.
+  *current_value = *current_value * 10 + codepoint - '0';
+  return true;
+}
+
 UnicodeText::const_iterator ConsumeAndParseNumber(
     const UnicodeText::const_iterator& it_begin,
-    const UnicodeText::const_iterator& it_end, int64* result) {
-  *result = 0;
+    const UnicodeText::const_iterator& it_end, int64* int_result,
+    double* double_result) {
+  *int_result = 0;
 
   // See if there's a sign in the beginning of the number.
   int sign = 1;
@@ -112,31 +179,68 @@ UnicodeText::const_iterator ConsumeAndParseNumber(
     }
   }
 
+  enum class State {
+    PARSING_WHOLE_PART = 1,
+    PARSING_FLOATING_PART = 2,
+    PARSING_DONE = 3,
+  };
+  State state = State::PARSING_WHOLE_PART;
+  int64 decimal_result = 0;
+  int64 decimal_result_denominator = 1;
+  int number_digits = 0;
   while (it != it_end) {
-    if (*it >= '0' && *it <= '9') {
-      // When overflow is imminent we'll fail to parse the number.
-      if (*result > INT64_MAX / 10) {
-        return it_begin;
-      }
-      *result *= 10;
-      *result += *it - '0';
-    } else {
-      *result *= sign;
-      return it;
+    switch (state) {
+      case State::PARSING_WHOLE_PART:
+        if (*it >= '0' && *it <= '9') {
+          if (!ParseNextNumericCodepoint(*it, int_result)) {
+            return it_begin;
+          }
+        } else if (*it == '.' || *it == ',') {
+          state = State::PARSING_FLOATING_PART;
+        } else {
+          state = State::PARSING_DONE;
+        }
+        break;
+      case State::PARSING_FLOATING_PART:
+        if (*it >= '0' && *it <= '9') {
+          if (!ParseNextNumericCodepoint(*it, &decimal_result)) {
+            state = State::PARSING_DONE;
+            break;
+          }
+          decimal_result_denominator *= 10;
+        } else {
+          state = State::PARSING_DONE;
+        }
+        break;
+      case State::PARSING_DONE:
+        break;
     }
 
+    if (state == State::PARSING_DONE) {
+      break;
+    }
+    ++number_digits;
     ++it;
   }
 
-  *result *= sign;
-  return it_end;
+  if (number_digits == 0) {
+    return it_begin;
+  }
+
+  *int_result *= sign;
+  *double_result =
+      *int_result + decimal_result * 1.0 / decimal_result_denominator;
+
+  return it;
 }
 }  // namespace
 
-bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
+bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* int_result,
+                                  double* double_result,
                                   int* num_prefix_codepoints,
                                   int* num_suffix_codepoints) const {
-  TC3_CHECK(result != nullptr && num_prefix_codepoints != nullptr &&
+  TC3_CHECK(int_result != nullptr && double_result != nullptr &&
+            num_prefix_codepoints != nullptr &&
             num_suffix_codepoints != nullptr);
   auto it = text.begin();
   auto it_end = text.end();
@@ -144,14 +248,24 @@ bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
   // Strip boundary codepoints from both ends.
   const CodepointSpan original_span{0, text.size_codepoints()};
   const CodepointSpan stripped_span =
-      feature_processor_->StripBoundaryCodepoints(text, original_span);
+      feature_processor_->StripBoundaryCodepoints(
+          text, original_span, ignored_prefix_span_boundary_codepoints_,
+          ignored_suffix_span_boundary_codepoints_);
+
   const int num_stripped_end = (original_span.second - stripped_span.second);
   std::advance(it, stripped_span.first);
   std::advance(it_end, -num_stripped_end);
 
   // Consume prefix codepoints.
   *num_prefix_codepoints = stripped_span.first;
-  while (it != text.end()) {
+  bool valid_prefix = true;
+  // Makes valid_prefix=false for cases like: "#10" where it points to '1'. In
+  // this case the adjacent prefix is not an allowed one.
+  if (it != text.begin() && allowed_prefix_codepoints_.find(*std::prev(it)) ==
+                                allowed_prefix_codepoints_.end()) {
+    valid_prefix = false;
+  }
+  while (it != it_end) {
     if (allowed_prefix_codepoints_.find(*it) ==
         allowed_prefix_codepoints_.end()) {
       break;
@@ -162,7 +276,7 @@ bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
   }
 
   auto it_start = it;
-  it = ConsumeAndParseNumber(it, text.end(), result);
+  it = ConsumeAndParseNumber(it, it_end, int_result, double_result);
   if (it == it_start) {
     return false;
   }
@@ -181,7 +295,56 @@ bool NumberAnnotator::ParseNumber(const UnicodeText& text, int64* result,
     ++(*num_suffix_codepoints);
   }
   *num_suffix_codepoints += num_stripped_end;
-  return valid_suffix;
+
+  // Makes valid_suffix=false for cases like: "10@", when it == it_end and
+  // points to '@'. This adjacent character is not an allowed suffix.
+  if (it == it_end && it != text.end() &&
+      allowed_suffix_codepoints_.find(*it) ==
+          allowed_suffix_codepoints_.end()) {
+    valid_suffix = false;
+  }
+
+  return valid_suffix && valid_prefix;
+}
+
+int NumberAnnotator::GetPercentSuffixLength(const UnicodeText& context,
+                                            int context_size_codepoints,
+                                            int index_codepoints) const {
+  auto context_it = context.begin();
+  std::advance(context_it, index_codepoints);
+  const StringPiece suffix_context(
+      context_it.utf8_data(),
+      std::distance(context_it.utf8_data(), context.end().utf8_data()));
+  TrieMatch match;
+  percentage_suffixes_trie_.LongestPrefixMatch(suffix_context, &match);
+
+  if (match.match_length == -1) {
+    return match.match_length;
+  } else {
+    return UTF8ToUnicodeText(context_it.utf8_data(), match.match_length,
+                             /*do_copy=*/false)
+        .size_codepoints();
+  }
+}
+
+void NumberAnnotator::FindPercentages(
+    const UnicodeText& context, std::vector<AnnotatedSpan>* result) const {
+  int context_size_codepoints = context.size_codepoints();
+  for (auto& res : *result) {
+    if (res.classification.empty() ||
+        res.classification[0].collection != Collections::Number()) {
+      continue;
+    }
+
+    const int match_length = GetPercentSuffixLength(
+        context, context_size_codepoints, res.span.second);
+    if (match_length > 0) {
+      res.classification[0].collection = Collections::Percentage();
+      res.classification[0].priority_score =
+          options_->percentage_priority_score();
+      res.span = {res.span.first, res.span.second + match_length};
+    }
+  }
 }
 
 }  // namespace libtextclassifier3

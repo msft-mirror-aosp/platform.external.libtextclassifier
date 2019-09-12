@@ -34,7 +34,7 @@ namespace libtextclassifier3 {
 
 TC3_DECLARE_PRINT_OPERATOR(AnnotatedSpan)
 TC3_DECLARE_PRINT_OPERATOR(ClassificationResult)
-TC3_DECLARE_PRINT_OPERATOR(DateParseData)
+TC3_DECLARE_PRINT_OPERATOR(DatetimeParsedData)
 TC3_DECLARE_PRINT_OPERATOR(DatetimeParseResultSpan)
 TC3_DECLARE_PRINT_OPERATOR(Token)
 

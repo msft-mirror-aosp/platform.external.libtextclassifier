@@ -27,7 +27,7 @@ namespace lang_id {
 // Very simplified alternative to heavy sentence.proto, for the purpose of
 // LangId.  It turns out that in this case, all we need is a vector of strings,
 // which uses a lot less code size than a Sentence proto.
-using LightSentence = std::vector<string>;
+using LightSentence = std::vector<std::string>;
 
 }  // namespace lang_id
 }  // namespace mobile

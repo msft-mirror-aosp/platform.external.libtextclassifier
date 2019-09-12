@@ -51,7 +51,7 @@ class ModelProvider {
   // returned vector should be a BCP-47 language code (e.g., "en", "ro", etc).
   // Language at index i from the returned vector corresponds to softmax label
   // i.
-  virtual std::vector<string> GetLanguages() const = 0;
+  virtual std::vector<std::string> GetLanguages() const = 0;
 
  protected:
   bool valid_ = false;

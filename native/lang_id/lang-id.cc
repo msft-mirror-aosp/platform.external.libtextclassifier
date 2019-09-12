@@ -18,7 +18,6 @@
 
 #include <stdio.h>
 
-#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -36,7 +35,13 @@
 #include "lang_id/common/math/softmax.h"
 #include "lang_id/custom-tokenizer.h"
 #include "lang_id/features/light-sentence-features.h"
+// The two features/ headers below are needed only for RegisterClass().
+#include "lang_id/features/char-ngram-feature.h"
+#include "lang_id/features/relevant-script-feature.h"
 #include "lang_id/light-sentence.h"
+// The two script/ headers below are needed only for RegisterClass().
+#include "lang_id/script/approx-script.h"
+#include "lang_id/script/tiny-script-detector.h"
 
 namespace libtextclassifier3 {
 namespace mobile {
@@ -91,21 +96,15 @@ class LangIdImpl {
     valid_ = true;
   }
 
-  string FindLanguage(StringPiece text) const {
-    // NOTE: it would be wasteful to implement this method in terms of
-    // FindLanguages().  We just need the most likely language and its
-    // probability; no need to compute (and allocate) a vector of pairs for all
-    // languages, nor to compute probabilities for all non-top languages.
-    if (!is_valid()) {
+  std::string FindLanguage(StringPiece text) const {
+    LangIdResult lang_id_result;
+    FindLanguages(text, &lang_id_result, /* max_results = */ 1);
+    if (lang_id_result.predictions.empty()) {
       return LangId::kUnknownLanguageCode;
     }
 
-    std::vector<float> scores;
-    ComputeScores(text, &scores);
-
-    int prediction_id = GetArgMax(scores);
-    const string language = GetLanguageForSoftmaxLabel(prediction_id);
-    float probability = ComputeSoftmaxProbability(scores, prediction_id);
+    const std::string &language = lang_id_result.predictions[0].first;
+    const float probability = lang_id_result.predictions[0].second;
     SAFTM_DLOG(INFO) << "Predicted " << language
                      << " with prob: " << probability << " for \"" << text
                      << "\"";
@@ -124,39 +123,50 @@ class LangIdImpl {
     return language;
   }
 
-  void FindLanguages(StringPiece text, LangIdResult *result) const {
+  void FindLanguages(StringPiece text, LangIdResult *result,
+                     int max_results) const {
     if (result == nullptr) return;
 
+    if (max_results <= 0) {
+      max_results = languages_.size();
+    }
     result->predictions.clear();
-    if (!is_valid()) {
+    if (!is_valid() || (max_results == 0)) {
       result->predictions.emplace_back(LangId::kUnknownLanguageCode, 1);
       return;
     }
 
+    // Tokenize the input text (this also does some pre-processing, like
+    // removing ASCII digits, punctuation, etc).
+    LightSentence sentence;
+    tokenizer_.Tokenize(text, &sentence);
+
+    // Extract features from the tokenized text.
+    std::vector<FeatureVector> features =
+        lang_id_brain_interface_.GetFeaturesNoCaching(&sentence);
+
+    // Run feed-forward neural network to compute scores (softmax logits).
     std::vector<float> scores;
-    ComputeScores(text, &scores);
+    network_->ComputeFinalScores(features, &scores);
 
-    // Compute and sort softmax in descending order by probability and convert
-    // IDs to language code strings.  When probabilities are equal, we sort by
-    // language code string in ascending order.
-    std::vector<float> softmax = ComputeSoftmax(scores);
-
-    for (int i = 0; i < softmax.size(); ++i) {
-      result->predictions.emplace_back(GetLanguageForSoftmaxLabel(i),
-                                       softmax[i]);
+    if (max_results == 1) {
+      // Optimization for the case when the user wants only the top result.
+      // Computing argmax is faster than the general top-k code.
+      int prediction_id = GetArgMax(scores);
+      const std::string language = GetLanguageForSoftmaxLabel(prediction_id);
+      float probability = ComputeSoftmaxProbability(scores, prediction_id);
+      result->predictions.emplace_back(language, probability);
+    } else {
+      // Compute and sort softmax in descending order by probability and convert
+      // IDs to language code strings.  When probabilities are equal, we sort by
+      // language code string in ascending order.
+      const std::vector<float> softmax = ComputeSoftmax(scores);
+      const std::vector<int> indices = GetTopKIndices(max_results, softmax);
+      for (const int index : indices) {
+        result->predictions.emplace_back(GetLanguageForSoftmaxLabel(index),
+                                         softmax[index]);
+      }
     }
-
-    // Sort the resulting language predictions by probability in descending
-    // order.
-    std::sort(result->predictions.begin(), result->predictions.end(),
-              [](const std::pair<string, float> &a,
-                 const std::pair<string, float> &b) {
-                if (a.second == b.second) {
-                  return a.first.compare(b.first) < 0;
-                } else {
-                  return a.second > b.second;
-                }
-              });
   }
 
   bool is_valid() const { return valid_; }
@@ -165,8 +175,30 @@ class LangIdImpl {
 
   // Returns a property stored in the model file.
   template <typename T, typename R>
-  R GetProperty(const string &property, T default_value) const {
+  R GetProperty(const std::string &property, T default_value) const {
     return model_provider_->GetTaskContext()->Get(property, default_value);
+  }
+
+  // Perform any necessary static initialization.
+  // This function is thread-safe.
+  // It's also safe to call this function multiple times.
+  //
+  // We explicitly call RegisterClass() rather than relying on alwayslink=1 in
+  // the BUILD file, because the build process for some users of this code
+  // doesn't support any equivalent to alwayslink=1 (in particular the
+  // Firebase C++ SDK build uses a Kokoro-based CMake build).  While it might
+  // be possible to add such support, avoiding the need for an equivalent to
+  // alwayslink=1 is preferable because it avoids unnecessarily bloating code
+  // size in apps that link against this code but don't use it.
+  static void RegisterClasses() {
+    static bool initialized = []() -> bool {
+      libtextclassifier3::mobile::ApproxScriptDetector::RegisterClass();
+      libtextclassifier3::mobile::lang_id::ContinuousBagOfNgramsFunction::RegisterClass();
+      libtextclassifier3::mobile::lang_id::TinyScriptDetector::RegisterClass();
+      libtextclassifier3::mobile::lang_id::RelevantScriptFeature::RegisterClass();
+      return true;
+    }();
+    (void)initialized;  // Variable used only for initializer's side effects.
   }
 
  private:
@@ -178,7 +210,7 @@ class LangIdImpl {
 
     // Parse task parameter "per_lang_reliability_thresholds", fill
     // per_lang_thresholds_.
-    const string thresholds_str =
+    const std::string thresholds_str =
         context->Get("per_lang_reliability_thresholds", "");
     std::vector<StringPiece> tokens = LiteStrSplit(thresholds_str, ',');
     for (const auto &token : tokens) {
@@ -186,7 +218,7 @@ class LangIdImpl {
       std::vector<StringPiece> parts = LiteStrSplit(token, '=');
       float threshold = 0.0f;
       if ((parts.size() == 2) && LiteAtof(parts[1], &threshold)) {
-        per_lang_thresholds_[string(parts[0])] = threshold;
+        per_lang_thresholds_[std::string(parts[0])] = threshold;
       } else {
         SAFTM_LOG(ERROR) << "Broken token: \"" << token << "\"";
       }
@@ -199,25 +231,9 @@ class LangIdImpl {
     return lang_id_brain_interface_.InitForProcessing(context);
   }
 
-  // Extracts features for |text|, runs them through the feed-forward neural
-  // network, and computes the output scores (activations from the last layer).
-  // These scores can be used to compute the softmax probabilities for our
-  // labels (in this case, the languages).
-  void ComputeScores(StringPiece text, std::vector<float> *scores) const {
-    // Create a Sentence storing the input text.
-    LightSentence sentence;
-    tokenizer_.Tokenize(text, &sentence);
-
-    std::vector<FeatureVector> features =
-        lang_id_brain_interface_.GetFeaturesNoCaching(&sentence);
-
-    // Run feed-forward neural network to compute scores.
-    network_->ComputeFinalScores(features, scores);
-  }
-
   // Returns language code for a softmax label.  See comments for languages_
   // field.  If label is out of range, returns LangId::kUnknownLanguageCode.
-  string GetLanguageForSoftmaxLabel(int label) const {
+  std::string GetLanguageForSoftmaxLabel(int label) const {
     if ((label >= 0) && (label < languages_.size())) {
       return languages_[label];
     } else {
@@ -244,11 +260,11 @@ class LangIdImpl {
   // reported.  Otherwise, we report LangId::kUnknownLanguageCode.
   float default_threshold_ = kDefaultConfidenceThreshold;
 
-  std::unordered_map<string, float> per_lang_thresholds_;
+  std::unordered_map<std::string, float> per_lang_thresholds_;
 
   // Recognized languages: softmax label i means languages_[i] (something like
   // "en", "fr", "ru", etc).
-  std::vector<string> languages_;
+  std::vector<std::string> languages_;
 
   // Version of the model used by this LangIdImpl object.  Zero means that the
   // model version could not be determined.
@@ -258,27 +274,29 @@ class LangIdImpl {
 const char LangId::kUnknownLanguageCode[] = "und";
 
 LangId::LangId(std::unique_ptr<ModelProvider> model_provider)
-    : pimpl_(new LangIdImpl(std::move(model_provider))) {}
+    : pimpl_(new LangIdImpl(std::move(model_provider))) {
+  LangIdImpl::RegisterClasses();
+}
 
 LangId::~LangId() = default;
 
-string LangId::FindLanguage(const char *data, size_t num_bytes) const {
+std::string LangId::FindLanguage(const char *data, size_t num_bytes) const {
   StringPiece text(data, num_bytes);
   return pimpl_->FindLanguage(text);
 }
 
 void LangId::FindLanguages(const char *data, size_t num_bytes,
-                           LangIdResult *result) const {
+                           LangIdResult *result, int max_results) const {
   SAFTM_DCHECK(result) << "LangIdResult must not be null.";
   StringPiece text(data, num_bytes);
-  pimpl_->FindLanguages(text, result);
+  pimpl_->FindLanguages(text, result, max_results);
 }
 
 bool LangId::is_valid() const { return pimpl_->is_valid(); }
 
 int LangId::GetModelVersion() const { return pimpl_->GetModelVersion(); }
 
-float LangId::GetFloatProperty(const string &property,
+float LangId::GetFloatProperty(const std::string &property,
                                float default_value) const {
   return pimpl_->GetProperty<float, float>(property, default_value);
 }

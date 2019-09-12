@@ -132,6 +132,8 @@ class TfLiteModelExecutor {
  protected:
   explicit TfLiteModelExecutor(
       std::unique_ptr<const tflite::FlatBufferModel> model);
+  TfLiteModelExecutor(std::unique_ptr<const tflite::FlatBufferModel> model,
+                      std::unique_ptr<tflite::OpResolver> resolver);
 
   std::unique_ptr<const tflite::FlatBufferModel> model_;
   std::unique_ptr<tflite::OpResolver> resolver_;

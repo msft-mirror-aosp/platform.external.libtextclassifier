@@ -16,7 +16,10 @@
 
 #include "lang_id/fb_model/model-provider-from-fb.h"
 
+#include <string>
+
 #include "lang_id/common/file/file-utils.h"
+#include "lang_id/common/file/mmap.h"
 #include "lang_id/common/flatbuffers/embedding-network-params-from-flatbuffer.h"
 #include "lang_id/common/flatbuffers/model-utils.h"
 #include "lang_id/common/lite_strings/str-split.h"
@@ -25,7 +28,8 @@ namespace libtextclassifier3 {
 namespace mobile {
 namespace lang_id {
 
-ModelProviderFromFlatbuffer::ModelProviderFromFlatbuffer(const string &filename)
+ModelProviderFromFlatbuffer::ModelProviderFromFlatbuffer(
+    const std::string &filename)
 
     // Using mmap as a fast way to read the model bytes.  As the file is
     // unmapped only when the field scoped_mmap_ is destructed, the model bytes
@@ -34,7 +38,8 @@ ModelProviderFromFlatbuffer::ModelProviderFromFlatbuffer(const string &filename)
   Initialize(scoped_mmap_->handle().to_stringpiece());
 }
 
-ModelProviderFromFlatbuffer::ModelProviderFromFlatbuffer(int fd)
+ModelProviderFromFlatbuffer::ModelProviderFromFlatbuffer(
+    FileDescriptorOrHandle fd)
 
     // Using mmap as a fast way to read the model bytes.  As the file is
     // unmapped only when the field scoped_mmap_ is destructed, the model bytes
@@ -60,7 +65,8 @@ void ModelProviderFromFlatbuffer::Initialize(StringPiece model_bytes) {
   }
 
   // Init languages_.
-  const string known_languages_str = context_.Get("supported_languages", "");
+  const std::string known_languages_str =
+      context_.Get("supported_languages", "");
   for (StringPiece sp : LiteStrSplit(known_languages_str, ',')) {
     languages_.emplace_back(sp);
   }
@@ -80,7 +86,7 @@ void ModelProviderFromFlatbuffer::Initialize(StringPiece model_bytes) {
 }
 
 bool ModelProviderFromFlatbuffer::InitNetworkParams() {
-  const string kInputName = "language-identifier-network";
+  const std::string kInputName = "language-identifier-network";
   StringPiece bytes =
       saft_fbs::GetInputBytes(saft_fbs::GetInputByName(model_, kInputName));
   if ((bytes.data() == nullptr) || bytes.empty()) {

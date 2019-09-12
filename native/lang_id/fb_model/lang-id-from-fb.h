@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 
+#include "lang_id/common/file/mmap.h"
 #include "lang_id/lang-id.h"
 
 namespace libtextclassifier3 {
@@ -30,11 +31,13 @@ namespace lang_id {
 
 // Returns a LangId built using the SAFT model in flatbuffer format from
 // |filename|.
-std::unique_ptr<LangId> GetLangIdFromFlatbufferFile(const string &filename);
+std::unique_ptr<LangId> GetLangIdFromFlatbufferFile(
+    const std::string &filename);
 
 // Returns a LangId built using the SAFT model in flatbuffer format from
 // given file descriptor.
-std::unique_ptr<LangId> GetLangIdFromFlatbufferFileDescriptor(int fd);
+std::unique_ptr<LangId> GetLangIdFromFlatbufferFileDescriptor(
+    FileDescriptorOrHandle fd);
 
 // Returns a LangId built using the SAFT model in flatbuffer format from
 // the |num_bytes| bytes that start at address |data|.
@@ -50,7 +53,7 @@ std::unique_ptr<LangId> GetLangIdFromFlatbufferBytes(const char *data,
 //
 // IMPORTANT: |bytes| must be alive during the lifetime of the returned LangId.
 inline std::unique_ptr<LangId> GetLangIdFromFlatbufferBytes(
-    const string &bytes) {
+    const std::string &bytes) {
   return GetLangIdFromFlatbufferBytes(bytes.data(), bytes.size());
 }
 

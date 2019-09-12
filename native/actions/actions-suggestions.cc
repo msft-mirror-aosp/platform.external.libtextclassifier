@@ -24,6 +24,7 @@
 #include "utils/base/logging.h"
 #include "utils/flatbuffers.h"
 #include "utils/lua-utils.h"
+#include "utils/optional.h"
 #include "utils/regex-match.h"
 #include "utils/strings/split.h"
 #include "utils/strings/stringpiece.h"
@@ -1178,14 +1179,13 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
 bool ActionsSuggestions::FillAnnotationFromMatchGroup(
     const UniLib::RegexMatcher* matcher,
     const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
-    const int message_index, ActionSuggestionAnnotation* annotation) const {
+    const std::string& group_match_text, const int message_index,
+    ActionSuggestionAnnotation* annotation) const {
   if (group->annotation_name() != nullptr ||
       group->annotation_type() != nullptr) {
     int status = UniLib::RegexMatcher::kNoError;
     const CodepointSpan span = {matcher->Start(group->group_id(), &status),
                                 matcher->End(group->group_id(), &status)};
-    std::string text =
-        matcher->Group(group->group_id(), &status).ToUTF8String();
     if (status != UniLib::RegexMatcher::kNoError) {
       TC3_LOG(ERROR) << "Could not extract span from rule capturing group.";
       return false;
@@ -1197,7 +1197,7 @@ bool ActionsSuggestions::FillAnnotationFromMatchGroup(
     }
     annotation->span.span = span;
     annotation->span.message_index = message_index;
-    annotation->span.text = text;
+    annotation->span.text = group_match_text;
     if (group->annotation_name() != nullptr) {
       annotation->name = group->annotation_name()->str();
     }
@@ -1244,12 +1244,18 @@ bool ActionsSuggestions::SuggestActionsFromRules(
         if (rule_action->capturing_group() != nullptr) {
           for (const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup*
                    group : *rule_action->capturing_group()) {
+            Optional<std::string> group_match_text =
+                GetCapturingGroupText(matcher.get(), group->group_id());
+            if (!group_match_text.has_value()) {
+              // The group was not part of the match, ignore and continue.
+              continue;
+            }
+
             if (group->entity_field() != nullptr) {
               TC3_CHECK(entity_data != nullptr);
               sets_entity_data = true;
-              if (!SetFieldFromCapturingGroup(
-                      group->group_id(), group->entity_field(), matcher.get(),
-                      entity_data.get())) {
+              if (!entity_data->ParseAndSet(group->entity_field(),
+                                            group_match_text.value())) {
                 TC3_LOG(ERROR)
                     << "Could not set entity data from rule capturing group.";
                 return false;
@@ -1259,27 +1265,17 @@ bool ActionsSuggestions::SuggestActionsFromRules(
             // Create a text annotation for the group span.
             ActionSuggestionAnnotation annotation;
             if (FillAnnotationFromMatchGroup(matcher.get(), group,
+                                             group_match_text.value(),
                                              message_index, &annotation)) {
               annotations.push_back(annotation);
             }
 
             // Create text reply.
             if (group->text_reply() != nullptr) {
-              int status = UniLib::RegexMatcher::kNoError;
-              const std::string group_text =
-                  matcher->Group(group->group_id(), &status).ToUTF8String();
-              if (status != UniLib::RegexMatcher::kNoError) {
-                TC3_LOG(ERROR) << "Could get text from capturing group.";
-                return false;
-              }
-              if (group_text.empty()) {
-                // The group was not part of the match, ignore and continue.
-                continue;
-              }
               actions->push_back(SuggestionFromSpec(
                   group->text_reply(),
                   /*default_type=*/model_->smart_reply_action_type()->str(),
-                  /*default_response_text=*/group_text));
+                  /*default_response_text=*/group_match_text.value()));
             }
           }
         }

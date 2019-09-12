@@ -29,6 +29,7 @@
 #include "utils/base/logging.h"
 #include "utils/checksum.h"
 #include "utils/math/softmax.h"
+#include "utils/optional.h"
 #include "utils/regex-match.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/zlib/zlib_regex.h"
@@ -499,8 +500,7 @@ bool Annotator::InitializeRegexModel(ZlibDecompressor* decompressor) {
 
 bool Annotator::InitializeKnowledgeEngine(
     const std::string& serialized_config) {
-  std::unique_ptr<KnowledgeEngine> knowledge_engine(
-      new KnowledgeEngine(unilib_));
+  std::unique_ptr<KnowledgeEngine> knowledge_engine(new KnowledgeEngine());
   if (!knowledge_engine->Initialize(serialized_config)) {
     TC3_LOG(ERROR) << "Failed to initialize the knowledge engine.";
     return false;
@@ -617,15 +617,20 @@ inline bool ClassifiedAsOther(
          classification[0].collection == Collections::Other();
 }
 
-float GetPriorityScore(
-    const std::vector<ClassificationResult>& classification) {
+}  // namespace
+
+float Annotator::GetPriorityScore(
+    const std::vector<ClassificationResult>& classification) const {
   if (!classification.empty() && !ClassifiedAsOther(classification)) {
     return classification[0].priority_score;
   } else {
-    return -1.0;
+    if (model_->triggering_options() != nullptr) {
+      return model_->triggering_options()->other_collection_priority_score();
+    } else {
+      return -1000.0;
+    }
   }
 }
-}  // namespace
 
 bool Annotator::VerifyRegexMatchCandidate(
     const std::string& context, const VerificationOptions* verification_options,
@@ -735,7 +740,8 @@ CodepointSpan Annotator::SuggestSelection(
     return original_click_indices;
   }
   if (knowledge_engine_ != nullptr &&
-      !knowledge_engine_->Chunk(context, &candidates)) {
+      !knowledge_engine_->Chunk(context, options.annotation_usecase,
+                                &candidates)) {
     TC3_LOG(ERROR) << "Knowledge suggest selection failed.";
     return original_click_indices;
   }
@@ -779,7 +785,7 @@ CodepointSpan Annotator::SuggestSelection(
   }
 
   std::sort(candidate_indices.begin(), candidate_indices.end(),
-            [&candidates](int a, int b) {
+            [this, &candidates](int a, int b) {
               return GetPriorityScore(candidates[a].classification) >
                      GetPriorityScore(candidates[b].classification);
             });
@@ -1421,6 +1427,23 @@ std::string CreateDatetimeSerializedEntityData(
       static_cast<EntityData_::Datetime_::Granularity>(
           parse_result.granularity);
 
+  for (const auto& c : parse_result.datetime_components) {
+    EntityData_::Datetime_::DatetimeComponentT datetime_component;
+    datetime_component.absolute_value = c.value;
+    datetime_component.relative_count = c.relative_count;
+    datetime_component.component_type =
+        static_cast<EntityData_::Datetime_::DatetimeComponent_::ComponentType>(
+            c.component_type);
+    datetime_component.relation_type =
+        EntityData_::Datetime_::DatetimeComponent_::RelationType_ABSOLUTE;
+    if (c.relative_qualifier !=
+        DatetimeComponent::RelativeQualifier::UNSPECIFIED) {
+      datetime_component.relation_type =
+          EntityData_::Datetime_::DatetimeComponent_::RelationType_RELATIVE;
+    }
+    entity_data.datetime->datetime_component.emplace_back(
+        new EntityData_::Datetime_::DatetimeComponentT(datetime_component));
+  }
   flatbuffers::FlatBufferBuilder builder;
   FinishEntityDataBuffer(builder, EntityData::Pack(builder, &entity_data));
   return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
@@ -1515,10 +1538,13 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   // TODO(b/126579108): Propagate error status.
   ClassificationResult knowledge_result;
   if (knowledge_engine_ && knowledge_engine_->ClassifyText(
-                               context, selection_indices, &knowledge_result)) {
+                               context, selection_indices,
+                               options.annotation_usecase, &knowledge_result)) {
     candidates.push_back({selection_indices, {knowledge_result}});
     candidates.back().source = AnnotatedSpan::Source::KNOWLEDGE;
   }
+
+  AddContactMetadataToKnowledgeClassificationResults(&candidates);
 
   // Try the contact engine.
   // TODO(b/126579108): Propagate error status.
@@ -1652,7 +1678,9 @@ bool Annotator::ModelAnnotate(
   if (!selection_feature_processor_->GetOptions()->only_use_line_with_click()) {
     lines.push_back({context_unicode.begin(), context_unicode.end()});
   } else {
-    lines = selection_feature_processor_->SplitContext(context_unicode);
+    lines = selection_feature_processor_->SplitContext(
+        context_unicode, selection_feature_processor_->GetOptions()
+                             ->use_pipe_character_for_newline());
   }
 
   const float min_annotate_confidence =
@@ -1769,6 +1797,19 @@ void Annotator::RemoveNotEnabledEntityTypes(
       annotated_spans->end());
 }
 
+void Annotator::AddContactMetadataToKnowledgeClassificationResults(
+    std::vector<AnnotatedSpan>* candidates) const {
+  if (candidates == nullptr || contact_engine_ == nullptr) {
+    return;
+  }
+  for (auto& candidate : *candidates) {
+    for (auto& classification_result : candidate.classification) {
+      contact_engine_->AddContactMetadataToKnowledgeClassificationResult(
+          &classification_result);
+    }
+  }
+}
+
 std::vector<AnnotatedSpan> Annotator::Annotate(
     const std::string& context, const AnnotationOptions& options) const {
   std::vector<AnnotatedSpan> candidates;
@@ -1824,15 +1865,27 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
                      options.locales, ModeFlag_ANNOTATION,
                      options.annotation_usecase,
                      options.is_serialized_entity_data_enabled, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run RegexChunk.";
+    TC3_LOG(ERROR) << "Couldn't run DatetimeChunk.";
     return {};
   }
 
-  // Annotate with the knowledge engine.
-  if (knowledge_engine_ && !knowledge_engine_->Chunk(context, &candidates)) {
+  // Annotate with the knowledge engine into a temporary vector.
+  std::vector<AnnotatedSpan> knowledge_candidates;
+  if (knowledge_engine_ &&
+      !knowledge_engine_->Chunk(context, options.annotation_usecase,
+                                &knowledge_candidates)) {
     TC3_LOG(ERROR) << "Couldn't run knowledge engine Chunk.";
     return {};
   }
+
+  AddContactMetadataToKnowledgeClassificationResults(&knowledge_candidates);
+
+  // Move the knowledge candidates to the full candidate list, and erase
+  // knowledge_candidates.
+  candidates.insert(candidates.end(),
+                    std::make_move_iterator(knowledge_candidates.begin()),
+                    std::make_move_iterator(knowledge_candidates.end()));
+  knowledge_candidates.clear();
 
   // Annotate with the contact engine.
   if (contact_engine_ &&
@@ -1970,6 +2023,9 @@ bool Annotator::HasEntityData(const RegexModel_::Pattern* pattern) const {
       if (group->entity_field_path() != nullptr) {
         return true;
       }
+      if (group->serialized_entity_data() != nullptr) {
+        return true;
+      }
     }
   }
   return false;
@@ -1991,7 +2047,6 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
 
   // Set static entity data.
   if (pattern->serialized_entity_data() != nullptr) {
-    TC3_CHECK(entity_data != nullptr);
     entity_data->MergeFromSerializedFlatbuffer(
         StringPiece(pattern->serialized_entity_data()->c_str(),
                     pattern->serialized_entity_data()->size()));
@@ -2001,17 +2056,31 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
   if (pattern->capturing_group() != nullptr) {
     const int num_groups = pattern->capturing_group()->size();
     for (int i = 0; i < num_groups; i++) {
-      const FlatbufferFieldPath* field_path =
-          pattern->capturing_group()->Get(i)->entity_field_path();
-      if (field_path == nullptr) {
+      const RegexModel_::Pattern_::CapturingGroup* group =
+          pattern->capturing_group()->Get(i);
+
+      // Check whether the group matched.
+      Optional<std::string> group_match_text =
+          GetCapturingGroupText(matcher, /*group_id=*/i);
+      if (!group_match_text.has_value()) {
         continue;
       }
-      TC3_CHECK(entity_data != nullptr);
-      if (!SetFieldFromCapturingGroup(/*group_id=*/i, field_path, matcher,
-                                      entity_data.get())) {
-        TC3_LOG(ERROR)
-            << "Could not set entity data from rule capturing group.";
-        return false;
+
+      // Set static entity data from capturing group match.
+      if (group->serialized_entity_data() != nullptr) {
+        entity_data->MergeFromSerializedFlatbuffer(
+            StringPiece(group->serialized_entity_data()->c_str(),
+                        group->serialized_entity_data()->size()));
+      }
+
+      // Set entity field from capturing group text.
+      if (group->entity_field_path() != nullptr) {
+        if (!entity_data->ParseAndSet(group->entity_field_path(),
+                                      group_match_text.value())) {
+          TC3_LOG(ERROR)
+              << "Could not set entity data from rule capturing group.";
+          return false;
+        }
       }
     }
   }

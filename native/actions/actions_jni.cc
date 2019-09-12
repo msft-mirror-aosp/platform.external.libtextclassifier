@@ -166,7 +166,8 @@ jobjectArray ActionSuggestionsToJObjectArray(
       std::vector<RemoteActionTemplate> remote_action_templates;
       if (context->intent_generator()->GenerateIntents(
               device_locales, action_result[i], conversation, app_context,
-              actions_entity_data_schema, annotations_entity_data_schema,
+              /*annotations_entity_data_schema=*/nullptr,
+              /*actions_entity_data_schema=*/nullptr,
               &remote_action_templates)) {
         remote_action_templates_result =
             context->template_handler()->RemoteActionTemplatesToJObjectArray(
@@ -355,6 +356,31 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelFromPath)
 #endif  // TC3_UNILIB_JAVAICU
 }
 
+TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size,
+ jbyteArray serialized_preconditions) {
+  std::shared_ptr<libtextclassifier3::JniCache> jni_cache =
+      libtextclassifier3::JniCache::Create(env);
+  std::string preconditions;
+  if (serialized_preconditions != nullptr &&
+      !libtextclassifier3::JByteArrayToString(env, serialized_preconditions,
+                                              &preconditions)) {
+    TC3_LOG(ERROR) << "Could not convert serialized preconditions.";
+    return 0;
+  }
+#ifdef TC3_UNILIB_JAVAICU
+  return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
+      jni_cache,
+      ActionsSuggestions::FromFileDescriptor(
+          fd, offset, size, std::unique_ptr<UniLib>(new UniLib(jni_cache)),
+          preconditions)));
+#else
+  return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
+      jni_cache, ActionsSuggestions::FromFileDescriptor(
+                     fd, offset, size, /*unilib=*/nullptr, preconditions)));
+#endif  // TC3_UNILIB_JAVAICU
+}
+
 TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
 (JNIEnv* env, jobject clazz, jlong ptr, jobject jconversation, jobject joptions,
  jlong annotatorPtr, jobject app_context, jstring device_locales,
@@ -393,6 +419,13 @@ TC3_JNI_METHOD(jstring, TC3_ACTIONS_CLASS_NAME, nativeGetLocales)
   return libtextclassifier3::GetLocalesFromMmap(env, mmap.get());
 }
 
+TC3_JNI_METHOD(jstring, TC3_ACTIONS_CLASS_NAME, nativeGetLocalesWithOffset)
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size) {
+  const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
+      new libtextclassifier3::ScopedMmap(fd, offset, size));
+  return libtextclassifier3::GetLocalesFromMmap(env, mmap.get());
+}
+
 TC3_JNI_METHOD(jstring, TC3_ACTIONS_CLASS_NAME, nativeGetName)
 (JNIEnv* env, jobject clazz, jint fd) {
   const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
@@ -400,9 +433,23 @@ TC3_JNI_METHOD(jstring, TC3_ACTIONS_CLASS_NAME, nativeGetName)
   return libtextclassifier3::GetNameFromMmap(env, mmap.get());
 }
 
+TC3_JNI_METHOD(jstring, TC3_ACTIONS_CLASS_NAME, nativeGetNameWithOffset)
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size) {
+  const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
+      new libtextclassifier3::ScopedMmap(fd, offset, size));
+  return libtextclassifier3::GetNameFromMmap(env, mmap.get());
+}
+
 TC3_JNI_METHOD(jint, TC3_ACTIONS_CLASS_NAME, nativeGetVersion)
 (JNIEnv* env, jobject clazz, jint fd) {
   const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd));
+  return libtextclassifier3::GetVersionFromMmap(env, mmap.get());
+}
+
+TC3_JNI_METHOD(jint, TC3_ACTIONS_CLASS_NAME, nativeGetVersionWithOffset)
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size) {
+  const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
+      new libtextclassifier3::ScopedMmap(fd, offset, size));
   return libtextclassifier3::GetVersionFromMmap(env, mmap.get());
 }
