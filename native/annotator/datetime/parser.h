@@ -28,6 +28,7 @@
 #include "annotator/types.h"
 #include "utils/base/integral_types.h"
 #include "utils/calendar/calendar.h"
+#include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
 #include "utils/zlib/zlib.h"
 
@@ -91,8 +92,9 @@ class DatetimeParser {
                      bool anchor_start_end,
                      std::vector<DatetimeParseResultSpan>* result) const;
 
-  void FillInterpretations(const DateParseData& parse,
-                           std::vector<DateParseData>* interpretations) const;
+  void FillInterpretations(
+      const DatetimeParsedData& parse,
+      std::vector<DatetimeParsedData>* interpretations) const;
 
   // Converts the current match in 'matcher' into DatetimeParseResult.
   bool ExtractDatetime(const CompiledRule& rule,

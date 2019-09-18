@@ -23,6 +23,11 @@
 
 #include "lang_id/common/lite_strings/stringpiece.h"
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace libtextclassifier3 {
 namespace mobile {
 
@@ -83,10 +88,16 @@ class MmapHandle {
 // Note: one can read *and* write the num_bytes bytes from start, but those
 // writes are not propagated to the underlying file, nor to other processes that
 // may have mmapped that file (all changes are local to current process).
-MmapHandle MmapFile(const string &filename);
+MmapHandle MmapFile(const std::string &filename);
 
-// Like MmapFile(const string &filename), but uses a file descriptor.
-MmapHandle MmapFile(int fd);
+#ifdef _WIN32
+using FileDescriptorOrHandle = HANDLE;
+#else
+using FileDescriptorOrHandle = int;
+#endif
+
+// Like MmapFile(const std::string &filename), but uses a file descriptor.
+MmapHandle MmapFile(FileDescriptorOrHandle fd);
 
 // Unmaps a file mapped using MmapFile.  Returns true on success, false
 // otherwise.
@@ -96,11 +107,10 @@ bool Unmap(MmapHandle mmap_handle);
 // destruction.
 class ScopedMmap {
  public:
-  explicit ScopedMmap(const string &filename)
+  explicit ScopedMmap(const std::string &filename)
       : handle_(MmapFile(filename)) {}
 
-  explicit ScopedMmap(int fd)
-      : handle_(MmapFile(fd)) {}
+  explicit ScopedMmap(FileDescriptorOrHandle fd) : handle_(MmapFile(fd)) {}
 
   ~ScopedMmap() {
     if (handle_.ok()) {

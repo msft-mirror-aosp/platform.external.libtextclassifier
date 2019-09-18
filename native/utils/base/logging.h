@@ -20,6 +20,7 @@
 #include <cassert>
 #include <string>
 
+#include "utils/base/integral_types.h"
 #include "utils/base/logging_levels.h"
 #include "utils/base/port.h"
 
@@ -44,19 +45,18 @@ inline LoggingStringStream &operator<<(LoggingStringStream &stream,
   return stream;
 }
 
+template <typename T>
+inline LoggingStringStream &operator<<(LoggingStringStream &stream,
+                                       T *const entry) {
+  stream.message.append(std::to_string(reinterpret_cast<const uint64>(entry)));
+  return stream;
+}
+
 inline LoggingStringStream &operator<<(LoggingStringStream &stream,
                                        const char *message) {
   stream.message.append(message);
   return stream;
 }
-
-#if defined(HAS_GLOBAL_STRING)
-inline LoggingStringStream &operator<<(LoggingStringStream &stream,
-                                       const ::string &message) {
-  stream.message.append(message);
-  return stream;
-}
-#endif
 
 inline LoggingStringStream &operator<<(LoggingStringStream &stream,
                                        const std::string &message) {

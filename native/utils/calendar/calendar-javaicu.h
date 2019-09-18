@@ -67,7 +67,7 @@ class CalendarLib {
   explicit CalendarLib(const std::shared_ptr<JniCache>& jni_cache);
 
   // Returns false (dummy version).
-  bool InterpretParseData(const DateParseData& parse_data,
+  bool InterpretParseData(const DatetimeParsedData& parse_data,
                           int64 reference_time_ms_utc,
                           const std::string& reference_timezone,
                           const std::string& reference_locale,
@@ -82,7 +82,7 @@ class CalendarLib {
     return calendar.GetTimeInMillis(interpreted_time_ms_utc);
   }
 
-  DatetimeGranularity GetGranularity(const DateParseData& data) const {
+  DatetimeGranularity GetGranularity(const DatetimeParsedData& data) const {
     return impl_.GetGranularity(data);
   }
 

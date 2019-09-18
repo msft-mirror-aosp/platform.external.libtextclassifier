@@ -29,10 +29,48 @@
 #include "annotator/types-test-util.h"
 #include "utils/testing/annotator.h"
 
+using std::vector;
 using testing::ElementsAreArray;
 
 namespace libtextclassifier3 {
 namespace {
+// Builder class to construct the DatetimeComponents and make the test readable.
+class DatetimeComponentsBuilder {
+ public:
+  DatetimeComponentsBuilder Add(DatetimeComponent::ComponentType type,
+                                int value) {
+    DatetimeComponent component;
+    component.component_type = type;
+    component.value = value;
+    return AddComponent(component);
+  }
+
+  DatetimeComponentsBuilder Add(
+      DatetimeComponent::ComponentType type, int value,
+      DatetimeComponent::RelativeQualifier relative_qualifier,
+      int relative_count) {
+    DatetimeComponent component;
+    component.component_type = type;
+    component.value = value;
+    component.relative_qualifier = relative_qualifier;
+    component.relative_count = relative_count;
+    return AddComponent(component);
+  }
+
+  std::vector<DatetimeComponent> Build() {
+    std::vector<DatetimeComponent> result(datetime_components_);
+    datetime_components_.clear();
+    return result;
+  }
+
+ private:
+  DatetimeComponentsBuilder AddComponent(
+      const DatetimeComponent& datetime_component) {
+    datetime_components_.push_back(datetime_component);
+    return *this;
+  }
+  std::vector<DatetimeComponent> datetime_components_;
+};
 
 std::string GetModelPath() {
   return TC3_TEST_DATA_DIR;
@@ -76,8 +114,9 @@ class ParserTest : public testing::Test {
   }
 
   bool ParsesCorrectly(const std::string& marked_text,
-                       const std::vector<int64>& expected_ms_utcs,
+                       const vector<int64>& expected_ms_utcs,
                        DatetimeGranularity expected_granularity,
+                       vector<vector<DatetimeComponent>> datetime_components,
                        bool anchor_start_end = false,
                        const std::string& timezone = "Europe/Zurich",
                        const std::string& locales = "en-US",
@@ -124,7 +163,6 @@ class ParserTest : public testing::Test {
         filtered_results.push_back(result);
       }
     }
-
     std::vector<DatetimeParseResultSpan> expected{
         {{expected_start_index, expected_end_index},
          {},
@@ -132,7 +170,8 @@ class ParserTest : public testing::Test {
          /*priority_score=*/0.1}};
     expected[0].data.resize(expected_ms_utcs.size());
     for (int i = 0; i < expected_ms_utcs.size(); i++) {
-      expected[0].data[i] = {expected_ms_utcs[i], expected_granularity};
+      expected[0].data[i] = {expected_ms_utcs[i], expected_granularity,
+                             datetime_components[i]};
     }
 
     const bool matches =
@@ -151,28 +190,34 @@ class ParserTest : public testing::Test {
   bool ParsesCorrectly(const std::string& marked_text,
                        const int64 expected_ms_utc,
                        DatetimeGranularity expected_granularity,
+                       vector<vector<DatetimeComponent>> datetime_components,
                        bool anchor_start_end = false,
                        const std::string& timezone = "Europe/Zurich",
                        const std::string& locales = "en-US",
                        AnnotationUsecase annotation_usecase =
                            AnnotationUsecase_ANNOTATION_USECASE_SMART) {
-    return ParsesCorrectly(marked_text, std::vector<int64>{expected_ms_utc},
-                           expected_granularity, anchor_start_end, timezone,
-                           locales, annotation_usecase);
+    return ParsesCorrectly(marked_text, vector<int64>{expected_ms_utc},
+                           expected_granularity, datetime_components,
+                           anchor_start_end, timezone, locales,
+                           annotation_usecase);
   }
 
-  bool ParsesCorrectlyGerman(const std::string& marked_text,
-                             const std::vector<int64>& expected_ms_utcs,
-                             DatetimeGranularity expected_granularity) {
+  bool ParsesCorrectlyGerman(
+      const std::string& marked_text, const vector<int64>& expected_ms_utcs,
+      DatetimeGranularity expected_granularity,
+      vector<vector<DatetimeComponent>> datetime_components) {
     return ParsesCorrectly(marked_text, expected_ms_utcs, expected_granularity,
+                           datetime_components,
                            /*anchor_start_end=*/false,
                            /*timezone=*/"Europe/Zurich", /*locales=*/"de");
   }
 
-  bool ParsesCorrectlyGerman(const std::string& marked_text,
-                             const int64 expected_ms_utc,
-                             DatetimeGranularity expected_granularity) {
+  bool ParsesCorrectlyGerman(
+      const std::string& marked_text, const int64 expected_ms_utc,
+      DatetimeGranularity expected_granularity,
+      vector<vector<DatetimeComponent>> datetime_components) {
     return ParsesCorrectly(marked_text, expected_ms_utc, expected_granularity,
+                           datetime_components,
                            /*anchor_start_end=*/false,
                            /*timezone=*/"Europe/Zurich", /*locales=*/"de");
   }
@@ -186,52 +231,275 @@ class ParserTest : public testing::Test {
 
 // Test with just a few cases to make debugging of general failures easier.
 TEST_F(ParserTest, ParseShort) {
-  EXPECT_TRUE(
-      ParsesCorrectly("{January 1, 1988}", 567990000000, GRANULARITY_DAY));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 1988)
+           .Build()}));
 }
 
 TEST_F(ParserTest, Parse) {
+  EXPECT_TRUE(ParsesCorrectly(
+      "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 1988)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{january 31 2018}", 1517353200000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 31)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "lorem {1 january 2018} ipsum", 1514761200000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{09/Mar/2004 22:02:40}", 1078866160000, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::SECOND, 40)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 02)
+           .Add(DatetimeComponent::ComponentType::HOUR, 22)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 9)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2004)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{Dec 2, 2010 2:39:58 AM}", 1291253998000, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 58)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 39)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 2)
+           .Add(DatetimeComponent::ComponentType::MONTH, 12)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{Jun 09 2011 15:28:14}", 1307626094000, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::SECOND, 14)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 28)
+           .Add(DatetimeComponent::ComponentType::HOUR, 15)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 9)
+           .Add(DatetimeComponent::ComponentType::MONTH, 6)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2011)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{Mar 16 08:12:04}", {6419524000, 6462724000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 4)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 12)
+           .Add(DatetimeComponent::ComponentType::HOUR, 8)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 16)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 4)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 12)
+           .Add(DatetimeComponent::ComponentType::HOUR, 8)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 16)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{2010-06-26 02:31:29}", {1277512289000, 1277555489000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 29)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 31)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 26)
+           .Add(DatetimeComponent::ComponentType::MONTH, 6)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 29)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 31)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 26)
+           .Add(DatetimeComponent::ComponentType::MONTH, 6)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{2006/01/22 04:11:05}", {1137899465000, 1137942665000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 5)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 11)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 22)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2006)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 5)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 11)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 22)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2006)
+           .Build()}));
   EXPECT_TRUE(
-      ParsesCorrectly("{January 1, 1988}", 567990000000, GRANULARITY_DAY));
-  EXPECT_TRUE(
-      ParsesCorrectly("{january 31 2018}", 1517353200000, GRANULARITY_DAY));
-  EXPECT_TRUE(ParsesCorrectly("lorem {1 january 2018} ipsum", 1514761200000,
-                              GRANULARITY_DAY));
-  EXPECT_TRUE(ParsesCorrectly("{09/Mar/2004 22:02:40}", 1078866160000,
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{Dec 2, 2010 2:39:58 AM}", 1291253998000,
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{Jun 09 2011 15:28:14}", 1307626094000,
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{Mar 16 08:12:04}", {6419524000, 6462724000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{2010-06-26 02:31:29}",
-                              {1277512289000, 1277555489000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{2006/01/22 04:11:05}",
-                              {1137899465000, 1137942665000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(
-      ParsesCorrectly("{11:42:35}", {38555000, 81755000}, GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{23/Apr 11:42:35}", {9715355000, 9758555000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{23/Apr/2015 11:42:35}",
-                              {1429782155000, 1429825355000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{23-Apr-2015 11:42:35}",
-                              {1429782155000, 1429825355000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{23 Apr 2015 11:42:35}",
-                              {1429782155000, 1429825355000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{04/23/15 11:42:35}",
-                              {1429782155000, 1429825355000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{04/23/2015 11:42:35}",
-                              {1429782155000, 1429825355000},
-                              GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{9/28/2011 2:23:15 PM}", 1317212595000,
-                              GRANULARITY_SECOND));
+      ParsesCorrectly("{11:42:35}", {38555000, 81755000}, GRANULARITY_SECOND,
+                      {DatetimeComponentsBuilder()
+                           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+                           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+                           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+                           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+                           .Build(),
+                       DatetimeComponentsBuilder()
+                           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+                           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+                           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+                           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+                           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{23/Apr 11:42:35}", {9715355000, 9758555000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{23/Apr/2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{23-Apr-2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{23 Apr 2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{04/23/15 11:42:35}", {1429782155000, 1429825355000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{04/23/2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{9/28/2011 2:23:15 PM}", 1317212595000, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 23)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 28)
+           .Add(DatetimeComponent::ComponentType::MONTH, 9)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2011)
+           .Build()}));
   EXPECT_TRUE(ParsesCorrectly(
       "Are sentiments apartments decisively the especially alteration. "
       "Thrown shy denote ten ladies though ask saw. Or by to he going "
@@ -243,40 +511,179 @@ TEST_F(ParserTest, Parse) {
       "think order event music. Incommode so intention defective at "
       "convinced. Led income months itself and houses you. After nor "
       "you leave might share court balls. ",
-      {1271651775000, 1271694975000}, GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectly("{january 1 2018 at 4:30}",
-                              {1514777400000, 1514820600000},
-                              GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectly("{january 1 2018 at 4:30 am}", 1514777400000,
-                              GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectly("{january 1 2018 at 4pm}", 1514818800000,
-                              GRANULARITY_HOUR));
+      {1271651775000, 1271694975000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 36)
+           .Add(DatetimeComponent::ComponentType::HOUR, 6)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 19)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 36)
+           .Add(DatetimeComponent::ComponentType::HOUR, 6)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 19)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{january 1 2018 at 4:30}", {1514777400000, 1514820600000},
+      GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{january 1 2018 at 4:30 am}", 1514777400000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{january 1 2018 at 4pm}", 1514818800000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
 
-  EXPECT_TRUE(ParsesCorrectly("{today at 0:00}", {-3600000, 39600000},
-                              GRANULARITY_MINUTE));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{today at 0:00}", {-3600000, 39600000}, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NOW, 0)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NOW, 0)
+           .Build()}));
   EXPECT_TRUE(ParsesCorrectly(
       "{today at 0:00}", {-57600000, -14400000}, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NOW, 0)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NOW, 0)
+           .Build()},
       /*anchor_start_end=*/false, "America/Los_Angeles"));
-  EXPECT_TRUE(ParsesCorrectly("{tomorrow at 4:00}", {97200000, 140400000},
-                              GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectly("{tomorrow at 4am}", 97200000, GRANULARITY_HOUR));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{tomorrow at 4:00}", {97200000, 140400000}, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{tomorrow at 4am}", 97200000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{wednesday at 4am}", 529200000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_WEEK, 4,
+                DatetimeComponent::RelativeQualifier::THIS, 0)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "last seen {today at 9:01 PM}", 72060000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 1)
+           .Add(DatetimeComponent::ComponentType::HOUR, 9)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NOW, 0)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "set an alarm for {7am tomorrow}", 108000000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 7)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
   EXPECT_TRUE(
-      ParsesCorrectly("{wednesday at 4am}", 529200000, GRANULARITY_HOUR));
-  EXPECT_TRUE(ParsesCorrectly("last seen {today at 9:01 PM}", 72060000,
-                              GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectly("set an alarm for {7am tomorrow}", 108000000,
-                              GRANULARITY_HOUR));
-  EXPECT_TRUE(
-      ParsesCorrectly("set an alarm for {7 a.m}", 21600000, GRANULARITY_HOUR));
+      ParsesCorrectly("set an alarm for {7 a.m}", 21600000, GRANULARITY_HOUR,
+                      {DatetimeComponentsBuilder()
+                           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+                           .Add(DatetimeComponent::ComponentType::HOUR, 7)
+                           .Build()}));
 }
 
 TEST_F(ParserTest, ParseWithAnchor) {
-  EXPECT_TRUE(ParsesCorrectly("{January 1, 1988}", 567990000000,
-                              GRANULARITY_DAY, /*anchor_start_end=*/false));
-  EXPECT_TRUE(ParsesCorrectly("{January 1, 1988}", 567990000000,
-                              GRANULARITY_DAY, /*anchor_start_end=*/true));
-  EXPECT_TRUE(ParsesCorrectly("lorem {1 january 2018} ipsum", 1514761200000,
-                              GRANULARITY_DAY, /*anchor_start_end=*/false));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 1988)
+           .Build()},
+      /*anchor_start_end=*/false));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 1988)
+           .Build()},
+      /*anchor_start_end=*/true));
+  EXPECT_TRUE(ParsesCorrectly(
+      "lorem {1 january 2018} ipsum", 1514761200000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()},
+      /*anchor_start_end=*/false));
   EXPECT_TRUE(HasNoResult("lorem 1 january 2018 ipsum",
                           /*anchor_start_end=*/true));
 }
@@ -284,29 +691,50 @@ TEST_F(ParserTest, ParseWithAnchor) {
 TEST_F(ParserTest, ParseWithRawUsecase) {
   // Annotated for RAW usecase.
   EXPECT_TRUE(ParsesCorrectly(
-      "{tomorrow}", 82800000, GRANULARITY_DAY, /*anchor_start_end=*/false,
+      "{tomorrow}", 82800000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()},
+      /*anchor_start_end=*/false,
       /*timezone=*/"Europe/Zurich", /*locales=*/"en-US",
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 
   EXPECT_TRUE(ParsesCorrectly(
       "call me {in two hours}", 7200000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::HOUR, 0,
+                DatetimeComponent::RelativeQualifier::FUTURE, 2)
+           .Build()},
       /*anchor_start_end=*/false,
       /*timezone=*/"Europe/Zurich", /*locales=*/"en-US",
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 
   EXPECT_TRUE(ParsesCorrectly(
       "call me {next month}", 2674800000, GRANULARITY_MONTH,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NEXT, 1)
+           .Build()},
       /*anchor_start_end=*/false,
       /*timezone=*/"Europe/Zurich", /*locales=*/"en-US",
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
   EXPECT_TRUE(ParsesCorrectly(
       "what's the time {now}", -3600000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::NOW, 0)
+           .Build()},
       /*anchor_start_end=*/false,
       /*timezone=*/"Europe/Zurich", /*locales=*/"en-US",
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 
   EXPECT_TRUE(ParsesCorrectly(
       "call me on {Saturday}", 169200000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_WEEK, 7,
+                DatetimeComponent::RelativeQualifier::THIS, 0)
+           .Build()},
       /*anchor_start_end=*/false,
       /*timezone=*/"Europe/Zurich", /*locales=*/"en-US",
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
@@ -319,105 +747,496 @@ TEST_F(ParserTest, ParseWithRawUsecase) {
 }
 
 TEST_F(ParserTest, ParsesNoonAndMidnightCorrectly) {
-  EXPECT_TRUE(ParsesCorrectly("{January 1, 1988 12:30am}", 567991800000,
-                              GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectly("{January 1, 1988 12:30pm}", 568035000000,
-                              GRANULARITY_MINUTE));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{January 1, 1988 12:30am}", 567991800000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 12)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 1988)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{January 1, 1988 12:30pm}", 568035000000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 12)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 1988)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{tomorrow at 12:00 am}", 82800000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 12)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
 }
 
 TEST_F(ParserTest, ParseGerman) {
-  EXPECT_TRUE(
-      ParsesCorrectlyGerman("{Januar 1 2018}", 1514761200000, GRANULARITY_DAY));
-  EXPECT_TRUE(
-      ParsesCorrectlyGerman("{1 2 2018}", 1517439600000, GRANULARITY_DAY));
-  EXPECT_TRUE(ParsesCorrectlyGerman("lorem {1 Januar 2018} ipsum",
-                                    1514761200000, GRANULARITY_DAY));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{19/Apr/2010:06:36:15}",
-                                    {1271651775000, 1271694975000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{09/März/2004 22:02:40}", 1078866160000,
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{Dez 2, 2010 2:39:58}",
-                                    {1291253998000, 1291297198000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{Juni 09 2011 15:28:14}", 1307626094000,
-                                    GRANULARITY_SECOND));
   EXPECT_TRUE(ParsesCorrectlyGerman(
-      "{März 16 08:12:04}", {6419524000, 6462724000}, GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{2010-06-26 02:31:29}",
-                                    {1277512289000, 1277555489000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{2006/01/22 04:11:05}",
-                                    {1137899465000, 1137942665000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{11:42:35}", {38555000, 81755000},
-                                    GRANULARITY_SECOND));
+      "{Januar 1 2018}", 1514761200000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
   EXPECT_TRUE(ParsesCorrectlyGerman(
-      "{23/Apr 11:42:35}", {9715355000, 9758555000}, GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{23/Apr/2015:11:42:35}",
-                                    {1429782155000, 1429825355000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{23/Apr/2015 11:42:35}",
-                                    {1429782155000, 1429825355000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{23-Apr-2015 11:42:35}",
-                                    {1429782155000, 1429825355000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{23 Apr 2015 11:42:35}",
-                                    {1429782155000, 1429825355000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{04/23/15 11:42:35}",
-                                    {1429782155000, 1429825355000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{04/23/2015 11:42:35}",
-                                    {1429782155000, 1429825355000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{19/apr/2010:06:36:15}",
-                                    {1271651775000, 1271694975000},
-                                    GRANULARITY_SECOND));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{januar 1 2018 um 4:30}",
-                                    {1514777400000, 1514820600000},
-                                    GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{januar 1 2018 um 4:30 nachm}",
-                                    1514820600000, GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{januar 1 2018 um 4 nachm}", 1514818800000,
-                                    GRANULARITY_HOUR));
-  EXPECT_TRUE(
-      ParsesCorrectlyGerman("{14.03.2017}", 1489446000000, GRANULARITY_DAY));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{morgen 0:00}", {82800000, 126000000},
-                                    GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectlyGerman("{morgen um 4:00}", {97200000, 140400000},
-                                    GRANULARITY_MINUTE));
-  EXPECT_TRUE(
-      ParsesCorrectlyGerman("{morgen um 4 vorm}", 97200000, GRANULARITY_HOUR));
+      "{1 2 2018}", 1517439600000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 2)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "lorem {1 Januar 2018} ipsum", 1514761200000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{19/Apr/2010:06:36:15}", {1271651775000, 1271694975000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 36)
+           .Add(DatetimeComponent::ComponentType::HOUR, 6)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 19)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 36)
+           .Add(DatetimeComponent::ComponentType::HOUR, 6)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 19)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{09/März/2004 22:02:40}", 1078866160000, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::SECOND, 40)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 02)
+           .Add(DatetimeComponent::ComponentType::HOUR, 22)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 9)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2004)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{Dez 2, 2010 2:39:58}", {1291253998000, 1291297198000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 58)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 39)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 2)
+           .Add(DatetimeComponent::ComponentType::MONTH, 12)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 58)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 39)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 2)
+           .Add(DatetimeComponent::ComponentType::MONTH, 12)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{Juni 09 2011 15:28:14}", 1307626094000, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::SECOND, 14)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 28)
+           .Add(DatetimeComponent::ComponentType::HOUR, 15)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 9)
+           .Add(DatetimeComponent::ComponentType::MONTH, 6)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2011)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{März 16 08:12:04}", {6419524000, 6462724000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 4)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 12)
+           .Add(DatetimeComponent::ComponentType::HOUR, 8)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 16)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 4)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 12)
+           .Add(DatetimeComponent::ComponentType::HOUR, 8)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 16)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{2010-06-26 02:31:29}", {1277512289000, 1277555489000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 29)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 31)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 26)
+           .Add(DatetimeComponent::ComponentType::MONTH, 6)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 29)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 31)
+           .Add(DatetimeComponent::ComponentType::HOUR, 2)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 26)
+           .Add(DatetimeComponent::ComponentType::MONTH, 6)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{2006/01/22 04:11:05}", {1137899465000, 1137942665000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 5)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 11)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 22)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2006)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 5)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 11)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 22)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2006)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{11:42:35}", {38555000, 81755000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{23/Apr 11:42:35}", {9715355000, 9758555000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{23/Apr/2015:11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{23/Apr/2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{23-Apr-2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{23 Apr 2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{04/23/15 11:42:35}", {1429782155000, 1429825355000}, GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{04/23/2015 11:42:35}", {1429782155000, 1429825355000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 35)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 42)
+           .Add(DatetimeComponent::ComponentType::HOUR, 11)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 23)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{19/apr/2010:06:36:15}", {1271651775000, 1271694975000},
+      GRANULARITY_SECOND,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 36)
+           .Add(DatetimeComponent::ComponentType::HOUR, 6)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 19)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::SECOND, 15)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 36)
+           .Add(DatetimeComponent::ComponentType::HOUR, 6)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 19)
+           .Add(DatetimeComponent::ComponentType::MONTH, 4)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2010)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{januar 1 2018 um 4:30}", {1514777400000, 1514820600000},
+      GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{januar 1 2018 um 4:30 nachm}", 1514820600000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{januar 1 2018 um 4 nachm}", 1514818800000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{14.03.2017}", 1489446000000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 14)
+           .Add(DatetimeComponent::ComponentType::MONTH, 3)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2017)
+           .Build()}));
+
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{morgen 0:00}", {82800000, 126000000}, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{morgen um 4:00}", {97200000, 140400000}, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectlyGerman(
+      "{morgen um 4 vorm}", 97200000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 0,
+                DatetimeComponent::RelativeQualifier::TOMORROW, 1)
+           .Build()}));
 }
 
 TEST_F(ParserTest, ParseNonUs) {
+  auto first_may_2015 =
+      DatetimeComponentsBuilder()
+          .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+          .Add(DatetimeComponent::ComponentType::MONTH, 5)
+          .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+          .Build();
+
   EXPECT_TRUE(ParsesCorrectly("{1/5/15}", 1430431200000, GRANULARITY_DAY,
+                              {first_may_2015},
                               /*anchor_start_end=*/false,
                               /*timezone=*/"Europe/Zurich",
                               /*locales=*/"en-GB"));
   EXPECT_TRUE(ParsesCorrectly("{1/5/15}", 1430431200000, GRANULARITY_DAY,
+                              {first_may_2015},
                               /*anchor_start_end=*/false,
                               /*timezone=*/"Europe/Zurich", /*locales=*/"en"));
 }
 
 TEST_F(ParserTest, ParseUs) {
+  auto five_january_2015 =
+      DatetimeComponentsBuilder()
+          .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 5)
+          .Add(DatetimeComponent::ComponentType::MONTH, 1)
+          .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+          .Build();
+
   EXPECT_TRUE(ParsesCorrectly("{1/5/15}", 1420412400000, GRANULARITY_DAY,
+                              {five_january_2015},
                               /*anchor_start_end=*/false,
                               /*timezone=*/"Europe/Zurich",
                               /*locales=*/"en-US"));
   EXPECT_TRUE(ParsesCorrectly("{1/5/15}", 1420412400000, GRANULARITY_DAY,
+                              {five_january_2015},
                               /*anchor_start_end=*/false,
                               /*timezone=*/"Europe/Zurich",
                               /*locales=*/"es-US"));
 }
 
 TEST_F(ParserTest, ParseUnknownLanguage) {
-  EXPECT_TRUE(ParsesCorrectly("bylo to {31. 12. 2015} v 6 hodin", 1451516400000,
-                              GRANULARITY_DAY,
-                              /*anchor_start_end=*/false,
-                              /*timezone=*/"Europe/Zurich", /*locales=*/"xx"));
+  EXPECT_TRUE(ParsesCorrectly(
+      "bylo to {31. 12. 2015} v 6 hodin", 1451516400000, GRANULARITY_DAY,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 31)
+           .Add(DatetimeComponent::ComponentType::MONTH, 12)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2015)
+           .Build()},
+      /*anchor_start_end=*/false,
+      /*timezone=*/"Europe/Zurich", /*locales=*/"xx"));
 }
 
 TEST_F(ParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
@@ -426,12 +1245,49 @@ TEST_F(ParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
         true;
   });
 
-  EXPECT_TRUE(ParsesCorrectly("{january 1 2018 at 4:30}",
-                              {1514777400000, 1514820600000},
-                              GRANULARITY_MINUTE));
-  EXPECT_TRUE(ParsesCorrectly("{monday 3pm}", 396000000, GRANULARITY_HOUR));
-  EXPECT_TRUE(ParsesCorrectly("{monday 3:00}", {352800000, 396000000},
-                              GRANULARITY_MINUTE));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{january 1 2018 at 4:30}", {1514777400000, 1514820600000},
+      GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{monday 3pm}", 396000000, GRANULARITY_HOUR,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::HOUR, 3)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_WEEK, 2,
+                DatetimeComponent::RelativeQualifier::THIS, 0)
+           .Build()}));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{monday 3:00}", {352800000, 396000000}, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 3)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_WEEK, 2,
+                DatetimeComponent::RelativeQualifier::THIS, 0)
+           .Build(),
+       DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 1)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 0)
+           .Add(DatetimeComponent::ComponentType::HOUR, 3)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_WEEK, 2,
+                DatetimeComponent::RelativeQualifier::THIS, 0)
+           .Build()}));
 }
 
 TEST_F(ParserTest, WhenAlternativesDisabledDoesNotGenerateAlternatives) {
@@ -440,8 +1296,15 @@ TEST_F(ParserTest, WhenAlternativesDisabledDoesNotGenerateAlternatives) {
         false;
   });
 
-  EXPECT_TRUE(ParsesCorrectly("{january 1 2018 at 4:30}", 1514777400000,
-                              GRANULARITY_MINUTE));
+  EXPECT_TRUE(ParsesCorrectly(
+      "{january 1 2018 at 4:30}", 1514777400000, GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 4)
+           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::MONTH, 1)
+           .Add(DatetimeComponent::ComponentType::YEAR, 2018)
+           .Build()}));
 }
 
 class ParserLocaleTest : public testing::Test {

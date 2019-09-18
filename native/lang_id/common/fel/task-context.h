@@ -43,27 +43,27 @@ class TaskContext {
   // Returns path for the input named |name|.  Returns empty string ("") if
   // there is no input with that name.  Note: this can be a standard file path,
   // or a path in a more special file system.
-  string GetInputPath(const string &name) const;
+  std::string GetInputPath(const std::string &name) const;
 
   // Sets path for input |name|.  Previous path, if any, is overwritten.
-  void SetInputPath(const string &name, const string &path);
+  void SetInputPath(const std::string &name, const std::string &path);
 
   // Returns parameter value.  If the parameter is not specified in this
   // context, the default value is returned.
-  string Get(const string &name, const char *defval) const;
-  int Get(const string &name, int defval) const;
-  float Get(const string &name, float defval) const;
-  bool Get(const string &name, bool defval) const;
+  std::string Get(const std::string &name, const char *defval) const;
+  int Get(const std::string &name, int defval) const;
+  float Get(const std::string &name, float defval) const;
+  bool Get(const std::string &name, bool defval) const;
 
   // Sets value of parameter |name| to |value|.
-  void SetParameter(const string &name, const string &value);
+  void SetParameter(const std::string &name, const std::string &value);
 
  private:
   // Maps input name -> path.
-  std::map<string, string> inputs_;
+  std::map<std::string, std::string> inputs_;
 
   // Maps parameter name -> value.
-  std::map<string, string> parameters_;
+  std::map<std::string, std::string> parameters_;
 };
 
 }  // namespace mobile

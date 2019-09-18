@@ -17,6 +17,7 @@
 #include "lang_id/common/lite_base/compact-logging-raw.h"
 
 #include <stdio.h>
+
 #include <string>
 
 // NOTE: this file contains two implementations: one for Android, one for all
@@ -48,8 +49,8 @@ int GetAndroidLogLevel(LogSeverity severity) {
 }
 }  // namespace
 
-void LowLevelLogging(LogSeverity severity, const string &tag,
-                     const string &message) {
+void LowLevelLogging(LogSeverity severity, const std::string &tag,
+                     const std::string &message) {
   const int android_log_level = GetAndroidLogLevel(severity);
 #if !defined(SAFTM_DEBUG_LOGGING)
   if (android_log_level != ANDROID_LOG_ERROR &&
@@ -89,8 +90,8 @@ const char *LogSeverityToString(LogSeverity severity) {
 }
 }  // namespace
 
-void LowLevelLogging(LogSeverity severity, const string &tag,
-                     const string &message) {
+void LowLevelLogging(LogSeverity severity, const std::string &tag,
+                     const std::string &message) {
   fprintf(stderr, "[%s] %s : %s\n", LogSeverityToString(severity), tag.c_str(),
           message.c_str());
   fflush(stderr);

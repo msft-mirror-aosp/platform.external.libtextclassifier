@@ -17,17 +17,15 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_REGEX_MATCH_H_
 #define LIBTEXTCLASSIFIER_UTILS_REGEX_MATCH_H_
 
-#include "utils/flatbuffers.h"
-#include "utils/flatbuffers_generated.h"
+#include "utils/optional.h"
 #include "utils/utf8/unilib.h"
 
 namespace libtextclassifier3 {
-// Sets a field in the flatbuffer from a regex match group.
-// Returns true if successful, and false if the field couldn't be set.
-bool SetFieldFromCapturingGroup(const int group_id,
-                                const FlatbufferFieldPath* field_path,
-                                const UniLib::RegexMatcher* matcher,
-                                ReflectiveFlatbuffer* flatbuffer);
+
+// Returns text of a capturing group if the capturing group was fulfilled in
+// the regex match.
+Optional<std::string> GetCapturingGroupText(const UniLib::RegexMatcher* matcher,
+                                            const int group_id);
 
 // Post-checks a regular expression match with a lua verifier script.
 // The verifier can access:

@@ -46,7 +46,7 @@ class GenericEmbeddingFeatureExtractor {
   //
   // |arg_prefix| is a string prefix for the relevant TaskContext parameters, to
   // avoid name clashes.  See GetParamName().
-  explicit GenericEmbeddingFeatureExtractor(const string &arg_prefix)
+  explicit GenericEmbeddingFeatureExtractor(const std::string &arg_prefix)
       : arg_prefix_(arg_prefix) {}
 
   virtual ~GenericEmbeddingFeatureExtractor() {}
@@ -65,11 +65,13 @@ class GenericEmbeddingFeatureExtractor {
   // Returns number of embedding spaces.
   int NumEmbeddings() const { return embedding_dims_.size(); }
 
-  const std::vector<string> &embedding_fml() const { return embedding_fml_; }
+  const std::vector<std::string> &embedding_fml() const {
+    return embedding_fml_;
+  }
 
   // Get parameter name by concatenating the prefix and the original name.
-  string GetParamName(const string &param_name) const {
-    string full_name = arg_prefix_;
+  std::string GetParamName(const std::string &param_name) const {
+    std::string full_name = arg_prefix_;
     full_name.push_back('_');
     full_name.append(param_name);
     return full_name;
@@ -77,13 +79,13 @@ class GenericEmbeddingFeatureExtractor {
 
  private:
   // Prefix for TaskContext parameters.
-  const string arg_prefix_;
+  const std::string arg_prefix_;
 
   // Embedding space names for parameter sharing.
-  std::vector<string> embedding_names_;
+  std::vector<std::string> embedding_names_;
 
   // FML strings for each feature extractor.
-  std::vector<string> embedding_fml_;
+  std::vector<std::string> embedding_fml_;
 
   // Size of each of the embedding spaces (maximum predicate id).
   std::vector<int> embedding_sizes_;
@@ -106,7 +108,7 @@ class EmbeddingFeatureExtractor : public GenericEmbeddingFeatureExtractor {
   //
   // |arg_prefix| is a string prefix for the relevant TaskContext parameters, to
   // avoid name clashes.  See GetParamName().
-  explicit EmbeddingFeatureExtractor(const string &arg_prefix)
+  explicit EmbeddingFeatureExtractor(const std::string &arg_prefix)
       : GenericEmbeddingFeatureExtractor(arg_prefix) {}
 
   // Sets up all predicate maps, feature extractors, and flags.

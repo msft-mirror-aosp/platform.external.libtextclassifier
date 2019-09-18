@@ -28,8 +28,8 @@ namespace internal_logging {
 // Low-level logging primitive.  Logs a message, with the indicated log
 // severity.  From android/log.h: "the tag normally corresponds to the component
 // that emits the log message, and should be reasonably small".
-void LowLevelLogging(LogSeverity severity, const string &tag,
-                     const string &message);
+void LowLevelLogging(LogSeverity severity, const std::string &tag,
+                     const std::string &message);
 
 }  // namespace internal_logging
 }  // namespace mobile

@@ -45,7 +45,7 @@ struct LangIdResult {
   //
   // If the model cannot make a prediction, this array contains a single result:
   // a language code LangId::kUnknownLanguageCode with probability 1.
-  std::vector<std::pair<string, float>> predictions;
+  std::vector<std::pair<std::string, float>> predictions;
 };
 
 // Class for detecting the language of a document.
@@ -69,21 +69,27 @@ class LangId {
 
   virtual ~LangId();
 
-  // Computes the an n-best list of language codes and probabilities
-  // corresponding to the most likely languages the given input text is written
-  // in. The list is sorted in descending order by language probability.
+  // Computes the n-best list of language codes and probabilities corresponding
+  // to the most likely languages the given input text is written in.  That list
+  // includes the most likely |max_results| languages and is sorted in
+  // descending order by language probability.
   //
   // The input text consists of the |num_bytes| bytes that starts at |data|.
+  //
+  // If max_results <= 0, we report probabilities for all languages known by
+  // this LangId object (as always, in decreasing order of their probabilities).
   //
   // Note: If this LangId object is not valid (see is_valid()) or if this LangId
   // object can't make a prediction, this method sets the LangIdResult to
   // contain a single entry with kUnknownLanguageCode with probability 1.
-  void FindLanguages(const char *data, size_t num_bytes,
-                     LangIdResult *result) const;
+  //
+  void FindLanguages(const char *data, size_t num_bytes, LangIdResult *result,
+                     int max_results = 0) const;
 
   // Convenience version of FindLanguages(const char *, size_t, LangIdResult *).
-  void FindLanguages(const string &text, LangIdResult *result) const {
-    FindLanguages(text.data(), text.size(), result);
+  void FindLanguages(const std::string &text, LangIdResult *result,
+                     int max_results = 0) const {
+    FindLanguages(text.data(), text.size(), result, max_results);
   }
 
   // Returns language code for the most likely language for a piece of text.
@@ -101,10 +107,10 @@ class LangId {
   // object can't make a prediction, then this method returns
   // LangId::kUnknownLanguageCode.
   //
-  string FindLanguage(const char *data, size_t num_bytes) const;
+  std::string FindLanguage(const char *data, size_t num_bytes) const;
 
   // Convenience version of FindLanguage(const char *, size_t).
-  string FindLanguage(const string &text) const {
+  std::string FindLanguage(const std::string &text) const {
     return FindLanguage(text.data(), text.size());
   }
 
@@ -120,7 +126,8 @@ class LangId {
   int GetModelVersion() const;
 
   // Returns a typed property stored in the model file.
-  float GetFloatProperty(const string &property, float default_value) const;
+  float GetFloatProperty(const std::string &property,
+                         float default_value) const;
 
  private:
   // Pimpl ("pointer to implementation") pattern, to hide all internals from our

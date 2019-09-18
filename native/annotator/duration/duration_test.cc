@@ -63,6 +63,8 @@ const DurationAnnotatorOptions* TestingDurationAnnotatorOptions() {
 
     options.half_expressions.push_back("half");
 
+    options.sub_token_separator_codepoints.push_back('-');
+
     flatbuffers::FlatBufferBuilder builder;
     builder.Finish(DurationAnnotatorOptions::Pack(builder, &options));
     return new flatbuffers::DetachedBuffer(builder.Release());
@@ -71,7 +73,7 @@ const DurationAnnotatorOptions* TestingDurationAnnotatorOptions() {
   return flatbuffers::GetRoot<DurationAnnotatorOptions>(options_data->data());
 }
 
-FeatureProcessor BuildFeatureProcessor(const UniLib* unilib) {
+std::unique_ptr<FeatureProcessor> BuildFeatureProcessor(const UniLib* unilib) {
   static const flatbuffers::DetachedBuffer* options_data = []() {
     FeatureProcessorOptionsT options;
     options.context_size = 1;
@@ -94,7 +96,8 @@ FeatureProcessor BuildFeatureProcessor(const UniLib* unilib) {
   const FeatureProcessorOptions* feature_processor_options =
       flatbuffers::GetRoot<FeatureProcessorOptions>(options_data->data());
 
-  return FeatureProcessor(feature_processor_options, unilib);
+  return std::unique_ptr<FeatureProcessor>(
+      new FeatureProcessor(feature_processor_options, unilib));
 }
 
 class DurationAnnotatorTest : public ::testing::Test {
@@ -103,14 +106,14 @@ class DurationAnnotatorTest : public ::testing::Test {
       : INIT_UNILIB_FOR_TESTING(unilib_),
         feature_processor_(BuildFeatureProcessor(&unilib_)),
         duration_annotator_(TestingDurationAnnotatorOptions(),
-                            &feature_processor_) {}
+                            feature_processor_.get()) {}
 
   std::vector<Token> Tokenize(const UnicodeText& text) {
-    return feature_processor_.Tokenize(text);
+    return feature_processor_->Tokenize(text);
   }
 
   UniLib unilib_;
-  FeatureProcessor feature_processor_;
+  std::unique_ptr<FeatureProcessor> feature_processor_;
   DurationAnnotator duration_annotator_;
 };
 
@@ -314,6 +317,37 @@ TEST_F(DurationAnnotatorTest, StripsPunctuationFromTokens) {
                           Field(&ClassificationResult::collection, "duration"),
                           Field(&ClassificationResult::duration_ms,
                                 10 * 60 * 1000 + 2 * 1000)))))));
+}
+
+TEST_F(DurationAnnotatorTest, FindsCorrectlyWithCombinedQuantityUnitToken) {
+  const UnicodeText text = UTF8ToUnicodeText("Show 5-minute timer.");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(5, 13)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                5 * 60 * 1000)))))));
+}
+
+TEST_F(DurationAnnotatorTest,
+       DoesNotIntOverflowWithDurationThatHasMoreThanInt32Millis) {
+  ClassificationResult classification;
+  EXPECT_TRUE(duration_annotator_.ClassifyText(
+      UTF8ToUnicodeText("1400 hours"), {0, 10},
+      AnnotationUsecase_ANNOTATION_USECASE_RAW, &classification));
+
+  EXPECT_THAT(classification,
+              AllOf(Field(&ClassificationResult::collection, "duration"),
+                    Field(&ClassificationResult::duration_ms,
+                          1400L * 60L * 60L * 1000L)));
 }
 
 }  // namespace

@@ -21,6 +21,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <string>
+
 #include "lang_id/common/lite_base/logging.h"
 #include "lang_id/common/lite_strings/stringpiece.h"
 
@@ -29,7 +31,7 @@ namespace mobile {
 
 namespace file_utils {
 
-bool GetFileContent(const string &filename, string *content) {
+bool GetFileContent(const std::string &filename, std::string *content) {
   ScopedMmap scoped_mmap(filename);
   const MmapHandle &handle = scoped_mmap.handle();
   if (!handle.ok()) {
@@ -41,7 +43,7 @@ bool GetFileContent(const string &filename, string *content) {
   return true;
 }
 
-bool FileExists(const string &filename) {
+bool FileExists(const std::string &filename) {
   struct stat s = {0};
   if (!stat(filename.c_str(), &s)) {
     return s.st_mode & S_IFREG;
@@ -50,7 +52,7 @@ bool FileExists(const string &filename) {
   }
 }
 
-bool DirectoryExists(const string &dirpath) {
+bool DirectoryExists(const std::string &dirpath) {
   struct stat s = {0};
   if (!stat(dirpath.c_str(), &s)) {
     return s.st_mode & S_IFDIR;

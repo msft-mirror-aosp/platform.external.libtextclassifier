@@ -37,11 +37,11 @@ class ModelProviderFromFlatbuffer : public ModelProvider {
  public:
   // Constructs a model provider based on a flatbuffer-format SAFT model from
   // |filename|.
-  explicit ModelProviderFromFlatbuffer(const string &filename);
+  explicit ModelProviderFromFlatbuffer(const std::string &filename);
 
   // Constructs a model provider based on a flatbuffer-format SAFT model from
   // file descriptor |fd|.
-  explicit ModelProviderFromFlatbuffer(int fd);
+  explicit ModelProviderFromFlatbuffer(FileDescriptorOrHandle fd);
 
   // Constructs a model provider from a flatbuffer-format SAFT model the bytes
   // of which are already in RAM (size bytes starting from address data).
@@ -71,9 +71,7 @@ class ModelProviderFromFlatbuffer : public ModelProvider {
     return nn_params_.get();
   }
 
-  std::vector<string> GetLanguages() const override {
-    return languages_;
-  }
+  std::vector<std::string> GetLanguages() const override { return languages_; }
 
  private:
   // Initializes the fields of this class based on the flatbuffer from
@@ -104,7 +102,7 @@ class ModelProviderFromFlatbuffer : public ModelProvider {
 
   // List of supported languages, see GetLanguages().  We expect this list to be
   // specified by the ModelParameter named "supported_languages" from model_.
-  std::vector<string> languages_;
+  std::vector<std::string> languages_;
 
   // EmbeddingNetworkParams, see GetNnParams().  Set based on the ModelInput
   // named "language-identifier-network" from model_.

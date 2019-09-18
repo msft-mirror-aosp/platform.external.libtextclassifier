@@ -81,9 +81,11 @@ public class TemplateClassificationIntentFactoryTest {
                         null,
                         null,
                         null,
+                        null,
                         createRemoteActionTemplates(),
-                        0,
-                        0);
+                        0L,
+                        0L,
+                        0d);
 
         List<LabeledIntent> intents =
                 mTemplateClassificationIntentFactory.create(
@@ -122,9 +124,11 @@ public class TemplateClassificationIntentFactoryTest {
                         null,
                         null,
                         null,
+                        null,
                         createRemoteActionTemplates(),
-                        0,
-                        0);
+                        0L,
+                        0L,
+                        0d);
 
         List<LabeledIntent> intents =
                 mTemplateClassificationIntentFactory.create(
@@ -160,8 +164,10 @@ public class TemplateClassificationIntentFactoryTest {
                         null,
                         null,
                         null,
-                        0,
-                        0);
+                        null,
+                        0L,
+                        0L,
+                        0d);
 
         mTemplateClassificationIntentFactory.create(
                 InstrumentationRegistry.getContext(),
@@ -197,9 +203,11 @@ public class TemplateClassificationIntentFactoryTest {
                         null,
                         null,
                         null,
+                        null,
                         new RemoteActionTemplate[0],
-                        0,
-                        0);
+                        0L,
+                        0L,
+                        0d);
 
         mTemplateClassificationIntentFactory.create(
                 InstrumentationRegistry.getContext(),

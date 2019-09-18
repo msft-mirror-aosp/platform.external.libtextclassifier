@@ -255,16 +255,16 @@ table TriggeringPreconditions {
 namespace libtextclassifier3;
 table ActionSuggestionSpec {
   // Type of the action suggestion.
-  type:string;
+  type:string (shared);
 
   // Text of a smart reply action.
-  response_text:string;
+  response_text:string (shared);
 
   // Score.
   score:float;
 
   // Serialized entity information.
-  serialized_entity_data:string;
+  serialized_entity_data:string (shared);
 
   // Priority score used for internal conflict resolution.
   priority_score:float = 0;
@@ -274,7 +274,7 @@ table ActionSuggestionSpec {
 namespace libtextclassifier3;
 table ActionTypeOptions {
   // The name of the predicted action.
-  name:string;
+  name:string (shared);
 
   // Triggering behaviour.
   // Whether the action class is considered in the model output or not.
@@ -290,7 +290,7 @@ table ActionTypeOptions {
 namespace libtextclassifier3.AnnotationActionsSpec_;
 table AnnotationMapping {
   // The annotation collection.
-  annotation_collection:string;
+  annotation_collection:string (shared);
 
   // The action name to use.
   action:ActionSuggestionSpec;
@@ -353,7 +353,7 @@ table RankingOptions {
   // * input: (optionally deduplicated) action suggestions, via the `actions`
   // global
   // * output: indices of the actions to keep in the provided order.
-  lua_ranking_script:string;
+  lua_ranking_script:string (shared);
 
   compressed_lua_ranking_script:CompressedBuffer;
 
@@ -376,9 +376,9 @@ table RuleCapturingGroup {
 
   // If set, the capturing group will be used to create a text annotation
   // with the given name and type.
-  annotation_type:string;
+  annotation_type:string (shared);
 
-  annotation_name:string;
+  annotation_name:string (shared);
 
   // If set, the capturing group text will be used to create a text
   // reply.
@@ -398,13 +398,13 @@ table RuleActionSpec {
 namespace libtextclassifier3.RulesModel_;
 table Rule {
   // The regular expression pattern.
-  pattern:string;
+  pattern:string (shared);
 
   compressed_pattern:CompressedBuffer;
   actions:[Rule_.RuleActionSpec];
 
   // Patterns for post-checking the outputs.
-  output_pattern:string;
+  output_pattern:string (shared);
 
   compressed_output_pattern:CompressedBuffer;
 }
@@ -421,18 +421,18 @@ table RulesModel {
 namespace libtextclassifier3;
 table ActionsModel {
   // Comma-separated list of locales supported by the model as BCP 47 tags.
-  locales:string;
+  locales:string (shared);
 
   // Version of the actions model.
   version:int;
 
   // A name for the model that can be used e.g. for logging.
-  name:string;
+  name:string (shared);
 
   tflite_model_spec:TensorflowLiteModelSpec;
 
   // Output classes.
-  smart_reply_action_type:string;
+  smart_reply_action_type:string (shared);
 
   action_type:[ActionTypeOptions];
 
@@ -464,7 +464,7 @@ table ActionsModel {
   ranking_options:RankingOptions;
 
   // Lua based actions.
-  lua_actions_script:string;
+  lua_actions_script:string (shared);
 
   compressed_lua_actions_script:CompressedBuffer;
 

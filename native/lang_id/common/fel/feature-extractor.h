@@ -126,7 +126,7 @@ class GenericFeatureExtractor {
   // Initializes the feature extractor from the FEL specification |source|.
   //
   // Returns true on success, false otherwise (e.g., FEL syntax error).
-  SAFTM_MUST_USE_RESULT bool Parse(const string &source);
+  SAFTM_MUST_USE_RESULT bool Parse(const std::string &source);
 
   // Returns the feature extractor descriptor.
   const FeatureExtractorDescriptor &descriptor() const { return descriptor_; }
@@ -207,30 +207,31 @@ class GenericFeatureFunction {
 
   // Returns value of parameter |name| from the feature function descriptor.
   // If the parameter is not present, returns the indicated |default_value|.
-  string GetParameter(const string &name, const string &default_value) const;
+  std::string GetParameter(const std::string &name,
+                           const std::string &default_value) const;
 
   // Returns value of int parameter |name| from feature function descriptor.
   // If the parameter is not present, or its value can't be parsed as an int,
   // returns |default_value|.
-  int GetIntParameter(const string &name, int default_value) const;
+  int GetIntParameter(const std::string &name, int default_value) const;
 
   // Returns value of bool parameter |name| from feature function descriptor.
   // If the parameter is not present, or its value is not "true" or "false",
   // returns |default_value|.  NOTE: this method is case sensitive, it doesn't
   // do any lower-casing.
-  bool GetBoolParameter(const string &name, bool default_value) const;
+  bool GetBoolParameter(const std::string &name, bool default_value) const;
 
   // Returns the FEL function description for the feature function, i.e. the
   // name and parameters without the nested features.
-  string FunctionName() const {
-    string output;
+  std::string FunctionName() const {
+    std::string output;
     ToFELFunction(*descriptor_, &output);
     return output;
   }
 
   // Returns the prefix for nested feature functions. This is the prefix of this
   // feature function concatenated with the feature function name.
-  string SubPrefix() const {
+  std::string SubPrefix() const {
     return prefix_.empty() ? FunctionName() : prefix_ + "." + FunctionName();
   }
 
@@ -250,7 +251,7 @@ class GenericFeatureFunction {
   // the descriptor for the feature function. If the name is empty or the
   // feature function is a variable the name is the FEL representation of the
   // feature, including the prefix.
-  string name() const;
+  std::string name() const;
 
   // Returns the argument from the feature function descriptor. It defaults to
   // 0 if the argument has not been specified.
@@ -259,8 +260,8 @@ class GenericFeatureFunction {
   }
 
   // Returns/sets/clears function name prefix.
-  const string &prefix() const { return prefix_; }
-  void set_prefix(const string &prefix) { prefix_ = prefix; }
+  const std::string &prefix() const { return prefix_; }
+  void set_prefix(const std::string &prefix) { prefix_ = prefix; }
 
  protected:
   // Returns the feature type for single-type feature functions.
@@ -291,7 +292,7 @@ class GenericFeatureFunction {
   FeatureType *feature_type_ = nullptr;
 
   // Prefix used for sub-feature types of this function.
-  string prefix_;
+  std::string prefix_;
 };
 
 // Feature function that can extract features from an object.  Templated on
@@ -340,7 +341,7 @@ class FeatureFunction
   // the relevant cc_library was not linked-in).
   static Self *Instantiate(const GenericFeatureExtractor *extractor,
                            const FeatureFunctionDescriptor *fd,
-                           const string &prefix) {
+                           const std::string &prefix) {
     Self *f = Self::Create(fd->type());
     if (f != nullptr) {
       f->set_extractor(extractor);
@@ -439,7 +440,7 @@ class NestedFeatureFunction : public FeatureFunction<OBJ, ARGS...> {
   SAFTM_MUST_USE_RESULT static bool CreateNested(
       const GenericFeatureExtractor *extractor,
       const FeatureFunctionDescriptor *fd, std::vector<NES *> *functions,
-      const string &prefix) {
+      const std::string &prefix) {
     for (int i = 0; i < fd->feature_size(); ++i) {
       const FeatureFunctionDescriptor &sub = fd->feature(i);
       NES *f = NES::Instantiate(extractor, &sub, prefix);

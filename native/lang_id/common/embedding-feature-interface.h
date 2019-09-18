@@ -36,7 +36,7 @@ class EmbeddingFeatureInterface {
   //
   // |arg_prefix| is a string prefix for the TaskContext parameters, passed to
   // |the underlying EmbeddingFeatureExtractor.
-  explicit EmbeddingFeatureInterface(const string &arg_prefix)
+  explicit EmbeddingFeatureInterface(const std::string &arg_prefix)
       : feature_extractor_(arg_prefix) {}
 
   // Sets up feature extractors and flags for processing (inference).

@@ -14,28 +14,7 @@
  * limitations under the License.
  */
 
-package com.google.android.textclassifier.utils.utf8;
+#include "gtest/gtest.h"
 
-import static com.google.common.truth.Truth.assertThat;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.JUnit4;
-
-/** This is just a launcher of the tests because we need a valid JNIEnv in the C++ test. */
-@RunWith(JUnit4.class)
-public class UniLibJavaIcuTest {
-
-  @Before
-  public void setUp() throws Exception {
-    System.loadLibrary("unilib-javaicu_test-jni");
-  }
-
-  private native boolean testsMain();
-
-  @Test
-  public void testNative() {
-    assertThat(testsMain()).isTrue();
-  }
-}
+// The actual code of the test is in the following include:
+#include "utils/calendar/calendar_test-include.h"

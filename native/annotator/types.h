@@ -18,6 +18,7 @@
 #define LIBTEXTCLASSIFIER_ANNOTATOR_TYPES_H_
 
 #include <time.h>
+
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -36,6 +37,13 @@
 namespace libtextclassifier3 {
 
 constexpr int kInvalidIndex = -1;
+constexpr int kSunday = 1;
+constexpr int kMonday = 2;
+constexpr int kTuesday = 3;
+constexpr int kWednesday = 4;
+constexpr int kThursday = 5;
+constexpr int kFriday = 6;
+constexpr int kSaturday = 7;
 
 // Index for a 0-based array of tokens.
 using TokenIndex = int;
@@ -165,6 +173,83 @@ enum DatetimeGranularity {
   GRANULARITY_SECOND = 6
 };
 
+// This struct represents a unit of date and time expression.
+// Examples include:
+// - In {March 21, 2019} datetime components are month: {March},
+//   day of month: {21} and year: {2019}.
+// - {8:00 am} contains hour: {8}, minutes: {0} and am/pm: {am}
+struct DatetimeComponent {
+  enum class ComponentType {
+    UNSPECIFIED = 0,
+    // Year of the date seen in the text match.
+    YEAR = 1,
+    // Month of the year starting with January = 1.
+    MONTH = 2,
+    // Week (7 days).
+    WEEK = 3,
+    // Day of week, start of the week is Sunday &  its value is 1.
+    DAY_OF_WEEK = 4,
+    // Day of the month starting with 1.
+    DAY_OF_MONTH = 5,
+    // Hour of the day with a range of 0-23,
+    // values less than 12 need the AMPM field below or heuristics
+    // to definitively determine the time.
+    HOUR = 6,
+    // Minute of the hour with a range of 0-59.
+    MINUTE = 7,
+    // Seconds of the minute with a range of 0-59.
+    SECOND = 8,
+    // Meridiem field where 0 == AM, 1 == PM.
+    MERIDIEM = 9,
+    // Number of hours offset from UTC this date time is in.
+    ZONE_OFFSET = 10,
+    // Number of hours offest for DST.
+    DST_OFFSET = 11,
+  };
+
+  // TODO(hassan): Remove RelativeQualifier as in the presence of relative
+  //               count RelativeQualifier is redundant.
+  // Enum to represent the relative DateTimeComponent e.g. "next Monday",
+  // "the following day", "tomorrow".
+  enum class RelativeQualifier {
+    UNSPECIFIED = 0,
+    NEXT = 1,
+    THIS = 2,
+    LAST = 3,
+    NOW = 4,
+    TOMORROW = 5,
+    YESTERDAY = 6,
+    PAST = 7,
+    FUTURE = 8
+  };
+
+  bool operator==(const DatetimeComponent& other) const {
+    return component_type == other.component_type &&
+           relative_qualifier == other.relative_qualifier &&
+           relative_count == other.relative_count && value == other.value;
+  }
+
+  bool ShouldRoundToGranularity() const;
+
+  ComponentType component_type = ComponentType::UNSPECIFIED;
+  RelativeQualifier relative_qualifier = RelativeQualifier::UNSPECIFIED;
+
+  // Represents the absolute value of DateTime components.
+  int value = 0;
+  // The number of units of change present in the relative DateTimeComponent.
+  int relative_count = 0;
+
+  DatetimeComponent() = default;
+
+  explicit DatetimeComponent(ComponentType arg_component_type,
+                             RelativeQualifier arg_relative_qualifier,
+                             int arg_value, int arg_relative_count)
+      : component_type(arg_component_type),
+        relative_qualifier(arg_relative_qualifier),
+        value(arg_value),
+        relative_count(arg_relative_count) {}
+};
+
 struct DatetimeParseResult {
   // The absolute time in milliseconds since the epoch in UTC.
   int64 time_ms_utc;
@@ -172,16 +257,24 @@ struct DatetimeParseResult {
   // The precision of the estimate then in to calculating the milliseconds
   DatetimeGranularity granularity;
 
+  // List of parsed DateTimeComponent.
+  std::vector<DatetimeComponent> datetime_components;
+
   DatetimeParseResult() : time_ms_utc(0), granularity(GRANULARITY_UNKNOWN) {}
 
   DatetimeParseResult(int64 arg_time_ms_utc,
-                      DatetimeGranularity arg_granularity)
-      : time_ms_utc(arg_time_ms_utc), granularity(arg_granularity) {}
+                      DatetimeGranularity arg_granularity,
+                      std::vector<DatetimeComponent> arg_datetime__components)
+      : time_ms_utc(arg_time_ms_utc),
+        granularity(arg_granularity),
+        datetime_components(arg_datetime__components) {}
 
   bool IsSet() const { return granularity != GRANULARITY_UNKNOWN; }
 
   bool operator==(const DatetimeParseResult& other) const {
-    return granularity == other.granularity && time_ms_utc == other.time_ms_utc;
+    return granularity == other.granularity &&
+           time_ms_utc == other.time_ms_utc &&
+           datetime_components == other.datetime_components;
   }
 };
 
@@ -192,6 +285,19 @@ struct DatetimeParseResultSpan {
   std::vector<DatetimeParseResult> data;
   float target_classification_score;
   float priority_score;
+
+  DatetimeParseResultSpan()
+      : target_classification_score(-1.0), priority_score(-1.0) {}
+
+  DatetimeParseResultSpan(const CodepointSpan& span,
+                          const std::vector<DatetimeParseResult>& data,
+                          const float target_classification_score,
+                          const float priority_score) {
+    this->span = span;
+    this->data = data;
+    this->target_classification_score = target_classification_score;
+    this->priority_score = priority_score;
+  }
 
   bool operator==(const DatetimeParseResultSpan& other) const {
     return span == other.span && data == other.data &&
@@ -206,15 +312,36 @@ struct DatetimeParseResultSpan {
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
                                          const DatetimeParseResultSpan& value);
 
+// This struct contains information intended to uniquely identify a device
+// contact. Instances are created by the Knowledge Engine, and dereferenced by
+// the Contact Engine.
+struct ContactPointer {
+  std::string focus_contact_id;
+  std::string device_id;
+  std::string device_contact_id;
+  std::string contact_name;
+  std::string contact_name_hash;
+
+  bool operator==(const ContactPointer& other) const {
+    return focus_contact_id == other.focus_contact_id &&
+           device_id == other.device_id &&
+           device_contact_id == other.device_contact_id &&
+           contact_name == other.contact_name &&
+           contact_name_hash == other.contact_name_hash;
+  }
+};
+
 struct ClassificationResult {
   std::string collection;
   float score;
   DatetimeParseResult datetime_parse_result;
   std::string serialized_knowledge_result;
-  std::string contact_name, contact_given_name, contact_nickname,
-      contact_email_address, contact_phone_number, contact_id;
+  ContactPointer contact_pointer;
+  std::string contact_name, contact_given_name, contact_family_name,
+      contact_nickname, contact_email_address, contact_phone_number, contact_id;
   std::string app_name, app_package_name;
   int64 numeric_value;
+  double numeric_double_value;
 
   // Length of the parsed duration in milliseconds.
   int64 duration_ms;
@@ -230,18 +357,54 @@ struct ClassificationResult {
                                                serialized_entity_data.size());
   }
 
-  explicit ClassificationResult() : score(-1.0f), priority_score(-1.0) {}
+  explicit ClassificationResult()
+      : score(-1.0f),
+        numeric_value(0),
+        numeric_double_value(0.),
+        duration_ms(0),
+        priority_score(-1.0) {}
 
   ClassificationResult(const std::string& arg_collection, float arg_score)
       : collection(arg_collection),
         score(arg_score),
+        numeric_value(0),
+        numeric_double_value(0.),
+        duration_ms(0),
         priority_score(arg_score) {}
 
   ClassificationResult(const std::string& arg_collection, float arg_score,
                        float arg_priority_score)
       : collection(arg_collection),
         score(arg_score),
+        numeric_value(0),
+        numeric_double_value(0.),
+        duration_ms(0),
         priority_score(arg_priority_score) {}
+
+  bool operator!=(const ClassificationResult& other) const {
+    return !(*this == other);
+  }
+
+  bool operator==(const ClassificationResult& other) const {
+    return collection == other.collection &&
+           fabs(score - other.score) < 0.001 &&
+           datetime_parse_result == other.datetime_parse_result &&
+           serialized_knowledge_result == other.serialized_knowledge_result &&
+           contact_pointer == other.contact_pointer &&
+           contact_name == other.contact_name &&
+           contact_given_name == other.contact_given_name &&
+           contact_family_name == other.contact_family_name &&
+           contact_nickname == other.contact_nickname &&
+           contact_email_address == other.contact_email_address &&
+           contact_phone_number == other.contact_phone_number &&
+           contact_id == other.contact_id &&
+           app_package_name == other.app_package_name &&
+           fabs(priority_score - other.priority_score) < 0.001 &&
+           numeric_value == other.numeric_value &&
+           fabs(numeric_double_value - other.numeric_double_value) < 0.001 &&
+           duration_ms == other.duration_ms &&
+           serialized_entity_data == other.serialized_entity_data;
+  }
 };
 
 // Pretty-printing function for ClassificationResult.
@@ -302,121 +465,74 @@ class VectorSpan {
   typename std::vector<T>::const_iterator end_;
 };
 
-struct DateParseData {
-  enum class Relation {
-    UNSPECIFIED = 0,
-    NEXT = 1,
-    NEXT_OR_SAME = 2,
-    LAST = 3,
-    NOW = 4,
-    TOMORROW = 5,
-    YESTERDAY = 6,
-    PAST = 7,
-    FUTURE = 8
-  };
+// Class to provide representation of date and time expressions
+class DatetimeParsedData {
+ public:
+  // Function to set the absolute value of DateTimeComponent for the given
+  // FieldType, if the field is not present it will create the field and set
+  // the value.
+  void SetAbsoluteValue(const DatetimeComponent::ComponentType& field_type,
+                        int value);
 
-  enum class RelationType {
-    UNSPECIFIED = 0,
-    SUNDAY = 1,
-    MONDAY = 2,
-    TUESDAY = 3,
-    WEDNESDAY = 4,
-    THURSDAY = 5,
-    FRIDAY = 6,
-    SATURDAY = 7,
-    DAY = 8,
-    WEEK = 9,
-    MONTH = 10,
-    YEAR = 11,
-    HOUR = 12,
-    MINUTE = 13,
-    SECOND = 14,
-  };
+  // Function to set the relative value of DateTimeComponent, if the field is
+  // not present the function will create the field and set the relative value.
+  void SetRelativeValue(
+      const DatetimeComponent::ComponentType& field_type,
+      const DatetimeComponent::RelativeQualifier& relative_value);
 
-  enum Fields {
-    YEAR_FIELD = 1 << 0,
-    MONTH_FIELD = 1 << 1,
-    DAY_FIELD = 1 << 2,
-    HOUR_FIELD = 1 << 3,
-    MINUTE_FIELD = 1 << 4,
-    SECOND_FIELD = 1 << 5,
-    AMPM_FIELD = 1 << 6,
-    ZONE_OFFSET_FIELD = 1 << 7,
-    DST_OFFSET_FIELD = 1 << 8,
-    RELATION_FIELD = 1 << 9,
-    RELATION_TYPE_FIELD = 1 << 10,
-    RELATION_DISTANCE_FIELD = 1 << 11
-  };
+  // Function to set the relative count of DateTimeComponent, if the field is
+  // not present the function will create the field and set the count.
+  void SetRelativeCount(const DatetimeComponent::ComponentType& field_type,
+                        int relative_count);
 
-  enum class AMPM { AM = 0, PM = 1 };
+  // Function to populate the absolute value of the FieldType and return true.
+  // In case of no FieldType function will return false.
+  bool GetFieldValue(const DatetimeComponent::ComponentType& field_type,
+                     int* field_value) const;
 
-  enum class TimeUnit {
-    DAYS = 1,
-    WEEKS = 2,
-    MONTHS = 3,
-    HOURS = 4,
-    MINUTES = 5,
-    SECONDS = 6,
-    YEARS = 7
-  };
+  // Function to populate the relative value of the FieldType and return true.
+  // In case of no relative value function will return false.
+  bool GetRelativeValue(
+      const DatetimeComponent::ComponentType& field_type,
+      DatetimeComponent::RelativeQualifier* relative_value) const;
 
-  // Bit mask of fields which have been set on the struct
-  int field_set_mask = 0;
+  // Returns relative DateTimeComponent from the parsed DateTime span.
+  void GetRelativeDatetimeComponents(
+      std::vector<DatetimeComponent>* date_time_components) const;
 
-  // Fields describing absolute date fields.
-  // Year of the date seen in the text match.
-  int year = 0;
-  // Month of the year starting with January = 1.
-  int month = 0;
-  // Day of the month starting with 1.
-  int day_of_month = 0;
-  // Hour of the day with a range of 0-23,
-  // values less than 12 need the AMPM field below or heuristics
-  // to definitively determine the time.
-  int hour = 0;
-  // Hour of the day with a range of 0-59.
-  int minute = 0;
-  // Hour of the day with a range of 0-59.
-  int second = 0;
-  // 0 == AM, 1 == PM
-  AMPM ampm = AMPM::AM;
-  // Number of hours offset from UTC this date time is in.
-  int zone_offset = 0;
-  // Number of hours offest for DST
-  int dst_offset = 0;
+  // Returns DateTimeComponent from the parsed DateTime span.
+  void GetDatetimeComponents(
+      std::vector<DatetimeComponent>* date_time_components) const;
 
-  // The permutation from now that was made to find the date time.
-  Relation relation = Relation::UNSPECIFIED;
-  // The unit of measure of the change to the date time.
-  RelationType relation_type = RelationType::UNSPECIFIED;
-  // The number of units of change that were made.
-  int relation_distance = 0;
+  // Represent the granularity of the Parsed DateTime span. The function will
+  // return “GRANULARITY_UNKNOWN” if no datetime field is set.
+  DatetimeGranularity GetFinestGranularity() const;
 
-  DateParseData() = default;
+  // Utility function to check if DateTimeParsedData has FieldType initialized.
+  bool HasFieldType(const DatetimeComponent::ComponentType& field_type) const;
 
-  DateParseData(int field_set_mask, int year, int month, int day_of_month,
-                int hour, int minute, int second, AMPM ampm, int zone_offset,
-                int dst_offset, Relation relation, RelationType relation_type,
-                int relation_distance) {
-    this->field_set_mask = field_set_mask;
-    this->year = year;
-    this->month = month;
-    this->day_of_month = day_of_month;
-    this->hour = hour;
-    this->minute = minute;
-    this->second = second;
-    this->ampm = ampm;
-    this->zone_offset = zone_offset;
-    this->dst_offset = dst_offset;
-    this->relation = relation;
-    this->relation_type = relation_type;
-    this->relation_distance = relation_distance;
-  }
+  // Function to check if DateTimeParsedData has relative DateTimeComponent for
+  // given FieldType.
+  bool HasRelativeValue(
+      const DatetimeComponent::ComponentType& field_type) const;
+
+  // Function to check if DateTimeParsedData has absolute value
+  // DateTimeComponent for given FieldType.
+  bool HasAbsoluteValue(
+      const DatetimeComponent::ComponentType& field_type) const;
+
+ private:
+  DatetimeComponent& GetOrCreateDatetimeComponent(
+
+      const DatetimeComponent::ComponentType& component_type);
+
+  std::map<DatetimeComponent::ComponentType, DatetimeComponent>
+      date_time_components_;
 };
 
-// Pretty-printing function for DateParseData.
+// Pretty-printing function for DateTimeParsedData.
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
-                                         const DateParseData& data);
+                                         const DatetimeParsedData& data);
 
 }  // namespace libtextclassifier3
 

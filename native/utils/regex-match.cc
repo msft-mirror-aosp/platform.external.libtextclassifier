@@ -149,16 +149,14 @@ bool LuaVerifier::Verify(bool* result) {
 
 }  // namespace
 
-bool SetFieldFromCapturingGroup(const int group_id,
-                                const FlatbufferFieldPath* field_path,
-                                const UniLib::RegexMatcher* matcher,
-                                ReflectiveFlatbuffer* flatbuffer) {
+Optional<std::string> GetCapturingGroupText(const UniLib::RegexMatcher* matcher,
+                                            const int group_id) {
   int status = UniLib::RegexMatcher::kNoError;
   std::string group_text = matcher->Group(group_id, &status).ToUTF8String();
   if (status != UniLib::RegexMatcher::kNoError || group_text.empty()) {
-    return false;
+    return Optional<std::string>();
   }
-  return flatbuffer->ParseAndSet(field_path, group_text);
+  return Optional<std::string>(group_text);
 }
 
 bool VerifyMatch(const std::string& context,

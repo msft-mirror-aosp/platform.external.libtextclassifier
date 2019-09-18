@@ -346,36 +346,47 @@ std::vector<int> DatetimeParser::ParseAndExpandLocales(
 }
 
 void DatetimeParser::FillInterpretations(
-    const DateParseData& parse,
-    std::vector<DateParseData>* interpretations) const {
+    const DatetimeParsedData& parse,
+    std::vector<DatetimeParsedData>* interpretations) const {
   DatetimeGranularity granularity = calendarlib_.GetGranularity(parse);
 
-  DateParseData modified_parse(parse);
+  DatetimeParsedData modified_parse(parse);
   // If the relation field is not set, but relation_type field *is*, assume
   // the relation field is NEXT_OR_SAME. This is necessary to handle e.g.
   // "monday 3pm" (otherwise only "this monday 3pm" would work).
-  if (!(modified_parse.field_set_mask &
-        DateParseData::Fields::RELATION_FIELD) &&
-      (modified_parse.field_set_mask &
-       DateParseData::Fields::RELATION_TYPE_FIELD)) {
-    modified_parse.relation = DateParseData::Relation::NEXT_OR_SAME;
-    modified_parse.field_set_mask |= DateParseData::Fields::RELATION_FIELD;
+  if (parse.HasFieldType(DatetimeComponent::ComponentType::DAY_OF_WEEK)) {
+    DatetimeComponent::RelativeQualifier relative_value;
+    if (parse.GetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                               &relative_value)) {
+      if (relative_value == DatetimeComponent::RelativeQualifier::UNSPECIFIED) {
+        modified_parse.SetRelativeValue(
+            DatetimeComponent::ComponentType::DAY_OF_WEEK,
+            DatetimeComponent::RelativeQualifier::THIS);
+      }
+    }
   }
 
   // Multiple interpretations of ambiguous datetime expressions are generated
   // here.
   if (granularity > DatetimeGranularity::GRANULARITY_DAY &&
-      (modified_parse.field_set_mask & DateParseData::Fields::HOUR_FIELD) &&
-      modified_parse.hour <= 12 &&
-      !(modified_parse.field_set_mask & DateParseData::Fields::AMPM_FIELD)) {
-    // If it's not clear if the time is AM or PM, generate all variants.
-    interpretations->push_back(modified_parse);
-    interpretations->back().field_set_mask |= DateParseData::Fields::AMPM_FIELD;
-    interpretations->back().ampm = DateParseData::AMPM::AM;
-
-    interpretations->push_back(modified_parse);
-    interpretations->back().field_set_mask |= DateParseData::Fields::AMPM_FIELD;
-    interpretations->back().ampm = DateParseData::AMPM::PM;
+      modified_parse.HasFieldType(DatetimeComponent::ComponentType::HOUR) &&
+      !modified_parse.HasRelativeValue(
+          DatetimeComponent::ComponentType::HOUR) &&
+      !modified_parse.HasFieldType(
+          DatetimeComponent::ComponentType::MERIDIEM)) {
+    int hour_value;
+    modified_parse.GetFieldValue(DatetimeComponent::ComponentType::HOUR,
+                                 &hour_value);
+    if (hour_value <= 12) {
+      modified_parse.SetAbsoluteValue(
+          DatetimeComponent::ComponentType::MERIDIEM, 0);
+      interpretations->push_back(modified_parse);
+      modified_parse.SetAbsoluteValue(
+          DatetimeComponent::ComponentType::MERIDIEM, 1);
+      interpretations->push_back(modified_parse);
+    } else {
+      interpretations->push_back(modified_parse);
+    }
   } else {
     // Otherwise just generate 1 variant.
     interpretations->push_back(modified_parse);
@@ -394,15 +405,14 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
                                      int locale_id,
                                      std::vector<DatetimeParseResult>* results,
                                      CodepointSpan* result_span) const {
-  DateParseData parse;
+  DatetimeParsedData parse;
   DatetimeExtractor extractor(rule, matcher, locale_id, unilib_,
                               extractor_rules_,
                               type_and_locale_to_extractor_rule_);
   if (!extractor.Extract(&parse, result_span)) {
     return false;
   }
-
-  std::vector<DateParseData> interpretations;
+  std::vector<DatetimeParsedData> interpretations;
   if (generate_alternative_interpretations_when_ambiguous_) {
     FillInterpretations(parse, &interpretations);
   } else {
@@ -410,13 +420,29 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
   }
 
   results->reserve(results->size() + interpretations.size());
-  for (const DateParseData& interpretation : interpretations) {
+  for (const DatetimeParsedData& interpretation : interpretations) {
+    std::vector<DatetimeComponent> date_components;
+    interpretation.GetDatetimeComponents(&date_components);
     DatetimeParseResult result;
+    // TODO(hassan): Text classifier only provides ambiguity limited to “AM/PM”
+    //               which is encoded in the pair of DatetimeParseResult; both
+    //               corresponding to the same date, but one corresponding to
+    //               “AM” and the other one corresponding to “PM”.
+    //               Remove multiple DatetimeParseResult per datetime span,
+    //               once the ambiguities/DatetimeComponents are added in the
+    //               response. For Details see b/130355975
     if (!calendarlib_.InterpretParseData(
             interpretation, reference_time_ms_utc, reference_timezone,
             reference_locale, &(result.time_ms_utc), &(result.granularity))) {
       return false;
     }
+
+    // Sort the date time units by component type.
+    std::sort(date_components.begin(), date_components.end(),
+              [](DatetimeComponent a, DatetimeComponent b) {
+                return a.component_type > b.component_type;
+              });
+    result.datetime_components.swap(date_components);
     results->push_back(result);
   }
   return true;

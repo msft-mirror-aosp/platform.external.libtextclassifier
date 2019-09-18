@@ -205,16 +205,20 @@ table CapturingGroup {
   // If set, the text of the capturing group will be used to set a field in
   // the classfication result entity data.
   entity_field_path:FlatbufferFieldPath;
+
+  // If set, the serialized entity data will be merged with the
+  // classification result entity data.
+  serialized_entity_data:string (shared);
 }
 
 // List of regular expression matchers to check.
 namespace libtextclassifier3.RegexModel_;
 table Pattern {
   // The name of the collection of a match.
-  collection_name:string;
+  collection_name:string (shared);
 
   // The pattern to check.
-  pattern:string;
+  pattern:string (shared);
 
   // The modes for which to apply the patterns.
   enabled_modes:ModeFlag = ALL;
@@ -238,7 +242,7 @@ table Pattern {
   capturing_group:[Pattern_.CapturingGroup];
 
   // Serialized entity data to set for a match.
-  serialized_entity_data:string;
+  serialized_entity_data:string (shared);
 }
 
 namespace libtextclassifier3;
@@ -263,7 +267,7 @@ table RegexModel {
 // List of regex patterns.
 namespace libtextclassifier3.DatetimeModelPattern_;
 table Regex {
-  pattern:string;
+  pattern:string (shared);
 
   // The ith entry specifies the type of the ith capturing group.
   // This is used to decide how the matched content has to be parsed.
@@ -297,7 +301,7 @@ table DatetimeModelPattern {
 namespace libtextclassifier3;
 table DatetimeModelExtractor {
   extractor:DatetimeExtractorType;
-  pattern:string;
+  pattern:string (shared);
   locales:[int];
   compressed_pattern:CompressedBuffer;
 }
@@ -329,7 +333,7 @@ table DatetimeModel {
 
 namespace libtextclassifier3.DatetimeModelLibrary_;
 table Item {
-  key:string;
+  key:string (shared);
   value:DatetimeModel;
 }
 
@@ -350,12 +354,15 @@ table ModelTriggeringOptions {
 
   // Comma-separated list of locales (BCP 47 tags) that dictionary
   // classification supports.
-  dictionary_locales:string;
+  dictionary_locales:string (shared);
 
   // Comma-separated list of locales (BCP 47 tags) that the model supports, that
   // are used to prevent  triggering on input in unsupported languages. If
   // empty, the model will trigger on all inputs.
-  locales:string;
+  locales:string (shared);
+
+  // Priority score assigned to the "other" class from ML model.
+  other_collection_priority_score:float = -1000;
 }
 
 // Options controlling the output of the classifier.
@@ -392,12 +399,12 @@ table EmbeddingPruningMask {
 namespace libtextclassifier3;
 table Model {
   // Comma-separated list of locales supported by the model as BCP 47 tags.
-  locales:string;
+  locales:string (shared);
 
   version:int;
 
   // A name for the model that can be used for e.g. logging.
-  name:string;
+  name:string (shared);
 
   selection_feature_options:FeatureProcessorOptions;
   classification_feature_options:FeatureProcessorOptions;
@@ -448,7 +455,7 @@ table Model {
   // Comma-separated list of locales (BCP 47 tags) that the model supports, that
   // are used to prevent  triggering on input in unsupported languages. If
   // empty, the model will trigger on all inputs.
-  triggering_locales:string;
+  triggering_locales:string (shared);
 
   embedding_pruning_mask:Model_.EmbeddingPruningMask;
 }
@@ -621,6 +628,10 @@ table FeatureProcessorOptions {
   // If true, tokens will be also split when the codepoint's script_id changes
   // as defined in TokenizationCodepointRange.
   tokenize_on_script_change:bool = false;
+
+  // If true, the pipe character '|' will be used as a newline character when
+  // splitting lines.
+  use_pipe_character_for_newline:bool = true;
 }
 
 namespace libtextclassifier3;
@@ -628,10 +639,10 @@ table NumberAnnotatorOptions {
   // If true, number annotations will be produced.
   enabled:bool = false;
 
-  // Score to assign to the annotated numbers from the annotator.
+  // Score to assign to the annotated numbers and percentages in the annotator.
   score:float = 1;
 
-  // Priority score used for conflict resolution with the other models.
+  // Number priority score used for conflict resolution with the other models.
   priority_score:float = 0;
 
   // The modes in which to enable number annotations.
@@ -646,6 +657,24 @@ table NumberAnnotatorOptions {
 
   // A list of codepoints that can form a suffix of a valid number.
   allowed_suffix_codepoints:[int];
+
+  // List of codepoints that will be stripped from beginning of predicted spans.
+  ignored_prefix_span_boundary_codepoints:[int];
+
+  // List of codepoints that will be stripped from end of predicted spans.
+  ignored_suffix_span_boundary_codepoints:[int];
+
+  // If true, percent annotations will be produced.
+  enable_percentage:bool = false;
+
+  // Zero separated and ordered list of suffixes that mark a percent.
+  percentage_pieces_string:string (shared);
+
+  // List of suffixes offsets in the percent_pieces_string string.
+  percentage_pieces_offsets:[int];
+
+  // Priority score for the percentage annotation.
+  percentage_priority_score:float = 1;
 }
 
 // DurationAnnotator is so far tailored for English only.
@@ -684,6 +713,10 @@ table DurationAnnotatorOptions {
   // List of expressions that mean half of a unit of duration (e.g. "half an
   // hour").
   half_expressions:[string];
+
+  // Set of condepoints that can split the Annotator tokens to sub-tokens for
+  // sub-token matching.
+  sub_token_separator_codepoints:[int];
 }
 
 root_type libtextclassifier3.Model;

@@ -155,6 +155,12 @@ jobject ClassificationResultWithIntentsToJObject(
         env->NewStringUTF(classification_result.contact_given_name.c_str());
   }
 
+  jstring contact_family_name = nullptr;
+  if (!classification_result.contact_family_name.empty()) {
+    contact_family_name =
+        env->NewStringUTF(classification_result.contact_family_name.c_str());
+  }
+
   jstring contact_nickname = nullptr;
   if (!classification_result.contact_nickname.empty()) {
     contact_nickname =
@@ -228,10 +234,11 @@ jobject ClassificationResultWithIntentsToJObject(
       result_class, result_class_constructor, row_string,
       static_cast<jfloat>(classification_result.score), row_datetime_parse,
       serialized_knowledge_result, contact_name, contact_given_name,
-      contact_nickname, contact_email_address, contact_phone_number, contact_id,
-      app_name, app_package_name, extras, serialized_entity_data,
-      remote_action_templates_result, classification_result.duration_ms,
-      classification_result.numeric_value);
+      contact_family_name, contact_nickname, contact_email_address,
+      contact_phone_number, contact_id, app_name, app_package_name, extras,
+      serialized_entity_data, remote_action_templates_result,
+      classification_result.duration_ms, classification_result.numeric_value,
+      classification_result.numeric_double_value);
 }
 
 jobjectArray ClassificationResultsWithIntentsToJObjectArray(
@@ -262,9 +269,9 @@ jobjectArray ClassificationResultsWithIntentsToJObjectArray(
       "(Ljava/lang/String;FL" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
       "$DatetimeResult;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/String;"
       "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;"
-      "Ljava/lang/String;[L" TC3_PACKAGE_PATH TC3_NAMED_VARIANT_CLASS_NAME_STR
-      ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR
-      ";JJ)V");
+      "Ljava/lang/String;Ljava/lang/String;[L" TC3_PACKAGE_PATH
+      "" TC3_NAMED_VARIANT_CLASS_NAME_STR ";[B[L" TC3_PACKAGE_PATH
+      "" TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";JJD)V");
   const jmethodID datetime_parse_class_constructor =
       env->GetMethodID(datetime_parse_class.get(), "<init>", "(JI)V");
 
@@ -435,12 +442,10 @@ TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotatorFromPath)
 #endif
 }
 
-TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME,
-               nativeNewAnnotatorFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
+TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotatorWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size) {
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache(
       libtextclassifier3::JniCache::Create(env));
-  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
 #ifdef TC3_USE_JAVAICU
   return reinterpret_cast<jlong>(AnnotatorJniContext::Create(
       jni_cache,
@@ -652,10 +657,8 @@ TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetLocales)
   return GetLocalesFromMmap(env, mmap.get());
 }
 
-TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME,
-               nativeGetLocalesFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
-  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
+TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetLocalesWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size) {
   const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd, offset, size));
   return GetLocalesFromMmap(env, mmap.get());
@@ -668,10 +671,8 @@ TC3_JNI_METHOD(jint, TC3_ANNOTATOR_CLASS_NAME, nativeGetVersion)
   return GetVersionFromMmap(env, mmap.get());
 }
 
-TC3_JNI_METHOD(jint, TC3_ANNOTATOR_CLASS_NAME,
-               nativeGetVersionFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
-  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
+TC3_JNI_METHOD(jint, TC3_ANNOTATOR_CLASS_NAME, nativeGetVersionWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size) {
   const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd, offset, size));
   return GetVersionFromMmap(env, mmap.get());
@@ -684,10 +685,8 @@ TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetName)
   return GetNameFromMmap(env, mmap.get());
 }
 
-TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME,
-               nativeGetNameFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size) {
-  const jint fd = libtextclassifier3::GetFdFromAssetFileDescriptor(env, afd);
+TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetNameWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size) {
   const std::unique_ptr<libtextclassifier3::ScopedMmap> mmap(
       new libtextclassifier3::ScopedMmap(fd, offset, size));
   return GetNameFromMmap(env, mmap.get());

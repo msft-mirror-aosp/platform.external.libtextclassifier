@@ -19,24 +19,23 @@
 
 #include <string>
 
+#include "annotator/model_generated.h"
 #include "annotator/types.h"
-#include "utils/utf8/unilib.h"
 
 namespace libtextclassifier3 {
 
 // A dummy implementation of the knowledge engine.
 class KnowledgeEngine {
  public:
-  explicit KnowledgeEngine(const UniLib* unilib) {}
-
   bool Initialize(const std::string& serialized_config) { return true; }
 
   bool ClassifyText(const std::string& context, CodepointSpan selection_indices,
+                    AnnotationUsecase annotation_usecase,
                     ClassificationResult* classification_result) const {
     return false;
   }
 
-  bool Chunk(const std::string& context,
+  bool Chunk(const std::string& context, AnnotationUsecase annotation_usecase,
              std::vector<AnnotatedSpan>* result) const {
     return true;
   }

@@ -34,9 +34,8 @@ TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotator)
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotatorFromPath)
 (JNIEnv* env, jobject thiz, jstring path);
 
-TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME,
-               nativeNewAnnotatorFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size);
+TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotatorWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size);
 
 TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
                nativeInitializeKnowledgeEngine)
@@ -79,23 +78,20 @@ TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetLanguage)
 TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetLocales)
 (JNIEnv* env, jobject clazz, jint fd);
 
-TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME,
-               nativeGetLocalesFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size);
+TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetLocalesWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size);
 
 TC3_JNI_METHOD(jint, TC3_ANNOTATOR_CLASS_NAME, nativeGetVersion)
 (JNIEnv* env, jobject clazz, jint fd);
 
-TC3_JNI_METHOD(jint, TC3_ANNOTATOR_CLASS_NAME,
-               nativeGetVersionFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size);
+TC3_JNI_METHOD(jint, TC3_ANNOTATOR_CLASS_NAME, nativeGetVersionWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size);
 
 TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetName)
 (JNIEnv* env, jobject clazz, jint fd);
 
-TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME,
-               nativeGetNameFromAssetFileDescriptor)
-(JNIEnv* env, jobject thiz, jobject afd, jlong offset, jlong size);
+TC3_JNI_METHOD(jstring, TC3_ANNOTATOR_CLASS_NAME, nativeGetNameWithOffset)
+(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size);
 
 #ifdef __cplusplus
 }

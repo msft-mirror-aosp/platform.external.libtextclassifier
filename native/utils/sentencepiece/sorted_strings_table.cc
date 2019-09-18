@@ -17,6 +17,8 @@
 #include "utils/sentencepiece/sorted_strings_table.h"
 
 #include <algorithm>
+
+#include "utils/base/endian.h"
 #include "utils/base/logging.h"
 
 namespace libtextclassifier3 {
@@ -45,15 +47,17 @@ void SortedStringsTable::GatherPrefixMatches(
                 static_cast<unsigned char>(input[match_length]),
                 [this, match_length](uint32 piece_offset, uint32 c) -> bool {
                   return static_cast<unsigned char>(
-                             pieces_[piece_offset + match_length]) < c;
+                             pieces_[piece_offset + match_length]) <
+                         LittleEndian::ToHost32(c);
                 }) -
             offsets_);
     right = (std::upper_bound(
                  offsets_ + left, offsets_ + right,
                  static_cast<unsigned char>(input[match_length]),
                  [this, match_length](uint32 c, uint32 piece_offset) -> bool {
-                   return c < static_cast<unsigned char>(
-                                  pieces_[piece_offset + match_length]);
+                   return LittleEndian::ToHost32(c) <
+                          static_cast<unsigned char>(
+                              pieces_[piece_offset + match_length]);
                  }) -
              offsets_);
     span_size = right - left;
@@ -64,7 +68,7 @@ void SortedStringsTable::GatherPrefixMatches(
 
     // Due to the loop invariant and the fact that the strings are sorted, there
     // can only be one piece matching completely now, namely at left.
-    if (pieces_[offsets_[left] + match_length] == 0) {
+    if (pieces_[LittleEndian::ToHost32(offsets_[left]) + match_length] == 0) {
       update_fn(TrieMatch(/*id=*/left,
                           /*match_length=*/match_length));
       left++;
@@ -77,7 +81,8 @@ void SortedStringsTable::GatherPrefixMatches(
   for (int i = left; i < right; i++) {
     bool matches = true;
     int piece_match_length = match_length;
-    for (int k = offsets_[i] + piece_match_length; pieces_[k] != 0; k++) {
+    for (int k = LittleEndian::ToHost32(offsets_[i]) + piece_match_length;
+         pieces_[k] != 0; k++) {
       if (match_length >= input.size() ||
           input[piece_match_length] != pieces_[k]) {
         matches = false;

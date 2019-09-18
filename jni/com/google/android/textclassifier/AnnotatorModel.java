@@ -240,6 +240,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final byte[] serializedKnowledgeResult;
     private final String contactName;
     private final String contactGivenName;
+    private final String contactFamilyName;
     private final String contactNickname;
     private final String contactEmailAddress;
     private final String contactPhoneNumber;
@@ -251,6 +252,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final RemoteActionTemplate[] remoteActionTemplates;
     private final long durationMs;
     private final long numericValue;
+    private final double numericDoubleValue;
 
     public ClassificationResult(
         String collection,
@@ -259,6 +261,7 @@ public final class AnnotatorModel implements AutoCloseable {
         byte[] serializedKnowledgeResult,
         String contactName,
         String contactGivenName,
+        String contactFamilyName,
         String contactNickname,
         String contactEmailAddress,
         String contactPhoneNumber,
@@ -269,13 +272,15 @@ public final class AnnotatorModel implements AutoCloseable {
         byte[] serializedEntityData,
         RemoteActionTemplate[] remoteActionTemplates,
         long durationMs,
-        long numericValue) {
+        long numericValue,
+        double numericDoubleValue) {
       this.collection = collection;
       this.score = score;
       this.datetimeResult = datetimeResult;
       this.serializedKnowledgeResult = serializedKnowledgeResult;
       this.contactName = contactName;
       this.contactGivenName = contactGivenName;
+      this.contactFamilyName = contactFamilyName;
       this.contactNickname = contactNickname;
       this.contactEmailAddress = contactEmailAddress;
       this.contactPhoneNumber = contactPhoneNumber;
@@ -287,6 +292,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.remoteActionTemplates = remoteActionTemplates;
       this.durationMs = durationMs;
       this.numericValue = numericValue;
+      this.numericDoubleValue = numericDoubleValue;
     }
 
     /** Returns the classified entity type. */
@@ -313,6 +319,10 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public String getContactGivenName() {
       return contactGivenName;
+    }
+
+    public String getContactFamilyName() {
+      return contactFamilyName;
     }
 
     public String getContactNickname() {
@@ -357,6 +367,10 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public long getNumericValue() {
       return numericValue;
+    }
+
+    public double getNumericDoubleValue() {
+      return numericDoubleValue;
     }
   }
 
@@ -556,11 +570,19 @@ public final class AnnotatorModel implements AutoCloseable {
 
   private static native long nativeNewAnnotatorFromPath(String path);
 
+  private static native long nativeNewAnnotatorWithOffset(int fd, long offset, long size);
+
   private static native String nativeGetLocales(int fd);
+
+  private static native String nativeGetLocalesWithOffset(int fd, long offset, long size);
 
   private static native int nativeGetVersion(int fd);
 
+  private static native int nativeGetVersionWithOffset(int fd, long offset, long size);
+
   private static native String nativeGetName(int fd);
+
+  private static native String nativeGetNameWithOffset(int fd, long offset, long size);
 
   private native long nativeGetNativeModelPtr(long context);
 

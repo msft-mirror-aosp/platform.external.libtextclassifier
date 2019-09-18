@@ -44,7 +44,7 @@ enum class QuantizationType {
 };
 
 // Converts "UINT8" -> QuantizationType::UINT8, and so on.
-QuantizationType ParseQuantizationType(const string &s);
+QuantizationType ParseQuantizationType(const std::string &s);
 
 // API for accessing parameters for a feed-forward neural network with
 // embeddings.
@@ -303,7 +303,7 @@ class EmbeddingNetworkParams {
   virtual bool is_precomputed() const = 0;
 
  protected:
-  void CheckIndex(int index, int size, const string &description) const {
+  void CheckIndex(int index, int size, const std::string &description) const {
     SAFTM_CHECK_GE(index, 0)
         << "Out-of-range index for " << description << ": " << index;
     SAFTM_CHECK_LT(index, size)

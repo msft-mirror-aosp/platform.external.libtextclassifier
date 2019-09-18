@@ -246,11 +246,20 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   private static native long nativeNewActionsModelFromPath(
       String path, byte[] preconditionsOverwrite);
 
+  private static native long nativeNewActionsModelWithOffset(
+      int fd, long offset, long size, byte[] preconditionsOverwrite);
+
   private static native String nativeGetLocales(int fd);
+
+  private static native String nativeGetLocalesWithOffset(int fd, long offset, long size);
 
   private static native int nativeGetVersion(int fd);
 
+  private static native int nativeGetVersionWithOffset(int fd, long offset, long size);
+
   private static native String nativeGetName(int fd);
+
+  private static native String nativeGetNameWithOffset(int fd, long offset, long size);
 
   private native ActionSuggestion[] nativeSuggestActions(
       long context,

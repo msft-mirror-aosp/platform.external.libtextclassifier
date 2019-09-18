@@ -16,12 +16,15 @@
 
 #include "lang_id/common/fel/feature-descriptors.h"
 
+#include <string>
+
 #include "lang_id/common/lite_strings/str-cat.h"
 
 namespace libtextclassifier3 {
 namespace mobile {
 
-void ToFELFunction(const FeatureFunctionDescriptor &function, string *output) {
+void ToFELFunction(const FeatureFunctionDescriptor &function,
+                   std::string *output) {
   LiteStrAppend(output, function.type());
   if (function.argument() != 0 || function.parameter_size() > 0) {
     LiteStrAppend(output, "(");
@@ -40,7 +43,7 @@ void ToFELFunction(const FeatureFunctionDescriptor &function, string *output) {
   }
 }
 
-void ToFEL(const FeatureFunctionDescriptor &function, string *output) {
+void ToFEL(const FeatureFunctionDescriptor &function, std::string *output) {
   ToFELFunction(function, output);
   if (function.feature_size() == 1) {
     LiteStrAppend(output, ".");
@@ -55,21 +58,21 @@ void ToFEL(const FeatureFunctionDescriptor &function, string *output) {
   }
 }
 
-void ToFEL(const FeatureExtractorDescriptor &extractor, string *output) {
+void ToFEL(const FeatureExtractorDescriptor &extractor, std::string *output) {
   for (int i = 0; i < extractor.feature_size(); ++i) {
     ToFEL(extractor.feature(i), output);
     LiteStrAppend(output, "\n");
   }
 }
 
-string FeatureFunctionDescriptor::DebugString() const {
-  string str;
+std::string FeatureFunctionDescriptor::DebugString() const {
+  std::string str;
   ToFEL(*this, &str);
   return str;
 }
 
-string FeatureExtractorDescriptor::DebugString() const {
-  string str;
+std::string FeatureExtractorDescriptor::DebugString() const {
+  std::string str;
   ToFEL(*this, &str);
   return str;
 }

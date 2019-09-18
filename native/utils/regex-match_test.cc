@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -25,18 +26,18 @@
 namespace libtextclassifier3 {
 namespace {
 
-class LuaVerifierTest : public testing::Test {
+class RegexMatchTest : public testing::Test {
  protected:
-  LuaVerifierTest() : INIT_UNILIB_FOR_TESTING(unilib_) {}
+  RegexMatchTest() : INIT_UNILIB_FOR_TESTING(unilib_) {}
   UniLib unilib_;
 };
 
 #ifdef TC3_UNILIB_ICU
-TEST_F(LuaVerifierTest, HandlesSimpleVerification) {
+TEST_F(RegexMatchTest, HandlesSimpleVerification) {
   EXPECT_TRUE(VerifyMatch(/*context=*/"", /*matcher=*/nullptr, "return true;"));
 }
 
-TEST_F(LuaVerifierTest, HandlesCustomVerification) {
+TEST_F(RegexMatchTest, HandlesCustomVerification) {
   UnicodeText pattern = UTF8ToUnicodeText("(\\d{16})",
                                           /*do_copy=*/true);
   UnicodeText message = UTF8ToUnicodeText("cc: 4012888888881881",
@@ -60,15 +61,48 @@ function luhn(candidate)
 end
 return luhn(match[1].text);
   )";
-  auto regex_pattern = unilib_.CreateRegexPattern(pattern);
+  const std::unique_ptr<UniLib::RegexPattern> regex_pattern =
+      unilib_.CreateRegexPattern(pattern);
   ASSERT_TRUE(regex_pattern != nullptr);
-  auto matcher = regex_pattern->Matcher(message);
+  const std::unique_ptr<UniLib::RegexMatcher> matcher =
+      regex_pattern->Matcher(message);
   ASSERT_TRUE(matcher != nullptr);
   int status = UniLib::RegexMatcher::kNoError;
   ASSERT_TRUE(matcher->Find(&status) &&
               status == UniLib::RegexMatcher::kNoError);
 
   EXPECT_TRUE(VerifyMatch(message.ToUTF8String(), matcher.get(), verifier));
+}
+
+TEST_F(RegexMatchTest, RetrievesMatchGroupTest) {
+  UnicodeText pattern =
+      UTF8ToUnicodeText("never gonna (?:give (you) up|let (you) down)",
+                        /*do_copy=*/true);
+  const std::unique_ptr<UniLib::RegexPattern> regex_pattern =
+      unilib_.CreateRegexPattern(pattern);
+  ASSERT_TRUE(regex_pattern != nullptr);
+  UnicodeText message =
+      UTF8ToUnicodeText("never gonna give you up - never gonna let you down");
+  const std::unique_ptr<UniLib::RegexMatcher> matcher =
+      regex_pattern->Matcher(message);
+  ASSERT_TRUE(matcher != nullptr);
+  int status = UniLib::RegexMatcher::kNoError;
+
+  ASSERT_TRUE(matcher->Find(&status) &&
+              status == UniLib::RegexMatcher::kNoError);
+  EXPECT_THAT(GetCapturingGroupText(matcher.get(), 0).value(),
+              testing::Eq("never gonna give you up"));
+  EXPECT_THAT(GetCapturingGroupText(matcher.get(), 1).value(),
+              testing::Eq("you"));
+  EXPECT_FALSE(GetCapturingGroupText(matcher.get(), 2).has_value());
+
+  ASSERT_TRUE(matcher->Find(&status) &&
+              status == UniLib::RegexMatcher::kNoError);
+  EXPECT_THAT(GetCapturingGroupText(matcher.get(), 0).value(),
+              testing::Eq("never gonna let you down"));
+  EXPECT_FALSE(GetCapturingGroupText(matcher.get(), 1).has_value());
+  EXPECT_THAT(GetCapturingGroupText(matcher.get(), 2).value(),
+              testing::Eq("you"));
 }
 #endif
 

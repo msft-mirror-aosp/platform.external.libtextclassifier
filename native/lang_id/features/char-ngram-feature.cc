@@ -16,6 +16,7 @@
 
 #include "lang_id/features/char-ngram-feature.h"
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -68,7 +69,7 @@ int ContinuousBagOfNgramsFunction::ComputeNgramCounts(
 
   int total_count = 0;
 
-  for (const string &word : sentence) {
+  for (const std::string &word : sentence) {
     const char *const word_end = word.data() + word.size();
 
     // Set ngram_start at the start of the current token (word).

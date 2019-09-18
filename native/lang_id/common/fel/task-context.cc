@@ -23,7 +23,7 @@
 namespace libtextclassifier3 {
 namespace mobile {
 
-string TaskContext::GetInputPath(const string &name) const {
+std::string TaskContext::GetInputPath(const std::string &name) const {
   auto it = inputs_.find(name);
   if (it != inputs_.end()) {
     return it->second;
@@ -31,11 +31,13 @@ string TaskContext::GetInputPath(const string &name) const {
   return "";
 }
 
-void TaskContext::SetInputPath(const string &name, const string &path) {
+void TaskContext::SetInputPath(const std::string &name,
+                               const std::string &path) {
   inputs_[name] = path;
 }
 
-string TaskContext::Get(const string &name, const char *defval) const {
+std::string TaskContext::Get(const std::string &name,
+                             const char *defval) const {
   auto it = parameters_.find(name);
   if (it != parameters_.end()) {
     return it->second;
@@ -43,8 +45,8 @@ string TaskContext::Get(const string &name, const char *defval) const {
   return defval;
 }
 
-int TaskContext::Get(const string &name, int defval) const {
-  const string s = Get(name, "");
+int TaskContext::Get(const std::string &name, int defval) const {
+  const std::string s = Get(name, "");
   int value = defval;
   if (LiteAtoi(s, &value)) {
     return value;
@@ -52,8 +54,8 @@ int TaskContext::Get(const string &name, int defval) const {
   return defval;
 }
 
-float TaskContext::Get(const string &name, float defval) const {
-  const string s = Get(name, "");
+float TaskContext::Get(const std::string &name, float defval) const {
+  const std::string s = Get(name, "");
   float value = defval;
   if (LiteAtof(s, &value)) {
     return value;
@@ -61,12 +63,13 @@ float TaskContext::Get(const string &name, float defval) const {
   return defval;
 }
 
-bool TaskContext::Get(const string &name, bool defval) const {
-  string value = Get(name, "");
+bool TaskContext::Get(const std::string &name, bool defval) const {
+  std::string value = Get(name, "");
   return value.empty() ? defval : value == "true";
 }
 
-void TaskContext::SetParameter(const string &name, const string &value) {
+void TaskContext::SetParameter(const std::string &name,
+                               const std::string &value) {
   parameters_[name] = value;
 }
 

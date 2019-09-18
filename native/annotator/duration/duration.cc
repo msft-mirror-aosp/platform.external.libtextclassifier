@@ -76,6 +76,20 @@ std::unordered_set<std::string> BuildStringSet(
   return result;
 }
 
+std::unordered_set<int32> BuildInt32Set(
+    const flatbuffers::Vector<int32>* ints) {
+  std::unordered_set<int32> result;
+  if (ints == nullptr) {
+    return result;
+  }
+
+  for (const int32 int_value : *ints) {
+    result.insert(int_value);
+  }
+
+  return result;
+}
+
 }  // namespace internal
 
 bool DurationAnnotator::ClassifyText(
@@ -152,7 +166,8 @@ int DurationAnnotator::FindDurationStartingAt(const UnicodeText& context,
         start_index = token.start;
       }
       end_index = token.end;
-    } else if (ParseDurationUnitToken(token, &parsed_duration.unit)) {
+    } else if (ParseDurationUnitToken(token, &parsed_duration.unit) ||
+               ParseQuantityDurationUnitToken(token, &parsed_duration)) {
       if (start_index == kInvalidIndex) {
         start_index = token.start;
       }
@@ -223,7 +238,7 @@ int64 DurationAnnotator::ParsedDurationAtomsToMillis(
         break;
     }
 
-    int value = atom.value;
+    int64 value = atom.value;
     // This condition handles expressions like "an hour", where the quantity is
     // not specified. In this case we assume quantity 1. Except for cases like
     // "half hour".
@@ -273,6 +288,31 @@ bool DurationAnnotator::ParseDurationUnitToken(
 
   *duration_unit = it->second;
   return true;
+}
+
+bool DurationAnnotator::ParseQuantityDurationUnitToken(
+    const Token& token, ParsedDurationAtom* value) const {
+  if (token.value.empty()) {
+    return false;
+  }
+
+  Token sub_token;
+  bool has_quantity = false;
+  for (const char c : token.value) {
+    if (sub_token_separator_codepoints_.find(c) !=
+        sub_token_separator_codepoints_.end()) {
+      if (has_quantity || !ParseQuantityToken(sub_token, value)) {
+        return false;
+      }
+      has_quantity = true;
+
+      sub_token = Token();
+    } else {
+      sub_token.value += c;
+    }
+  }
+
+  return ParseDurationUnitToken(sub_token, &(value->unit));
 }
 
 bool DurationAnnotator::ParseFillerToken(const Token& token) const {

@@ -18,6 +18,8 @@
 
 #include <string.h>
 
+#include <string>
+
 #include "lang_id/common/lite_base/logging.h"
 #include "lang_id/common/math/checksum.h"
 
@@ -45,7 +47,7 @@ bool ClearlyFailsChecksum(const Model &model) {
                      << " vs " << expected_crc32;
     return true;
   }
-  SAFTM_LOG(INFO) << "Successfully checked CRC32 " << actual_crc32;
+  SAFTM_DLOG(INFO) << "Successfully checked CRC32 " << actual_crc32;
   return false;
 }
 }  // namespace
@@ -71,7 +73,7 @@ const Model *GetVerifiedModelFromBytes(const char *data, size_t num_bytes) {
   return model;
 }
 
-const ModelInput *GetInputByName(const Model *model, const string &name) {
+const ModelInput *GetInputByName(const Model *model, const std::string &name) {
   if (model == nullptr) {
     SAFTM_LOG(ERROR) << "GetInputByName called with model == nullptr";
     return nullptr;
@@ -129,7 +131,7 @@ bool FillParameters(const Model &model, mobile::TaskContext *context) {
       SAFTM_LOG(ERROR) << "null parameter name";
       return false;
     }
-    const string name = p->name()->str();
+    const std::string name = p->name()->str();
     if (name.empty()) {
       SAFTM_LOG(ERROR) << "empty parameter name";
       return false;

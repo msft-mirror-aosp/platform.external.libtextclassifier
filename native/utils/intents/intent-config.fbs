@@ -83,7 +83,7 @@ namespace libtextclassifier3;
 table AndroidIntentFactoryEntityOptions {
   // The entity type as defined by one of the TextClassifier ENTITY_TYPE
   // constants. (e.g. "address", "phone", etc.)
-  entity_type:string;
+  entity_type:string (shared);
 
   // List of generators for all the different types of intents that should
   // be made available for the entity type.
@@ -107,26 +107,26 @@ table AndroidIntentGeneratorStrings {
   // restrictions, this must /not/ use wildcards. To e.g. match all English
   // locales, use only "en" and not "en_*". Reference the java.util.Locale
   // constructor for details.
-  language_tag:string;
+  language_tag:string (shared);
 
   // Title shown for the action (see RemoteAction.getTitle).
-  title:string;
+  title:string (shared);
 
   // Description shown for the action (see
   // RemoteAction.getContentDescription).
-  description:string;
+  description:string (shared);
 }
 
 // An extra to set on a simple intent generator Intent.
 namespace libtextclassifier3;
 table AndroidSimpleIntentGeneratorExtra {
   // The name of the extra to set.
-  name:string;
+  name:string (shared);
 
   // The type of the extra to set.
   type:AndroidSimpleIntentGeneratorExtraType;
 
-  string_:string;
+  string_:string (shared);
 
   bool_:bool;
   int32_:int;
@@ -137,7 +137,7 @@ namespace libtextclassifier3;
 table AndroidSimpleIntentGeneratorCondition {
   type:AndroidSimpleIntentGeneratorConditionType;
 
-  string_:string;
+  string_:string (shared);
 
   int32_:int;
   int64_:long;
@@ -154,13 +154,13 @@ table AndroidSimpleIntentGeneratorCondition {
 namespace libtextclassifier3;
 table AndroidSimpleIntentGeneratorOptions {
   // The action to set on the Intent (see Intent.setAction). Supports variables.
-  action:string;
+  action:string (shared);
 
   // The data to set on the Intent (see Intent.setData). Supports variables.
-  data:string;
+  data:string (shared);
 
   // The type to set on the Intent (see Intent.setType). Supports variables.
-  type:string;
+  type:string (shared);
 
   // The list of all the extras to add to the Intent.
   extra:[AndroidSimpleIntentGeneratorExtra];
@@ -179,7 +179,7 @@ namespace libtextclassifier3.IntentFactoryModel_;
 table IntentGenerator {
   // The type of the intent generator, e.g. the entity type as defined by
   // on the TextClassifier ENTITY_TYPE constants e.g. "address", "phone", etc.
-  type:string;
+  type:string (shared);
 
   // The template generator lua code, either as text source or precompiled
   // bytecode.

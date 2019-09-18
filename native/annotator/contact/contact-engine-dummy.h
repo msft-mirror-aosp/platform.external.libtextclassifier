@@ -49,6 +49,9 @@ class ContactEngine {
              std::vector<AnnotatedSpan>* result) const {
     return true;
   }
+
+  void AddContactMetadataToKnowledgeClassificationResult(
+      ClassificationResult* classification_result) const {}
 };
 
 }  // namespace libtextclassifier3

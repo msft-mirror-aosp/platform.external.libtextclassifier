@@ -53,15 +53,15 @@ class FELParser {
  public:
   // Parses fml specification into feature extractor descriptor.
   // Returns true on success, false on error (e.g., syntax errors).
-  bool Parse(const string &source, FeatureExtractorDescriptor *result);
+  bool Parse(const std::string &source, FeatureExtractorDescriptor *result);
 
  private:
   // Initializes the parser with the source text.
   // Returns true on success, false on syntax error.
-  bool Initialize(const string &source);
+  bool Initialize(const std::string &source);
 
   // Outputs an error message, with context info.
-  void ReportError(const string &error_message);
+  void ReportError(const std::string &error_message);
 
   // Moves to the next input character.
   void Next();
@@ -104,19 +104,19 @@ class FELParser {
   };
 
   // Source text.
-  string source_;
+  std::string source_;
 
   // Current input position.
-  string::iterator current_;
+  std::string::iterator current_;
 
   // Line number for current input position.
   int line_number_;
 
   // Start position for current item.
-  string::iterator item_start_;
+  std::string::iterator item_start_;
 
   // Start position for current line.
-  string::iterator line_start_;
+  std::string::iterator line_start_;
 
   // Line number for current item.
   int item_line_number_;
@@ -126,7 +126,7 @@ class FELParser {
   int item_type_;
 
   // Text for current item.
-  string item_text_;
+  std::string item_text_;
 };
 
 }  // namespace mobile

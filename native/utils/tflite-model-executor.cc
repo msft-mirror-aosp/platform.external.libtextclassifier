@@ -201,6 +201,10 @@ std::unique_ptr<const tflite::FlatBufferModel> TfLiteModelFromBuffer(
 TfLiteModelExecutor::TfLiteModelExecutor(
     std::unique_ptr<const tflite::FlatBufferModel> model)
     : model_(std::move(model)), resolver_(BuildOpResolver()) {}
+TfLiteModelExecutor::TfLiteModelExecutor(
+    std::unique_ptr<const tflite::FlatBufferModel> model,
+    std::unique_ptr<tflite::OpResolver> resolver)
+    : model_(std::move(model)), resolver_(std::move(resolver)) {}
 
 std::unique_ptr<tflite::Interpreter> TfLiteModelExecutor::CreateInterpreter()
     const {

@@ -33,15 +33,15 @@ class Parameter {
  public:
   Parameter() {}
 
-  void set_name(const string &name) { name_ = name; }
-  const string &name() const { return name_; }
+  void set_name(const std::string &name) { name_ = name; }
+  const std::string &name() const { return name_; }
 
-  void set_value(const string &value) { value_ = value; }
-  const string &value() const { return value_; }
+  void set_value(const std::string &value) { value_ = value; }
+  const std::string &value() const { return value_; }
 
  private:
-  string name_;
-  string value_;
+  std::string name_;
+  std::string value_;
 };
 
 // Descriptor for a feature function.  Used to store the results of parsing one
@@ -52,14 +52,14 @@ class FeatureFunctionDescriptor {
 
   // Accessors for the feature function type.  The function type is the string
   // that the feature extractor code is registered under.
-  void set_type(const string &type) { type_ = type; }
-  const string &type() const { return type_; }
+  void set_type(const std::string &type) { type_ = type; }
+  const std::string &type() const { return type_; }
 
   // Accessors for the feature function name.  The function name (if available)
   // is used for some log messages.  Otherwise, a more precise, but also more
   // verbose name based on the feature specification is used.
-  void set_name(const string &name) { name_ = name; }
-  const string &name() const { return name_; }
+  void set_name(const std::string &name) { name_ = name; }
+  const std::string &name() const { return name_; }
 
   // Accessors for the default (name-less) parameter.
   void set_argument(int32 argument) { argument_ = argument; }
@@ -95,14 +95,14 @@ class FeatureFunctionDescriptor {
   }
 
   // Returns human-readable representation of this FeatureFunctionDescriptor.
-  string DebugString() const;
+  std::string DebugString() const;
 
  private:
   // See comments for set_type().
-  string type_;
+  std::string type_;
 
   // See comments for set_name().
-  string name_;
+  std::string name_;
 
   // See comments for set_argument().
   int32 argument_ = 0;
@@ -135,7 +135,7 @@ class FeatureExtractorDescriptor {
   }
 
   // Returns human-readable representation of this FeatureExtractorDescriptor.
-  string DebugString() const;
+  std::string DebugString() const;
 
  private:
   std::vector<std::unique_ptr<FeatureFunctionDescriptor>> features_;
@@ -145,13 +145,14 @@ class FeatureExtractorDescriptor {
 
 // Appends to |*output| the FEL representation of the top-level feature from
 // |function|, without diving into the nested features.
-void ToFELFunction(const FeatureFunctionDescriptor &function, string *output);
+void ToFELFunction(const FeatureFunctionDescriptor &function,
+                   std::string *output);
 
 // Appends to |*output| the FEL representation of |function|.
-void ToFEL(const FeatureFunctionDescriptor &function, string *output);
+void ToFEL(const FeatureFunctionDescriptor &function, std::string *output);
 
 // Appends to |*output| the FEL representation of |extractor|.
-void ToFEL(const FeatureExtractorDescriptor &extractor, string *output);
+void ToFEL(const FeatureExtractorDescriptor &extractor, std::string *output);
 
 }  // namespace mobile
 }  // namespace nlp_saft

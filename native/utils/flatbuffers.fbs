@@ -18,7 +18,7 @@
 namespace libtextclassifier3;
 table FlatbufferField {
   // Name of the field.
-  field_name:string;
+  field_name:string (shared);
 
   // Offset of the field
   field_offset:int;
