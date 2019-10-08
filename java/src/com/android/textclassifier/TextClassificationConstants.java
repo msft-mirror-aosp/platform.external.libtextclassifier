@@ -30,7 +30,9 @@ import java.util.List;
 
 /**
  * TextClassifier specific settings.
+ *
  * <p>Currently, this class does not guarantee co-diverted flags are updated atomically.
+ *
  * <p>Example of setting the values for testing.
  *
  * <pre>
