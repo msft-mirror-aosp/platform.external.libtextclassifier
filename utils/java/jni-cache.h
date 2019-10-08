@@ -20,6 +20,7 @@
 #include <jni.h>
 #include "utils/java/scoped_global_ref.h"
 #include "utils/java/scoped_local_ref.h"
+#include "utils/strings/stringpiece.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
@@ -109,7 +110,6 @@ struct JniCache {
   ScopedGlobalRef<jclass> urlencoder_class;
   jmethodID urlencoder_encode = nullptr;
 
-#ifdef __ANDROID__
   // android.content.Context
   ScopedGlobalRef<jclass> context_class;
   jmethodID context_get_package_name = nullptr;
@@ -119,6 +119,7 @@ struct JniCache {
   ScopedGlobalRef<jclass> uri_class;
   jmethodID uri_parse = nullptr;
   jmethodID uri_get_scheme = nullptr;
+  jmethodID uri_get_host = nullptr;
 
   // android.os.UserManager
   ScopedGlobalRef<jclass> usermanager_class;
@@ -127,9 +128,17 @@ struct JniCache {
   // android.os.Bundle
   ScopedGlobalRef<jclass> bundle_class;
   jmethodID bundle_get_boolean = nullptr;
-#endif
+
+  // android.content.res.Resources
+  ScopedGlobalRef<jclass> resources_class;
+  jmethodID resources_get_system = nullptr;
+  jmethodID resources_get_identifier = nullptr;
+  jmethodID resources_get_string = nullptr;
 
   // Helper to convert lib3 UnicodeText to Java strings.
+  ScopedLocalRef<jstring> ConvertToJavaString(
+      const char* utf8_text, const int utf8_text_size_bytes) const;
+  ScopedLocalRef<jstring> ConvertToJavaString(StringPiece utf8_text) const;
   ScopedLocalRef<jstring> ConvertToJavaString(const UnicodeText& text) const;
 
  private:
