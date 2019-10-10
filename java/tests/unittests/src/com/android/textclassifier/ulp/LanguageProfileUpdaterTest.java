@@ -22,6 +22,7 @@ import android.app.Person;
 import android.content.Context;
 import android.os.Bundle;
 import android.view.textclassifier.ConversationActions;
+import android.view.textclassifier.TextClassification;
 
 import androidx.room.Room;
 import androidx.test.core.app.ApplicationProvider;
@@ -30,6 +31,7 @@ import androidx.test.filters.SmallTest;
 import com.android.textclassifier.ulp.database.LanguageProfileDatabase;
 import com.android.textclassifier.ulp.database.LanguageSignalInfo;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 
@@ -40,26 +42,25 @@ import org.junit.Test;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-/** Testing {@link LanguageProfileUpdater} in an inMemoryDatabase */
+/** Testing {@link LanguageProfileUpdater} in an in-memory database. */
 @SmallTest
 public class LanguageProfileUpdaterTest {
 
     private static final String NOTIFICATION_KEY = "test_notification";
-    private static final String LANGUAGE_TAG_EN = Locale.ENGLISH.toLanguageTag();
-    private static final String LANGUAGE_TAG_ZH = Locale.CHINESE.toLanguageTag();
+    private static final String LOCALE_TAG_US = Locale.US.toLanguageTag();
+    private static final String LOCALE_TAG_CHINA = Locale.CHINA.toLanguageTag();
     private static final String TEXT_ONE = "hello world";
     private static final String TEXT_TWO = "你好!";
-    private static final Function<CharSequence, List<String>> LANGUAGE_DETECTOR_EN =
-            charSequence -> Collections.singletonList(LANGUAGE_TAG_EN);
-    private static final Function<CharSequence, List<String>> LANGUAGE_DETECTOR_ZH =
-            charSequence -> Collections.singletonList(LANGUAGE_TAG_ZH);
+    private static final Function<CharSequence, List<String>> LANGUAGE_DETECTOR_US =
+            charSequence -> ImmutableList.of(LOCALE_TAG_US);
+    private static final Function<CharSequence, List<String>> LANGUAGE_DETECTOR_CHINA =
+            charSequence -> ImmutableList.of(LOCALE_TAG_CHINA);
     private static final Person PERSON = new Person.Builder().build();
     private static final ZonedDateTime TIME_ONE =
             ZonedDateTime.of(2019, 7, 21, 12, 12, 12, 12, ZoneId.systemDefault());
@@ -87,12 +88,16 @@ public class LanguageProfileUpdaterTest {
             new ConversationActions.Request.Builder(Arrays.asList(MSG_ONE)).build();
     private static final ConversationActions.Request CONVERSATION_ACTION_REQUEST_TWO =
             new ConversationActions.Request.Builder(Arrays.asList(MSG_TWO)).build();
+    private static final TextClassification.Request TEXT_CLASSIFICATION_REQUEST_ONE =
+            new TextClassification.Request.Builder(TEXT_ONE, 0, 2).build();
     private static final LanguageSignalInfo US_INFO_ONE_FOR_CONVERSATION_ACTION_ONE =
             new LanguageSignalInfo(
-                    LANGUAGE_TAG_EN, LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS, 1);
+                    LOCALE_TAG_US, LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS, 1);
     private static final LanguageSignalInfo US_INFO_ONE_FOR_CONVERSATION_ACTION_TWO =
             new LanguageSignalInfo(
-                    LANGUAGE_TAG_EN, LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS, 2);
+                    LOCALE_TAG_US, LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS, 2);
+    private static final LanguageSignalInfo US_INFO_ONE_FOR_CLASSIFY_TEXT =
+            new LanguageSignalInfo(LOCALE_TAG_US, LanguageSignalInfo.CLASSIFY_TEXT, 1);
 
     private LanguageProfileUpdater mLanguageProfileUpdater;
     private LanguageProfileDatabase mDatabase;
@@ -116,7 +121,7 @@ public class LanguageProfileUpdaterTest {
             throws ExecutionException, InterruptedException {
         mLanguageProfileUpdater
                 .updateFromConversationActionsAsync(
-                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_EN)
+                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_US)
                 .get();
         List<LanguageSignalInfo> infos = mDatabase.languageInfoDao().getAll();
 
@@ -131,11 +136,11 @@ public class LanguageProfileUpdaterTest {
             throws ExecutionException, InterruptedException {
         mLanguageProfileUpdater
                 .updateFromConversationActionsAsync(
-                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_EN)
+                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_US)
                 .get();
         mLanguageProfileUpdater
                 .updateFromConversationActionsAsync(
-                        CONVERSATION_ACTION_REQUEST_TWO, LANGUAGE_DETECTOR_EN)
+                        CONVERSATION_ACTION_REQUEST_TWO, LANGUAGE_DETECTOR_US)
                 .get();
         List<LanguageSignalInfo> infos = mDatabase.languageInfoDao().getAll();
 
@@ -149,7 +154,7 @@ public class LanguageProfileUpdaterTest {
             throws ExecutionException, InterruptedException {
         mLanguageProfileUpdater
                 .updateFromConversationActionsAsync(
-                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_EN)
+                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_US)
                 .get();
         Bundle extra = new Bundle();
         extra.putString(LanguageProfileUpdater.NOTIFICATION_KEY, NOTIFICATION_KEY);
@@ -158,7 +163,7 @@ public class LanguageProfileUpdaterTest {
                         .setExtras(extra)
                         .build();
         mLanguageProfileUpdater
-                .updateFromConversationActionsAsync(newRequest, LANGUAGE_DETECTOR_EN)
+                .updateFromConversationActionsAsync(newRequest, LANGUAGE_DETECTOR_US)
                 .get();
         List<LanguageSignalInfo> infos = mDatabase.languageInfoDao().getAll();
 
@@ -172,12 +177,12 @@ public class LanguageProfileUpdaterTest {
             throws ExecutionException, InterruptedException {
         mLanguageProfileUpdater
                 .updateFromConversationActionsAsync(
-                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_EN)
+                        CONVERSATION_ACTION_REQUEST_ONE, LANGUAGE_DETECTOR_US)
                 .get();
         ConversationActions.Request newRequest =
                 new ConversationActions.Request.Builder(Arrays.asList(MSG_THREE)).build();
         mLanguageProfileUpdater
-                .updateFromConversationActionsAsync(newRequest, LANGUAGE_DETECTOR_ZH)
+                .updateFromConversationActionsAsync(newRequest, LANGUAGE_DETECTOR_CHINA)
                 .get();
         List<LanguageSignalInfo> infos = mDatabase.languageInfoDao().getAll();
 
@@ -188,7 +193,7 @@ public class LanguageProfileUpdaterTest {
         assertThat(infoTwo)
                 .isEqualTo(
                         new LanguageSignalInfo(
-                                LANGUAGE_TAG_ZH,
+                                LOCALE_TAG_CHINA,
                                 LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS,
                                 1));
     }
@@ -196,40 +201,30 @@ public class LanguageProfileUpdaterTest {
     @Test
     public void updateFromClassifyTextAsync_classifyText()
             throws ExecutionException, InterruptedException {
-        mLanguageProfileUpdater
-                .updateFromClassifyTextAsync(Collections.singletonList(LANGUAGE_TAG_EN))
-                .get();
+        mLanguageProfileUpdater.updateFromClassifyTextAsync(ImmutableList.of(LOCALE_TAG_US)).get();
         List<LanguageSignalInfo> infos = mDatabase.languageInfoDao().getAll();
 
         assertThat(infos).hasSize(1);
         LanguageSignalInfo info = infos.get(0);
-        assertThat(info)
-                .isEqualTo(
-                        new LanguageSignalInfo(
-                                LANGUAGE_TAG_EN, LanguageSignalInfo.CLASSIFY_TEXT, 1));
+        assertThat(info).isEqualTo(US_INFO_ONE_FOR_CLASSIFY_TEXT);
     }
 
     @Test
     public void updateFromClassifyTextAsync_classifyTextTwice()
             throws ExecutionException, InterruptedException {
+        mLanguageProfileUpdater.updateFromClassifyTextAsync(ImmutableList.of(LOCALE_TAG_US)).get();
         mLanguageProfileUpdater
-                .updateFromClassifyTextAsync(Collections.singletonList(LANGUAGE_TAG_EN))
-                .get();
-        mLanguageProfileUpdater
-                .updateFromClassifyTextAsync(Collections.singletonList(LANGUAGE_TAG_ZH))
+                .updateFromClassifyTextAsync(ImmutableList.of(LOCALE_TAG_CHINA))
                 .get();
 
         List<LanguageSignalInfo> infos = mDatabase.languageInfoDao().getAll();
         assertThat(infos).hasSize(2);
         LanguageSignalInfo infoOne = infos.get(0);
         LanguageSignalInfo infoTwo = infos.get(1);
-        assertThat(infoOne)
-                .isEqualTo(
-                        new LanguageSignalInfo(
-                                LANGUAGE_TAG_EN, LanguageSignalInfo.CLASSIFY_TEXT, 1));
+        assertThat(infoOne).isEqualTo(US_INFO_ONE_FOR_CLASSIFY_TEXT);
         assertThat(infoTwo)
                 .isEqualTo(
                         new LanguageSignalInfo(
-                                LANGUAGE_TAG_ZH, LanguageSignalInfo.CLASSIFY_TEXT, 1));
+                                LOCALE_TAG_CHINA, LanguageSignalInfo.CLASSIFY_TEXT, 1));
     }
 }
