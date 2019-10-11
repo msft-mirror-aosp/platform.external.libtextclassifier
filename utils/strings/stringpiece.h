@@ -30,7 +30,7 @@ class StringPiece {
   StringPiece() : StringPiece(nullptr, 0) {}
 
   StringPiece(const char *str)  // NOLINT(runtime/explicit)
-      : start_(str), size_(strlen(str)) {}
+      : start_(str), size_(str == nullptr ? 0 : strlen(str)) {}
 
   StringPiece(const char *start, size_t size) : start_(start), size_(size) {}
 
@@ -68,6 +68,10 @@ class StringPiece {
     return prefix.empty() ||
            (size_ >= prefix.size() &&
             memcmp(start_, prefix.data(), prefix.size()) == 0);
+  }
+
+  bool Equals(StringPiece other) const {
+    return size() == other.size() && memcmp(start_, other.data(), size_) == 0;
   }
 
   // Removes the first `n` characters from the string piece. Note that the

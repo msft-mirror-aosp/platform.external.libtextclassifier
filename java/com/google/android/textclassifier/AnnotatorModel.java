@@ -16,6 +16,7 @@
 
 package com.google.android.textclassifier;
 
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -43,6 +44,28 @@ public final class AnnotatorModel implements AutoCloseable {
   static final String TYPE_FLIGHT_NUMBER = "flight";
 
   private long annotatorPtr;
+
+  /** Enumeration for specifying the usecase of the annotations. */
+  public static enum AnnotationUsecase {
+    /** Results are optimized for Smart{Select,Share,Linkify}. */
+    SMART(0),
+
+    /**
+     * Results are optimized for using TextClassifier as an infrastructure that annotates as much as
+     * possible.
+     */
+    RAW(1);
+
+    private final int value;
+
+    AnnotationUsecase(int value) {
+      this.value = value;
+    }
+
+    public int getValue() {
+      return value;
+    }
+  };
 
   /**
    * Creates a new instance of SmartSelect predictor, using the provided model image, given as a
@@ -73,6 +96,20 @@ public final class AnnotatorModel implements AutoCloseable {
     }
   }
 
+  /** Initializes the contact engine, passing the given serialized config to it. */
+  public void initializeContactEngine(byte[] serializedConfig) {
+    if (!nativeInitializeContactEngine(annotatorPtr, serializedConfig)) {
+      throw new IllegalArgumentException("Couldn't initialize the contact engine");
+    }
+  }
+
+  /** Initializes the installed app engine, passing the given serialized config to it. */
+  public void initializeInstalledAppEngine(byte[] serializedConfig) {
+    if (!nativeInitializeInstalledAppEngine(annotatorPtr, serializedConfig)) {
+      throw new IllegalArgumentException("Couldn't initialize the installed app engine");
+    }
+  }
+
   /**
    * Given a string context and current selection, computes the selection suggestion.
    *
@@ -98,7 +135,24 @@ public final class AnnotatorModel implements AutoCloseable {
    */
   public ClassificationResult[] classifyText(
       String context, int selectionBegin, int selectionEnd, ClassificationOptions options) {
-    return nativeClassifyText(annotatorPtr, context, selectionBegin, selectionEnd, options);
+    return classifyText(
+        context,
+        selectionBegin,
+        selectionEnd,
+        options,
+        /*appContext=*/ null,
+        /*deviceLocales=*/ null);
+  }
+
+  public ClassificationResult[] classifyText(
+      String context,
+      int selectionBegin,
+      int selectionEnd,
+      ClassificationOptions options,
+      Object appContext,
+      String deviceLocales) {
+    return nativeClassifyText(
+        annotatorPtr, context, selectionBegin, selectionEnd, options, appContext, deviceLocales);
   }
 
   /**
@@ -107,6 +161,14 @@ public final class AnnotatorModel implements AutoCloseable {
    */
   public AnnotatedSpan[] annotate(String text, AnnotationOptions options) {
     return nativeAnnotate(annotatorPtr, text, options);
+  }
+
+  /**
+   * Looks up a knowledge entity by its identifier. Returns null if the entity is not found or on
+   * error.
+   */
+  public byte[] lookUpKnowledgeEntity(String id) {
+    return nativeLookUpKnowledgeEntity(annotatorPtr, id);
   }
 
   /** Frees up the allocated memory. */
@@ -145,18 +207,18 @@ public final class AnnotatorModel implements AutoCloseable {
   /** Information about a parsed time/date. */
   public static final class DatetimeResult {
 
-    static final int GRANULARITY_YEAR = 0;
-    static final int GRANULARITY_MONTH = 1;
-    static final int GRANULARITY_WEEK = 2;
-    static final int GRANULARITY_DAY = 3;
-    static final int GRANULARITY_HOUR = 4;
-    static final int GRANULARITY_MINUTE = 5;
-    static final int GRANULARITY_SECOND = 6;
+    public static final int GRANULARITY_YEAR = 0;
+    public static final int GRANULARITY_MONTH = 1;
+    public static final int GRANULARITY_WEEK = 2;
+    public static final int GRANULARITY_DAY = 3;
+    public static final int GRANULARITY_HOUR = 4;
+    public static final int GRANULARITY_MINUTE = 5;
+    public static final int GRANULARITY_SECOND = 6;
 
     private final long timeMsUtc;
     private final int granularity;
 
-    DatetimeResult(long timeMsUtc, int granularity) {
+    public DatetimeResult(long timeMsUtc, int granularity) {
       this.timeMsUtc = timeMsUtc;
       this.granularity = granularity;
     }
@@ -176,30 +238,59 @@ public final class AnnotatorModel implements AutoCloseable {
     private final float score;
     private final DatetimeResult datetimeResult;
     private final byte[] serializedKnowledgeResult;
+    private final String contactName;
+    private final String contactGivenName;
+    private final String contactNickname;
+    private final String contactEmailAddress;
+    private final String contactPhoneNumber;
+    private final String contactId;
+    private final String appName;
+    private final String appPackageName;
+    private final NamedVariant[] entityData;
+    private final byte[] serializedEntityData;
+    private final RemoteActionTemplate[] remoteActionTemplates;
+    private final long durationMs;
+    private final long numericValue;
 
     public ClassificationResult(
         String collection,
         float score,
         DatetimeResult datetimeResult,
-        byte[] serializedKnowledgeResult) {
+        byte[] serializedKnowledgeResult,
+        String contactName,
+        String contactGivenName,
+        String contactNickname,
+        String contactEmailAddress,
+        String contactPhoneNumber,
+        String contactId,
+        String appName,
+        String appPackageName,
+        NamedVariant[] entityData,
+        byte[] serializedEntityData,
+        RemoteActionTemplate[] remoteActionTemplates,
+        long durationMs,
+        long numericValue) {
       this.collection = collection;
       this.score = score;
       this.datetimeResult = datetimeResult;
       this.serializedKnowledgeResult = serializedKnowledgeResult;
+      this.contactName = contactName;
+      this.contactGivenName = contactGivenName;
+      this.contactNickname = contactNickname;
+      this.contactEmailAddress = contactEmailAddress;
+      this.contactPhoneNumber = contactPhoneNumber;
+      this.contactId = contactId;
+      this.appName = appName;
+      this.appPackageName = appPackageName;
+      this.entityData = entityData;
+      this.serializedEntityData = serializedEntityData;
+      this.remoteActionTemplates = remoteActionTemplates;
+      this.durationMs = durationMs;
+      this.numericValue = numericValue;
     }
 
     /** Returns the classified entity type. */
     public String getCollection() {
-      if (TYPE_DATE.equals(collection) && datetimeResult != null) {
-        switch (datetimeResult.getGranularity()) {
-          case DatetimeResult.GRANULARITY_HOUR:
-          case DatetimeResult.GRANULARITY_MINUTE:
-          case DatetimeResult.GRANULARITY_SECOND:
-            return TYPE_DATE_TIME;
-          default:
-            return TYPE_DATE;
-        }
-      }
       return collection;
     }
 
@@ -212,8 +303,60 @@ public final class AnnotatorModel implements AutoCloseable {
       return datetimeResult;
     }
 
-    byte[] getSerializedKnowledgeResult() {
+    public byte[] getSerializedKnowledgeResult() {
       return serializedKnowledgeResult;
+    }
+
+    public String getContactName() {
+      return contactName;
+    }
+
+    public String getContactGivenName() {
+      return contactGivenName;
+    }
+
+    public String getContactNickname() {
+      return contactNickname;
+    }
+
+    public String getContactEmailAddress() {
+      return contactEmailAddress;
+    }
+
+    public String getContactPhoneNumber() {
+      return contactPhoneNumber;
+    }
+
+    public String getContactId() {
+      return contactId;
+    }
+
+    public String getAppName() {
+      return appName;
+    }
+
+    public String getAppPackageName() {
+      return appPackageName;
+    }
+
+    public NamedVariant[] getEntityData() {
+      return entityData;
+    }
+
+    public byte[] getSerializedEntityData() {
+      return serializedEntityData;
+    }
+
+    public RemoteActionTemplate[] getRemoteActionTemplates() {
+      return remoteActionTemplates;
+    }
+
+    public long getDurationMs() {
+      return durationMs;
+    }
+
+    public long getNumericValue() {
+      return numericValue;
     }
   }
 
@@ -245,13 +388,31 @@ public final class AnnotatorModel implements AutoCloseable {
   /** Represents options for the suggestSelection call. */
   public static final class SelectionOptions {
     private final String locales;
+    private final String detectedTextLanguageTags;
+    private final int annotationUsecase;
 
-    public SelectionOptions(String locales) {
+    public SelectionOptions(
+        String locales, String detectedTextLanguageTags, int annotationUsecase) {
       this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
+      this.annotationUsecase = annotationUsecase;
+    }
+
+    public SelectionOptions(String locales, String detectedTextLanguageTags) {
+      this(locales, detectedTextLanguageTags, AnnotationUsecase.SMART.getValue());
     }
 
     public String getLocales() {
       return locales;
+    }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
+    }
+
+    public int getAnnotationUsecase() {
+      return annotationUsecase;
     }
   }
 
@@ -260,11 +421,33 @@ public final class AnnotatorModel implements AutoCloseable {
     private final long referenceTimeMsUtc;
     private final String referenceTimezone;
     private final String locales;
+    private final String detectedTextLanguageTags;
+    private final int annotationUsecase;
 
-    public ClassificationOptions(long referenceTimeMsUtc, String referenceTimezone, String locale) {
+    public ClassificationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags,
+        int annotationUsecase) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
-      this.locales = locale;
+      this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
+      this.annotationUsecase = annotationUsecase;
+    }
+
+    public ClassificationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags) {
+      this(
+          referenceTimeMsUtc,
+          referenceTimezone,
+          locales,
+          detectedTextLanguageTags,
+          AnnotationUsecase.SMART.getValue());
     }
 
     public long getReferenceTimeMsUtc() {
@@ -277,6 +460,15 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public String getLocale() {
       return locales;
+    }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
+    }
+
+    public int getAnnotationUsecase() {
+      return annotationUsecase;
     }
   }
 
@@ -285,11 +477,41 @@ public final class AnnotatorModel implements AutoCloseable {
     private final long referenceTimeMsUtc;
     private final String referenceTimezone;
     private final String locales;
+    private final String detectedTextLanguageTags;
+    private final String[] entityTypes;
+    private final int annotationUsecase;
+    private final boolean isSerializedEntityDataEnabled;
 
-    public AnnotationOptions(long referenceTimeMsUtc, String referenceTimezone, String locale) {
+    public AnnotationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags,
+        Collection<String> entityTypes,
+        int annotationUsecase,
+        boolean isSerializedEntityDataEnabled) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
-      this.locales = locale;
+      this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
+      this.entityTypes = entityTypes == null ? new String[0] : entityTypes.toArray(new String[0]);
+      this.annotationUsecase = annotationUsecase;
+      this.isSerializedEntityDataEnabled = isSerializedEntityDataEnabled;
+    }
+
+    public AnnotationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags) {
+      this(
+          referenceTimeMsUtc,
+          referenceTimezone,
+          locales,
+          detectedTextLanguageTags,
+          null,
+          AnnotationUsecase.SMART.getValue(),
+          /* isSerializedEntityDataEnabled */ false);
     }
 
     public long getReferenceTimeMsUtc() {
@@ -303,6 +525,23 @@ public final class AnnotatorModel implements AutoCloseable {
     public String getLocale() {
       return locales;
     }
+
+    /** Returns a comma separated list of BCP 47 language tags. */
+    public String getDetectedTextLanguageTags() {
+      return detectedTextLanguageTags;
+    }
+
+    public String[] getEntityTypes() {
+      return entityTypes;
+    }
+
+    public int getAnnotationUsecase() {
+      return annotationUsecase;
+    }
+
+    public boolean isSerializedEntityDataEnabled() {
+      return isSerializedEntityDataEnabled;
+    }
   }
 
   /**
@@ -310,7 +549,7 @@ public final class AnnotatorModel implements AutoCloseable {
    * as the pointer is used.
    */
   long getNativeAnnotator() {
-    return annotatorPtr;
+    return nativeGetNativeModelPtr(annotatorPtr);
   }
 
   private static native long nativeNewAnnotator(int fd);
@@ -323,7 +562,13 @@ public final class AnnotatorModel implements AutoCloseable {
 
   private static native String nativeGetName(int fd);
 
+  private native long nativeGetNativeModelPtr(long context);
+
   private native boolean nativeInitializeKnowledgeEngine(long context, byte[] serializedConfig);
+
+  private native boolean nativeInitializeContactEngine(long context, byte[] serializedConfig);
+
+  private native boolean nativeInitializeInstalledAppEngine(long context, byte[] serializedConfig);
 
   private native int[] nativeSuggestSelection(
       long context, String text, int selectionBegin, int selectionEnd, SelectionOptions options);
@@ -333,10 +578,14 @@ public final class AnnotatorModel implements AutoCloseable {
       String text,
       int selectionBegin,
       int selectionEnd,
-      ClassificationOptions options);
+      ClassificationOptions options,
+      Object appContext,
+      String deviceLocales);
 
   private native AnnotatedSpan[] nativeAnnotate(
       long context, String text, AnnotationOptions options);
+
+  private native byte[] nativeLookUpKnowledgeEntity(long context, String id);
 
   private native void nativeCloseAnnotator(long context);
 }

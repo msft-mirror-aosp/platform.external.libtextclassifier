@@ -42,16 +42,32 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
                nativeInitializeKnowledgeEngine)
 (JNIEnv* env, jobject thiz, jlong ptr, jbyteArray serialized_config);
 
+TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
+               nativeInitializeContactEngine)
+(JNIEnv* env, jobject thiz, jlong ptr, jbyteArray serialized_config);
+
+TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
+               nativeInitializeInstalledAppEngine)
+(JNIEnv* env, jobject thiz, jlong ptr, jbyteArray serialized_config);
+
+TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeGetNativeModelPtr)
+(JNIEnv* env, jobject thiz, jlong ptr);
+
 TC3_JNI_METHOD(jintArray, TC3_ANNOTATOR_CLASS_NAME, nativeSuggestSelection)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
  jint selection_end, jobject options);
 
 TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeClassifyText)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring context, jint selection_begin,
- jint selection_end, jobject options);
+ jint selection_end, jobject options, jobject app_context,
+ jstring device_locales);
 
 TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring context, jobject options);
+
+TC3_JNI_METHOD(jbyteArray, TC3_ANNOTATOR_CLASS_NAME,
+               nativeLookUpKnowledgeEntity)
+(JNIEnv* env, jobject thiz, jlong ptr, jstring id);
 
 TC3_JNI_METHOD(void, TC3_ANNOTATOR_CLASS_NAME, nativeCloseAnnotator)
 (JNIEnv* env, jobject thiz, jlong ptr);

@@ -21,8 +21,16 @@
 namespace libtextclassifier3 {
 
 namespace {
+constexpr const char* kAnyMatch = "*";
+
+// BCP 47 code for "Undetermined Language".
+constexpr const char* kUnknownLanguageCode = "und";
 
 bool CheckLanguage(StringPiece language) {
+  if (language.size() == 1 && language.data()[0] == '*') {
+    return true;
+  }
+
   if (language.size() != 2 && language.size() != 3) {
     return false;
   }
@@ -105,6 +113,80 @@ Locale Locale::FromBCP47(const std::string& locale_tag) {
   // NOTE: We don't parse the rest of the BCP47 tag here even if specified.
 
   return Locale(language.ToString(), script.ToString(), region.ToString());
+}
+
+bool Locale::IsUnknown() const {
+  return is_valid_ && language_ == kUnknownLanguageCode;
+}
+
+bool Locale::IsLocaleSupported(const Locale& locale,
+                               const std::vector<Locale>& supported_locales,
+                               bool default_value) {
+  if (!locale.IsValid()) {
+    return false;
+  }
+  if (locale.IsUnknown()) {
+    return default_value;
+  }
+  for (const Locale& supported_locale : supported_locales) {
+    if (!supported_locale.IsValid()) {
+      continue;
+    }
+    const bool language_matches =
+        supported_locale.Language().empty() ||
+        supported_locale.Language() == kAnyMatch ||
+        supported_locale.Language() == locale.Language();
+    const bool script_matches = supported_locale.Script().empty() ||
+                                supported_locale.Script() == kAnyMatch ||
+                                locale.Script().empty() ||
+                                supported_locale.Script() == locale.Script();
+    const bool region_matches = supported_locale.Region().empty() ||
+                                supported_locale.Region() == kAnyMatch ||
+                                locale.Region().empty() ||
+                                supported_locale.Region() == locale.Region();
+    if (language_matches && script_matches && region_matches) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Locale::IsAnyLocaleSupported(const std::vector<Locale>& locales,
+                                  const std::vector<Locale>& supported_locales,
+                                  bool default_value) {
+  if (locales.empty()) {
+    return default_value;
+  }
+  if (supported_locales.empty()) {
+    return default_value;
+  }
+  for (const Locale& locale : locales) {
+    if (IsLocaleSupported(locale, supported_locales, default_value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
+                                         const Locale& locale) {
+  return stream << "Locale(language=" << locale.Language()
+                << ", script=" << locale.Script()
+                << ", region=" << locale.Region()
+                << ", is_valid=" << locale.IsValid()
+                << ", is_unknown=" << locale.IsUnknown() << ")";
+}
+
+bool ParseLocales(StringPiece locales_list, std::vector<Locale>* locales) {
+  for (const auto& locale_str : strings::Split(locales_list, ',')) {
+    const Locale locale = Locale::FromBCP47(locale_str.ToString());
+    if (!locale.IsValid()) {
+      TC3_LOG(ERROR) << "Invalid locale " << locale_str.ToString();
+      return false;
+    }
+    locales->push_back(locale);
+  }
+  return true;
 }
 
 }  // namespace libtextclassifier3
