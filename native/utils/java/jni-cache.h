@@ -18,8 +18,9 @@
 #define LIBTEXTCLASSIFIER_UTILS_JAVA_JNI_CACHE_H_
 
 #include <jni.h>
-#include "utils/java/scoped_global_ref.h"
-#include "utils/java/scoped_local_ref.h"
+
+#include "utils/base/statusor.h"
+#include "utils/java/jni-base.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/utf8/unicodetext.h"
 
@@ -136,10 +137,12 @@ struct JniCache {
   jmethodID resources_get_string = nullptr;
 
   // Helper to convert lib3 UnicodeText to Java strings.
-  ScopedLocalRef<jstring> ConvertToJavaString(
+  StatusOr<ScopedLocalRef<jstring>> ConvertToJavaString(
       const char* utf8_text, const int utf8_text_size_bytes) const;
-  ScopedLocalRef<jstring> ConvertToJavaString(StringPiece utf8_text) const;
-  ScopedLocalRef<jstring> ConvertToJavaString(const UnicodeText& text) const;
+  StatusOr<ScopedLocalRef<jstring>> ConvertToJavaString(
+      StringPiece utf8_text) const;
+  StatusOr<ScopedLocalRef<jstring>> ConvertToJavaString(
+      const UnicodeText& text) const;
 
  private:
   explicit JniCache(JavaVM* jvm);

@@ -14,20 +14,21 @@
  * limitations under the License.
  */
 
+#include "annotator/datetime/parser.h"
+
 #include <time.h>
+
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-
 #include "annotator/annotator.h"
-#include "annotator/datetime/parser.h"
 #include "annotator/model_generated.h"
 #include "annotator/types-test-util.h"
 #include "utils/testing/annotator.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 
 using std::vector;
 using testing::ElementsAreArray;
@@ -152,7 +153,7 @@ class ParserTest : public testing::Test {
 
     const int expected_start_index =
         std::distance(marked_text_unicode.begin(), brace_open_it);
-    // The -1 bellow is to account for the opening bracket character.
+    // The -1 below is to account for the opening bracket character.
     const int expected_end_index =
         std::distance(marked_text_unicode.begin(), brace_end_it) - 1;
 
@@ -744,6 +745,43 @@ TEST_F(ParserTest, ParseWithRawUsecase) {
       "{tomorrow}", /*anchor_start_end=*/false,
       /*timezone=*/"Europe/Zurich",
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_SMART));
+}
+
+TEST_F(ParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
+  // ParsesCorrectly uses 0 as the reference time, which corresponds to:
+  // "Thu Jan 01 1970 01:00:00" Zurich time. So if we pass "0:30" here, it means
+  // it is in the past, and so the parser should move this to the next day ->
+  // "Fri Jan 02 1970 00:30:00" Zurich time (b/139112907).
+  EXPECT_TRUE(ParsesCorrectly(
+      "{0:30am}", 84600000L /* 23.5 hours from reference time */,
+      GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Build()}));
+}
+
+TEST_F(ParserTest, DoesNotAddADayWhenTimeInThePastAndDayNotSpecifiedDisabled) {
+  // ParsesCorrectly uses 0 as the reference time, which corresponds to:
+  // "Thu Jan 01 1970 01:00:00" Zurich time. So if we pass "0:30" here, it means
+  // it is in the past. The parameter prefer_future_when_unspecified_day is
+  // disabled, so the parser should annotate this to the same day: "Thu Jan 01
+  // 1970 00:30:00" Zurich time.
+  LoadModel([](ModelT* model) {
+    // In the test model, the prefer_future_for_unspecified_date is true; make
+    // it false only for this test.
+    model->datetime_model->prefer_future_for_unspecified_date = false;
+  });
+
+  EXPECT_TRUE(ParsesCorrectly(
+      "{0:30am}", -1800000L /* -30 minutes from reference time */,
+      GRANULARITY_MINUTE,
+      {DatetimeComponentsBuilder()
+           .Add(DatetimeComponent::ComponentType::MERIDIEM, 0)
+           .Add(DatetimeComponent::ComponentType::MINUTE, 30)
+           .Add(DatetimeComponent::ComponentType::HOUR, 0)
+           .Build()}));
 }
 
 TEST_F(ParserTest, ParsesNoonAndMidnightCorrectly) {

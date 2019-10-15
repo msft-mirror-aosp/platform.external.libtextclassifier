@@ -17,138 +17,176 @@
 #include "annotator/annotator_jni_common.h"
 
 #include "utils/java/jni-base.h"
-#include "utils/java/scoped_local_ref.h"
+#include "utils/java/jni-helper.h"
 
 namespace libtextclassifier3 {
 namespace {
 
-std::unordered_set<std::string> EntityTypesFromJObject(JNIEnv* env,
-                                                       const jobject& jobject) {
+StatusOr<std::unordered_set<std::string>> EntityTypesFromJObject(
+    JNIEnv* env, const jobject& jobject) {
   std::unordered_set<std::string> entity_types;
   jobjectArray jentity_types = reinterpret_cast<jobjectArray>(jobject);
   const int size = env->GetArrayLength(jentity_types);
   for (int i = 0; i < size; ++i) {
-    jstring jentity_type =
-        reinterpret_cast<jstring>(env->GetObjectArrayElement(jentity_types, i));
-    entity_types.insert(ToStlString(env, jentity_type));
+    TC3_ASSIGN_OR_RETURN(
+        ScopedLocalRef<jstring> jentity_type,
+        JniHelper::GetObjectArrayElement<jstring>(env, jentity_types, i));
+    TC3_ASSIGN_OR_RETURN(std::string entity_type,
+                         ToStlString(env, jentity_type.get()));
+    entity_types.insert(entity_type);
   }
   return entity_types;
 }
 
 template <typename T>
-T FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
-                          const std::string& class_name) {
+StatusOr<T> FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
+                                    const std::string& class_name) {
   if (!joptions) {
-    return {};
+    return {Status::UNKNOWN};
   }
 
-  const ScopedLocalRef<jclass> options_class(env->FindClass(class_name.c_str()),
-                                             env);
-  if (!options_class) {
-    return {};
-  }
+  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jclass> options_class,
+                       JniHelper::FindClass(env, class_name.c_str()));
 
-  const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
-      env, joptions, options_class.get(), &JNIEnv::CallObjectMethod,
-      "getLocale", "Ljava/lang/String;");
-  const std::pair<bool, jobject> status_or_reference_timezone =
-      CallJniMethod0<jobject>(env, joptions, options_class.get(),
-                              &JNIEnv::CallObjectMethod, "getReferenceTimezone",
-                              "Ljava/lang/String;");
-  const std::pair<bool, int64> status_or_reference_time_ms_utc =
-      CallJniMethod0<int64>(env, joptions, options_class.get(),
-                            &JNIEnv::CallLongMethod, "getReferenceTimeMsUtc",
-                            "J");
-  const std::pair<bool, jobject> status_or_detected_text_language_tags =
-      CallJniMethod0<jobject>(
-          env, joptions, options_class.get(), &JNIEnv::CallObjectMethod,
-          "getDetectedTextLanguageTags", "Ljava/lang/String;");
-  const std::pair<bool, int> status_or_annotation_usecase =
-      CallJniMethod0<int>(env, joptions, options_class.get(),
-                          &JNIEnv::CallIntMethod, "getAnnotationUsecase", "I");
+  // .getLocale()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_locale,
+      JniHelper::GetMethodID(env, options_class.get(), "getLocale",
+                             "()Ljava/lang/String;"));
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jstring> locales,
+      JniHelper::CallObjectMethod<jstring>(env, joptions, get_locale));
 
-  if (!status_or_locales.first || !status_or_reference_timezone.first ||
-      !status_or_reference_time_ms_utc.first ||
-      !status_or_detected_text_language_tags.first ||
-      !status_or_annotation_usecase.first) {
-    return {};
-  }
+  // .getReferenceTimeMsUtc()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_reference_time_method,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getReferenceTimeMsUtc", "()J"));
+  TC3_ASSIGN_OR_RETURN(
+      int64 reference_time,
+      JniHelper::CallLongMethod(env, joptions, get_reference_time_method));
+
+  // .getReferenceTimezone()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_reference_timezone_method,
+      JniHelper::GetMethodID(env, options_class.get(), "getReferenceTimezone",
+                             "()Ljava/lang/String;"));
+  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> reference_timezone,
+                       JniHelper::CallObjectMethod<jstring>(
+                           env, joptions, get_reference_timezone_method));
+
+  // .getDetectedTextLanguageTags()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_detected_text_language_tags_method,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getDetectedTextLanguageTags",
+                                              "()Ljava/lang/String;"));
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jstring> detected_text_language_tags,
+      JniHelper::CallObjectMethod<jstring>(
+          env, joptions, get_detected_text_language_tags_method));
+
+  // .getAnnotationUsecase()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_annotation_usecase,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getAnnotationUsecase", "()I"));
+  TC3_ASSIGN_OR_RETURN(
+      int32 annotation_usecase,
+      JniHelper::CallIntMethod(env, joptions, get_annotation_usecase));
 
   T options;
-  options.locales =
-      ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
-  options.reference_timezone = ToStlString(
-      env, reinterpret_cast<jstring>(status_or_reference_timezone.second));
-  options.reference_time_ms_utc = status_or_reference_time_ms_utc.second;
-  options.detected_text_language_tags = ToStlString(
-      env,
-      reinterpret_cast<jstring>(status_or_detected_text_language_tags.second));
+  TC3_ASSIGN_OR_RETURN(options.locales, ToStlString(env, locales.get()));
+  TC3_ASSIGN_OR_RETURN(options.reference_timezone,
+                       ToStlString(env, reference_timezone.get()));
+  options.reference_time_ms_utc = reference_time;
+  TC3_ASSIGN_OR_RETURN(options.detected_text_language_tags,
+                       ToStlString(env, detected_text_language_tags.get()));
   options.annotation_usecase =
-      static_cast<AnnotationUsecase>(status_or_annotation_usecase.second);
+      static_cast<AnnotationUsecase>(annotation_usecase);
   return options;
 }
 }  // namespace
 
-SelectionOptions FromJavaSelectionOptions(JNIEnv* env, jobject joptions) {
+StatusOr<SelectionOptions> FromJavaSelectionOptions(JNIEnv* env,
+                                                    jobject joptions) {
   if (!joptions) {
-    return {};
+    return {Status::UNKNOWN};
   }
 
-  const ScopedLocalRef<jclass> options_class(
-      env->FindClass(TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
-                     "$SelectionOptions"),
-      env);
-  const std::pair<bool, jobject> status_or_locales = CallJniMethod0<jobject>(
-      env, joptions, options_class.get(), &JNIEnv::CallObjectMethod,
-      "getLocales", "Ljava/lang/String;");
-  const std::pair<bool, int> status_or_annotation_usecase =
-      CallJniMethod0<int>(env, joptions, options_class.get(),
-                          &JNIEnv::CallIntMethod, "getAnnotationUsecase", "I");
-  if (!status_or_locales.first || !status_or_annotation_usecase.first) {
-    return {};
-  }
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jclass> options_class,
+      JniHelper::FindClass(env, TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+                           "$SelectionOptions"));
+
+  // .getLocale()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_locales,
+      JniHelper::GetMethodID(env, options_class.get(), "getLocales",
+                             "()Ljava/lang/String;"));
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jstring> locales,
+      JniHelper::CallObjectMethod<jstring>(env, joptions, get_locales));
+
+  // .getAnnotationUsecase()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_annotation_usecase,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getAnnotationUsecase", "()I"));
+  TC3_ASSIGN_OR_RETURN(
+      int32 annotation_usecase,
+      JniHelper::CallIntMethod(env, joptions, get_annotation_usecase));
 
   SelectionOptions options;
-  options.locales =
-      ToStlString(env, reinterpret_cast<jstring>(status_or_locales.second));
+  TC3_ASSIGN_OR_RETURN(options.locales, ToStlString(env, locales.get()));
   options.annotation_usecase =
-      static_cast<AnnotationUsecase>(status_or_annotation_usecase.second);
+      static_cast<AnnotationUsecase>(annotation_usecase);
 
   return options;
 }
 
-ClassificationOptions FromJavaClassificationOptions(JNIEnv* env,
-                                                    jobject joptions) {
+StatusOr<ClassificationOptions> FromJavaClassificationOptions(
+    JNIEnv* env, jobject joptions) {
   return FromJavaOptionsInternal<ClassificationOptions>(
       env, joptions,
       TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$ClassificationOptions");
 }
 
-AnnotationOptions FromJavaAnnotationOptions(JNIEnv* env, jobject joptions) {
-  if (!joptions) return {};
-  const ScopedLocalRef<jclass> options_class(
-      env->FindClass(TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
-                     "$AnnotationOptions"),
-      env);
-  if (!options_class) return {};
-  const std::pair<bool, jobject> status_or_entity_types =
-      CallJniMethod0<jobject>(env, joptions, options_class.get(),
-                              &JNIEnv::CallObjectMethod, "getEntityTypes",
-                              "[Ljava/lang/String;");
-  if (!status_or_entity_types.first) return {};
-  const std::pair<bool, bool> status_or_enable_serialized_entity_data =
-      CallJniMethod0<bool>(env, joptions, options_class.get(),
-                           &JNIEnv::CallBooleanMethod,
-                           "isSerializedEntityDataEnabled", "Z");
-  if (!status_or_enable_serialized_entity_data.first) return {};
-  AnnotationOptions annotation_options =
+StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
+                                                      jobject joptions) {
+  if (!joptions) {
+    return {Status::UNKNOWN};
+  }
+
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jclass> options_class,
+      JniHelper::FindClass(env, TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+                           "$AnnotationOptions"));
+
+  // .getEntityTypes()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_entity_types,
+      JniHelper::GetMethodID(env, options_class.get(), "getEntityTypes",
+                             "()[Ljava/lang/String;"));
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jobject> entity_types,
+      JniHelper::CallObjectMethod<jobject>(env, joptions, get_entity_types));
+
+  // .isSerializedEntityDataEnabled()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID is_serialized_entity_data_enabled_method,
+      JniHelper::GetMethodID(env, options_class.get(),
+                             "isSerializedEntityDataEnabled", "()Z"));
+  TC3_ASSIGN_OR_RETURN(
+      bool is_serialized_entity_data_enabled,
+      JniHelper::CallBooleanMethod(env, joptions,
+                                   is_serialized_entity_data_enabled_method));
+
+  TC3_ASSIGN_OR_RETURN(
+      AnnotationOptions annotation_options,
       FromJavaOptionsInternal<AnnotationOptions>(
           env, joptions,
-          TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$AnnotationOptions");
-  annotation_options.entity_types =
-      EntityTypesFromJObject(env, status_or_entity_types.second);
+          TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$AnnotationOptions"));
+  TC3_ASSIGN_OR_RETURN(annotation_options.entity_types,
+                       EntityTypesFromJObject(env, entity_types.get()));
   annotation_options.is_serialized_entity_data_enabled =
-      status_or_enable_serialized_entity_data.second;
+      is_serialized_entity_data_enabled;
   return annotation_options;
 }
 

@@ -92,7 +92,7 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
   }
 
   if (model->locales() != nullptr) {
-    for (int i = 0; i < model->locales()->Length(); ++i) {
+    for (int i = 0; i < model->locales()->size(); ++i) {
       locale_string_to_id_[model->locales()->Get(i)->str()] = i;
     }
   }
@@ -106,6 +106,8 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
   use_extractors_for_locating_ = model->use_extractors_for_locating();
   generate_alternative_interpretations_when_ambiguous_ =
       model->generate_alternative_interpretations_when_ambiguous();
+  prefer_future_for_unspecified_date_ =
+      model->prefer_future_for_unspecified_date();
 
   initialized_ = true;
 }
@@ -433,7 +435,8 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
     //               response. For Details see b/130355975
     if (!calendarlib_.InterpretParseData(
             interpretation, reference_time_ms_utc, reference_timezone,
-            reference_locale, &(result.time_ms_utc), &(result.granularity))) {
+            reference_locale, prefer_future_for_unspecified_date_,
+            &(result.time_ms_utc), &(result.granularity))) {
       return false;
     }
 

@@ -57,6 +57,9 @@ TC3_JNI_METHOD(jfloat, TC3_LANG_ID_CLASS_NAME, nativeGetLangIdThreshold)
 TC3_JNI_METHOD(jfloat, TC3_LANG_ID_CLASS_NAME, nativeGetLangIdNoiseThreshold)
 (JNIEnv* env, jobject thizz, jlong ptr);
 
+TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetMinTextSizeInBytes)
+(JNIEnv* env, jobject thizz, jlong ptr);
+
 #ifdef __cplusplus
 }
 #endif

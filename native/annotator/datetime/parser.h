@@ -59,12 +59,6 @@ class DatetimeParser {
              bool anchor_start_end,
              std::vector<DatetimeParseResultSpan>* results) const;
 
-#ifdef TC3_TEST_ONLY
-  void TestOnlySetGenerateAlternativeInterpretationsWhenAmbiguous(bool value) {
-    generate_alternative_interpretations_when_ambiguous_ = value;
-  }
-#endif  // TC3_TEST_ONLY
-
  protected:
   DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
                  const CalendarLib& calendarlib,
@@ -126,6 +120,7 @@ class DatetimeParser {
   std::vector<int> default_locale_ids_;
   bool use_extractors_for_locating_;
   bool generate_alternative_interpretations_when_ambiguous_;
+  bool prefer_future_for_unspecified_date_;
 };
 
 }  // namespace libtextclassifier3

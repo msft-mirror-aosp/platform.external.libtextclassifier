@@ -18,7 +18,10 @@
 #define LIBTEXTCLASSIFIER_UTILS_JAVA_JNI_BASE_H_
 
 #include <jni.h>
+
 #include <string>
+
+#include "utils/base/statusor.h"
 
 // When we use a macro as an argument for a macro, an additional level of
 // indirection is needed, if the macro argument is used with # or ##.
@@ -58,20 +61,158 @@
 
 namespace libtextclassifier3 {
 
-template <typename T, typename F>
-std::pair<bool, T> CallJniMethod0(JNIEnv* env, jobject object,
-                                  jclass class_object, F function,
-                                  const std::string& method_name,
-                                  const std::string& return_java_type) {
-  const jmethodID method = env->GetMethodID(class_object, method_name.c_str(),
-                                            ("()" + return_java_type).c_str());
-  if (!method) {
-    return std::make_pair(false, T());
+// Returns true if the requested capacity is available.
+bool EnsureLocalCapacity(JNIEnv* env, int capacity);
+
+// Returns true if there was an exception. Also it clears the exception.
+bool JniExceptionCheckAndClear(JNIEnv* env);
+
+StatusOr<std::string> ToStlString(JNIEnv* env, const jstring& str);
+
+// A deleter to be used with std::unique_ptr to delete JNI global references.
+class GlobalRefDeleter {
+ public:
+  explicit GlobalRefDeleter(JavaVM* jvm) : jvm_(jvm) {}
+
+  GlobalRefDeleter(const GlobalRefDeleter& orig) = default;
+
+  // Copy assignment to allow move semantics in ScopedGlobalRef.
+  GlobalRefDeleter& operator=(const GlobalRefDeleter& rhs) {
+    TC3_CHECK_EQ(jvm_, rhs.jvm_);
+    return *this;
   }
-  return std::make_pair(true, (env->*function)(object, method));
+
+  // The delete operator.
+  void operator()(jobject object) const {
+    JNIEnv* env;
+    if (object != nullptr && jvm_ != nullptr &&
+        JNI_OK ==
+            jvm_->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_4)) {
+      env->DeleteGlobalRef(object);
+    }
+  }
+
+ private:
+  // The jvm_ stashed to use for deletion.
+  JavaVM* const jvm_;
+};
+
+// A deleter to be used with std::unique_ptr to delete JNI local references.
+class LocalRefDeleter {
+ public:
+  explicit LocalRefDeleter(JNIEnv* env)
+      : env_(env) {}  // NOLINT(runtime/explicit)
+
+  LocalRefDeleter(const LocalRefDeleter& orig) = default;
+
+  // Copy assignment to allow move semantics in ScopedLocalRef.
+  LocalRefDeleter& operator=(const LocalRefDeleter& rhs) {
+    env_ = rhs.env_;
+    return *this;
+  }
+
+  // The delete operator.
+  void operator()(jobject object) const {
+    if (env_) {
+      env_->DeleteLocalRef(object);
+    }
+  }
+
+ private:
+  // The env_ stashed to use for deletion. Thread-local, don't share!
+  JNIEnv* env_;
+};
+
+// A smart pointer that deletes a reference when it goes out of scope.
+//
+// Note that this class is not thread-safe since it caches JNIEnv in
+// the deleter. Do not use the same jobject across different threads.
+template <typename T, typename Env, typename Deleter>
+class ScopedRef {
+ public:
+  ScopedRef() : ptr_(nullptr, Deleter(nullptr)) {}
+  ScopedRef(T value, Env* env) : ptr_(value, Deleter(env)) {}
+
+  T get() const { return ptr_.get(); }
+
+  T release() { return ptr_.release(); }
+
+  bool operator!() const { return !ptr_; }
+
+  bool operator==(void* value) const { return ptr_.get() == value; }
+
+  explicit operator bool() const { return ptr_ != nullptr; }
+
+  void reset(T value, Env* env) {
+    ptr_.reset(value);
+    ptr_.get_deleter() = Deleter(env);
+  }
+
+ private:
+  std::unique_ptr<typename std::remove_pointer<T>::type, Deleter> ptr_;
+};
+
+template <typename T, typename U, typename Env, typename Deleter>
+inline bool operator==(const ScopedRef<T, Env, Deleter>& x,
+                       const ScopedRef<U, Env, Deleter>& y) {
+  return x.get() == y.get();
 }
 
-std::string ToStlString(JNIEnv* env, const jstring& str);
+template <typename T, typename Env, typename Deleter>
+inline bool operator==(const ScopedRef<T, Env, Deleter>& x, std::nullptr_t) {
+  return x.get() == nullptr;
+}
+
+template <typename T, typename Env, typename Deleter>
+inline bool operator==(std::nullptr_t, const ScopedRef<T, Env, Deleter>& x) {
+  return nullptr == x.get();
+}
+
+template <typename T, typename U, typename Env, typename Deleter>
+inline bool operator!=(const ScopedRef<T, Env, Deleter>& x,
+                       const ScopedRef<U, Env, Deleter>& y) {
+  return x.get() != y.get();
+}
+
+template <typename T, typename Env, typename Deleter>
+inline bool operator!=(const ScopedRef<T, Env, Deleter>& x, std::nullptr_t) {
+  return x.get() != nullptr;
+}
+
+template <typename T, typename Env, typename Deleter>
+inline bool operator!=(std::nullptr_t, const ScopedRef<T, Env, Deleter>& x) {
+  return nullptr != x.get();
+}
+
+template <typename T, typename U, typename Env, typename Deleter>
+inline bool operator<(const ScopedRef<T, Env, Deleter>& x,
+                      const ScopedRef<U, Env, Deleter>& y) {
+  return x.get() < y.get();
+}
+
+template <typename T, typename U, typename Env, typename Deleter>
+inline bool operator>(const ScopedRef<T, Env, Deleter>& x,
+                      const ScopedRef<U, Env, Deleter>& y) {
+  return x.get() > y.get();
+}
+
+// A smart pointer that deletes a JNI global reference when it goes out
+// of scope. Usage is:
+// ScopedGlobalRef<jobject> scoped_global(env->JniFunction(), jvm);
+template <typename T>
+using ScopedGlobalRef = ScopedRef<T, JavaVM, GlobalRefDeleter>;
+
+// Ditto, but usage is:
+// ScopedLocalRef<jobject> scoped_local(env->JniFunction(), env);
+template <typename T>
+using ScopedLocalRef = ScopedRef<T, JNIEnv, LocalRefDeleter>;
+
+// A helper to create global references.
+template <typename T>
+ScopedGlobalRef<T> MakeGlobalRef(T object, JNIEnv* env, JavaVM* jvm) {
+  const jobject global_object = env->NewGlobalRef(object);
+  return ScopedGlobalRef<T>(reinterpret_cast<T>(global_object), jvm);
+}
 
 }  // namespace libtextclassifier3
 

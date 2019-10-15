@@ -17,7 +17,7 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_STRINGS_STRINGPIECE_H_
 #define LIBTEXTCLASSIFIER_UTILS_STRINGS_STRINGPIECE_H_
 
-#include <stddef.h>
+#include <cstddef>
 #include <string>
 
 #include "utils/base/logging.h"
@@ -29,23 +29,23 @@ class StringPiece {
  public:
   StringPiece() : StringPiece(nullptr, 0) {}
 
-  StringPiece(const char *str)  // NOLINT(runtime/explicit)
+  StringPiece(const char* str)  // NOLINT(runtime/explicit)
       : start_(str), size_(str == nullptr ? 0 : strlen(str)) {}
 
-  StringPiece(const char *start, size_t size) : start_(start), size_(size) {}
+  StringPiece(const char* start, size_t size) : start_(start), size_(size) {}
 
   // Intentionally no "explicit" keyword: in function calls, we want strings to
   // be converted to StringPiece implicitly.
-  StringPiece(const std::string &s)  // NOLINT(runtime/explicit)
+  StringPiece(const std::string& s)  // NOLINT(runtime/explicit)
       : StringPiece(s.data(), s.size()) {}
 
-  StringPiece(const std::string &s, int offset, int len)
+  StringPiece(const std::string& s, int offset, int len)
       : StringPiece(s.data() + offset, len) {}
 
   char operator[](size_t i) const { return start_[i]; }
 
   // Returns start address of underlying data.
-  const char *data() const { return start_; }
+  const char* data() const { return start_; }
 
   // Returns number of bytes of underlying data.
   size_t size() const { return size_; }
@@ -83,7 +83,7 @@ class StringPiece {
   }
 
  private:
-  const char *start_;  // Not owned.
+  const char* start_;  // Not owned.
   size_t size_;
 };
 
@@ -95,12 +95,18 @@ inline bool StartsWith(StringPiece text, StringPiece prefix) {
   return text.StartsWith(prefix);
 }
 
-inline bool ConsumePrefix(StringPiece *text, StringPiece prefix) {
+inline bool ConsumePrefix(StringPiece* text, StringPiece prefix) {
   if (!text->StartsWith(prefix)) {
     return false;
   }
   text->RemovePrefix(prefix.size());
   return true;
+}
+
+inline logging::LoggingStringStream& operator<<(
+    logging::LoggingStringStream& stream, StringPiece message) {
+  stream.message.append(message.data(), message.size());
+  return stream;
 }
 
 }  // namespace libtextclassifier3

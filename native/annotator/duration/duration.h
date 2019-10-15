@@ -26,6 +26,7 @@
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/utf8/unicodetext.h"
+#include "utils/utf8/unilib.h"
 
 namespace libtextclassifier3 {
 
@@ -46,12 +47,14 @@ enum class DurationUnit {
 
 // Prepares the mapping between token values and duration unit types.
 std::unordered_map<std::string, internal::DurationUnit>
-BuildTokenToDurationUnitMapping(const DurationAnnotatorOptions* options);
+BuildTokenToDurationUnitMapping(const DurationAnnotatorOptions* options,
+                                const UniLib* unilib);
 
 // Creates a set of strings from a flatbuffer string vector.
 std::unordered_set<std::string> BuildStringSet(
     const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*
-        strings);
+        strings,
+    const UniLib* unilib);
 
 // Creates a set of ints from a flatbuffer int vector.
 std::unordered_set<int32> BuildInt32Set(const flatbuffers::Vector<int32>* ints);
@@ -62,15 +65,17 @@ std::unordered_set<int32> BuildInt32Set(const flatbuffers::Vector<int32>* ints);
 class DurationAnnotator {
  public:
   explicit DurationAnnotator(const DurationAnnotatorOptions* options,
-                             const FeatureProcessor* feature_processor)
+                             const FeatureProcessor* feature_processor,
+                             const UniLib* unilib)
       : options_(options),
         feature_processor_(feature_processor),
+        unilib_(unilib),
         token_value_to_duration_unit_(
-            internal::BuildTokenToDurationUnitMapping(options)),
+            internal::BuildTokenToDurationUnitMapping(options, unilib)),
         filler_expressions_(
-            internal::BuildStringSet(options->filler_expressions())),
+            internal::BuildStringSet(options->filler_expressions(), unilib)),
         half_expressions_(
-            internal::BuildStringSet(options->half_expressions())),
+            internal::BuildStringSet(options->half_expressions(), unilib)),
         sub_token_separator_codepoints_(internal::BuildInt32Set(
             options->sub_token_separator_codepoints())) {}
 
@@ -125,6 +130,7 @@ class DurationAnnotator {
 
   const DurationAnnotatorOptions* options_;
   const FeatureProcessor* feature_processor_;
+  const UniLib* unilib_;
   const std::unordered_map<std::string, internal::DurationUnit>
       token_value_to_duration_unit_;
   const std::unordered_set<std::string> filler_expressions_;

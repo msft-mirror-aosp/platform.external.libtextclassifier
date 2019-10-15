@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,17 +18,13 @@ package com.android.textclassifier.ulp;
 
 import android.content.Context;
 import android.view.textclassifier.TextClassifierEvent;
-
 import androidx.collection.ArrayMap;
-
 import com.android.textclassifier.TextClassificationConstants;
 import com.android.textclassifier.ulp.database.LanguageProfileDatabase;
 import com.android.textclassifier.ulp.database.LanguageSignalInfo;
 import com.android.textclassifier.ulp.kmeans.KMeans;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,127 +41,126 @@ import java.util.concurrent.TimeUnit;
 // STOPSHIP: Review the entire ULP package before shipping it.
 final class KmeansLanguageProficiencyAnalyzer implements LanguageProficiencyAnalyzer {
 
-    private static final long CAN_UNDERSTAND_RESULT_CACHE_EXPIRATION_TIME =
-            TimeUnit.HOURS.toMillis(6);
+  private static final long CAN_UNDERSTAND_RESULT_CACHE_EXPIRATION_TIME =
+      TimeUnit.HOURS.toMillis(6);
 
-    private final TextClassificationConstants mSettings;
-    private final LanguageProfileDatabase mDatabase;
-    private final KMeans mKmeans;
-    private final SystemLanguagesProvider mSystemLanguagesProvider;
+  private final TextClassificationConstants settings;
+  private final LanguageProfileDatabase database;
+  private final KMeans kmeans;
+  private final SystemLanguagesProvider systemLanguagesProvider;
 
-    private Map<String, Float> mCanUnderstandResultCache;
-    private long mCanUnderstandResultCacheTime;
+  private Map<String, Float> canUnderstandResultCache;
+  private long canUnderstandResultCacheTime;
 
-    KmeansLanguageProficiencyAnalyzer(
-            Context context,
-            TextClassificationConstants settings,
-            SystemLanguagesProvider systemLanguagesProvider) {
-        this(settings, LanguageProfileDatabase.getInstance(context), systemLanguagesProvider);
+  KmeansLanguageProficiencyAnalyzer(
+      Context context,
+      TextClassificationConstants settings,
+      SystemLanguagesProvider systemLanguagesProvider) {
+    this(settings, LanguageProfileDatabase.getInstance(context), systemLanguagesProvider);
+  }
+
+  @VisibleForTesting
+  KmeansLanguageProficiencyAnalyzer(
+      TextClassificationConstants settings,
+      LanguageProfileDatabase languageProfileDatabase,
+      SystemLanguagesProvider systemLanguagesProvider) {
+    this.settings = Preconditions.checkNotNull(settings);
+    database = Preconditions.checkNotNull(languageProfileDatabase);
+    kmeans = new KMeans();
+    this.systemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
+    canUnderstandResultCache = new ArrayMap<>();
+  }
+
+  @Override
+  public synchronized float canUnderstand(String languageTag) {
+    if (canUnderstandResultCache.isEmpty()
+        || (System.currentTimeMillis() - canUnderstandResultCacheTime)
+            >= CAN_UNDERSTAND_RESULT_CACHE_EXPIRATION_TIME) {
+      canUnderstandResultCache = createCanUnderstandResultCache();
+      canUnderstandResultCacheTime = System.currentTimeMillis();
     }
+    return canUnderstandResultCache.getOrDefault(languageTag, 0f);
+  }
 
-    @VisibleForTesting
-    KmeansLanguageProficiencyAnalyzer(
-            TextClassificationConstants settings,
-            LanguageProfileDatabase languageProfileDatabase,
-            SystemLanguagesProvider systemLanguagesProvider) {
-        mSettings = Preconditions.checkNotNull(settings);
-        mDatabase = Preconditions.checkNotNull(languageProfileDatabase);
-        mKmeans = new KMeans();
-        mSystemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
-        mCanUnderstandResultCache = new ArrayMap<>();
+  private Map<String, Float> createCanUnderstandResultCache() {
+    Map<String, Float> result = new ArrayMap<>();
+    ArrayMap<String, Integer> languageCounts = new ArrayMap<>();
+    List<String> systemLanguageTags = systemLanguagesProvider.getSystemLanguageTags();
+    List<LanguageSignalInfo> languageSignalInfos =
+        database.languageInfoDao().getBySource(LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS);
+    // Applies system languages to bootstrap the model according to Zipf's Law.
+    // Zipf’s Law states that the ith most common language should be proportional to 1/i.
+    for (int i = 0; i < systemLanguageTags.size(); i++) {
+      String languageTag = systemLanguageTags.get(i);
+      languageCounts.put(
+          languageTag, settings.getLanguageProficiencyBootstrappingCount() / (i + 1));
     }
-
-    @Override
-    public synchronized float canUnderstand(String languageTag) {
-        if (mCanUnderstandResultCache.isEmpty()
-                || (System.currentTimeMillis() - mCanUnderstandResultCacheTime)
-                        >= CAN_UNDERSTAND_RESULT_CACHE_EXPIRATION_TIME) {
-            mCanUnderstandResultCache = createCanUnderstandResultCache();
-            mCanUnderstandResultCacheTime = System.currentTimeMillis();
-        }
-        return mCanUnderstandResultCache.getOrDefault(languageTag, 0f);
+    // Adds message counts of different languages into the corresponding entry in the map
+    for (LanguageSignalInfo info : languageSignalInfos) {
+      String languageTag = info.getLanguageTag();
+      int count = info.getCount();
+      languageCounts.put(languageTag, languageCounts.getOrDefault(languageTag, 0) + count);
     }
-
-    private Map<String, Float> createCanUnderstandResultCache() {
-        Map<String, Float> result = new ArrayMap<>();
-        ArrayMap<String, Integer> languageCounts = new ArrayMap<>();
-        List<String> systemLanguageTags = mSystemLanguagesProvider.getSystemLanguageTags();
-        List<LanguageSignalInfo> languageSignalInfos =
-                mDatabase
-                        .languageInfoDao()
-                        .getBySource(LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS);
-        // Applies system languages to bootstrap the model according to Zipf's Law.
-        // Zipf’s Law states that the ith most common language should be proportional to 1/i.
-        for (int i = 0; i < systemLanguageTags.size(); i++) {
-            String languageTag = systemLanguageTags.get(i);
-            languageCounts.put(
-                    languageTag, mSettings.getLanguageProficiencyBootstrappingCount() / (i + 1));
-        }
-        // Adds message counts of different languages into the corresponding entry in the map
-        for (LanguageSignalInfo info : languageSignalInfos) {
-            String languageTag = info.getLanguageTag();
-            int count = info.getCount();
-            languageCounts.put(languageTag, languageCounts.getOrDefault(languageTag, 0) + count);
-        }
-        // Calculates confidence scores
-        if (languageCounts.size() == 1) {
-            result.put(languageCounts.keyAt(0), 1f);
-            return result;
-        }
-        if (languageCounts.size() == 2) {
-            return evaluateTwoLanguageCounts(languageCounts);
-        }
-        // Applies K-Means to cluster data points
-        int size = languageCounts.size();
-        float[][] inputData = new float[size][1];
-        for (int i = 0; i < size; i++) {
-            inputData[i][0] = languageCounts.valueAt(i);
-        }
-        List<KMeans.Mean> means = mKmeans.predict(/* k= */ 2, inputData);
-        List<Integer> countsInMaxCluster = getCountsWithinFarthestCluster(means);
-        for (int i = 0; i < languageCounts.size(); i++) {
-            float score = countsInMaxCluster.contains(languageCounts.valueAt(i)) ? 1f : 0f;
-            result.put(languageCounts.keyAt(i), score);
-        }
-        return result;
+    // Calculates confidence scores
+    if (languageCounts.size() == 1) {
+      result.put(languageCounts.keyAt(0), 1f);
+      return result;
     }
-
-    @Override
-    public void onTextClassifierEvent(TextClassifierEvent event) {}
-
-    @Override
-    public boolean shouldShowTranslation(String languageCode) {
-        return canUnderstand(languageCode) >= mSettings.getTranslateActionThreshold();
+    if (languageCounts.size() == 2) {
+      return evaluateTwoLanguageCounts(languageCounts);
     }
-
-    private Map<String, Float> evaluateTwoLanguageCounts(ArrayMap<String, Integer> languageCounts) {
-        Map<String, Float> result = new ArrayMap<>();
-        int countOne = languageCounts.valueAt(0);
-        String languageTagOne = languageCounts.keyAt(0);
-        int countTwo = languageCounts.valueAt(1);
-        String languageTagTwo = languageCounts.keyAt(1);
-        if (countOne >= countTwo) {
-            result.put(languageTagOne, 1f);
-            result.put(languageTagTwo, countTwo / (float) countOne);
-        } else {
-            result.put(languageTagTwo, 1f);
-            result.put(languageTagOne, countOne / (float) countTwo);
-        }
-        return result;
+    // Applies K-Means to cluster data points
+    int size = languageCounts.size();
+    float[][] inputData = new float[size][1];
+    for (int i = 0; i < size; i++) {
+      inputData[i][0] = languageCounts.valueAt(i);
     }
-
-    private List<Integer> getCountsWithinFarthestCluster(List<KMeans.Mean> means) {
-        List<Integer> result = new ArrayList<>();
-        KMeans.Mean farthestMean = means.get(0);
-        for (int i = 1; i < means.size(); i++) {
-            KMeans.Mean curMean = means.get(i);
-            if (curMean.getCentroid()[0] > farthestMean.getCentroid()[0]) {
-                farthestMean = curMean;
-            }
-        }
-        for (float[] item : farthestMean.getItems()) {
-            result.add((int) item[0]);
-        }
-        return result;
+    List<KMeans.Mean> means = kmeans.predict(/* k= */ 2, inputData);
+    List<Integer> countsInMaxCluster = getCountsWithinFarthestCluster(means);
+    for (int i = 0; i < languageCounts.size(); i++) {
+      float score = countsInMaxCluster.contains(languageCounts.valueAt(i)) ? 1f : 0f;
+      result.put(languageCounts.keyAt(i), score);
     }
+    return result;
+  }
+
+  @Override
+  public void onTextClassifierEvent(TextClassifierEvent event) {}
+
+  @Override
+  public boolean shouldShowTranslation(String languageCode) {
+    return canUnderstand(languageCode) >= settings.getTranslateActionThreshold();
+  }
+
+  private static Map<String, Float> evaluateTwoLanguageCounts(
+      ArrayMap<String, Integer> languageCounts) {
+    Map<String, Float> result = new ArrayMap<>();
+    int countOne = languageCounts.valueAt(0);
+    String languageTagOne = languageCounts.keyAt(0);
+    int countTwo = languageCounts.valueAt(1);
+    String languageTagTwo = languageCounts.keyAt(1);
+    if (countOne >= countTwo) {
+      result.put(languageTagOne, 1f);
+      result.put(languageTagTwo, countTwo / (float) countOne);
+    } else {
+      result.put(languageTagTwo, 1f);
+      result.put(languageTagOne, countOne / (float) countTwo);
+    }
+    return result;
+  }
+
+  private static List<Integer> getCountsWithinFarthestCluster(List<KMeans.Mean> means) {
+    List<Integer> result = new ArrayList<>();
+    KMeans.Mean farthestMean = means.get(0);
+    for (int i = 1; i < means.size(); i++) {
+      KMeans.Mean curMean = means.get(i);
+      if (curMean.getCentroid()[0] > farthestMean.getCentroid()[0]) {
+        farthestMean = curMean;
+      }
+    }
+    for (float[] item : farthestMean.getItems()) {
+      result.add((int) item[0]);
+    }
+    return result;
+  }
 }

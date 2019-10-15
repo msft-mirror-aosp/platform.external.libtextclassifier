@@ -16,13 +16,30 @@
 
 #include "utils/java/jni-base.h"
 
+#include "utils/base/status.h"
 #include "utils/java/string_utils.h"
 
 namespace libtextclassifier3 {
 
-std::string ToStlString(JNIEnv* env, const jstring& str) {
+bool EnsureLocalCapacity(JNIEnv* env, int capacity) {
+  return env->EnsureLocalCapacity(capacity) == JNI_OK;
+}
+
+bool JniExceptionCheckAndClear(JNIEnv* env) {
+  TC3_CHECK(env != nullptr);
+  const bool result = env->ExceptionCheck();
+  if (result) {
+    env->ExceptionDescribe();
+    env->ExceptionClear();
+  }
+  return result;
+}
+
+StatusOr<std::string> ToStlString(JNIEnv* env, const jstring& str) {
   std::string result;
-  JStringToUtf8String(env, str, &result);
+  if (!JStringToUtf8String(env, str, &result)) {
+    return {Status::UNKNOWN};
+  }
   return result;
 }
 

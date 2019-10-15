@@ -141,6 +141,12 @@ class LangIdImpl {
     LightSentence sentence;
     tokenizer_.Tokenize(text, &sentence);
 
+    // Test input size here, after pre-processing removed irrelevant chars.
+    if (IsTooShort(sentence)) {
+      result->predictions.emplace_back(LangId::kUnknownLanguageCode, 1);
+      return;
+    }
+
     // Extract features from the tokenized text.
     std::vector<FeatureVector> features =
         lang_id_brain_interface_.GetFeaturesNoCaching(&sentence);
@@ -205,6 +211,8 @@ class LangIdImpl {
   bool Setup(TaskContext *context) {
     tokenizer_.Setup(context);
     if (!lang_id_brain_interface_.SetupForProcessing(context)) return false;
+
+    min_text_size_in_bytes_ = context->Get("min_text_size_in_bytes", 0);
     default_threshold_ =
         context->Get("reliability_thresh", kDefaultConfidenceThreshold);
 
@@ -243,6 +251,16 @@ class LangIdImpl {
     }
   }
 
+  bool IsTooShort(const LightSentence &sentence) const {
+    int text_size = 0;
+    for (const std::string &token : sentence) {
+      // Each token has the form ^...$: we subtract 2 because we want to count
+      // only the real text, not the chars added by us.
+      text_size += token.size() - 2;
+    }
+    return text_size < min_text_size_in_bytes_;
+  }
+
   std::unique_ptr<ModelProvider> model_provider_;
 
   TokenizerForLangId tokenizer_;
@@ -255,6 +273,11 @@ class LangIdImpl {
 
   // True if this object is ready to perform language predictions.
   bool valid_ = false;
+
+  // The model returns LangId::kUnknownLanguageCode for input text that has
+  // fewer than min_text_size_in_bytes_ bytes (excluding ASCII whitespaces,
+  // digits, and punctuation).
+  int min_text_size_in_bytes_ = 0;
 
   // Only predictions with a probability (confidence) above this threshold are
   // reported.  Otherwise, we report LangId::kUnknownLanguageCode.

@@ -41,6 +41,7 @@ class CalendarLibTempl {
                           int64 reference_time_ms_utc,
                           const std::string& reference_timezone,
                           const std::string& reference_locale,
+                          bool prefer_future_for_unspecified_date,
                           TCalendar* calendar,
                           DatetimeGranularity* granularity) const;
 
@@ -49,7 +50,7 @@ class CalendarLibTempl {
  private:
   // Adjusts the calendar's time instant according to a relative date reference
   // in the parsed data.
-  bool ApplyRelationField(const DatetimeParsedData& parse_data,
+  bool ApplyRelationField(const DatetimeComponent& relative_date_time_component,
                           TCalendar* calendar) const;
 
   // Round the time instant's precision down to the given granularity.
@@ -68,11 +69,30 @@ class CalendarLibTempl {
                         bool allow_today, TCalendar* calendar) const;
 };
 
+inline bool HasOnlyTimeComponents(const DatetimeParsedData& parse_data) {
+  std::vector<DatetimeComponent> components;
+  parse_data.GetDatetimeComponents(&components);
+
+  for (const DatetimeComponent& component : components) {
+    if (!(component.component_type == DatetimeComponent::ComponentType::HOUR ||
+          component.component_type ==
+              DatetimeComponent::ComponentType::MINUTE ||
+          component.component_type ==
+              DatetimeComponent::ComponentType::SECOND ||
+          component.component_type ==
+              DatetimeComponent::ComponentType::MERIDIEM)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 template <class TCalendar>
 bool CalendarLibTempl<TCalendar>::InterpretParseData(
     const DatetimeParsedData& parse_data, int64 reference_time_ms_utc,
     const std::string& reference_timezone, const std::string& reference_locale,
-    TCalendar* calendar, DatetimeGranularity* granularity) const {
+    bool prefer_future_for_unspecified_date, TCalendar* calendar,
+    DatetimeGranularity* granularity) const {
   TC3_CALENDAR_CHECK(calendar->Initialize(reference_timezone, reference_locale,
                                           reference_time_ms_utc))
 
@@ -98,8 +118,9 @@ bool CalendarLibTempl<TCalendar>::InterpretParseData(
   std::vector<DatetimeComponent> relative_components;
   parse_data.GetRelativeDatetimeComponents(&relative_components);
   if (!relative_components.empty()) {
-    TC3_CALENDAR_CHECK(ApplyRelationField(parse_data, calendar));
+    // Currently only one relative date time component is possible.
     const DatetimeComponent& relative_component = relative_components.back();
+    TC3_CALENDAR_CHECK(ApplyRelationField(relative_component, calendar));
     should_round_to_granularity = relative_component.ShouldRoundToGranularity();
   } else {
     // By default, the parsed time is interpreted to be on the reference day.
@@ -162,22 +183,22 @@ bool CalendarLibTempl<TCalendar>::InterpretParseData(
   if (should_round_to_granularity) {
     TC3_CALENDAR_CHECK(RoundToGranularity(*granularity, calendar))
   }
+
+  int64 calendar_millis;
+  TC3_CALENDAR_CHECK(calendar->GetTimeInMillis(&calendar_millis))
+  if (prefer_future_for_unspecified_date &&
+      calendar_millis < reference_time_ms_utc &&
+      HasOnlyTimeComponents(parse_data)) {
+    calendar->AddDayOfMonth(1);
+  }
+
   return true;
 }
 
 template <class TCalendar>
 bool CalendarLibTempl<TCalendar>::ApplyRelationField(
-    const DatetimeParsedData& parse_data, TCalendar* calendar) const {
-  std::vector<DatetimeComponent> relative_date_time_components;
-  parse_data.GetRelativeDatetimeComponents(&relative_date_time_components);
-  if (relative_date_time_components.empty()) {
-    // There is no relative field set in the parsed data.
-    return false;
-  }
-  // Current only one relative date time component is possible.
-  DatetimeComponent relative_date_time_component =
-      relative_date_time_components.back();
-
+    const DatetimeComponent& relative_date_time_component,
+    TCalendar* calendar) const {
   switch (relative_date_time_component.relative_qualifier) {
     case DatetimeComponent::RelativeQualifier::UNSPECIFIED:
       TC3_LOG(ERROR) << "UNSPECIFIED RelationType.";

@@ -99,6 +99,7 @@ cc_defaults {
         "libtextclassifier_fbgen_lang_id_embedded_network",
         "libtextclassifier_fbgen_lang_id_model",
         "libtextclassifier_fbgen_actions-entity-data",
+        "libtextclassifier_fbgen_normalization",
     ],
 
     header_libs: [
@@ -218,6 +219,13 @@ genrule {
     name: "libtextclassifier_fbgen_actions-entity-data",
     srcs: ["actions/actions-entity-data.fbs"],
     out: ["actions/actions-entity-data_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_normalization",
+    srcs: ["utils/normalization.fbs"],
+    out: ["utils/normalization_generated.h"],
     defaults: ["fbgen"],
 }
 

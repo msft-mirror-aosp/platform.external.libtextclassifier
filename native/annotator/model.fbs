@@ -17,6 +17,7 @@
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
 include "utils/intents/intent-config.fbs";
+include "utils/normalization.fbs";
 include "utils/resources.fbs";
 include "utils/tokenizer.fbs";
 include "utils/zlib/buffer.fbs";
@@ -209,6 +210,9 @@ table CapturingGroup {
   // If set, the serialized entity data will be merged with the
   // classification result entity data.
   serialized_entity_data:string (shared);
+
+  // If set, normalization to apply before text is used in entity data.
+  normalization_options:NormalizationOptions;
 }
 
 // List of regular expression matchers to check.
@@ -329,6 +333,9 @@ table DatetimeModel {
 
   // If true, will compile the regexes only on first use.
   lazy_regex_compilation:bool = true;
+
+  // If true, will give only future dates (when the day is not specified).
+  prefer_future_for_unspecified_date:bool = false;
 }
 
 namespace libtextclassifier3.DatetimeModelLibrary_;
@@ -363,6 +370,9 @@ table ModelTriggeringOptions {
 
   // Priority score assigned to the "other" class from ML model.
   other_collection_priority_score:float = -1000;
+
+  // Priority score assigned to knowledge engine annotations.
+  knowledge_priority_score:float = 0;
 }
 
 // Options controlling the output of the classifier.
@@ -675,6 +685,10 @@ table NumberAnnotatorOptions {
 
   // Priority score for the percentage annotation.
   percentage_priority_score:float = 1;
+
+  // Float number priority score used for conflict resolution with the other
+  // models.
+  float_number_priority_score:float = 0;
 }
 
 // DurationAnnotator is so far tailored for English only.

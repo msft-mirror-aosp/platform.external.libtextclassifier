@@ -19,11 +19,13 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_TFLITE_MODEL_EXECUTOR_H_
 #define LIBTEXTCLASSIFIER_UTILS_TFLITE_MODEL_EXECUTOR_H_
 
+#include <cstdint>
 #include <memory>
 
 #include "utils/base/logging.h"
 #include "utils/tensor-view.h"
 #include "tensorflow/lite/interpreter.h"
+#include "tensorflow/lite/kernels/internal/tensor_ctypes.h"
 #include "tensorflow/lite/kernels/register.h"
 #include "tensorflow/lite/model.h"
 #include "tensorflow/lite/op_resolver.h"
@@ -85,25 +87,25 @@ class TfLiteModelExecutor {
         interpreter->tensor(interpreter->inputs()[input_index]);
     switch (input_tensor->type) {
       case kTfLiteFloat32:
-        *(input_tensor->data.f) = input_value;
+        *tflite::GetTensorData<float>(input_tensor) = input_value;
         break;
       case kTfLiteInt32:
-        *(input_tensor->data.i32) = input_value;
+        *tflite::GetTensorData<int32_t>(input_tensor) = input_value;
         break;
       case kTfLiteUInt8:
-        *(input_tensor->data.uint8) = input_value;
+        *tflite::GetTensorData<uint8_t>(input_tensor) = input_value;
         break;
       case kTfLiteInt64:
-        *(input_tensor->data.i64) = input_value;
+        *tflite::GetTensorData<int64_t>(input_tensor) = input_value;
         break;
       case kTfLiteBool:
-        *(input_tensor->data.b) = input_value;
+        *tflite::GetTensorData<bool>(input_tensor) = input_value;
         break;
       case kTfLiteInt16:
-        *(input_tensor->data.i16) = input_value;
+        *tflite::GetTensorData<int16_t>(input_tensor) = input_value;
         break;
       case kTfLiteInt8:
-        *(input_tensor->data.int8) = input_value;
+        *tflite::GetTensorData<int8_t>(input_tensor) = input_value;
         break;
       default:
         break;

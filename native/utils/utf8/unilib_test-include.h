@@ -17,25 +17,20 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_TEST_INCLUDE_H_
 #define LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_TEST_INCLUDE_H_
 
-// Include the version of UniLib depending on the macro.
+#include "utils/utf8/unilib.h"
+#include "gtest/gtest.h"
+
 #if defined TC3_UNILIB_ICU
-#include "utils/utf8/unilib-icu.h"
 #define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()
 #elif defined TC3_UNILIB_JAVAICU
 #include <jni.h>
 extern JNIEnv* g_jenv;
 #define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR(JniCache::Create(g_jenv))
-#include "utils/utf8/unilib-javaicu.h"
 #elif defined TC3_UNILIB_APPLE
-#include "utils/utf8/unilib-apple.h"
 #define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()
 #elif defined TC3_UNILIB_DUMMY
-#include "utils/utf8/unilib-dummy.h"
 #define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()
 #endif
-
-#include "utils/base/logging.h"
-#include "gtest/gtest.h"
 
 namespace libtextclassifier3 {
 namespace test_internal {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@ package com.android.textclassifier.ulp.database;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
-import androidx.core.util.Preconditions;
 import androidx.room.ColumnInfo;
 import androidx.room.Entity;
-
+import com.google.common.base.Preconditions;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -32,77 +31,78 @@ import java.lang.annotation.RetentionPolicy;
  * specified language.
  */
 @Entity(
-        tableName = "language_signal_infos",
-        primaryKeys = {"languageTag", "source"})
+    tableName = "language_signal_infos",
+    primaryKeys = {"languageTag", "source"})
 public final class LanguageSignalInfo {
 
-    @Retention(RetentionPolicy.SOURCE)
-    @IntDef({SUGGEST_CONVERSATION_ACTIONS, CLASSIFY_TEXT})
-    public @interface Source {}
+  /** The source of the signal */
+  @Retention(RetentionPolicy.SOURCE)
+  @IntDef({SUGGEST_CONVERSATION_ACTIONS, CLASSIFY_TEXT})
+  public @interface Source {}
 
-    public static final int SUGGEST_CONVERSATION_ACTIONS = 0;
-    public static final int CLASSIFY_TEXT = 1;
+  public static final int SUGGEST_CONVERSATION_ACTIONS = 0;
+  public static final int CLASSIFY_TEXT = 1;
 
-    @NonNull
-    @ColumnInfo(name = "languageTag")
-    private String mLanguageTag;
+  @NonNull
+  @ColumnInfo(name = "languageTag")
+  private final String languageTag;
 
-    @ColumnInfo(name = "source")
-    private int mSource;
+  @ColumnInfo(name = "source")
+  private final int source;
 
-    @ColumnInfo(name = "count")
-    private int mCount;
+  @ColumnInfo(name = "count")
+  private final int count;
 
-    public LanguageSignalInfo(String languageTag, @Source int source, int count) {
-        mLanguageTag = Preconditions.checkNotNull(languageTag);
-        mSource = source;
-        mCount = count;
+  public LanguageSignalInfo(String languageTag, @Source int source, int count) {
+    this.languageTag = Preconditions.checkNotNull(languageTag);
+    this.source = source;
+    this.count = count;
+  }
+
+  public String getLanguageTag() {
+    return languageTag;
+  }
+
+  @Source
+  public int getSource() {
+    return source;
+  }
+
+  public int getCount() {
+    return count;
+  }
+
+  @Override
+  public String toString() {
+    String src = "OTHER";
+    if (source == SUGGEST_CONVERSATION_ACTIONS) {
+      src = "SUGGEST_CONVERSATION_ACTIONS";
+    } else if (source == CLASSIFY_TEXT) {
+      src = "CLASSIFY_TEXT";
     }
 
-    public String getLanguageTag() {
-        return mLanguageTag;
-    }
+    return languageTag + "_" + src + ": " + count;
+  }
 
-    @Source
-    public int getSource() {
-        return mSource;
-    }
+  @Override
+  public int hashCode() {
+    int result = languageTag.hashCode();
+    result = 31 * result + Integer.hashCode(source);
+    result = 31 * result + Integer.hashCode(count);
+    return result;
+  }
 
-    public int getCount() {
-        return mCount;
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj) {
+      return true;
     }
-
-    @Override
-    public String toString() {
-        String src = "OTHER";
-        if (mSource == SUGGEST_CONVERSATION_ACTIONS) {
-            src = "SUGGEST_CONVERSATION_ACTIONS";
-        } else if (mSource == CLASSIFY_TEXT) {
-            src = "CLASSIFY_TEXT";
-        }
-
-        return mLanguageTag + "_" + src + ": " + mCount;
+    if (obj == null || obj.getClass() != getClass()) {
+      return false;
     }
-
-    @Override
-    public int hashCode() {
-        int result = mLanguageTag.hashCode();
-        result = 31 * result + Integer.hashCode(mSource);
-        result = 31 * result + Integer.hashCode(mCount);
-        return result;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        LanguageSignalInfo info = (LanguageSignalInfo) obj;
-        return mLanguageTag.equals(info.getLanguageTag())
-                && mSource == info.getSource()
-                && mCount == info.getCount();
-    }
+    LanguageSignalInfo info = (LanguageSignalInfo) obj;
+    return languageTag.equals(info.getLanguageTag())
+        && source == info.getSource()
+        && count == info.getCount();
+  }
 }

@@ -18,14 +18,15 @@
 #define LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_JAVAICU_H_
 
 #include <jni.h>
+
 #include <memory>
 #include <string>
 
 #include "annotator/types.h"
 #include "utils/base/integral_types.h"
 #include "utils/calendar/calendar-common.h"
+#include "utils/java/jni-base.h"
 #include "utils/java/jni-cache.h"
-#include "utils/java/scoped_local_ref.h"
 
 namespace libtextclassifier3 {
 
@@ -71,12 +72,14 @@ class CalendarLib {
                           int64 reference_time_ms_utc,
                           const std::string& reference_timezone,
                           const std::string& reference_locale,
+                          bool prefer_future_for_unspecified_date,
                           int64* interpreted_time_ms_utc,
                           DatetimeGranularity* granularity) const {
     Calendar calendar(jni_cache_.get());
     if (!impl_.InterpretParseData(parse_data, reference_time_ms_utc,
                                   reference_timezone, reference_locale,
-                                  &calendar, granularity)) {
+                                  prefer_future_for_unspecified_date, &calendar,
+                                  granularity)) {
       return false;
     }
     return calendar.GetTimeInMillis(interpreted_time_ms_utc);

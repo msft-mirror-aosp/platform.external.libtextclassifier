@@ -39,7 +39,7 @@ bool JStringToUtf8String(JNIEnv* env, const jstring& jstr,
                          std::string* result) {
   if (jstr == nullptr) {
     *result = std::string();
-    return false;
+    return true;
   }
 
   jclass string_class = env->FindClass("java/lang/String");

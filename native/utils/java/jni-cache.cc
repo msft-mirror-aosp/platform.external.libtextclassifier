@@ -17,6 +17,8 @@
 #include "utils/java/jni-cache.h"
 
 #include "utils/base/logging.h"
+#include "utils/java/jni-base.h"
+#include "utils/java/jni-helper.h"
 
 namespace libtextclassifier3 {
 
@@ -260,43 +262,34 @@ JNIEnv* JniCache::GetEnv() const {
 }
 
 bool JniCache::ExceptionCheckAndClear() const {
-  JNIEnv* env = GetEnv();
-  TC3_CHECK(env != nullptr);
-  const bool result = env->ExceptionCheck();
-  if (result) {
-    env->ExceptionDescribe();
-    env->ExceptionClear();
-  }
-  return result;
+  return JniExceptionCheckAndClear(GetEnv());
 }
 
-ScopedLocalRef<jstring> JniCache::ConvertToJavaString(
+StatusOr<ScopedLocalRef<jstring>> JniCache::ConvertToJavaString(
     const char* utf8_text, const int utf8_text_size_bytes) const {
   // Create java byte array.
   JNIEnv* jenv = GetEnv();
-  const ScopedLocalRef<jbyteArray> text_java_utf8(
-      jenv->NewByteArray(utf8_text_size_bytes), jenv);
-  if (!text_java_utf8) {
-    return nullptr;
-  }
+  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jbyteArray> text_java_utf8,
+                       JniHelper::NewByteArray(jenv, utf8_text_size_bytes));
 
   jenv->SetByteArrayRegion(text_java_utf8.get(), 0, utf8_text_size_bytes,
                            reinterpret_cast<const jbyte*>(utf8_text));
 
   // Create the string with a UTF-8 charset.
-  return ScopedLocalRef<jstring>(
-      reinterpret_cast<jstring>(
-          jenv->NewObject(string_class.get(), string_init_bytes_charset,
-                          text_java_utf8.get(), string_utf8.get())),
-      jenv);
+  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> result,
+                       JniHelper::NewObject<jstring>(
+                           jenv, string_class.get(), string_init_bytes_charset,
+                           text_java_utf8.get(), string_utf8.get()));
+
+  return result;
 }
 
-ScopedLocalRef<jstring> JniCache::ConvertToJavaString(
+StatusOr<ScopedLocalRef<jstring>> JniCache::ConvertToJavaString(
     StringPiece utf8_text) const {
   return ConvertToJavaString(utf8_text.data(), utf8_text.size());
 }
 
-ScopedLocalRef<jstring> JniCache::ConvertToJavaString(
+StatusOr<ScopedLocalRef<jstring>> JniCache::ConvertToJavaString(
     const UnicodeText& text) const {
   return ConvertToJavaString(text.data(), text.size_bytes());
 }

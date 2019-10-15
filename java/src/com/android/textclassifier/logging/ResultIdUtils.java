@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,59 +13,59 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.android.textclassifier.logging;
 //
 
 import android.content.Context;
-
-import androidx.annotation.Nullable;
-import androidx.core.util.Preconditions;
-
+import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.StringJoiner;
+import javax.annotation.Nullable;
 
 /** Provide utils to generate and parse the result id. */
 public final class ResultIdUtils {
-    private static final String LOG_TAG = "ResultIdUtils";
-    private static final String CLASSIFIER_ID = "androidtc";
+  private static final String CLASSIFIER_ID = "androidtc";
 
-    /** Creates a string id that may be used to identify a TextClassifier result. */
-    public static String createId(
-            Context context,
-            String text,
-            int start,
-            int end,
-            int modelVersion,
-            List<Locale> modelLocales) {
-        Preconditions.checkNotNull(text);
-        Preconditions.checkNotNull(context);
-        Preconditions.checkNotNull(modelLocales);
-        final int hash = Objects.hash(text, start, end, context.getPackageName());
-        return createId(modelVersion, modelLocales, hash);
-    }
+  /** Creates a string id that may be used to identify a TextClassifier result. */
+  public static String createId(
+      Context context,
+      String text,
+      int start,
+      int end,
+      int modelVersion,
+      List<Locale> modelLocales) {
+    Preconditions.checkNotNull(text);
+    Preconditions.checkNotNull(context);
+    Preconditions.checkNotNull(modelLocales);
+    final int hash = Objects.hash(text, start, end, context.getPackageName());
+    return createId(modelVersion, modelLocales, hash);
+  }
 
-    /** Creates a string id that may be used to identify a TextClassifier result. */
-    public static String createId(int modelVersion, List<Locale> modelLocales, int hash) {
-        final StringJoiner localesJoiner = new StringJoiner(",");
-        for (Locale locale : modelLocales) {
-            localesJoiner.add(locale.toLanguageTag());
-        }
-        final String modelName =
-                String.format(Locale.US, "%s_v%d", localesJoiner.toString(), modelVersion);
-        return String.format(Locale.US, "%s|%s|%d", CLASSIFIER_ID, modelName, hash);
+  /** Creates a string id that may be used to identify a TextClassifier result. */
+  public static String createId(int modelVersion, List<Locale> modelLocales, int hash) {
+    final StringJoiner localesJoiner = new StringJoiner(",");
+    for (Locale locale : modelLocales) {
+      localesJoiner.add(locale.toLanguageTag());
     }
+    final String modelName =
+        String.format(Locale.US, "%s_v%d", localesJoiner.toString(), modelVersion);
+    return String.format(Locale.US, "%s|%s|%d", CLASSIFIER_ID, modelName, hash);
+  }
 
-    static String getModelName(@Nullable String signature) {
-        if (signature == null) {
-            return "";
-        }
-        final int start = signature.indexOf("|") + 1;
-        final int end = signature.indexOf("|", start);
-        if (start >= 1 && end >= start) {
-            return signature.substring(start, end);
-        }
-        return "";
+  static String getModelName(@Nullable String signature) {
+    if (signature == null) {
+      return "";
     }
+    final int start = signature.indexOf("|") + 1;
+    final int end = signature.indexOf("|", start);
+    if (start >= 1 && end >= start) {
+      return signature.substring(start, end);
+    }
+    return "";
+  }
+
+  private ResultIdUtils() {}
 }

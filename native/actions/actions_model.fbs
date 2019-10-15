@@ -18,6 +18,7 @@ include "annotator/model.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
 include "utils/intents/intent-config.fbs";
+include "utils/normalization.fbs";
 include "utils/resources.fbs";
 include "utils/tokenizer.fbs";
 include "utils/zlib/buffer.fbs";
@@ -304,6 +305,9 @@ table AnnotationMapping {
   // If set, the text of the annotation will be used to set a field in the
   // action entity data.
   entity_field:FlatbufferFieldPath;
+
+  // If set, normalization to apply to the annotation text.
+  normalization_options:NormalizationOptions;
 }
 
 // Configuration for actions based on annotatations.
@@ -383,6 +387,9 @@ table RuleCapturingGroup {
   // If set, the capturing group text will be used to create a text
   // reply.
   text_reply:ActionSuggestionSpec;
+
+  // If set, normalization to apply to the capturing group text.
+  normalization_options:NormalizationOptions;
 }
 
 // The actions to produce upon triggering.

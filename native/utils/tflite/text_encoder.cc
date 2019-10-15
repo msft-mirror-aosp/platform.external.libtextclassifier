@@ -91,7 +91,7 @@ void* Initialize(TfLiteContext* context, const char* buffer, size_t length) {
   const TrieNode* charsmap_trie_nodes = reinterpret_cast<const TrieNode*>(
       config->normalization_charsmap()->Data());
   const int charsmap_trie_nodes_length =
-      config->normalization_charsmap()->Length() / sizeof(TrieNode);
+      config->normalization_charsmap()->size() / sizeof(TrieNode);
   encoder_op->normalizer.reset(new SentencePieceNormalizer(
       DoubleArrayTrie(charsmap_trie_nodes, charsmap_trie_nodes_length),
       StringPiece(config->normalization_charsmap_values()->data(),

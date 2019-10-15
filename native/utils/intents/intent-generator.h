@@ -3,6 +3,7 @@
 #define LIBTEXTCLASSIFIER_UTILS_INTENTS_INTENT_GENERATOR_H_
 
 #include <jni.h>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -13,7 +14,6 @@
 #include "utils/i18n/locale.h"
 #include "utils/intents/intent-config_generated.h"
 #include "utils/java/jni-cache.h"
-#include "utils/java/scoped_local_ref.h"
 #include "utils/optional.h"
 #include "utils/resources.h"
 #include "utils/resources_generated.h"

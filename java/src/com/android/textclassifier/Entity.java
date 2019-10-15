@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,62 +17,65 @@
 package com.android.textclassifier;
 
 import androidx.annotation.FloatRange;
-
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 
 /** A representation of an identified entity with the confidence score */
 public final class Entity implements Comparable<Entity> {
 
-    private final String mEntityType;
-    private float mScore;
+  private final String entityType;
+  private final float score;
 
-    public Entity(String entityType, float score) {
-        mEntityType = Preconditions.checkNotNull(entityType);
-        mScore = score;
-    }
+  public Entity(String entityType, float score) {
+    this.entityType = Preconditions.checkNotNull(entityType);
+    this.score = score;
+  }
 
-    public String getEntityType() {
-        return mEntityType;
-    }
+  public String getEntityType() {
+    return entityType;
+  }
 
-    /**
-     * Returns the confidence score of the entity, which ranged from 0.0 (low confidence) to 1.0
-     * (high confidence).
-     */
-    @FloatRange(from = 0.0, to = 1.0)
-    public Float getScore() {
-        return mScore;
-    }
+  /**
+   * Returns the confidence score of the entity, which ranged from 0.0 (low confidence) to 1.0 (high
+   * confidence).
+   */
+  @FloatRange(from = 0.0, to = 1.0)
+  public Float getScore() {
+    return score;
+  }
 
-    @Override
-    public int hashCode() {
-        return Objects.hashCode(mEntityType, mScore);
-    }
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(entityType, score);
+  }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Entity entity = (Entity) o;
-        return Float.compare(entity.mScore, mScore) == 0
-                && java.util.Objects.equals(mEntityType, entity.mEntityType);
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
     }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    Entity entity = (Entity) o;
+    return Float.compare(entity.score, score) == 0
+        && java.util.Objects.equals(entityType, entity.entityType);
+  }
 
-    @Override
-    public String toString() {
-        return "Entity{" + mEntityType + ": " + mScore + "}";
-    }
+  @Override
+  public String toString() {
+    return "Entity{" + entityType + ": " + score + "}";
+  }
 
-    @Override
-    public int compareTo(Entity entity) {
-        // This method is implemented for sorting Entity. Sort the entities by the confidence score
-        // in descending order firstly. If the scores are the same, then sort them by the entity
-        // type in ascending order.
-        int result = Float.compare(entity.getScore(), mScore);
-        if (result == 0) {
-            return mEntityType.compareTo(entity.getEntityType());
-        }
-        return result;
+  @Override
+  public int compareTo(Entity entity) {
+    // This method is implemented for sorting Entity. Sort the entities by the confidence score
+    // in descending order firstly. If the scores are the same, then sort them by the entity
+    // type in ascending order.
+    int result = Float.compare(entity.getScore(), score);
+    if (result == 0) {
+      return entityType.compareTo(entity.getEntityType());
     }
+    return result;
+  }
 }

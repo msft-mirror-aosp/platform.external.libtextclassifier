@@ -191,7 +191,7 @@ std::unique_ptr<const tflite::FlatBufferModel> TfLiteModelFromBuffer(
   const tflite::Model* model =
       flatbuffers::GetRoot<tflite::Model>(model_spec_buffer->data());
   flatbuffers::Verifier verifier(model_spec_buffer->data(),
-                                 model_spec_buffer->Length());
+                                 model_spec_buffer->size());
   if (!model->Verify(verifier)) {
     return nullptr;
   }

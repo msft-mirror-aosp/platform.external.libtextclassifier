@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,13 @@
 package com.android.textclassifier.ulp;
 
 import android.view.textclassifier.TextClassifierEvent;
-
 import androidx.annotation.FloatRange;
 
 interface LanguageProficiencyAnalyzer {
-    @FloatRange(from = 0.0, to = 1.0)
-    float canUnderstand(String languageCode);
+  @FloatRange(from = 0.0, to = 1.0)
+  float canUnderstand(String languageCode);
 
-    void onTextClassifierEvent(TextClassifierEvent event);
+  void onTextClassifierEvent(TextClassifierEvent event);
 
-    boolean shouldShowTranslation(String languageCode);
+  boolean shouldShowTranslation(String languageCode);
 }

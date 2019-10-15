@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include "utils/flatbuffers.h"
+
 #include <fstream>
 #include <map>
 #include <memory>
 #include <string>
 
-#include "utils/flatbuffers.h"
 #include "utils/flatbuffers_generated.h"
 #include "utils/flatbuffers_test_generated.h"
 #include "gmock/gmock.h"
@@ -305,6 +306,24 @@ TEST(FlatbuffersTest, RepeatedFieldSetThroughReflectionCanBeRead) {
   EXPECT_EQ("test reminder 2", entity_data->reminders[1]->title);
   EXPECT_THAT(entity_data->reminders[1]->notes,
               testing::ElementsAreArray({"note i", "note ii", "note iii"}));
+}
+
+TEST(FlatbuffersTest, ResolvesFieldOffsets) {
+  std::string metadata_buffer = LoadTestMetadata();
+  const reflection::Schema* schema =
+      flatbuffers::GetRoot<reflection::Schema>(metadata_buffer.data());
+  FlatbufferFieldPathT path;
+  path.field.emplace_back(new FlatbufferFieldT);
+  path.field.back()->field_name = "flight_number";
+  path.field.emplace_back(new FlatbufferFieldT);
+  path.field.back()->field_name = "carrier_code";
+
+  EXPECT_TRUE(SwapFieldNamesForOffsetsInPath(schema, &path));
+
+  EXPECT_THAT(path.field[0]->field_name, testing::IsEmpty());
+  EXPECT_EQ(14, path.field[0]->field_offset);
+  EXPECT_THAT(path.field[1]->field_name, testing::IsEmpty());
+  EXPECT_EQ(4, path.field[1]->field_offset);
 }
 
 }  // namespace

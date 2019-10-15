@@ -17,15 +17,19 @@
 #include "lang_id/lang-id_jni.h"
 
 #include <jni.h>
+
 #include <type_traits>
 #include <vector>
 
+#include "lang_id/lang-id-wrapper.h"
 #include "utils/base/logging.h"
-#include "utils/java/scoped_local_ref.h"
+#include "utils/java/jni-helper.h"
 #include "lang_id/fb_model/lang-id-from-fb.h"
 #include "lang_id/lang-id.h"
 
+using libtextclassifier3::JniHelper;
 using libtextclassifier3::ScopedLocalRef;
+using libtextclassifier3::StatusOr;
 using libtextclassifier3::ToStlString;
 using libtextclassifier3::mobile::lang_id::GetLangIdFromFlatbufferFile;
 using libtextclassifier3::mobile::lang_id::GetLangIdFromFlatbufferFileDescriptor;
@@ -33,36 +37,33 @@ using libtextclassifier3::mobile::lang_id::LangId;
 using libtextclassifier3::mobile::lang_id::LangIdResult;
 
 namespace {
-jobjectArray LangIdResultToJObjectArray(JNIEnv* env,
-                                        const LangIdResult& lang_id_result,
-                                        const float significant_threshold) {
-  const ScopedLocalRef<jclass> result_class(
-      env->FindClass(TC3_PACKAGE_PATH TC3_LANG_ID_CLASS_NAME_STR
-                     "$LanguageResult"),
-      env);
-  if (!result_class) {
-    TC3_LOG(ERROR) << "Couldn't find LanguageResult class.";
-    return nullptr;
-  }
 
-  std::vector<std::pair<std::string, float>> predictions;
-  std::copy_if(lang_id_result.predictions.begin(),
-               lang_id_result.predictions.end(),
-               std::back_inserter(predictions),
-               [significant_threshold](std::pair<std::string, float> pair) {
-                 return pair.second >= significant_threshold;
-               });
+StatusOr<ScopedLocalRef<jobjectArray>> LangIdResultToJObjectArray(
+    JNIEnv* env,
+    const std::vector<std::pair<std::string, float>>& lang_id_predictions) {
+  TC3_ASSIGN_OR_RETURN(
+      const ScopedLocalRef<jclass> result_class,
+      JniHelper::FindClass(
+          env, TC3_PACKAGE_PATH TC3_LANG_ID_CLASS_NAME_STR "$LanguageResult"));
 
-  const jmethodID result_class_constructor =
-      env->GetMethodID(result_class.get(), "<init>", "(Ljava/lang/String;F)V");
-  const jobjectArray results =
-      env->NewObjectArray(predictions.size(), result_class.get(), nullptr);
-  for (int i = 0; i < predictions.size(); i++) {
-    ScopedLocalRef<jobject> result(
-        env->NewObject(result_class.get(), result_class_constructor,
-                       env->NewStringUTF(predictions[i].first.c_str()),
-                       static_cast<jfloat>(predictions[i].second)));
-    env->SetObjectArrayElement(results, i, result.get());
+  TC3_ASSIGN_OR_RETURN(const jmethodID result_class_constructor,
+                       JniHelper::GetMethodID(env, result_class.get(), "<init>",
+                                              "(Ljava/lang/String;F)V"));
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jobjectArray> results,
+      JniHelper::NewObjectArray(env, lang_id_predictions.size(),
+                                result_class.get(), nullptr));
+  for (int i = 0; i < lang_id_predictions.size(); i++) {
+    TC3_ASSIGN_OR_RETURN(
+        const ScopedLocalRef<jstring> predicted_language,
+        JniHelper::NewStringUTF(env, lang_id_predictions[i].first.c_str()));
+    TC3_ASSIGN_OR_RETURN(
+        const ScopedLocalRef<jobject> result,
+        JniHelper::NewObject(
+            env, result_class.get(), result_class_constructor,
+            predicted_language.get(),
+            static_cast<jfloat>(lang_id_predictions[i].second)));
+    env->SetObjectArrayElement(results.get(), i, result.get());
   }
   return results;
 }
@@ -83,7 +84,7 @@ TC3_JNI_METHOD(jlong, TC3_LANG_ID_CLASS_NAME, nativeNew)
 
 TC3_JNI_METHOD(jlong, TC3_LANG_ID_CLASS_NAME, nativeNewFromPath)
 (JNIEnv* env, jobject thiz, jstring path) {
-  const std::string path_str = ToStlString(env, path);
+  TC3_ASSIGN_OR_RETURN_0(const std::string path_str, ToStlString(env, path));
   std::unique_ptr<LangId> lang_id = GetLangIdFromFlatbufferFile(path_str);
   if (!lang_id->is_valid()) {
     return reinterpret_cast<jlong>(nullptr);
@@ -98,17 +99,15 @@ TC3_JNI_METHOD(jobjectArray, TC3_LANG_ID_CLASS_NAME, nativeDetectLanguages)
     return nullptr;
   }
 
-  const std::string text_str = ToStlString(env, text);
-  const float noise_threshold = GetNoiseThreshold(*model);
-  // Speed up the things by specifying the max results we want. For example, if
-  // the noise threshold is 0.1, we don't need more than 10 results.
-  const int max_results =
-      noise_threshold < 0.01
-          ? -1  // -1 means FindLanguages returns all predictions
-          : static_cast<int>(1 / noise_threshold) + 1;
-  LangIdResult result;
-  model->FindLanguages(text_str, &result, max_results);
-  return LangIdResultToJObjectArray(env, result, noise_threshold);
+  TC3_ASSIGN_OR_RETURN_NULL(const std::string text_str, ToStlString(env, text));
+
+  const std::vector<std::pair<std::string, float>>& prediction_results =
+      libtextclassifier3::langid::GetPredictions(model, text_str);
+
+  TC3_ASSIGN_OR_RETURN_NULL(
+      ScopedLocalRef<jobjectArray> results,
+      LangIdResultToJObjectArray(env, prediction_results));
+  return results.release();
 }
 
 TC3_JNI_METHOD(void, TC3_LANG_ID_CLASS_NAME, nativeClose)
@@ -155,4 +154,13 @@ TC3_JNI_METHOD(jfloat, TC3_LANG_ID_CLASS_NAME, nativeGetLangIdNoiseThreshold)
   }
   LangId* model = reinterpret_cast<LangId*>(ptr);
   return GetNoiseThreshold(*model);
+}
+
+TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetMinTextSizeInBytes)
+(JNIEnv* env, jobject thizz, jlong ptr) {
+  if (!ptr) {
+    return 0;
+  }
+  LangId* model = reinterpret_cast<LangId*>(ptr);
+  return model->GetFloatProperty("min_text_size_in_bytes", 0);
 }

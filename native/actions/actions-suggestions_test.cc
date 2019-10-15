@@ -157,6 +157,62 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsFromAnnotationsWithEntityData) {
             "home");
 }
 
+TEST_F(ActionsSuggestionsTest, SuggestActionsFromAnnotationsNormalization) {
+  const std::string actions_model_string =
+      ReadFile(GetModelPath() + kModelFileName);
+  std::unique_ptr<ActionsModelT> actions_model =
+      UnPackActionsModel(actions_model_string.c_str());
+  SetTestEntityDataSchema(actions_model.get());
+
+  // Set custom actions from annotations config.
+  actions_model->annotation_actions_spec->annotation_mapping.clear();
+  actions_model->annotation_actions_spec->annotation_mapping.emplace_back(
+      new AnnotationActionsSpec_::AnnotationMappingT);
+  AnnotationActionsSpec_::AnnotationMappingT* mapping =
+      actions_model->annotation_actions_spec->annotation_mapping.back().get();
+  mapping->annotation_collection = "address";
+  mapping->action.reset(new ActionSuggestionSpecT);
+  mapping->action->type = "save_location";
+  mapping->action->score = 1.0;
+  mapping->action->priority_score = 2.0;
+  mapping->entity_field.reset(new FlatbufferFieldPathT);
+  mapping->entity_field->field.emplace_back(new FlatbufferFieldT);
+  mapping->entity_field->field.back()->field_name = "location";
+  mapping->normalization_options.reset(new NormalizationOptionsT);
+  mapping->normalization_options->codepointwise_normalization =
+      NormalizationOptions_::CodepointwiseNormalizationOp_UPPERCASE;
+
+  flatbuffers::FlatBufferBuilder builder;
+  FinishActionsModelBuffer(builder,
+                           ActionsModel::Pack(builder, actions_model.get()));
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      ActionsSuggestions::FromUnownedBuffer(
+          reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
+          builder.GetSize(), &unilib_);
+
+  AnnotatedSpan annotation;
+  annotation.span = {11, 15};
+  annotation.classification = {ClassificationResult("address", 1.0)};
+  const ActionsSuggestionsResponse& response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "are you at home?",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{annotation},
+             /*locales=*/"en"}}});
+  ASSERT_GE(response.actions.size(), 1);
+  EXPECT_EQ(response.actions.front().type, "save_location");
+  EXPECT_EQ(response.actions.front().score, 1.0);
+
+  // Check that the `location` entity field holds the normalized text of the
+  // annotation.
+  const flatbuffers::Table* entity =
+      flatbuffers::GetAnyRoot(reinterpret_cast<const unsigned char*>(
+          response.actions.front().serialized_entity_data.data()));
+  EXPECT_EQ(entity->GetPointer<const flatbuffers::String*>(/*field=*/6)->str(),
+            "HOME");
+}
+
 TEST_F(ActionsSuggestionsTest, SuggestActionsFromDuplicatedAnnotations) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
   AnnotatedSpan flight_annotation;
@@ -789,6 +845,66 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRules) {
             "Kenobi");
 }
 
+TEST_F(ActionsSuggestionsTest, CreateActionsFromRulesWithNormalization) {
+  const std::string actions_model_string =
+      ReadFile(GetModelPath() + kModelFileName);
+  std::unique_ptr<ActionsModelT> actions_model =
+      UnPackActionsModel(actions_model_string.c_str());
+  ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
+
+  actions_model->rules.reset(new RulesModelT());
+  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
+  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  rule->pattern = "^(?i:hello\\sthere)$";
+  rule->actions.emplace_back(new RulesModel_::Rule_::RuleActionSpecT);
+  rule->actions.back()->action.reset(new ActionSuggestionSpecT);
+  ActionSuggestionSpecT* action = rule->actions.back()->action.get();
+  action->type = "text_reply";
+  action->response_text = "General Kenobi!";
+  action->score = 1.0f;
+  action->priority_score = 1.0f;
+
+  // Set capturing groups for entity data.
+  rule->actions.back()->capturing_group.emplace_back(
+      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* greeting_group =
+      rule->actions.back()->capturing_group.back().get();
+  greeting_group->group_id = 0;
+  greeting_group->entity_field.reset(new FlatbufferFieldPathT);
+  greeting_group->entity_field->field.emplace_back(new FlatbufferFieldT);
+  greeting_group->entity_field->field.back()->field_name = "greeting";
+  greeting_group->normalization_options.reset(new NormalizationOptionsT);
+  greeting_group->normalization_options->codepointwise_normalization =
+      NormalizationOptions_::CodepointwiseNormalizationOp_DROP_WHITESPACE |
+      NormalizationOptions_::CodepointwiseNormalizationOp_UPPERCASE;
+
+  // Set test entity data schema.
+  SetTestEntityDataSchema(actions_model.get());
+
+  flatbuffers::FlatBufferBuilder builder;
+  FinishActionsModelBuffer(builder,
+                           ActionsModel::Pack(builder, actions_model.get()));
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      ActionsSuggestions::FromUnownedBuffer(
+          reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
+          builder.GetSize(), &unilib_);
+
+  const ActionsSuggestionsResponse& response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "hello there", /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{}, /*locales=*/"en"}}});
+  EXPECT_GE(response.actions.size(), 1);
+  EXPECT_EQ(response.actions[0].response_text, "General Kenobi!");
+
+  // Check entity data.
+  const flatbuffers::Table* entity =
+      flatbuffers::GetAnyRoot(reinterpret_cast<const unsigned char*>(
+          response.actions[0].serialized_entity_data.data()));
+  EXPECT_EQ(entity->GetPointer<const flatbuffers::String*>(/*field=*/4)->str(),
+            "HELLOTHERE");
+}
+
 TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
   const std::string actions_model_string =
       ReadFile(GetModelPath() + kModelFileName);
@@ -811,6 +927,9 @@ TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
   code_group->text_reply.reset(new ActionSuggestionSpecT);
   code_group->text_reply->score = 1.0f;
   code_group->text_reply->priority_score = 1.0f;
+  code_group->normalization_options.reset(new NormalizationOptionsT);
+  code_group->normalization_options->codepointwise_normalization =
+      NormalizationOptions_::CodepointwiseNormalizationOp_LOWERCASE;
 
   flatbuffers::FlatBufferBuilder builder;
   FinishActionsModelBuffer(builder,
@@ -828,7 +947,7 @@ TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
              /*reference_timezone=*/"Europe/Zurich",
              /*annotations=*/{}, /*locales=*/"en"}}});
   EXPECT_GE(response.actions.size(), 1);
-  EXPECT_EQ(response.actions[0].response_text, "STOP");
+  EXPECT_EQ(response.actions[0].response_text, "stop");
 }
 
 TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
@@ -1076,7 +1195,7 @@ class EmbeddingTest : public testing::Test {
   TestingMessageEmbedder CreateTestingMessageEmbedder() {
     flatbuffers::FlatBufferBuilder builder;
     FinishActionsModelBuffer(builder, ActionsModel::Pack(builder, &model_));
-    buffer_ = builder.ReleaseBufferPointer();
+    buffer_ = builder.Release();
     return TestingMessageEmbedder(
         flatbuffers::GetRoot<ActionsModel>(buffer_.data()));
   }

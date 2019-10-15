@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,44 +13,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package com.android.textclassifier.intent;
 
 import android.content.Context;
 import android.content.Intent;
-
-import androidx.annotation.Nullable;
-
 import com.android.textclassifier.R;
-
 import com.google.android.textclassifier.AnnotatorModel;
-
 import java.time.Instant;
 import java.util.List;
+import javax.annotation.Nullable;
 
-/** @hide */
+/** Generates intents from classification results. */
 public interface ClassificationIntentFactory {
 
-    /** Return a list of LabeledIntent from the classification result. */
-    List<LabeledIntent> create(
-            Context context,
-            String text,
-            boolean foreignText,
-            @Nullable Instant referenceTime,
-            @Nullable AnnotatorModel.ClassificationResult classification);
+  /** Return a list of LabeledIntent from the classification result. */
+  List<LabeledIntent> create(
+      Context context,
+      String text,
+      boolean foreignText,
+      @Nullable Instant referenceTime,
+      @Nullable AnnotatorModel.ClassificationResult classification);
 
-    /** Inserts translate action to the list if it is a foreign text. */
-    static void insertTranslateAction(List<LabeledIntent> actions, Context context, String text) {
-        actions.add(
-                new LabeledIntent(
-                        context.getString(R.string.translate),
-                        /* titleWithEntity */ null,
-                        context.getString(R.string.translate_desc),
-                        /* descriptionWithAppName */ null,
-                        new Intent(Intent.ACTION_TRANSLATE)
-                                // TODO: Probably better to introduce a "translate" scheme instead
-                                // of
-                                // using EXTRA_TEXT.
-                                .putExtra(Intent.EXTRA_TEXT, text),
-                        text.hashCode()));
-    }
+  /** Inserts translate action to the list if it is a foreign text. */
+  static void insertTranslateAction(List<LabeledIntent> actions, Context context, String text) {
+    actions.add(
+        new LabeledIntent(
+            context.getString(R.string.translate),
+            /* titleWithEntity */ null,
+            context.getString(R.string.translate_desc),
+            /* descriptionWithAppName */ null,
+            new Intent(Intent.ACTION_TRANSLATE)
+                // TODO: Probably better to introduce a "translate" scheme instead
+                // of
+                // using EXTRA_TEXT.
+                .putExtra(Intent.EXTRA_TEXT, text),
+            text.hashCode()));
+  }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,21 +19,17 @@ package com.android.textclassifier.ulp;
 import android.content.Context;
 import android.util.ArrayMap;
 import android.view.textclassifier.TextClassifierEvent;
-
 import androidx.annotation.FloatRange;
-import androidx.annotation.NonNull;
-
 import com.android.textclassifier.Entity;
 import com.android.textclassifier.TcLog;
 import com.android.textclassifier.TextClassificationConstants;
 import com.android.textclassifier.ulp.database.LanguageProfileDatabase;
 import com.android.textclassifier.ulp.database.LanguageSignalInfo;
 import com.android.textclassifier.utils.IndentingPrintWriter;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -51,188 +47,177 @@ import java.util.stream.Collectors;
  * blocking operations and should be called on the worker thread.
  */
 public class LanguageProfileAnalyzer {
-    private final Context mContext;
-    private final TextClassificationConstants mTextClassificationConstants;
-    private final LanguageProfileDatabase mLanguageProfileDatabase;
-    private final LanguageProficiencyAnalyzer mProficiencyAnalyzer;
-    private final LocationSignalProvider mLocationSignalProvider;
-    private final SystemLanguagesProvider mSystemLanguagesProvider;
+  private final Context context;
+  private final TextClassificationConstants textClassificationConstants;
+  private final LanguageProfileDatabase languageProfileDatabase;
+  private final LanguageProficiencyAnalyzer proficiencyAnalyzer;
+  private final LocationSignalProvider locationSignalProvider;
+  private final SystemLanguagesProvider systemLanguagesProvider;
 
-    @VisibleForTesting
-    LanguageProfileAnalyzer(
-            Context context,
-            TextClassificationConstants textClassificationConstants,
-            LanguageProfileDatabase database,
-            LanguageProficiencyAnalyzer languageProficiencyAnalyzer,
-            LocationSignalProvider locationSignalProvider,
-            SystemLanguagesProvider systemLanguagesProvider) {
-        mContext = context;
-        mTextClassificationConstants = textClassificationConstants;
-        mLanguageProfileDatabase = Preconditions.checkNotNull(database);
-        mProficiencyAnalyzer = Preconditions.checkNotNull(languageProficiencyAnalyzer);
-        mLocationSignalProvider = Preconditions.checkNotNull(locationSignalProvider);
-        mSystemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
+  @VisibleForTesting
+  LanguageProfileAnalyzer(
+      Context context,
+      TextClassificationConstants textClassificationConstants,
+      LanguageProfileDatabase database,
+      LanguageProficiencyAnalyzer languageProficiencyAnalyzer,
+      LocationSignalProvider locationSignalProvider,
+      SystemLanguagesProvider systemLanguagesProvider) {
+    this.context = context;
+    this.textClassificationConstants = textClassificationConstants;
+    languageProfileDatabase = Preconditions.checkNotNull(database);
+    proficiencyAnalyzer = Preconditions.checkNotNull(languageProficiencyAnalyzer);
+    this.locationSignalProvider = Preconditions.checkNotNull(locationSignalProvider);
+    this.systemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
+  }
+
+  /** Creates an instance of {@link LanguageProfileAnalyzer}. */
+  public static LanguageProfileAnalyzer create(
+      Context context, TextClassificationConstants textClassificationConstants) {
+    SystemLanguagesProvider systemLanguagesProvider = new SystemLanguagesProvider();
+    LocationSignalProvider locationSignalProvider = new LocationSignalProvider(context);
+    return new LanguageProfileAnalyzer(
+        context,
+        textClassificationConstants,
+        LanguageProfileDatabase.getInstance(context),
+        new ReinforcementLanguageProficiencyAnalyzer(context, systemLanguagesProvider),
+        locationSignalProvider,
+        systemLanguagesProvider);
+  }
+
+  /**
+   * Returns the confidence score for which the user understands the given language. The result is
+   * recalculated every constant time.
+   *
+   * <p>The score ranges from 0 to 1. 1 indicates the language is very familiar to the user and vice
+   * versa.
+   */
+  @FloatRange(from = 0.0, to = 1.0)
+  public float canUnderstand(String languageTag) {
+    return proficiencyAnalyzer.canUnderstand(languageTag);
+  }
+
+  /** Decides whether we should show translation for that language or no. */
+  public boolean shouldShowTranslation(String languageTag) {
+    return proficiencyAnalyzer.shouldShowTranslation(languageTag);
+  }
+
+  /** Performs actions defined for specific TextClassification events. */
+  public void onTextClassifierEven(TextClassifierEvent event) {
+    proficiencyAnalyzer.onTextClassifierEvent(event);
+  }
+
+  /**
+   * Returns a list of languages that appear in the specified source, the list is sorted by the
+   * frequency descendingly. The confidence score represents how frequent of the language is,
+   * compared to the most frequent language.
+   */
+  public List<Entity> getFrequentLanguages(@LanguageSignalInfo.Source int source) {
+    List<LanguageSignalInfo> languageSignalInfos =
+        languageProfileDatabase.languageInfoDao().getBySource(source);
+    int bootstrappingCount = textClassificationConstants.getFrequentLanguagesBootstrappingCount();
+    ArrayMap<String, Integer> languageCountMap = new ArrayMap<>();
+    systemLanguagesProvider
+        .getSystemLanguageTags()
+        .forEach(lang -> languageCountMap.put(lang, bootstrappingCount));
+    String languageTagFromLocation = locationSignalProvider.detectLanguageTag();
+    if (languageTagFromLocation != null) {
+      languageCountMap.put(
+          languageTagFromLocation,
+          languageCountMap.getOrDefault(languageTagFromLocation, 0) + bootstrappingCount);
     }
-
-    /** Creates an instance of {@link LanguageProfileAnalyzer}. */
-    public static LanguageProfileAnalyzer create(
-            Context context, TextClassificationConstants textClassificationConstants) {
-        SystemLanguagesProvider systemLanguagesProvider = new SystemLanguagesProvider();
-        LocationSignalProvider locationSignalProvider = new LocationSignalProvider(context);
-        return new LanguageProfileAnalyzer(
-                context,
-                textClassificationConstants,
-                LanguageProfileDatabase.getInstance(context),
-                new ReinforcementLanguageProficiencyAnalyzer(context, systemLanguagesProvider),
-                locationSignalProvider,
-                systemLanguagesProvider);
+    for (LanguageSignalInfo languageSignalInfo : languageSignalInfos) {
+      String lang = languageSignalInfo.getLanguageTag();
+      languageCountMap.put(
+          lang, languageSignalInfo.getCount() + languageCountMap.getOrDefault(lang, 0));
     }
-
-    /**
-     * Returns the confidence score for which the user understands the given language. The result is
-     * recalculated every constant time.
-     *
-     * <p>The score ranges from 0 to 1. 1 indicates the language is very familiar to the user and
-     * vice versa.
-     */
-    @FloatRange(from = 0.0, to = 1.0)
-    public float canUnderstand(String languageTag) {
-        return mProficiencyAnalyzer.canUnderstand(languageTag);
+    int max = Collections.max(languageCountMap.values());
+    if (max == 0) {
+      return ImmutableList.of();
     }
-
-    /** Decides whether we should show translation for that language or no. */
-    public boolean shouldShowTranslation(String languageTag) {
-        return mProficiencyAnalyzer.shouldShowTranslation(languageTag);
+    List<Entity> frequentLanguages = new ArrayList<>();
+    for (int i = 0; i < languageCountMap.size(); i++) {
+      String lang = languageCountMap.keyAt(i);
+      float score = languageCountMap.valueAt(i) / (float) max;
+      frequentLanguages.add(new Entity(lang, score));
     }
+    Collections.sort(frequentLanguages);
+    return ImmutableList.copyOf(frequentLanguages);
+  }
 
-    /** Performs actions defined for specific TextClassification events. */
-    public void onTextClassifierEven(TextClassifierEvent event) {
-        mProficiencyAnalyzer.onTextClassifierEvent(event);
+  /** Dumps the data on the screen when called. */
+  public void dump(IndentingPrintWriter printWriter) {
+    printWriter.println("LanguageProfileAnalyzer:");
+    printWriter.increaseIndent();
+    printWriter.printPair(
+        "System languages", String.join(",", systemLanguagesProvider.getSystemLanguageTags()));
+    printWriter.printPair(
+        "Language code deduced from location", locationSignalProvider.detectLanguageTag());
+
+    ExecutorService executorService =
+        MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+    try {
+      executorService
+          .submit(
+              () -> {
+                printWriter.println("Languages that user has seen in selections:");
+                dumpFrequentLanguages(printWriter, LanguageSignalInfo.CLASSIFY_TEXT);
+
+                printWriter.println("Languages that user has seen in message notifications:");
+                dumpFrequentLanguages(printWriter, LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS);
+
+                dumpEvaluationReport(printWriter);
+              })
+          .get();
+    } catch (ExecutionException | InterruptedException e) {
+      TcLog.e(TcLog.TAG, "Dumping interrupted: ", e);
     }
+    printWriter.decreaseIndent();
+  }
 
-    /**
-     * Returns a list of languages that appear in the specified source, the list is sorted by the
-     * frequency descendingly. The confidence score represents how frequent of the language is,
-     * compared to the most frequent language.
-     */
-    @NonNull
-    public List<Entity> getFrequentLanguages(@LanguageSignalInfo.Source int source) {
-        List<LanguageSignalInfo> languageSignalInfos =
-                mLanguageProfileDatabase.languageInfoDao().getBySource(source);
-        int bootstrappingCount =
-                mTextClassificationConstants.getFrequentLanguagesBootstrappingCount();
-        ArrayMap<String, Integer> languageCountMap = new ArrayMap<>();
-        mSystemLanguagesProvider
-                .getSystemLanguageTags()
-                .forEach(lang -> languageCountMap.put(lang, bootstrappingCount));
-        String languageTagFromLocation = mLocationSignalProvider.detectLanguageTag();
-        if (languageTagFromLocation != null) {
-            languageCountMap.put(
-                    languageTagFromLocation,
-                    languageCountMap.getOrDefault(languageTagFromLocation, 0) + bootstrappingCount);
-        }
-        for (LanguageSignalInfo languageSignalInfo : languageSignalInfos) {
-            String lang = languageSignalInfo.getLanguageTag();
-            languageCountMap.put(
-                    lang, languageSignalInfo.getCount() + languageCountMap.getOrDefault(lang, 0));
-        }
-        int max = Collections.max(languageCountMap.values());
-        if (max == 0) {
-            return Collections.emptyList();
-        }
-        List<Entity> frequentLanguages = new ArrayList<>();
-        for (int i = 0; i < languageCountMap.size(); i++) {
-            String lang = languageCountMap.keyAt(i);
-            float score = languageCountMap.valueAt(i) / (float) max;
-            frequentLanguages.add(new Entity(lang, score));
-        }
-        Collections.sort(frequentLanguages);
-        return frequentLanguages;
+  private void dumpEvaluationReport(IndentingPrintWriter printWriter) {
+    List<String> systemLanguageTags = systemLanguagesProvider.getSystemLanguageTags();
+    if (systemLanguageTags.size() <= 1) {
+      printWriter.println("Skipped evaluation as there are less than two system languages.");
+      return;
     }
-
-    /** Dumps the data on the screen when called. */
-    public void dump(IndentingPrintWriter printWriter) {
-        printWriter.println("LanguageProfileAnalyzer:");
-        printWriter.increaseIndent();
-        printWriter.printPair(
-                "System languages",
-                String.join(",", mSystemLanguagesProvider.getSystemLanguageTags()));
-        printWriter.printPair(
-                "Language code deduced from location", mLocationSignalProvider.detectLanguageTag());
-
-        ExecutorService executorService =
-                MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
-        try {
-            executorService
-                    .submit(
-                            () -> {
-                                printWriter.println("Languages that user has seen in selections:");
-                                dumpFrequentLanguages(
-                                        printWriter, LanguageSignalInfo.CLASSIFY_TEXT);
-
-                                printWriter.println(
-                                        "Languages that user has seen in message notifications:");
-                                dumpFrequentLanguages(
-                                        printWriter,
-                                        LanguageSignalInfo.SUGGEST_CONVERSATION_ACTIONS);
-
-                                dumpEvaluationReport(printWriter);
-                            })
-                    .get();
-        } catch (ExecutionException | InterruptedException e) {
-            TcLog.e(TcLog.TAG, "Dumping interrupted: ", e);
-        }
-        printWriter.decreaseIndent();
+    Set<String> languagesToEvaluate =
+        languageProfileDatabase.languageInfoDao().getAll().stream()
+            .map(LanguageSignalInfo::getLanguageTag)
+            .collect(Collectors.toSet());
+    languagesToEvaluate.addAll(systemLanguageTags);
+    LanguageProficiencyEvaluator evaluator =
+        new LanguageProficiencyEvaluator(systemLanguagesProvider);
+    LanguageProficiencyAnalyzer[] analyzers =
+        new LanguageProficiencyAnalyzer[] {
+          new BasicLanguageProficiencyAnalyzer(
+              context, textClassificationConstants, systemLanguagesProvider),
+          new KmeansLanguageProficiencyAnalyzer(
+              context, textClassificationConstants, systemLanguagesProvider),
+          proficiencyAnalyzer
+        };
+    for (LanguageProficiencyAnalyzer analyzer : analyzers) {
+      LanguageProficiencyEvaluator.EvaluationResult result =
+          evaluator.evaluate(analyzer, languagesToEvaluate);
+      printWriter.println("Evaluation result of " + analyzer.getClass().getSimpleName());
+      printWriter.increaseIndent();
+      printWriter.printPair(
+          "Precision of positive class", result.computePrecisionOfPositiveClass());
+      printWriter.printPair(
+          "Precision of negative class", result.computePrecisionOfNegativeClass());
+      printWriter.printPair("Recall of positive class", result.computeRecallOfPositiveClass());
+      printWriter.printPair("Recall of negative class", result.computeRecallOfNegativeClass());
+      printWriter.printPair("F1 score of positive class", result.computeF1ScoreOfPositiveClass());
+      printWriter.printPair("F1 score of negative class", result.computeF1ScoreOfNegativeClass());
+      printWriter.decreaseIndent();
     }
+  }
 
-    private void dumpEvaluationReport(IndentingPrintWriter printWriter) {
-        List<String> systemLanguageTags = mSystemLanguagesProvider.getSystemLanguageTags();
-        if (systemLanguageTags.size() <= 1) {
-            printWriter.println("Skipped evaluation as there are less than two system languages.");
-            return;
-        }
-        Set<String> languagesToEvaluate =
-                mLanguageProfileDatabase.languageInfoDao().getAll().stream()
-                        .map(LanguageSignalInfo::getLanguageTag)
-                        .collect(Collectors.toSet());
-        languagesToEvaluate.addAll(systemLanguageTags);
-        LanguageProficiencyEvaluator evaluator =
-                new LanguageProficiencyEvaluator(mSystemLanguagesProvider);
-        LanguageProficiencyAnalyzer[] analyzers =
-                new LanguageProficiencyAnalyzer[] {
-                    new BasicLanguageProficiencyAnalyzer(
-                            mContext, mTextClassificationConstants, mSystemLanguagesProvider),
-                    new KmeansLanguageProficiencyAnalyzer(
-                            mContext, mTextClassificationConstants, mSystemLanguagesProvider),
-                    mProficiencyAnalyzer
-                };
-        for (LanguageProficiencyAnalyzer analyzer : analyzers) {
-            LanguageProficiencyEvaluator.EvaluationResult result =
-                    evaluator.evaluate(analyzer, languagesToEvaluate);
-            printWriter.println("Evaluation result of " + analyzer.getClass().getSimpleName());
-            printWriter.increaseIndent();
-            printWriter.printPair(
-                    "Precision of positive class", result.computePrecisionOfPositiveClass());
-            printWriter.printPair(
-                    "Precision of negative class", result.computePrecisionOfNegativeClass());
-            printWriter.printPair(
-                    "Recall of positive class", result.computeRecallOfPositiveClass());
-            printWriter.printPair(
-                    "Recall of negative class", result.computeRecallOfNegativeClass());
-            printWriter.printPair(
-                    "F1 score of positive class", result.computeF1ScoreOfPositiveClass());
-            printWriter.printPair(
-                    "F1 score of negative class", result.computeF1ScoreOfNegativeClass());
-            printWriter.decreaseIndent();
-        }
+  private void dumpFrequentLanguages(
+      IndentingPrintWriter printWriter, @LanguageSignalInfo.Source int source) {
+    printWriter.increaseIndent();
+    for (Entity frequentLanguage : getFrequentLanguages(source)) {
+      printWriter.println(frequentLanguage.toString());
     }
-
-    private void dumpFrequentLanguages(
-            IndentingPrintWriter printWriter, @LanguageSignalInfo.Source int source) {
-        printWriter.increaseIndent();
-        for (Entity frequentLanguage : getFrequentLanguages(source)) {
-            printWriter.println(frequentLanguage.toString());
-        }
-        printWriter.decreaseIndent();
-    }
+    printWriter.decreaseIndent();
+  }
 }

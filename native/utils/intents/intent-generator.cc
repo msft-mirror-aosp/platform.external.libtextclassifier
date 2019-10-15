@@ -22,8 +22,10 @@
 #include "actions/types.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
+#include "utils/base/statusor.h"
 #include "utils/hash/farmhash.h"
 #include "utils/java/jni-base.h"
+#include "utils/java/jni-helper.h"
 #include "utils/java/string_utils.h"
 #include "utils/lua-utils.h"
 #include "utils/strings/stringpiece.h"
@@ -99,7 +101,7 @@ class JniLuaEnvironment : public LuaEnvironment {
   bool RetrieveSystemResources();
 
   // Parse the url string by using Uri.parse from Java.
-  ScopedLocalRef<jobject> ParseUri(StringPiece url) const;
+  StatusOr<ScopedLocalRef<jobject>> ParseUri(StringPiece url) const;
 
   // Read remote action templates from lua generator.
   int ReadRemoteActionTemplates(std::vector<RemoteActionTemplate>* result);
@@ -144,10 +146,12 @@ JniLuaEnvironment::JniLuaEnvironment(const Resources& resources,
                /*jvm=*/(jni_cache ? jni_cache->jvm : nullptr)) {}
 
 bool JniLuaEnvironment::Initialize() {
-  string_ =
-      MakeGlobalRef(jenv_->NewStringUTF("string"), jenv_, jni_cache_->jvm);
-  android_ =
-      MakeGlobalRef(jenv_->NewStringUTF("android"), jenv_, jni_cache_->jvm);
+  TC3_ASSIGN_OR_RETURN_FALSE(ScopedLocalRef<jstring> string_value,
+                             JniHelper::NewStringUTF(jenv_, "string"));
+  string_ = MakeGlobalRef(string_value.get(), jenv_, jni_cache_->jvm);
+  TC3_ASSIGN_OR_RETURN_FALSE(ScopedLocalRef<jstring> android_value,
+                             JniHelper::NewStringUTF(jenv_, "android"));
+  android_ = MakeGlobalRef(android_value.get(), jenv_, jni_cache_->jvm);
   if (string_ == nullptr || android_ == nullptr) {
     TC3_LOG(ERROR) << "Could not allocate constant strings references.";
     return false;
@@ -227,15 +231,23 @@ int JniLuaEnvironment::HandleAndroidCallback() {
       lua_error(state_);
       return 0;
     }
-    ScopedLocalRef<jstring> package_name_str(
-        static_cast<jstring>(jenv_->CallObjectMethod(
-            context_, jni_cache_->context_get_package_name)));
-    if (jni_cache_->ExceptionCheckAndClear()) {
+
+    StatusOr<ScopedLocalRef<jstring>> status_or_package_name_str =
+        JniHelper::CallObjectMethod<jstring>(
+            jenv_, context_, jni_cache_->context_get_package_name);
+
+    if (!status_or_package_name_str.ok()) {
       TC3_LOG(ERROR) << "Error calling Context.getPackageName";
       lua_error(state_);
       return 0;
     }
-    PushString(ToStlString(jenv_, package_name_str.get()));
+    StatusOr<std::string> status_or_package_name_std_str =
+        ToStlString(jenv_, status_or_package_name_str.ValueOrDie().get());
+    if (!status_or_package_name_std_str.ok()) {
+      lua_error(state_);
+      return 0;
+    }
+    PushString(status_or_package_name_std_str.ValueOrDie());
     return 1;
   } else if (key.Equals(kUrlEncodeKey)) {
     Bind<JniLuaEnvironment, &JniLuaEnvironment::HandleUrlEncode>();
@@ -270,9 +282,11 @@ int JniLuaEnvironment::HandleUserRestrictionsCallback() {
     return 0;
   }
 
-  ScopedLocalRef<jobject> bundle(jenv_->CallObjectMethod(
-      usermanager_.get(), jni_cache_->usermanager_get_user_restrictions));
-  if (jni_cache_->ExceptionCheckAndClear() || bundle == nullptr) {
+  StatusOr<ScopedLocalRef<jobject>> status_or_bundle =
+      JniHelper::CallObjectMethod(
+          jenv_, usermanager_.get(),
+          jni_cache_->usermanager_get_user_restrictions);
+  if (!status_or_bundle.ok() || status_or_bundle.ValueOrDie() == nullptr) {
     TC3_LOG(ERROR) << "Error calling getUserRestrictions";
     lua_error(state_);
     return 0;
@@ -285,19 +299,20 @@ int JniLuaEnvironment::HandleUserRestrictionsCallback() {
     return 0;
   }
 
-  ScopedLocalRef<jstring> key = jni_cache_->ConvertToJavaString(key_str);
-  if (jni_cache_->ExceptionCheckAndClear() || key == nullptr) {
-    TC3_LOG(ERROR) << "Expected string, got null.";
+  const StatusOr<ScopedLocalRef<jstring>> status_or_key =
+      jni_cache_->ConvertToJavaString(key_str);
+  if (!status_or_key.ok()) {
     lua_error(state_);
     return 0;
   }
-  const bool permission = jenv_->CallBooleanMethod(
-      bundle.get(), jni_cache_->bundle_get_boolean, key.get());
-  if (jni_cache_->ExceptionCheckAndClear()) {
+  const StatusOr<bool> status_or_permission = JniHelper::CallBooleanMethod(
+      jenv_, status_or_bundle.ValueOrDie().get(),
+      jni_cache_->bundle_get_boolean, status_or_key.ValueOrDie().get());
+  if (!status_or_permission.ok()) {
     TC3_LOG(ERROR) << "Error getting bundle value";
     lua_pushboolean(state_, false);
   } else {
-    lua_pushboolean(state_, permission);
+    lua_pushboolean(state_, status_or_permission.ValueOrDie());
   }
   return 1;
 }
@@ -311,42 +326,53 @@ int JniLuaEnvironment::HandleUrlEncode() {
   }
 
   // Call Java URL encoder.
-  ScopedLocalRef<jstring> input_str = jni_cache_->ConvertToJavaString(input);
-  if (jni_cache_->ExceptionCheckAndClear() || input_str == nullptr) {
-    TC3_LOG(ERROR) << "Expected string, got null.";
+  const StatusOr<ScopedLocalRef<jstring>> status_or_input_str =
+      jni_cache_->ConvertToJavaString(input);
+  if (!status_or_input_str.ok()) {
     lua_error(state_);
     return 0;
   }
-  ScopedLocalRef<jstring> encoded_str(
-      static_cast<jstring>(jenv_->CallStaticObjectMethod(
-          jni_cache_->urlencoder_class.get(), jni_cache_->urlencoder_encode,
-          input_str.get(), jni_cache_->string_utf8.get())));
-  if (jni_cache_->ExceptionCheckAndClear()) {
+  StatusOr<ScopedLocalRef<jstring>> status_or_encoded_str =
+      JniHelper::CallStaticObjectMethod<jstring>(
+          jenv_, jni_cache_->urlencoder_class.get(),
+          jni_cache_->urlencoder_encode, status_or_input_str.ValueOrDie().get(),
+          jni_cache_->string_utf8.get());
+
+  if (!status_or_encoded_str.ok()) {
     TC3_LOG(ERROR) << "Error calling UrlEncoder.encode";
     lua_error(state_);
     return 0;
   }
-  PushString(ToStlString(jenv_, encoded_str.get()));
+  const StatusOr<std::string> status_or_encoded_std_str =
+      ToStlString(jenv_, status_or_encoded_str.ValueOrDie().get());
+  if (!status_or_encoded_std_str.ok()) {
+    lua_error(state_);
+    return 0;
+  }
+  PushString(status_or_encoded_std_str.ValueOrDie());
   return 1;
 }
 
-ScopedLocalRef<jobject> JniLuaEnvironment::ParseUri(StringPiece url) const {
+StatusOr<ScopedLocalRef<jobject>> JniLuaEnvironment::ParseUri(
+    StringPiece url) const {
   if (url.empty()) {
-    return nullptr;
+    return {Status::UNKNOWN};
   }
 
   // Call to Java URI parser.
-  ScopedLocalRef<jstring> url_str = jni_cache_->ConvertToJavaString(url);
-  if (jni_cache_->ExceptionCheckAndClear() || url_str == nullptr) {
-    TC3_LOG(ERROR) << "Expected string, got null";
-    return nullptr;
-  }
+  TC3_ASSIGN_OR_RETURN(
+      const StatusOr<ScopedLocalRef<jstring>> status_or_url_str,
+      jni_cache_->ConvertToJavaString(url));
 
   // Try to parse uri and get scheme.
-  ScopedLocalRef<jobject> uri(jenv_->CallStaticObjectMethod(
-      jni_cache_->uri_class.get(), jni_cache_->uri_parse, url_str.get()));
-  if (jni_cache_->ExceptionCheckAndClear() || uri == nullptr) {
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jobject> uri,
+      JniHelper::CallStaticObjectMethod(jenv_, jni_cache_->uri_class.get(),
+                                        jni_cache_->uri_parse,
+                                        status_or_url_str.ValueOrDie().get()));
+  if (uri == nullptr) {
     TC3_LOG(ERROR) << "Error calling Uri.parse";
+    return {Status::UNKNOWN};
   }
   return uri;
 }
@@ -354,47 +380,64 @@ ScopedLocalRef<jobject> JniLuaEnvironment::ParseUri(StringPiece url) const {
 int JniLuaEnvironment::HandleUrlSchema() {
   StringPiece url = ReadString(/*index=*/1);
 
-  ScopedLocalRef<jobject> parsed_uri = ParseUri(url);
-  if (parsed_uri == nullptr) {
+  const StatusOr<ScopedLocalRef<jobject>> status_or_parsed_uri = ParseUri(url);
+  if (!status_or_parsed_uri.ok()) {
     lua_error(state_);
     return 0;
   }
 
-  ScopedLocalRef<jstring> scheme_str(static_cast<jstring>(
-      jenv_->CallObjectMethod(parsed_uri.get(), jni_cache_->uri_get_scheme)));
-  if (jni_cache_->ExceptionCheckAndClear()) {
+  const StatusOr<ScopedLocalRef<jstring>> status_or_scheme_str =
+      JniHelper::CallObjectMethod<jstring>(
+          jenv_, status_or_parsed_uri.ValueOrDie().get(),
+          jni_cache_->uri_get_scheme);
+  if (!status_or_scheme_str.ok()) {
     TC3_LOG(ERROR) << "Error calling Uri.getScheme";
     lua_error(state_);
     return 0;
   }
-  if (scheme_str == nullptr) {
+  if (status_or_scheme_str.ValueOrDie() == nullptr) {
     lua_pushnil(state_);
   } else {
-    PushString(ToStlString(jenv_, scheme_str.get()));
+    const StatusOr<std::string> status_or_scheme_std_str =
+        ToStlString(jenv_, status_or_scheme_str.ValueOrDie().get());
+    if (!status_or_scheme_std_str.ok()) {
+      lua_error(state_);
+      return 0;
+    }
+    PushString(status_or_scheme_std_str.ValueOrDie());
   }
   return 1;
 }
 
 int JniLuaEnvironment::HandleUrlHost() {
-  StringPiece url = ReadString(/*index=*/-1);
+  const StringPiece url = ReadString(/*index=*/-1);
 
-  ScopedLocalRef<jobject> parsed_uri = ParseUri(url);
-  if (parsed_uri == nullptr) {
+  const StatusOr<ScopedLocalRef<jobject>> status_or_parsed_uri = ParseUri(url);
+  if (!status_or_parsed_uri.ok()) {
     lua_error(state_);
     return 0;
   }
 
-  ScopedLocalRef<jstring> host_str(static_cast<jstring>(
-      jenv_->CallObjectMethod(parsed_uri.get(), jni_cache_->uri_get_host)));
-  if (jni_cache_->ExceptionCheckAndClear()) {
+  const StatusOr<ScopedLocalRef<jstring>> status_or_host_str =
+      JniHelper::CallObjectMethod<jstring>(
+          jenv_, status_or_parsed_uri.ValueOrDie().get(),
+          jni_cache_->uri_get_host);
+  if (!status_or_host_str.ok()) {
     TC3_LOG(ERROR) << "Error calling Uri.getHost";
     lua_error(state_);
     return 0;
   }
-  if (host_str == nullptr) {
+
+  if (status_or_host_str.ValueOrDie() == nullptr) {
     lua_pushnil(state_);
   } else {
-    PushString(ToStlString(jenv_, host_str.get()));
+    const StatusOr<std::string> status_or_host_std_str =
+        ToStlString(jenv_, status_or_host_str.ValueOrDie().get());
+    if (!status_or_host_std_str.ok()) {
+      lua_error(state_);
+      return 0;
+    }
+    PushString(status_or_host_std_str.ValueOrDie());
   }
   return 1;
 }
@@ -458,21 +501,23 @@ int JniLuaEnvironment::HandleAndroidStringResources() {
         lua_error(state_);
         return 0;
       }
-      ScopedLocalRef<jstring> resource_name =
+      const StatusOr<ScopedLocalRef<jstring>> status_or_resource_name =
           jni_cache_->ConvertToJavaString(resource_name_str);
-      if (resource_name == nullptr) {
+      if (!status_or_resource_name.ok()) {
         TC3_LOG(ERROR) << "Invalid resource name.";
         lua_error(state_);
         return 0;
       }
-      resource_id = jenv_->CallIntMethod(
-          system_resources_.get(), jni_cache_->resources_get_identifier,
-          resource_name.get(), string_.get(), android_.get());
-      if (jni_cache_->ExceptionCheckAndClear()) {
+      StatusOr<int> status_or_resource_id = JniHelper::CallIntMethod(
+          jenv_, system_resources_.get(), jni_cache_->resources_get_identifier,
+          status_or_resource_name.ValueOrDie().get(), string_.get(),
+          android_.get());
+      if (!status_or_resource_id.ok()) {
         TC3_LOG(ERROR) << "Error calling getIdentifier.";
         lua_error(state_);
         return 0;
       }
+      resource_id = status_or_resource_id.ValueOrDie();
       break;
     }
     default:
@@ -485,18 +530,26 @@ int JniLuaEnvironment::HandleAndroidStringResources() {
     lua_pushnil(state_);
     return 1;
   }
-  ScopedLocalRef<jstring> resource_str(static_cast<jstring>(
-      jenv_->CallObjectMethod(system_resources_.get(),
-                              jni_cache_->resources_get_string, resource_id)));
-  if (jni_cache_->ExceptionCheckAndClear()) {
+  StatusOr<ScopedLocalRef<jstring>> status_or_resource_str =
+      JniHelper::CallObjectMethod<jstring>(jenv_, system_resources_.get(),
+                                           jni_cache_->resources_get_string,
+                                           resource_id);
+  if (!status_or_resource_str.ok()) {
     TC3_LOG(ERROR) << "Error calling getString.";
     lua_error(state_);
     return 0;
   }
-  if (resource_str == nullptr) {
+
+  if (status_or_resource_str.ValueOrDie() == nullptr) {
     lua_pushnil(state_);
   } else {
-    PushString(ToStlString(jenv_, resource_str.get()));
+    StatusOr<std::string> status_or_resource_std_str =
+        ToStlString(jenv_, status_or_resource_str.ValueOrDie().get());
+    if (!status_or_resource_std_str.ok()) {
+      lua_error(state_);
+      return 0;
+    }
+    PushString(status_or_resource_std_str.ValueOrDie());
   }
   return 1;
 }
@@ -506,14 +559,12 @@ bool JniLuaEnvironment::RetrieveSystemResources() {
     return (system_resources_ != nullptr);
   }
   system_resources_resources_retrieved_ = true;
-  jobject system_resources_ref = jenv_->CallStaticObjectMethod(
-      jni_cache_->resources_class.get(), jni_cache_->resources_get_system);
-  if (jni_cache_->ExceptionCheckAndClear()) {
-    TC3_LOG(ERROR) << "Error calling getSystem.";
-    return false;
-  }
+  TC3_ASSIGN_OR_RETURN_FALSE(ScopedLocalRef<jobject> system_resources_ref,
+                             JniHelper::CallStaticObjectMethod(
+                                 jenv_, jni_cache_->resources_class.get(),
+                                 jni_cache_->resources_get_system));
   system_resources_ =
-      MakeGlobalRef(system_resources_ref, jenv_, jni_cache_->jvm);
+      MakeGlobalRef(system_resources_ref.get(), jenv_, jni_cache_->jvm);
   return (system_resources_ != nullptr);
 }
 
@@ -525,14 +576,15 @@ bool JniLuaEnvironment::RetrieveUserManager() {
     return (usermanager_ != nullptr);
   }
   usermanager_retrieved_ = true;
-  ScopedLocalRef<jstring> service(jenv_->NewStringUTF("user"));
-  jobject usermanager_ref = jenv_->CallObjectMethod(
-      context_, jni_cache_->context_get_system_service, service.get());
-  if (jni_cache_->ExceptionCheckAndClear()) {
-    TC3_LOG(ERROR) << "Error calling getSystemService.";
-    return false;
-  }
-  usermanager_ = MakeGlobalRef(usermanager_ref, jenv_, jni_cache_->jvm);
+  TC3_ASSIGN_OR_RETURN_FALSE(const ScopedLocalRef<jstring> service,
+                             JniHelper::NewStringUTF(jenv_, "user"));
+  TC3_ASSIGN_OR_RETURN_FALSE(
+      const ScopedLocalRef<jobject> usermanager_ref,
+      JniHelper::CallObjectMethod(jenv_, context_,
+                                  jni_cache_->context_get_system_service,
+                                  service.get()));
+
+  usermanager_ = MakeGlobalRef(usermanager_ref.get(), jenv_, jni_cache_->jvm);
   return (usermanager_ != nullptr);
 }
 

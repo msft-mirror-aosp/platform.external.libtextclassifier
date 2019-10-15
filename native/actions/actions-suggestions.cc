@@ -24,6 +24,7 @@
 #include "utils/base/logging.h"
 #include "utils/flatbuffers.h"
 #include "utils/lua-utils.h"
+#include "utils/normalization.h"
 #include "utils/optional.h"
 #include "utils/regex-match.h"
 #include "utils/strings/split.h"
@@ -923,7 +924,7 @@ bool ActionsSuggestions::ReadModelOutput(
   if (model_->tflite_model_spec()->output_actions_scores() >= 0) {
     const TensorView<float> actions_scores = model_executor_->OutputView<float>(
         model_->tflite_model_spec()->output_actions_scores(), interpreter);
-    for (int i = 0; i < model_->action_type()->Length(); i++) {
+    for (int i = 0; i < model_->action_type()->size(); i++) {
       const ActionTypeOptions* action_type = model_->action_type()->Get(i);
       // Skip disabled action classes, such as the default other category.
       if (!action_type->enabled()) {
@@ -1139,7 +1140,18 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
                           suggestion.serialized_entity_data.size()));
         }
 
-        entity_data->ParseAndSet(mapping->entity_field(), annotation.span.text);
+        UnicodeText normalized_annotation_text =
+            UTF8ToUnicodeText(annotation.span.text, /*do_copy=*/false);
+
+        // Apply normalization if specified.
+        if (mapping->normalization_options() != nullptr) {
+          normalized_annotation_text =
+              NormalizeText(unilib_, mapping->normalization_options(),
+                            normalized_annotation_text);
+        }
+
+        entity_data->ParseAndSet(mapping->entity_field(),
+                                 normalized_annotation_text.ToUTF8String());
         suggestion.serialized_entity_data = entity_data->Serialize();
       }
 
@@ -1251,11 +1263,22 @@ bool ActionsSuggestions::SuggestActionsFromRules(
               continue;
             }
 
+            UnicodeText normalized_group_match_text =
+                UTF8ToUnicodeText(group_match_text.value(), /*do_copy=*/false);
+
+            // Apply normalization if specified.
+            if (group->normalization_options() != nullptr) {
+              normalized_group_match_text =
+                  NormalizeText(unilib_, group->normalization_options(),
+                                normalized_group_match_text);
+            }
+
             if (group->entity_field() != nullptr) {
               TC3_CHECK(entity_data != nullptr);
               sets_entity_data = true;
-              if (!entity_data->ParseAndSet(group->entity_field(),
-                                            group_match_text.value())) {
+              if (!entity_data->ParseAndSet(
+                      group->entity_field(),
+                      normalized_group_match_text.ToUTF8String())) {
                 TC3_LOG(ERROR)
                     << "Could not set entity data from rule capturing group.";
                 return false;
@@ -1275,7 +1298,8 @@ bool ActionsSuggestions::SuggestActionsFromRules(
               actions->push_back(SuggestionFromSpec(
                   group->text_reply(),
                   /*default_type=*/model_->smart_reply_action_type()->str(),
-                  /*default_response_text=*/group_match_text.value()));
+                  /*default_response_text=*/
+                  normalized_group_match_text.ToUTF8String()));
             }
           }
         }
@@ -1412,6 +1436,15 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
     const Conversation& conversation, const Annotator* annotator,
     const ActionSuggestionOptions& options) const {
   ActionsSuggestionsResponse response;
+
+  // Assert that messages are sorted correctly.
+  for (int i = 1; i < conversation.messages.size(); i++) {
+    if (conversation.messages[i].reference_time_ms_utc <
+        conversation.messages[i - 1].reference_time_ms_utc) {
+      TC3_LOG(ERROR) << "Messages are not sorted most recent last.";
+    }
+  }
+
   if (!GatherActionsSuggestions(conversation, annotator, options, &response)) {
     TC3_LOG(ERROR) << "Could not gather actions suggestions.";
     response.actions.clear();
