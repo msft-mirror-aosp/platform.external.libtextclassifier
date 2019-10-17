@@ -23,6 +23,7 @@
 #include "annotator/types.h"
 #include "utils/base/logging.h"
 #include "utils/strings/numbers.h"
+#include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
 
@@ -31,46 +32,55 @@ using DurationUnit = internal::DurationUnit;
 namespace internal {
 
 namespace {
+std::string ToLowerString(const std::string& str, const UniLib* unilib) {
+  return unilib->ToLowerText(UTF8ToUnicodeText(str, /*do_copy=*/false))
+      .ToUTF8String();
+}
+
 void FillDurationUnitMap(
     const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*
         expressions,
     DurationUnit duration_unit,
-    std::unordered_map<std::string, DurationUnit>* target_map) {
+    std::unordered_map<std::string, DurationUnit>* target_map,
+    const UniLib* unilib) {
   if (expressions == nullptr) {
     return;
   }
 
   for (const flatbuffers::String* expression_string : *expressions) {
-    (*target_map)[expression_string->c_str()] = duration_unit;
+    (*target_map)[ToLowerString(expression_string->c_str(), unilib)] =
+        duration_unit;
   }
 }
 }  // namespace
 
 std::unordered_map<std::string, DurationUnit> BuildTokenToDurationUnitMapping(
-    const DurationAnnotatorOptions* options) {
+    const DurationAnnotatorOptions* options, const UniLib* unilib) {
   std::unordered_map<std::string, DurationUnit> mapping;
-  FillDurationUnitMap(options->week_expressions(), DurationUnit::WEEK,
-                      &mapping);
-  FillDurationUnitMap(options->day_expressions(), DurationUnit::DAY, &mapping);
-  FillDurationUnitMap(options->hour_expressions(), DurationUnit::HOUR,
-                      &mapping);
+  FillDurationUnitMap(options->week_expressions(), DurationUnit::WEEK, &mapping,
+                      unilib);
+  FillDurationUnitMap(options->day_expressions(), DurationUnit::DAY, &mapping,
+                      unilib);
+  FillDurationUnitMap(options->hour_expressions(), DurationUnit::HOUR, &mapping,
+                      unilib);
   FillDurationUnitMap(options->minute_expressions(), DurationUnit::MINUTE,
-                      &mapping);
+                      &mapping, unilib);
   FillDurationUnitMap(options->second_expressions(), DurationUnit::SECOND,
-                      &mapping);
+                      &mapping, unilib);
   return mapping;
 }
 
 std::unordered_set<std::string> BuildStringSet(
     const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*
-        strings) {
+        strings,
+    const UniLib* unilib) {
   std::unordered_set<std::string> result;
   if (strings == nullptr) {
     return result;
   }
 
   for (const flatbuffers::String* string_value : *strings) {
-    result.insert(string_value->c_str());
+    result.insert(ToLowerString(string_value->c_str(), unilib));
   }
 
   return result;
@@ -260,14 +270,17 @@ bool DurationAnnotator::ParseQuantityToken(const Token& token,
   std::string token_value_buffer;
   const std::string& token_value = feature_processor_->StripBoundaryCodepoints(
       token.value, &token_value_buffer);
+  const std::string& lowercase_token_value =
+      internal::ToLowerString(token_value, unilib_);
 
-  if (half_expressions_.find(token_value) != half_expressions_.end()) {
+  if (half_expressions_.find(lowercase_token_value) !=
+      half_expressions_.end()) {
     value->plus_half = true;
     return true;
   }
 
   int32 parsed_value;
-  if (ParseInt32(token_value.c_str(), &parsed_value)) {
+  if (ParseInt32(lowercase_token_value.c_str(), &parsed_value)) {
     value->value = parsed_value;
     return true;
   }
@@ -280,8 +293,10 @@ bool DurationAnnotator::ParseDurationUnitToken(
   std::string token_value_buffer;
   const std::string& token_value = feature_processor_->StripBoundaryCodepoints(
       token.value, &token_value_buffer);
+  const std::string& lowercase_token_value =
+      internal::ToLowerString(token_value, unilib_);
 
-  const auto it = token_value_to_duration_unit_.find(token_value);
+  const auto it = token_value_to_duration_unit_.find(lowercase_token_value);
   if (it == token_value_to_duration_unit_.end()) {
     return false;
   }
@@ -319,8 +334,11 @@ bool DurationAnnotator::ParseFillerToken(const Token& token) const {
   std::string token_value_buffer;
   const std::string& token_value = feature_processor_->StripBoundaryCodepoints(
       token.value, &token_value_buffer);
+  const std::string& lowercase_token_value =
+      internal::ToLowerString(token_value, unilib_);
 
-  if (filler_expressions_.find(token_value) == filler_expressions_.end()) {
+  if (filler_expressions_.find(lowercase_token_value) ==
+      filler_expressions_.end()) {
     return false;
   }
 

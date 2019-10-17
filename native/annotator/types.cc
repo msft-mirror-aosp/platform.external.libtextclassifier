@@ -56,6 +56,64 @@ std::string FormatMillis(int64 time_ms_utc) {
 }
 }  // namespace
 
+std::string ComponentTypeToString(
+    const DatetimeComponent::ComponentType& component_type) {
+  switch (component_type) {
+    case DatetimeComponent::ComponentType::UNSPECIFIED:
+      return "UNSPECIFIED";
+    case DatetimeComponent::ComponentType::YEAR:
+      return "YEAR";
+    case DatetimeComponent::ComponentType::MONTH:
+      return "MONTH";
+    case DatetimeComponent::ComponentType::WEEK:
+      return "WEEK";
+    case DatetimeComponent::ComponentType::DAY_OF_WEEK:
+      return "DAY_OF_WEEK";
+    case DatetimeComponent::ComponentType::DAY_OF_MONTH:
+      return "DAY_OF_MONTH";
+    case DatetimeComponent::ComponentType::HOUR:
+      return "HOUR";
+    case DatetimeComponent::ComponentType::MINUTE:
+      return "MINUTE";
+    case DatetimeComponent::ComponentType::SECOND:
+      return "SECOND";
+    case DatetimeComponent::ComponentType::MERIDIEM:
+      return "MERIDIEM";
+    case DatetimeComponent::ComponentType::ZONE_OFFSET:
+      return "ZONE_OFFSET";
+    case DatetimeComponent::ComponentType::DST_OFFSET:
+      return "DST_OFFSET";
+    default:
+      return "";
+  }
+}
+
+std::string RelativeQualifierToString(
+    const DatetimeComponent::RelativeQualifier& relative_qualifier) {
+  switch (relative_qualifier) {
+    case DatetimeComponent::RelativeQualifier::UNSPECIFIED:
+      return "UNSPECIFIED";
+    case DatetimeComponent::RelativeQualifier::NEXT:
+      return "NEXT";
+    case DatetimeComponent::RelativeQualifier::THIS:
+      return "THIS";
+    case DatetimeComponent::RelativeQualifier::LAST:
+      return "LAST";
+    case DatetimeComponent::RelativeQualifier::NOW:
+      return "NOW";
+    case DatetimeComponent::RelativeQualifier::TOMORROW:
+      return "TOMORROW";
+    case DatetimeComponent::RelativeQualifier::YESTERDAY:
+      return "YESTERDAY";
+    case DatetimeComponent::RelativeQualifier::PAST:
+      return "PAST";
+    case DatetimeComponent::RelativeQualifier::FUTURE:
+      return "FUTURE";
+    default:
+      return "";
+  }
+}
+
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
                                          const DatetimeParseResultSpan& value) {
   stream << "DatetimeParseResultSpan({" << value.span.first << ", "
@@ -63,7 +121,16 @@ logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
   for (const DatetimeParseResult& data : value.data) {
     stream << "{/*time_ms_utc=*/ " << data.time_ms_utc << " /* "
            << FormatMillis(data.time_ms_utc) << " */, /*granularity=*/ "
-           << data.granularity << "}, ";
+           << data.granularity << ", /*datetime_components=*/ ";
+    for (const DatetimeComponent& datetime_comp : data.datetime_components) {
+      stream << "{/*component_type=*/ "
+             << ComponentTypeToString(datetime_comp.component_type)
+             << " /*relative_qualifier=*/ "
+             << RelativeQualifierToString(datetime_comp.relative_qualifier)
+             << " /*value=*/ " << datetime_comp.value << " /*relative_count=*/ "
+             << datetime_comp.relative_count << "}, ";
+    }
+    stream << "}, ";
   }
   stream << "})";
   return stream;

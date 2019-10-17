@@ -16,7 +16,7 @@
 
 #include "utils/utf8/unilib_test-include.h"
 
-#include "utils/utf8/unicodetext.h"
+#include "utils/base/logging.h"
 #include "gmock/gmock.h"
 
 namespace libtextclassifier3 {
@@ -38,12 +38,24 @@ TEST_F(UniLibTest, CharacterClassesAscii) {
   EXPECT_FALSE(unilib_.IsLower(')'));
   EXPECT_TRUE(unilib_.IsLower('a'));
   EXPECT_TRUE(unilib_.IsLower('z'));
+  EXPECT_TRUE(unilib_.IsPunctuation('!'));
+  EXPECT_TRUE(unilib_.IsPunctuation('?'));
+  EXPECT_TRUE(unilib_.IsPunctuation('#'));
+  EXPECT_TRUE(unilib_.IsPunctuation('('));
+  EXPECT_FALSE(unilib_.IsPunctuation('0'));
+  EXPECT_FALSE(unilib_.IsPunctuation('$'));
   EXPECT_EQ(unilib_.ToLower('A'), 'a');
   EXPECT_EQ(unilib_.ToLower('Z'), 'z');
   EXPECT_EQ(unilib_.ToLower(')'), ')');
+  EXPECT_EQ(unilib_.ToLowerText(UTF8ToUnicodeText("Never gonna give you up."))
+                .ToUTF8String(),
+            "never gonna give you up.");
   EXPECT_EQ(unilib_.ToUpper('a'), 'A');
   EXPECT_EQ(unilib_.ToUpper('z'), 'Z');
   EXPECT_EQ(unilib_.ToUpper(')'), ')');
+  EXPECT_EQ(unilib_.ToUpperText(UTF8ToUnicodeText("Never gonna let you down."))
+                .ToUTF8String(),
+            "NEVER GONNA LET YOU DOWN.");
   EXPECT_EQ(unilib_.GetPairedBracket(')'), '(');
   EXPECT_EQ(unilib_.GetPairedBracket('}'), '{');
 }
@@ -60,24 +72,38 @@ TEST_F(UniLibTest, CharacterClassesUnicode) {
   EXPECT_FALSE(unilib_.IsUpper(0x0211));          // SMALL R WITH DOUBLE GRAVE
   EXPECT_TRUE(unilib_.IsUpper(0x0212));           // CAPITAL R WITH DOUBLE GRAVE
   EXPECT_TRUE(unilib_.IsUpper(0x0391));           // GREEK CAPITAL ALPHA
-  EXPECT_TRUE(unilib_.IsUpper(0x03AB));        // GREEK CAPITAL UPSILON W DIAL
-  EXPECT_FALSE(unilib_.IsUpper(0x03AC));       // GREEK SMALL ALPHA WITH TONOS
-  EXPECT_TRUE(unilib_.IsLower(0x03AC));        // GREEK SMALL ALPHA WITH TONOS
-  EXPECT_TRUE(unilib_.IsLower(0x03B1));        // GREEK SMALL ALPHA
-  EXPECT_TRUE(unilib_.IsLower(0x03CB));        // GREEK SMALL UPSILON
-  EXPECT_TRUE(unilib_.IsLower(0x0211));        // SMALL R WITH DOUBLE GRAVE
-  EXPECT_TRUE(unilib_.IsLower(0x03C0));        // GREEK SMALL PI
-  EXPECT_TRUE(unilib_.IsLower(0x007a));        // SMALL Z
-  EXPECT_FALSE(unilib_.IsLower(0x005a));       // CAPITAL Z
-  EXPECT_FALSE(unilib_.IsLower(0x0212));       // CAPITAL R WITH DOUBLE GRAVE
-  EXPECT_FALSE(unilib_.IsLower(0x0391));       // GREEK CAPITAL ALPHA
-  EXPECT_EQ(unilib_.ToLower(0x0391), 0x03B1);  // GREEK ALPHA
-  EXPECT_EQ(unilib_.ToLower(0x03AB), 0x03CB);  // GREEK UPSILON WITH DIALYTIKA
-  EXPECT_EQ(unilib_.ToLower(0x03C0), 0x03C0);  // GREEK SMALL PI
+  EXPECT_TRUE(unilib_.IsUpper(0x03AB));         // GREEK CAPITAL UPSILON W DIAL
+  EXPECT_FALSE(unilib_.IsUpper(0x03AC));        // GREEK SMALL ALPHA WITH TONOS
+  EXPECT_TRUE(unilib_.IsLower(0x03AC));         // GREEK SMALL ALPHA WITH TONOS
+  EXPECT_TRUE(unilib_.IsLower(0x03B1));         // GREEK SMALL ALPHA
+  EXPECT_TRUE(unilib_.IsLower(0x03CB));         // GREEK SMALL UPSILON
+  EXPECT_TRUE(unilib_.IsLower(0x0211));         // SMALL R WITH DOUBLE GRAVE
+  EXPECT_TRUE(unilib_.IsLower(0x03C0));         // GREEK SMALL PI
+  EXPECT_TRUE(unilib_.IsLower(0x007A));         // SMALL Z
+  EXPECT_FALSE(unilib_.IsLower(0x005A));        // CAPITAL Z
+  EXPECT_FALSE(unilib_.IsLower(0x0212));        // CAPITAL R WITH DOUBLE GRAVE
+  EXPECT_FALSE(unilib_.IsLower(0x0391));        // GREEK CAPITAL ALPHA
+  EXPECT_TRUE(unilib_.IsPunctuation(0x055E));   // ARMENIAN QUESTION MARK
+  EXPECT_TRUE(unilib_.IsPunctuation(0x066C));   // ARABIC THOUSANDS SEPARATOR
+  EXPECT_TRUE(unilib_.IsPunctuation(0x07F7));   // NKO SYMBOL GBAKURUNEN
+  EXPECT_TRUE(unilib_.IsPunctuation(0x10AF2));  // DOUBLE DOT WITHIN DOT
+  EXPECT_FALSE(unilib_.IsPunctuation(0x00A3));  // POUND SIGN
+  EXPECT_FALSE(unilib_.IsPunctuation(0xA838));  // NORTH INDIC RUPEE MARK
+  EXPECT_EQ(unilib_.ToLower(0x0391), 0x03B1);   // GREEK ALPHA
+  EXPECT_EQ(unilib_.ToLower(0x03AB), 0x03CB);   // GREEK UPSILON WITH DIALYTIKA
+  EXPECT_EQ(unilib_.ToLower(0x03C0), 0x03C0);   // GREEK SMALL PI
+  EXPECT_EQ(unilib_.ToLower(0x03A3), 0x03C3);   // GREEK CAPITAL LETTER SIGMA
+  EXPECT_EQ(unilib_.ToLowerText(UTF8ToUnicodeText("Κανένας άνθρωπος δεν ξέρει"))
+                .ToUTF8String(),
+            "κανένας άνθρωπος δεν ξέρει");
   EXPECT_EQ(unilib_.ToUpper(0x03B1), 0x0391);  // GREEK ALPHA
   EXPECT_EQ(unilib_.ToUpper(0x03CB), 0x03AB);  // GREEK UPSILON WITH DIALYTIKA
   EXPECT_EQ(unilib_.ToUpper(0x0391), 0x0391);  // GREEK CAPITAL ALPHA
-
+  EXPECT_EQ(unilib_.ToUpper(0x03C3), 0x03A3);  // GREEK CAPITAL LETTER SIGMA
+  EXPECT_EQ(unilib_.ToUpper(0x03C2), 0x03A3);  // GREEK CAPITAL LETTER SIGMA
+  EXPECT_EQ(unilib_.ToUpperText(UTF8ToUnicodeText("Κανένας άνθρωπος δεν ξέρει"))
+                .ToUTF8String(),
+            "ΚΑΝΈΝΑΣ ΆΝΘΡΩΠΟΣ ΔΕΝ ΞΈΡΕΙ");
   EXPECT_EQ(unilib_.GetPairedBracket(0x0F3C), 0x0F3D);
   EXPECT_EQ(unilib_.GetPairedBracket(0x0F3D), 0x0F3C);
 }
@@ -235,6 +261,5 @@ TEST_F(UniLibTest, IntegerParseFullWidthWithAlpha) {
   EXPECT_FALSE(unilib_.ParseInt32(UTF8ToUnicodeText("１a３", /*do_copy=*/false),
                                   &result));
 }
-
 }  // namespace test_internal
 }  // namespace libtextclassifier3

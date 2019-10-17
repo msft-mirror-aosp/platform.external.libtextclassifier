@@ -29,6 +29,8 @@ class KnowledgeEngine {
  public:
   bool Initialize(const std::string& serialized_config) { return true; }
 
+  void SetPriorityScore(float priority_score) {}
+
   bool ClassifyText(const std::string& context, CodepointSpan selection_indices,
                     AnnotationUsecase annotation_usecase,
                     ClassificationResult* classification_result) const {

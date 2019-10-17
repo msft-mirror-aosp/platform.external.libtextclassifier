@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package com.android.textclassifier.ulp.database;
 
 import android.content.Context;
-
 import androidx.annotation.GuardedBy;
 import androidx.room.Database;
 import androidx.room.Room;
@@ -30,36 +29,36 @@ import androidx.room.RoomDatabase;
  * existing if there is one) and use it.
  */
 @Database(
-        entities = {LanguageSignalInfo.class},
-        version = 1,
-        exportSchema = false)
+    entities = {LanguageSignalInfo.class},
+    version = 1,
+    exportSchema = false)
 public abstract class LanguageProfileDatabase extends RoomDatabase {
-    private static final Object sLock = new Object();
+  private static final Object lock = new Object();
 
-    @GuardedBy("sLock")
-    private static LanguageProfileDatabase sINSTANCE;
+  @GuardedBy("lock")
+  private static LanguageProfileDatabase instance;
 
-    /**
-     * Returns {@link LanguageSignalInfoDao} object belonging to the {@link LanguageProfileDatabase}
-     * with which we can call database queries.
-     */
-    public abstract LanguageSignalInfoDao languageInfoDao();
+  /**
+   * Returns {@link LanguageSignalInfoDao} object belonging to the {@link LanguageProfileDatabase}
+   * with which we can call database queries.
+   */
+  public abstract LanguageSignalInfoDao languageInfoDao();
 
-    /**
-     * Create an instance of {@link LanguageProfileDatabase} for chosen context or existing one if
-     * it was already created.
-     */
-    public static LanguageProfileDatabase getInstance(final Context context) {
-        synchronized (sLock) {
-            if (sINSTANCE == null) {
-                sINSTANCE =
-                        Room.databaseBuilder(
-                                        context.getApplicationContext(),
-                                        LanguageProfileDatabase.class,
-                                        "language_profile")
-                                .build();
-            }
-            return sINSTANCE;
-        }
+  /**
+   * Create an instance of {@link LanguageProfileDatabase} for chosen context or existing one if it
+   * was already created.
+   */
+  public static LanguageProfileDatabase getInstance(final Context context) {
+    synchronized (lock) {
+      if (instance == null) {
+        instance =
+            Room.databaseBuilder(
+                    context.getApplicationContext(),
+                    LanguageProfileDatabase.class,
+                    "language_profile")
+                .build();
+      }
+      return instance;
     }
+  }
 }

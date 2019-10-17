@@ -22,6 +22,7 @@
 namespace libtextclassifier3 {
 
 bool CompressIntentModel(IntentFactoryModelT* intent_model);
+bool DecompressIntentModel(IntentFactoryModelT* intent_model);
 
 }  // namespace libtextclassifier3
 

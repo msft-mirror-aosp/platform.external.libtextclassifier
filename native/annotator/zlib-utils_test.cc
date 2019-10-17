@@ -43,6 +43,37 @@ TEST(ZlibUtilsTest, CompressModel) {
   model.datetime_model->extractors.back()->pattern =
       "an example datetime extractor";
 
+  model.intent_options.reset(new IntentFactoryModelT);
+  model.intent_options->generator.emplace_back(
+      new IntentFactoryModel_::IntentGeneratorT);
+  const std::string intent_generator1 = "lua generator 1";
+  model.intent_options->generator.back()->lua_template_generator =
+      std::vector<uint8_t>(intent_generator1.begin(), intent_generator1.end());
+  model.intent_options->generator.emplace_back(
+      new IntentFactoryModel_::IntentGeneratorT);
+  const std::string intent_generator2 = "lua generator 2";
+  model.intent_options->generator.back()->lua_template_generator =
+      std::vector<uint8_t>(intent_generator2.begin(), intent_generator2.end());
+
+  // NOTE: The resource strings contain some repetition, so that the compressed
+  // version is smaller than the uncompressed one. Because the compression code
+  // looks at that as well.
+  model.resources.reset(new ResourcePoolT);
+  model.resources->resource_entry.emplace_back(new ResourceEntryT);
+  model.resources->resource_entry.back()->resource.emplace_back(new ResourceT);
+  model.resources->resource_entry.back()->resource.back()->content =
+      "rrrrrrrrrrrrr1.1";
+  model.resources->resource_entry.back()->resource.emplace_back(new ResourceT);
+  model.resources->resource_entry.back()->resource.back()->content =
+      "rrrrrrrrrrrrr1.2";
+  model.resources->resource_entry.emplace_back(new ResourceEntryT);
+  model.resources->resource_entry.back()->resource.emplace_back(new ResourceT);
+  model.resources->resource_entry.back()->resource.back()->content =
+      "rrrrrrrrrrrrr2.1";
+  model.resources->resource_entry.back()->resource.emplace_back(new ResourceT);
+  model.resources->resource_entry.back()->resource.back()->content =
+      "rrrrrrrrrrrrr2.2";
+
   // Compress the model.
   EXPECT_TRUE(CompressModel(&model));
 
@@ -51,6 +82,14 @@ TEST(ZlibUtilsTest, CompressModel) {
   EXPECT_TRUE(model.regex_model->patterns[1]->pattern.empty());
   EXPECT_TRUE(model.datetime_model->patterns[0]->regexes[0]->pattern.empty());
   EXPECT_TRUE(model.datetime_model->extractors[0]->pattern.empty());
+  EXPECT_TRUE(
+      model.intent_options->generator[0]->lua_template_generator.empty());
+  EXPECT_TRUE(
+      model.intent_options->generator[1]->lua_template_generator.empty());
+  EXPECT_TRUE(model.resources->resource_entry[0]->resource[0]->content.empty());
+  EXPECT_TRUE(model.resources->resource_entry[0]->resource[1]->content.empty());
+  EXPECT_TRUE(model.resources->resource_entry[1]->resource[0]->content.empty());
+  EXPECT_TRUE(model.resources->resource_entry[1]->resource[1]->content.empty());
 
   // Pack and load the model.
   flatbuffers::FlatBufferBuilder builder;
@@ -94,6 +133,20 @@ TEST(ZlibUtilsTest, CompressModel) {
             "an example datetime pattern");
   EXPECT_EQ(model.datetime_model->extractors[0]->pattern,
             "an example datetime extractor");
+  EXPECT_EQ(
+      model.intent_options->generator[0]->lua_template_generator,
+      std::vector<uint8_t>(intent_generator1.begin(), intent_generator1.end()));
+  EXPECT_EQ(
+      model.intent_options->generator[1]->lua_template_generator,
+      std::vector<uint8_t>(intent_generator2.begin(), intent_generator2.end()));
+  EXPECT_EQ(model.resources->resource_entry[0]->resource[0]->content,
+            "rrrrrrrrrrrrr1.1");
+  EXPECT_EQ(model.resources->resource_entry[0]->resource[1]->content,
+            "rrrrrrrrrrrrr1.2");
+  EXPECT_EQ(model.resources->resource_entry[1]->resource[0]->content,
+            "rrrrrrrrrrrrr2.1");
+  EXPECT_EQ(model.resources->resource_entry[1]->resource[1]->content,
+            "rrrrrrrrrrrrr2.2");
 }
 
 }  // namespace libtextclassifier3

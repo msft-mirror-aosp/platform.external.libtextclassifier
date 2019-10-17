@@ -20,6 +20,7 @@
 #include <jni.h>
 
 #include "annotator/annotator.h"
+#include "utils/base/statusor.h"
 
 #ifndef TC3_ANNOTATOR_CLASS_NAME
 #define TC3_ANNOTATOR_CLASS_NAME AnnotatorModel
@@ -29,12 +30,14 @@
 
 namespace libtextclassifier3 {
 
-SelectionOptions FromJavaSelectionOptions(JNIEnv* env, jobject joptions);
-
-ClassificationOptions FromJavaClassificationOptions(JNIEnv* env,
+StatusOr<SelectionOptions> FromJavaSelectionOptions(JNIEnv* env,
                                                     jobject joptions);
 
-AnnotationOptions FromJavaAnnotationOptions(JNIEnv* env, jobject joptions);
+StatusOr<ClassificationOptions> FromJavaClassificationOptions(JNIEnv* env,
+                                                              jobject joptions);
+
+StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
+                                                      jobject joptions);
 
 }  // namespace libtextclassifier3
 

@@ -81,16 +81,17 @@ class NumberAnnotator {
   static std::vector<uint32> FlatbuffersIntVectorToStdVector(
       const flatbuffers::Vector<int32_t>* ints);
 
-  // Parses the text to an int64 value and returns true if succeeded, otherwise
-  // false. Also returns the number of prefix/suffix codepoints that were
-  // stripped from the number.
+  // Parses the text to an int64 value and a double value and returns true if
+  // succeeded, otherwise false. Also returns whether the number contains a
+  // decimal and the number of prefix/suffix codepoints that were stripped from
+  // the number.
   bool ParseNumber(const UnicodeText& text, int64* int_result,
-                   double* double_result, int* num_prefix_codepoints,
+                   double* double_result, bool* has_decimal,
+                   int* num_prefix_codepoints,
                    int* num_suffix_codepoints) const;
 
   // Get the length of the percent suffix at the specified index in the context.
   int GetPercentSuffixLength(const UnicodeText& context,
-                             int context_size_codepoints,
                              int index_codepoints) const;
 
   // Checks if the annotated numbers from the context represent percentages.

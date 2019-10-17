@@ -47,7 +47,8 @@ android_library {
         "androidx.annotation_annotation",
         "guava",
         "androidx.room_room-runtime",
-        "textclassifier-statsd"
+        "textclassifier-statsd",
+        "error_prone_annotations",
     ],
     sdk_version: "system_current",
     min_sdk_version: "28",

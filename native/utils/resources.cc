@@ -15,6 +15,7 @@
  */
 
 #include "utils/resources.h"
+
 #include "utils/base/logging.h"
 #include "utils/zlib/buffer_generated.h"
 #include "utils/zlib/zlib.h"
@@ -212,6 +213,36 @@ std::string CompressSerializedResources(const std::string& resources,
   builder.Finish(ResourcePool::Pack(builder, unpacked_resources.get()));
   return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
                      builder.GetSize());
+}
+
+bool DecompressResources(ResourcePoolT* resources,
+                         const bool build_compression_dictionary) {
+  std::vector<unsigned char> dictionary;
+
+  for (auto& entry : resources->resource_entry) {
+    for (auto& resource : entry->resource) {
+      if (resource->compressed_content == nullptr) {
+        continue;
+      }
+
+      std::unique_ptr<ZlibDecompressor> zlib_decompressor =
+          build_compression_dictionary
+              ? ZlibDecompressor::Instance(dictionary.data(), dictionary.size())
+              : ZlibDecompressor::Instance();
+      if (!zlib_decompressor) {
+        TC3_LOG(ERROR) << "Cannot initialize decompressor.";
+        return false;
+      }
+
+      if (!zlib_decompressor->MaybeDecompress(
+              resource->compressed_content.get(), &resource->content)) {
+        TC3_LOG(ERROR) << "Cannot decompress resource.";
+        return false;
+      }
+      resource->compressed_content.reset(nullptr);
+    }
+  }
+  return true;
 }
 
 }  // namespace libtextclassifier3

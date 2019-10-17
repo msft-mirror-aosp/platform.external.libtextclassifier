@@ -18,6 +18,7 @@
 #define LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_COMMON_H_
 
 #include "utils/base/integral_types.h"
+#include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
 
@@ -27,6 +28,7 @@ bool IsWhitespace(char32 codepoint);
 bool IsDigit(char32 codepoint);
 bool IsLower(char32 codepoint);
 bool IsUpper(char32 codepoint);
+bool IsPunctuation(char32 codepoint);
 char32 ToLower(char32 codepoint);
 char32 ToUpper(char32 codepoint);
 char32 GetPairedBracket(char32 codepoint);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,9 @@ package com.android.textclassifier.ulp;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.view.textclassifier.TextClassifierEvent;
-
 import com.android.textclassifier.TcLog;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -37,159 +34,159 @@ import org.json.JSONObject;
  * translation action in the future.
  */
 class ReinforcementLanguageProficiencyAnalyzer implements LanguageProficiencyAnalyzer {
-    private static final String TAG = "ReinforcementAnalyzer";
-    private static final String PREF_NAME = "ulp-reinforcement-analyzer";
-    private static final float SHOW_TRANSLATE_ACTION_THRESHOLD = 0.9f;
-    private static final int MIN_NUM_TRANSLATE_SHOWN_TO_BE_CONFIDENT = 30;
+  private static final String TAG = "ReinforcementAnalyzer";
+  private static final String PREF_NAME = "ulp-reinforcement-analyzer";
+  private static final float SHOW_TRANSLATE_ACTION_THRESHOLD = 0.9f;
+  private static final int MIN_NUM_TRANSLATE_SHOWN_TO_BE_CONFIDENT = 30;
 
-    private final SystemLanguagesProvider mSystemLanguagesProvider;
-    private final SharedPreferences mSharedPreferences;
+  private final SystemLanguagesProvider systemLanguagesProvider;
+  private final SharedPreferences sharedPreferences;
 
-    ReinforcementLanguageProficiencyAnalyzer(
-            Context context, SystemLanguagesProvider systemLanguagesProvider) {
-        Preconditions.checkNotNull(context);
-        mSystemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
-        mSharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+  ReinforcementLanguageProficiencyAnalyzer(
+      Context context, SystemLanguagesProvider systemLanguagesProvider) {
+    Preconditions.checkNotNull(context);
+    this.systemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
+    sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+  }
+
+  @VisibleForTesting
+  ReinforcementLanguageProficiencyAnalyzer(
+      SystemLanguagesProvider systemLanguagesProvider, SharedPreferences sharedPreferences) {
+    this.systemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
+    this.sharedPreferences = Preconditions.checkNotNull(sharedPreferences);
+  }
+
+  @Override
+  public float canUnderstand(String languageTag) {
+    TranslationStatistics translationStatistics =
+        TranslationStatistics.loadFromSharedPreference(sharedPreferences, languageTag);
+    if (translationStatistics.getShownCount() < MIN_NUM_TRANSLATE_SHOWN_TO_BE_CONFIDENT) {
+      return systemLanguagesProvider.getSystemLanguageTags().contains(languageTag) ? 1f : 0f;
+    }
+    return translationStatistics.getScore();
+  }
+
+  @Override
+  public boolean shouldShowTranslation(String languageTag) {
+    TranslationStatistics translationStatistics =
+        TranslationStatistics.loadFromSharedPreference(sharedPreferences, languageTag);
+    if (translationStatistics.getShownCount() < MIN_NUM_TRANSLATE_SHOWN_TO_BE_CONFIDENT) {
+      // Show translate action until we have enough feedback.
+      return true;
+    }
+    return translationStatistics.getScore() <= SHOW_TRANSLATE_ACTION_THRESHOLD;
+  }
+
+  @Override
+  public void onTextClassifierEvent(TextClassifierEvent event) {
+    if (event.getEventCategory() == TextClassifierEvent.CATEGORY_LANGUAGE_DETECTION) {
+      if (event.getEventType() == TextClassifierEvent.TYPE_SMART_ACTION
+          || event.getEventType() == TextClassifierEvent.TYPE_ACTIONS_SHOWN) {
+        onTranslateEvent(event);
+      }
+    }
+  }
+
+  private void onTranslateEvent(TextClassifierEvent event) {
+    if (event.getEntityTypes().length == 0) {
+      return;
+    }
+    String languageTag = event.getEntityTypes()[0];
+    // We only count the case that we show translate action in the prime position.
+    if (event.getActionIndices().length == 0 || event.getActionIndices()[0] != 0) {
+      return;
+    }
+    TranslationStatistics translationStatistics =
+        TranslationStatistics.loadFromSharedPreference(sharedPreferences, languageTag);
+    if (event.getEventType() == TextClassifierEvent.TYPE_ACTIONS_SHOWN) {
+      translationStatistics.increaseShownCountByOne();
+    } else if (event.getEventType() == TextClassifierEvent.TYPE_SMART_ACTION) {
+      translationStatistics.increaseClickedCountByOne();
+    }
+    translationStatistics.save(sharedPreferences, languageTag);
+  }
+
+  private static final class TranslationStatistics {
+    private static final String SEEN_COUNT = "seen_count";
+    private static final String CLICK_COUNT = "click_count";
+
+    private int shownCount;
+    private int clickCount;
+
+    private TranslationStatistics() {
+      this(/* seenCount= */ 0, /* clickCount= */ 0);
     }
 
-    @VisibleForTesting
-    ReinforcementLanguageProficiencyAnalyzer(
-            SystemLanguagesProvider systemLanguagesProvider, SharedPreferences sharedPreferences) {
-        mSystemLanguagesProvider = Preconditions.checkNotNull(systemLanguagesProvider);
-        mSharedPreferences = Preconditions.checkNotNull(sharedPreferences);
+    private TranslationStatistics(int seenCount, int clickCount) {
+      shownCount = seenCount;
+      this.clickCount = clickCount;
+    }
+
+    static TranslationStatistics loadFromSharedPreference(
+        SharedPreferences sharedPreferences, String languageTag) {
+      String serializedString = sharedPreferences.getString(languageTag, null);
+      return TranslationStatistics.fromSerializedString(serializedString);
+    }
+
+    void save(SharedPreferences sharedPreferences, String languageTag) {
+      // TODO: Consider to store it in a database.
+      sharedPreferences.edit().putString(languageTag, serializeToString()).apply();
+    }
+
+    private String serializeToString() {
+      try {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put(SEEN_COUNT, shownCount);
+        jsonObject.put(CLICK_COUNT, clickCount);
+        return jsonObject.toString();
+      } catch (JSONException ex) {
+        TcLog.e(TAG, "serializeToString: ", ex);
+      }
+      return "";
+    }
+
+    void increaseShownCountByOne() {
+      shownCount += 1;
+    }
+
+    void increaseClickedCountByOne() {
+      clickCount += 1;
+    }
+
+    float getScore() {
+      if (shownCount == 0) {
+        return 0f;
+      }
+      return clickCount / (float) shownCount;
+    }
+
+    int getShownCount() {
+      return shownCount;
+    }
+
+    static TranslationStatistics fromSerializedString(String str) {
+      if (str == null) {
+        return new TranslationStatistics();
+      }
+      try {
+        JSONObject jsonObject = new JSONObject(str);
+        int seenCount = jsonObject.getInt(SEEN_COUNT);
+        int clickCount = jsonObject.getInt(CLICK_COUNT);
+        return new TranslationStatistics(seenCount, clickCount);
+      } catch (JSONException ex) {
+        TcLog.e(TAG, "Failed to parse " + str, ex);
+      }
+      return new TranslationStatistics();
     }
 
     @Override
-    public float canUnderstand(String languageTag) {
-        TranslationStatistics translationStatistics =
-                TranslationStatistics.loadFromSharedPreference(mSharedPreferences, languageTag);
-        if (translationStatistics.getShownCount() < MIN_NUM_TRANSLATE_SHOWN_TO_BE_CONFIDENT) {
-            return mSystemLanguagesProvider.getSystemLanguageTags().contains(languageTag) ? 1f : 0f;
-        }
-        return translationStatistics.getScore();
+    public String toString() {
+      return "TranslationStatistics{"
+          + "mShownCount="
+          + shownCount
+          + ", mClickCount="
+          + clickCount
+          + '}';
     }
-
-    @Override
-    public boolean shouldShowTranslation(String languageTag) {
-        TranslationStatistics translationStatistics =
-                TranslationStatistics.loadFromSharedPreference(mSharedPreferences, languageTag);
-        if (translationStatistics.getShownCount() < MIN_NUM_TRANSLATE_SHOWN_TO_BE_CONFIDENT) {
-            // Show translate action until we have enough feedback.
-            return true;
-        }
-        return translationStatistics.getScore() <= SHOW_TRANSLATE_ACTION_THRESHOLD;
-    }
-
-    @Override
-    public void onTextClassifierEvent(TextClassifierEvent event) {
-        if (event.getEventCategory() == TextClassifierEvent.CATEGORY_LANGUAGE_DETECTION) {
-            if (event.getEventType() == TextClassifierEvent.TYPE_SMART_ACTION
-                    || event.getEventType() == TextClassifierEvent.TYPE_ACTIONS_SHOWN) {
-                onTranslateEvent(event);
-            }
-        }
-    }
-
-    private void onTranslateEvent(TextClassifierEvent event) {
-        if (event.getEntityTypes().length == 0) {
-            return;
-        }
-        String languageTag = event.getEntityTypes()[0];
-        // We only count the case that we show translate action in the prime position.
-        if (event.getActionIndices().length == 0 || event.getActionIndices()[0] != 0) {
-            return;
-        }
-        TranslationStatistics translationStatistics =
-                TranslationStatistics.loadFromSharedPreference(mSharedPreferences, languageTag);
-        if (event.getEventType() == TextClassifierEvent.TYPE_ACTIONS_SHOWN) {
-            translationStatistics.increaseShownCountByOne();
-        } else if (event.getEventType() == TextClassifierEvent.TYPE_SMART_ACTION) {
-            translationStatistics.increaseClickedCountByOne();
-        }
-        translationStatistics.save(mSharedPreferences, languageTag);
-    }
-
-    private static final class TranslationStatistics {
-        private static final String SEEN_COUNT = "seen_count";
-        private static final String CLICK_COUNT = "click_count";
-
-        private int mShownCount;
-        private int mClickCount;
-
-        private TranslationStatistics() {
-            this(/* seenCount= */ 0, /* clickCount= */ 0);
-        }
-
-        private TranslationStatistics(int seenCount, int clickCount) {
-            mShownCount = seenCount;
-            mClickCount = clickCount;
-        }
-
-        static TranslationStatistics loadFromSharedPreference(
-                SharedPreferences sharedPreferences, String languageTag) {
-            String serializedString = sharedPreferences.getString(languageTag, null);
-            return TranslationStatistics.fromSerializedString(serializedString);
-        }
-
-        void save(SharedPreferences sharedPreferences, String languageTag) {
-            // TODO: Consider to store it in a database.
-            sharedPreferences.edit().putString(languageTag, serializeToString()).apply();
-        }
-
-        private String serializeToString() {
-            try {
-                JSONObject jsonObject = new JSONObject();
-                jsonObject.put(SEEN_COUNT, mShownCount);
-                jsonObject.put(CLICK_COUNT, mClickCount);
-                return jsonObject.toString();
-            } catch (JSONException ex) {
-                TcLog.e(TAG, "serializeToString: ", ex);
-            }
-            return "";
-        }
-
-        void increaseShownCountByOne() {
-            mShownCount += 1;
-        }
-
-        void increaseClickedCountByOne() {
-            mClickCount += 1;
-        }
-
-        float getScore() {
-            if (mShownCount == 0) {
-                return 0f;
-            }
-            return mClickCount / (float) mShownCount;
-        }
-
-        int getShownCount() {
-            return mShownCount;
-        }
-
-        static TranslationStatistics fromSerializedString(String str) {
-            if (str == null) {
-                return new TranslationStatistics();
-            }
-            try {
-                JSONObject jsonObject = new JSONObject(str);
-                int seenCount = jsonObject.getInt(SEEN_COUNT);
-                int clickCount = jsonObject.getInt(CLICK_COUNT);
-                return new TranslationStatistics(seenCount, clickCount);
-            } catch (JSONException ex) {
-                TcLog.e(TAG, "Failed to parse " + str, ex);
-            }
-            return new TranslationStatistics();
-        }
-
-        @Override
-        public String toString() {
-            return "TranslationStatistics{"
-                    + "mShownCount="
-                    + mShownCount
-                    + ", mClickCount="
-                    + mClickCount
-                    + '}';
-        }
-    }
+  }
 }

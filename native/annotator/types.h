@@ -352,7 +352,7 @@ struct ClassificationResult {
 
   // Entity data information.
   std::string serialized_entity_data;
-  const EntityData* entity_data() {
+  const EntityData* entity_data() const {
     return LoadAndVerifyFlatbuffer<EntityData>(serialized_entity_data.data(),
                                                serialized_entity_data.size());
   }

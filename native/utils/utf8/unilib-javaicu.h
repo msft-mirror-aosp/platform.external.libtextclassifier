@@ -22,23 +22,23 @@
 #define LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_JAVAICU_H_
 
 #include <jni.h>
+
 #include <memory>
 #include <mutex>  // NOLINT
 #include <string>
 
 #include "utils/base/integral_types.h"
+#include "utils/java/jni-base.h"
 #include "utils/java/jni-cache.h"
-#include "utils/java/scoped_global_ref.h"
-#include "utils/java/scoped_local_ref.h"
 #include "utils/java/string_utils.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
 
-class UniLib {
+class UniLibBase {
  public:
-  UniLib();
-  explicit UniLib(const std::shared_ptr<JniCache>& jni_cache);
+  UniLibBase();
+  explicit UniLibBase(const std::shared_ptr<JniCache>& jni_cache);
 
   bool ParseInt32(const UnicodeText& text, int* result) const;
   bool IsOpeningBracket(char32 codepoint) const;
@@ -47,6 +47,7 @@ class UniLib {
   bool IsDigit(char32 codepoint) const;
   bool IsLower(char32 codepoint) const;
   bool IsUpper(char32 codepoint) const;
+  bool IsPunctuation(char32 codepoint) const;
 
   char32 ToLower(char32 codepoint) const;
   char32 ToUpper(char32 codepoint) const;
@@ -134,10 +135,10 @@ class UniLib {
     std::unique_ptr<RegexMatcher> Matcher(const UnicodeText& context) const;
 
    private:
-    friend class UniLib;
+    friend class UniLibBase;
     RegexPattern(const JniCache* jni_cache, const UnicodeText& pattern,
                  bool lazy);
-    void LockedInitializeIfNotAlready() const;
+    Status LockedInitializeIfNotAlready() const;
 
     const JniCache* jni_cache_;
 
@@ -159,7 +160,7 @@ class UniLib {
     static constexpr int kDone = -1;
 
    private:
-    friend class UniLib;
+    friend class UniLibBase;
     BreakIterator(const JniCache* jni_cache, const UnicodeText& text);
 
     const JniCache* jni_cache_;

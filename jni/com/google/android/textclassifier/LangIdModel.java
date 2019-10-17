@@ -108,6 +108,11 @@ public final class LangIdModel implements AutoCloseable {
     return nativeGetLangIdNoiseThreshold(modelPtr);
   }
 
+  // Visible for testing.
+  int getMinTextSizeInBytes() {
+    return nativeGetMinTextSizeInBytes(modelPtr);
+  }
+
   private static native long nativeNew(int fd);
 
   private static native long nativeNewFromPath(String path);
@@ -123,4 +128,6 @@ public final class LangIdModel implements AutoCloseable {
   private native float nativeGetLangIdThreshold(long nativePtr);
 
   private native float nativeGetLangIdNoiseThreshold(long nativePtr);
+
+  private native int nativeGetMinTextSizeInBytes(long nativePtr);
 }

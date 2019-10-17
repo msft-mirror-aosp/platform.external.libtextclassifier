@@ -125,6 +125,46 @@ table Flight {
   flight_number:string (shared);
 }
 
+// Details about an ISBN number.
+namespace libtextclassifier3.EntityData_;
+table Isbn {
+  // The (normalized) number.
+  number:string (shared);
+}
+
+// Details about an IBAN number.
+namespace libtextclassifier3.EntityData_;
+table Iban {
+  // The (normalized) number.
+  number:string (shared);
+
+  // The country code.
+  country_code:string (shared);
+}
+
+namespace libtextclassifier3.EntityData_.ParcelTracking_;
+enum Carrier : int {
+  UNKNOWN_CARRIER = 0,
+  FEDEX = 1,
+  UPS = 2,
+  DHL = 3,
+  USPS = 4,
+  ONTRAC = 5,
+  LASERSHIP = 6,
+  ISRAEL_POST = 7,
+  SWISS_POST = 8,
+  MSC = 9,
+  AMAZON = 10,
+  I_PARCEL = 11,
+}
+
+// Details about a tracking number.
+namespace libtextclassifier3.EntityData_;
+table ParcelTracking {
+  carrier:ParcelTracking_.Carrier;
+  tracking_number:string (shared);
+}
+
 // Represents an entity annotated in text.
 namespace libtextclassifier3;
 table EntityData {
@@ -143,6 +183,9 @@ table EntityData {
   app:EntityData_.App;
   payment_card:EntityData_.PaymentCard;
   flight:EntityData_.Flight;
+  isbn:EntityData_.Isbn;
+  iban:EntityData_.Iban;
+  parcel:EntityData_.ParcelTracking;
 }
 
 root_type libtextclassifier3.EntityData;

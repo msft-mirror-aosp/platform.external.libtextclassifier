@@ -125,6 +125,15 @@ bool DecompressModel(ModelT* model) {
       extractor->compressed_pattern.reset(nullptr);
     }
   }
+
+  if (model->resources != nullptr) {
+    DecompressResources(model->resources.get());
+  }
+
+  if (model->intent_options != nullptr) {
+    DecompressIntentModel(model->intent_options.get());
+  }
+
   return true;
 }
 

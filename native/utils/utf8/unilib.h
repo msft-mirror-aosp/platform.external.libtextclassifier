@@ -17,7 +17,45 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_H_
 #define LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_H_
 
+#include "utils/base/integral_types.h"
+#include "utils/utf8/unicodetext.h"
+
 #include "utils/utf8/unilib-javaicu.h"
 #define INIT_UNILIB_FOR_TESTING(VAR) VAR(nullptr)
 
+namespace libtextclassifier3 {
+
+class UniLib : public UniLibBase {
+ public:
+  using UniLibBase::UniLibBase;
+
+  // Lowercase a unicode string.
+  UnicodeText ToLowerText(const UnicodeText& text) const {
+    UnicodeText result;
+    for (const char32 codepoint : text) {
+      result.push_back(ToLower(codepoint));
+    }
+    return result;
+  }
+
+  // Uppercase a unicode string.
+  UnicodeText ToUpperText(const UnicodeText& text) const {
+    UnicodeText result;
+    for (const char32 codepoint : text) {
+      result.push_back(UniLibBase::ToUpper(codepoint));
+    }
+    return result;
+  }
+
+  bool IsDigits(const UnicodeText& text) const {
+    for (const char32 codepoint : text) {
+      if (!IsDigit(codepoint)) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+}  // namespace libtextclassifier3
 #endif  // LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_H_

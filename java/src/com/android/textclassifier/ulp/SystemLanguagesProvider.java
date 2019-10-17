@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,18 +18,17 @@ package com.android.textclassifier.ulp;
 
 import android.content.res.Resources;
 import android.os.LocaleList;
-
 import java.util.ArrayList;
 import java.util.List;
 
 final class SystemLanguagesProvider {
 
-    List<String> getSystemLanguageTags() {
-        LocaleList localeList = Resources.getSystem().getConfiguration().getLocales();
-        List<String> languageTags = new ArrayList<>();
-        for (int i = 0; i < localeList.size(); i++) {
-            languageTags.add(localeList.get(i).getLanguage());
-        }
-        return languageTags;
+  List<String> getSystemLanguageTags() {
+    LocaleList localeList = Resources.getSystem().getConfiguration().getLocales();
+    List<String> languageTags = new ArrayList<>();
+    for (int i = 0; i < localeList.size(); i++) {
+      languageTags.add(localeList.get(i).getLanguage());
     }
+    return languageTags;
+  }
 }

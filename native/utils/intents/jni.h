@@ -18,11 +18,13 @@
 #define LIBTEXTCLASSIFIER_UTILS_INTENTS_JNI_H_
 
 #include <jni.h>
+
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "utils/base/statusor.h"
 #include "utils/flatbuffers.h"
 #include "utils/intents/intent-generator.h"
 #include "utils/java/jni-base.h"
@@ -52,17 +54,21 @@ class RemoteActionTemplatesHandler {
   static std::unique_ptr<RemoteActionTemplatesHandler> Create(
       const std::shared_ptr<JniCache>& jni_cache);
 
-  jstring AsUTF8String(const Optional<std::string>& optional) const;
-  jobject AsInteger(const Optional<int>& optional) const;
-  jobjectArray AsStringArray(const std::vector<std::string>& values) const;
-  jobject AsNamedVariant(const std::string& name, const Variant& value) const;
-  jobjectArray AsNamedVariantArray(
+  StatusOr<ScopedLocalRef<jstring>> AsUTF8String(
+      const Optional<std::string>& optional) const;
+  StatusOr<ScopedLocalRef<jobject>> AsInteger(
+      const Optional<int>& optional) const;
+  StatusOr<ScopedLocalRef<jobjectArray>> AsStringArray(
+      const std::vector<std::string>& values) const;
+  StatusOr<ScopedLocalRef<jobject>> AsNamedVariant(const std::string& name,
+                                                   const Variant& value) const;
+  StatusOr<ScopedLocalRef<jobjectArray>> AsNamedVariantArray(
       const std::map<std::string, Variant>& values) const;
 
-  jobjectArray RemoteActionTemplatesToJObjectArray(
+  StatusOr<ScopedLocalRef<jobjectArray>> RemoteActionTemplatesToJObjectArray(
       const std::vector<RemoteActionTemplate>& remote_actions) const;
 
-  jobject EntityDataAsNamedVariantArray(
+  StatusOr<ScopedLocalRef<jobjectArray>> EntityDataAsNamedVariantArray(
       const reflection::Schema* entity_data_schema,
       const std::string& serialized_entity_data) const;
 

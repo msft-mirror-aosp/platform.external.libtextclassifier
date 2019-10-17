@@ -29,6 +29,7 @@
 #include "utils/base/logging.h"
 #include "utils/checksum.h"
 #include "utils/math/softmax.h"
+#include "utils/normalization.h"
 #include "utils/optional.h"
 #include "utils/regex-match.h"
 #include "utils/utf8/unicodetext.h"
@@ -416,7 +417,7 @@ void Annotator::ValidateAndInitialize() {
       model_->duration_annotator_options()->enabled()) {
     duration_annotator_.reset(
         new DurationAnnotator(model_->duration_annotator_options(),
-                              selection_feature_processor_.get()));
+                              selection_feature_processor_.get(), unilib_));
   }
 
   if (model_->entity_data_schema()) {
@@ -504,6 +505,10 @@ bool Annotator::InitializeKnowledgeEngine(
   if (!knowledge_engine->Initialize(serialized_config)) {
     TC3_LOG(ERROR) << "Failed to initialize the knowledge engine.";
     return false;
+  }
+  if (model_->triggering_options() != nullptr) {
+    knowledge_engine->SetPriorityScore(
+        model_->triggering_options()->knowledge_priority_score());
   }
   knowledge_engine_ = std::move(knowledge_engine);
   return true;
@@ -2075,8 +2080,19 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
 
       // Set entity field from capturing group text.
       if (group->entity_field_path() != nullptr) {
-        if (!entity_data->ParseAndSet(group->entity_field_path(),
-                                      group_match_text.value())) {
+        UnicodeText normalized_group_match_text =
+            UTF8ToUnicodeText(group_match_text.value(), /*do_copy=*/false);
+
+        // Apply normalization if specified.
+        if (group->normalization_options() != nullptr) {
+          normalized_group_match_text =
+              NormalizeText(unilib_, group->normalization_options(),
+                            normalized_group_match_text);
+        }
+
+        if (!entity_data->ParseAndSet(
+                group->entity_field_path(),
+                normalized_group_match_text.ToUTF8String())) {
           TC3_LOG(ERROR)
               << "Could not set entity data from rule capturing group.";
           return false;

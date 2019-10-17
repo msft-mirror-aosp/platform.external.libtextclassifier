@@ -17,6 +17,7 @@
 #include "utils/flatbuffers.h"
 
 #include <vector>
+
 #include "utils/strings/numbers.h"
 #include "utils/variant.h"
 
@@ -53,6 +54,57 @@ bool CreateRepeatedField(const reflection::Schema* schema,
       return false;
   }
 }
+
+// Gets the field information for a field name, returns nullptr if the
+// field was not defined.
+const reflection::Field* GetFieldOrNull(const reflection::Object* type,
+                                        const StringPiece field_name) {
+  TC3_CHECK(type != nullptr && type->fields() != nullptr);
+  return type->fields()->LookupByKey(field_name.data());
+}
+
+const reflection::Field* GetFieldByOffsetOrNull(const reflection::Object* type,
+                                                const int field_offset) {
+  if (type->fields() == nullptr) {
+    return nullptr;
+  }
+  for (const reflection::Field* field : *type->fields()) {
+    if (field->offset() == field_offset) {
+      return field;
+    }
+  }
+  return nullptr;
+}
+
+const reflection::Field* GetFieldOrNull(const reflection::Object* type,
+                                        const StringPiece field_name,
+                                        const int field_offset) {
+  // Lookup by name might be faster as the fields are sorted by name in the
+  // schema data, so try that first.
+  if (!field_name.empty()) {
+    return GetFieldOrNull(type, field_name.data());
+  }
+  return GetFieldByOffsetOrNull(type, field_offset);
+}
+
+const reflection::Field* GetFieldOrNull(const reflection::Object* type,
+                                        const FlatbufferField* field) {
+  TC3_CHECK(type != nullptr && field != nullptr);
+  if (field->field_name() == nullptr) {
+    return GetFieldByOffsetOrNull(type, field->field_offset());
+  }
+  return GetFieldOrNull(
+      type,
+      StringPiece(field->field_name()->data(), field->field_name()->size()),
+      field->field_offset());
+}
+
+const reflection::Field* GetFieldOrNull(const reflection::Object* type,
+                                        const FlatbufferFieldT* field) {
+  TC3_CHECK(type != nullptr && field != nullptr);
+  return GetFieldOrNull(type, field->field_name, field->field_offset);
+}
+
 }  // namespace
 
 template <>
@@ -83,17 +135,12 @@ std::unique_ptr<ReflectiveFlatbuffer> ReflectiveFlatbufferBuilder::NewTable(
 
 const reflection::Field* ReflectiveFlatbuffer::GetFieldOrNull(
     const StringPiece field_name) const {
-  return type_->fields()->LookupByKey(field_name.data());
+  return libtextclassifier3::GetFieldOrNull(type_, field_name);
 }
 
 const reflection::Field* ReflectiveFlatbuffer::GetFieldOrNull(
     const FlatbufferField* field) const {
-  // Lookup by name might be faster as the fields are sorted by name in the
-  // schema data, so try that first.
-  if (field->field_name() != nullptr) {
-    return GetFieldOrNull(field->field_name()->str());
-  }
-  return GetFieldByOffsetOrNull(field->field_offset());
+  return libtextclassifier3::GetFieldOrNull(type_, field);
 }
 
 bool ReflectiveFlatbuffer::GetFieldWithParent(
@@ -120,15 +167,7 @@ bool ReflectiveFlatbuffer::GetFieldWithParent(
 
 const reflection::Field* ReflectiveFlatbuffer::GetFieldByOffsetOrNull(
     const int field_offset) const {
-  if (type_->fields() == nullptr) {
-    return nullptr;
-  }
-  for (const reflection::Field* field : *type_->fields()) {
-    if (field->offset() == field_offset) {
-      return field;
-    }
-  }
-  return nullptr;
+  return libtextclassifier3::GetFieldByOffsetOrNull(type_, field_offset);
 }
 
 bool ReflectiveFlatbuffer::IsMatchingType(const reflection::Field* field,
@@ -409,6 +448,36 @@ void ReflectiveFlatbuffer::AsFlatMap(
                          key_prefix + it.first->name()->str() + key_separator,
                          result);
   }
+}
+
+bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
+                                    FlatbufferFieldPathT* path) {
+  if (schema == nullptr || !schema->root_table()) {
+    TC3_LOG(ERROR) << "Empty schema provided.";
+    return false;
+  }
+
+  reflection::Object const* type = schema->root_table();
+  for (int i = 0; i < path->field.size(); i++) {
+    const reflection::Field* field = GetFieldOrNull(type, path->field[i].get());
+    if (field == nullptr) {
+      TC3_LOG(ERROR) << "Could not find field: " << path->field[i]->field_name;
+      return false;
+    }
+    path->field[i]->field_name.clear();
+    path->field[i]->field_offset = field->offset();
+
+    // Descend.
+    if (i < path->field.size() - 1) {
+      if (field->type()->base_type() != reflection::Obj) {
+        TC3_LOG(ERROR) << "Field: " << field->name()->str()
+                       << " is not of type `Object`.";
+        return false;
+      }
+      type = schema->objects()->Get(field->type()->index());
+    }
+  }
+  return true;
 }
 
 }  // namespace libtextclassifier3

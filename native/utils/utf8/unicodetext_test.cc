@@ -16,6 +16,7 @@
 
 #include "utils/utf8/unicodetext.h"
 
+#include "utils/strings/stringpiece.h"
 #include "gtest/gtest.h"
 
 namespace libtextclassifier3 {
@@ -38,6 +39,21 @@ class UnicodeTextTest : public testing::Test {
 // Tests for our modifications of UnicodeText.
 TEST(UnicodeTextTest, Custom) {
   UnicodeText text = UTF8ToUnicodeText("1234😋hello", /*do_copy=*/false);
+  EXPECT_EQ(text.ToUTF8String(), "1234😋hello");
+  EXPECT_EQ(text.size_codepoints(), 10);
+  EXPECT_EQ(text.size_bytes(), 13);
+
+  auto it_begin = text.begin();
+  std::advance(it_begin, 4);
+  auto it_end = text.begin();
+  std::advance(it_end, 6);
+  EXPECT_EQ(text.UTF8Substring(it_begin, it_end), "😋h");
+}
+
+TEST(UnicodeTextTest, StringPieceView) {
+  std::string raw_text = "1234😋hello";
+  UnicodeText text =
+      UTF8ToUnicodeText(StringPiece(raw_text), /*do_copy=*/false);
   EXPECT_EQ(text.ToUTF8String(), "1234😋hello");
   EXPECT_EQ(text.size_codepoints(), 10);
   EXPECT_EQ(text.size_bytes(), 13);

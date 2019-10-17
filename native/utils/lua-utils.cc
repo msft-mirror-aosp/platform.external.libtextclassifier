@@ -133,7 +133,7 @@ int LuaEnvironment::GetField(const reflection::Schema *schema,
       const flatbuffers::String *string_value =
           table->GetPointer<const flatbuffers::String *>(field->offset());
       if (string_value != nullptr) {
-        lua_pushlstring(state, string_value->data(), string_value->Length());
+        lua_pushlstring(state, string_value->data(), string_value->size());
       } else {
         lua_pushlstring(state, "", 0);
       }

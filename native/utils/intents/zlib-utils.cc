@@ -18,6 +18,7 @@
 
 #include <memory>
 
+#include "utils/base/logging.h"
 #include "utils/zlib/buffer_generated.h"
 #include "utils/zlib/zlib.h"
 
@@ -34,6 +35,35 @@ bool CompressIntentModel(IntentFactoryModelT* intent_model) {
                     generator->lua_template_generator.size()),
         generator->compressed_lua_template_generator.get());
     generator->lua_template_generator.clear();
+  }
+  return true;
+}
+
+bool DecompressIntentModel(IntentFactoryModelT* intent_model) {
+  std::unique_ptr<ZlibDecompressor> zlib_decompressor =
+      ZlibDecompressor::Instance();
+  if (!zlib_decompressor) {
+    TC3_LOG(ERROR) << "Cannot initialize decompressor.";
+    return false;
+  }
+
+  for (std::unique_ptr<IntentFactoryModel_::IntentGeneratorT>& generator :
+       intent_model->generator) {
+    if (generator->compressed_lua_template_generator == nullptr) {
+      continue;
+    }
+
+    std::string lua_template_generator;
+    if (!zlib_decompressor->MaybeDecompress(
+            generator->compressed_lua_template_generator.get(),
+            &lua_template_generator)) {
+      TC3_LOG(ERROR) << "Cannot decompress intent template.";
+      return false;
+    }
+    generator->lua_template_generator = std::vector<uint8_t>(
+        lua_template_generator.begin(), lua_template_generator.end());
+
+    generator->compressed_lua_template_generator.reset(nullptr);
   }
   return true;
 }

@@ -39,7 +39,7 @@ class TextEncoderOpModel : public tflite::SingleOpModel {
  public:
   TextEncoderOpModel(std::initializer_list<int> input_strings_shape,
                      std::initializer_list<int> attribute_shape);
-  void SetInputText(const std::initializer_list<string>& strings) {
+  void SetInputText(const std::initializer_list<std::string>& strings) {
     PopulateStringTensor(input_string_, strings);
     PopulateTensor(input_length_, {static_cast<int32_t>(strings.size())});
   }

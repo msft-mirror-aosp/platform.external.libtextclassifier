@@ -24,6 +24,7 @@
 #include <string>
 
 #include "annotator/model_generated.h"
+#include "utils/flatbuffers_generated.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/variant.h"
 #include "flatbuffers/flatbuffers.h"
@@ -336,6 +337,10 @@ class TypedRepeatedField<ReflectiveFlatbuffer> : public RepeatedField {
   const reflection::Type* const type_;
   std::vector<std::unique_ptr<ReflectiveFlatbuffer>> items_;
 };
+
+// Resolves field lookups by name to the concrete field offsets.
+bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
+                                    FlatbufferFieldPathT* path);
 
 }  // namespace libtextclassifier3
 

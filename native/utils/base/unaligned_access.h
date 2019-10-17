@@ -93,10 +93,8 @@ inline void UnalignedStore64(void *p, uint64 v) {
 
 }  // namespace libtextclassifier3
 
-#define TC3_INTERNAL_UNALIGNED_LOAD16(_p) \
-  (::libtextclassifier3::UnalignedLoad16(_p))
-#define TC3_INTERNAL_UNALIGNED_LOAD32(_p) \
-  (::libtextclassifier3::UnalignedLoad32(_p))
+#define TC3_UNALIGNED_LOAD16(_p) (::libtextclassifier3::UnalignedLoad16(_p))
+#define TC3_UNALIGNED_LOAD32(_p) (::libtextclassifier3::UnalignedLoad32(_p))
 #define TC3_UNALIGNED_LOAD64(_p) \
   (::libtextclassifier3::UnalignedLoad64(_p))
 

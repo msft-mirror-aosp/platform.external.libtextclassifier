@@ -14,7 +14,5 @@
  * limitations under the License.
  */
 
-#include "gtest/gtest.h"
-
 // The actual code of the test is in the following include:
 #include "utils/utf8/unilib_test-include.h"

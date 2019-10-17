@@ -106,7 +106,7 @@ class DurationAnnotatorTest : public ::testing::Test {
       : INIT_UNILIB_FOR_TESTING(unilib_),
         feature_processor_(BuildFeatureProcessor(&unilib_)),
         duration_annotator_(TestingDurationAnnotatorOptions(),
-                            feature_processor_.get()) {}
+                            feature_processor_.get(), &unilib_) {}
 
   std::vector<Token> Tokenize(const UnicodeText& text) {
     return feature_processor_->Tokenize(text);
@@ -193,6 +193,26 @@ TEST_F(DurationAnnotatorTest, FindsComposedDuration) {
                           Field(&ClassificationResult::collection, "duration"),
                           Field(&ClassificationResult::duration_ms,
                                 3 * 60 * 60 * 1000 + 5 * 1000)))))));
+}
+
+TEST_F(DurationAnnotatorTest, AllUnitsAreCovered) {
+  const UnicodeText text = UTF8ToUnicodeText(
+      "See you in a week and a day and an hour and a minute and a second");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(13, 65)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                7 * 24 * 60 * 60 * 1000 + 24 * 60 * 60 * 1000 +
+                                    60 * 60 * 1000 + 60 * 1000 + 1000)))))));
 }
 
 TEST_F(DurationAnnotatorTest, FindsHalfAnHour) {
@@ -348,6 +368,63 @@ TEST_F(DurationAnnotatorTest,
               AllOf(Field(&ClassificationResult::collection, "duration"),
                     Field(&ClassificationResult::duration_ms,
                           1400L * 60L * 60L * 1000L)));
+}
+
+TEST_F(DurationAnnotatorTest, FindsSimpleDurationIgnoringCase) {
+  const UnicodeText text = UTF8ToUnicodeText("Wake me up in 15 MiNuTeS ok?");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(14, 24)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                15 * 60 * 1000)))))));
+}
+
+TEST_F(DurationAnnotatorTest, FindsDurationWithHalfExpressionIgnoringCase) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for 3 and HaLf minutes ok?");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 34)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                3.5 * 60 * 1000)))))));
+}
+
+TEST_F(DurationAnnotatorTest,
+       FindsDurationWithHalfExpressionIgnoringFillerWordCase) {
+  const UnicodeText text =
+      UTF8ToUnicodeText("Set a timer for 3 AnD half minutes ok?");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(16, 34)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                3.5 * 60 * 1000)))))));
 }
 
 }  // namespace
