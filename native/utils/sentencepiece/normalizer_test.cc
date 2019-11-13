@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
+#include "utils/sentencepiece/normalizer.h"
+
 #include <fstream>
 #include <string>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-
-#include "utils/sentencepiece/double_array_trie.h"
-#include "utils/sentencepiece/normalizer.h"
+#include "utils/container/double-array-trie.h"
 #include "utils/sentencepiece/test_utils.h"
 #include "utils/strings/stringpiece.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 
 namespace libtextclassifier3 {
 namespace {

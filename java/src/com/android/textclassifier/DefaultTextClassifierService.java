@@ -26,6 +26,7 @@ import android.view.textclassifier.TextClassifierEvent;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
+import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;

@@ -21,6 +21,7 @@
 #include "annotator/types.h"
 #include "utils/lua-utils.h"
 
+#ifndef TC3_DISABLE_LUA
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,10 +30,12 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+#endif
 
 namespace libtextclassifier3 {
 namespace {
 
+#ifndef TC3_DISABLE_LUA
 // Provide a lua environment for running regex match post verification.
 // It sets up and exposes the match data as well as the context.
 class LuaVerifier : private LuaEnvironment {
@@ -146,6 +149,7 @@ bool LuaVerifier::Verify(bool* result) {
   }
   return true;
 }
+#endif  // TC3_DISABLE_LUA
 
 }  // namespace
 
@@ -163,6 +167,7 @@ bool VerifyMatch(const std::string& context,
                  const UniLib::RegexMatcher* matcher,
                  const std::string& lua_verifier_code) {
   bool status = false;
+#ifndef TC3_DISABLE_LUA
   auto verifier = LuaVerifier::Create(context, lua_verifier_code, matcher);
   if (verifier == nullptr) {
     TC3_LOG(ERROR) << "Could not create verifier.";
@@ -172,6 +177,7 @@ bool VerifyMatch(const std::string& context,
     TC3_LOG(ERROR) << "Could not create verifier.";
     return false;
   }
+#endif  // TC3_DISABLE_LUA
   return status;
 }
 

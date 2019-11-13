@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "utils/base/logging.h"
-#include "utils/sentencepiece/matcher.h"
+#include "utils/container/string-set.h"
 #include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {
@@ -29,7 +29,7 @@ namespace libtextclassifier3 {
 // scores of the pieces used is maximized.
 class Encoder {
  public:
-  // matcher: the list of valid sentence pieces represented as a matcher, e.g.
+  // pieces: the list of valid sentence pieces represented as a string set, e.g.
   //     a trie.
   // num_pieces: the number of pieces in the trie.
   // pieces_scores: the scores of the individual pieces.
@@ -39,13 +39,13 @@ class Encoder {
   //     not interesecting with start_code and end_code.
   // unknown_code: code that is used for out-of-dictionary characters.
   // unknown_score: the penality score associated with the unknown code.
-  Encoder(const SentencePieceMatcher* matcher, const int num_pieces,
+  Encoder(const StringSet* pieces, const int num_pieces,
           const float* pieces_scores, int start_code = 0, int end_code = 1,
           int encoding_offset = 2, int unknown_code = -1,
           float unknown_score = 0.f)
       : num_pieces_(num_pieces),
         scores_(pieces_scores),
-        matcher_(matcher),
+        pieces_(pieces),
         start_code_(start_code),
         end_code_(end_code),
         encoding_offset_(encoding_offset),
@@ -76,7 +76,7 @@ class Encoder {
 
   const int num_pieces_;
   const float* scores_;
-  const SentencePieceMatcher* matcher_;
+  const StringSet* pieces_;
   const int start_code_;
   const int end_code_;
   const int encoding_offset_;

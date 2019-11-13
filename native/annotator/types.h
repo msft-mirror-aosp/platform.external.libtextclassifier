@@ -385,27 +385,12 @@ struct ClassificationResult {
     return !(*this == other);
   }
 
-  bool operator==(const ClassificationResult& other) const {
-    return collection == other.collection &&
-           fabs(score - other.score) < 0.001 &&
-           datetime_parse_result == other.datetime_parse_result &&
-           serialized_knowledge_result == other.serialized_knowledge_result &&
-           contact_pointer == other.contact_pointer &&
-           contact_name == other.contact_name &&
-           contact_given_name == other.contact_given_name &&
-           contact_family_name == other.contact_family_name &&
-           contact_nickname == other.contact_nickname &&
-           contact_email_address == other.contact_email_address &&
-           contact_phone_number == other.contact_phone_number &&
-           contact_id == other.contact_id &&
-           app_package_name == other.app_package_name &&
-           fabs(priority_score - other.priority_score) < 0.001 &&
-           numeric_value == other.numeric_value &&
-           fabs(numeric_double_value - other.numeric_double_value) < 0.001 &&
-           duration_ms == other.duration_ms &&
-           serialized_entity_data == other.serialized_entity_data;
-  }
+  bool operator==(const ClassificationResult& other) const;
 };
+
+// Returns true when ClassificationResults are euqal up to scores.
+bool ClassificationResultsEqualIgnoringScoresAndSerializedEntityData(
+    const ClassificationResult& a, const ClassificationResult& b);
 
 // Pretty-printing function for ClassificationResult.
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,

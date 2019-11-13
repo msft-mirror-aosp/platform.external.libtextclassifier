@@ -390,10 +390,6 @@ UnicodeText UniLibBase::RegexMatcher::Group(int* status) const {
       *status = kError;
       return UTF8ToUnicodeText("", /*do_copy=*/false);
     }
-    if (result.empty()) {
-      *status = kError;
-      return UTF8ToUnicodeText("", /*do_copy=*/false);
-    }
     *status = kNoError;
     return UTF8ToUnicodeText(result, /*do_copy=*/true);
   } else {
@@ -426,10 +422,6 @@ UnicodeText UniLibBase::RegexMatcher::Group(int group_idx, int* status) const {
     std::string result;
     if (!JStringToUtf8String(jenv, status_or_java_result.ValueOrDie().get(),
                              &result)) {
-      *status = kError;
-      return UTF8ToUnicodeText("", /*do_copy=*/false);
-    }
-    if (result.empty()) {
       *status = kError;
       return UTF8ToUnicodeText("", /*do_copy=*/false);
     }

@@ -136,6 +136,33 @@ logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
   return stream;
 }
 
+bool ClassificationResult::operator==(const ClassificationResult& other) const {
+  return ClassificationResultsEqualIgnoringScoresAndSerializedEntityData(
+             *this, other) &&
+         fabs(score - other.score) < 0.001 &&
+         fabs(priority_score - other.priority_score) < 0.001 &&
+         serialized_entity_data == other.serialized_entity_data;
+}
+
+bool ClassificationResultsEqualIgnoringScoresAndSerializedEntityData(
+    const ClassificationResult& a, const ClassificationResult& b) {
+  return a.collection == b.collection &&
+         a.datetime_parse_result == b.datetime_parse_result &&
+         a.serialized_knowledge_result == b.serialized_knowledge_result &&
+         a.contact_pointer == b.contact_pointer &&
+         a.contact_name == b.contact_name &&
+         a.contact_given_name == b.contact_given_name &&
+         a.contact_family_name == b.contact_family_name &&
+         a.contact_nickname == b.contact_nickname &&
+         a.contact_email_address == b.contact_email_address &&
+         a.contact_phone_number == b.contact_phone_number &&
+         a.contact_id == b.contact_id &&
+         a.app_package_name == b.app_package_name &&
+         a.numeric_value == b.numeric_value &&
+         fabs(a.numeric_double_value - b.numeric_double_value) < 0.001 &&
+         a.duration_ms == b.duration_ms;
+}
+
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
                                          const ClassificationResult& result) {
   return stream << "ClassificationResult(" << result.collection

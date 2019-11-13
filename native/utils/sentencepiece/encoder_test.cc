@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
+#include "utils/sentencepiece/encoder.h"
+
 #include <memory>
 #include <vector>
 
+#include "utils/base/integral_types.h"
+#include "utils/container/sorted-strings-table.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-#include "utils/base/integral_types.h"
-#include "utils/sentencepiece/encoder.h"
-#include "utils/sentencepiece/sorted_strings_table.h"
 
 namespace libtextclassifier3 {
 namespace {
@@ -30,12 +30,12 @@ namespace {
 using testing::ElementsAre;
 
 TEST(EncoderTest, SimpleTokenization) {
-  const char pieces[] = "hell\0hello\0o\0there\0";
+  const char pieces_table[] = "hell\0hello\0o\0there\0";
   const uint32 offsets[] = {0, 5, 11, 13};
   float scores[] = {-0.5, -1.0, -10.0, -1.0};
-  std::unique_ptr<SentencePieceMatcher> matcher(new SortedStringsTable(
-      /*num_pieces=*/4, offsets, StringPiece(pieces, 18)));
-  const Encoder encoder(matcher.get(),
+  std::unique_ptr<StringSet> pieces(new SortedStringsTable(
+      /*num_pieces=*/4, offsets, StringPiece(pieces_table, 18)));
+  const Encoder encoder(pieces.get(),
                         /*num_pieces=*/4, scores);
 
   {
@@ -55,12 +55,12 @@ TEST(EncoderTest, SimpleTokenization) {
 }
 
 TEST(EncoderTest, HandlesEdgeCases) {
-  const char pieces[] = "hell\0hello\0o\0there\0";
+  const char pieces_table[] = "hell\0hello\0o\0there\0";
   const uint32 offsets[] = {0, 5, 11, 13};
   float scores[] = {-0.5, -1.0, -10.0, -1.0};
-  std::unique_ptr<SentencePieceMatcher> matcher(new SortedStringsTable(
-      /*num_pieces=*/4, offsets, StringPiece(pieces, 18)));
-  const Encoder encoder(matcher.get(),
+  std::unique_ptr<StringSet> pieces(new SortedStringsTable(
+      /*num_pieces=*/4, offsets, StringPiece(pieces_table, 18)));
+  const Encoder encoder(pieces.get(),
                         /*num_pieces=*/4, scores);
   {
     std::vector<int> encoded_text;
@@ -85,12 +85,12 @@ TEST(EncoderTest, HandlesEdgeCases) {
 }
 
 TEST(EncoderTest, HandlesOutOfDictionary) {
-  const char pieces[] = "hell\0hello\0o\0there\0";
+  const char pieces_table[] = "hell\0hello\0o\0there\0";
   const uint32 offsets[] = {0, 5, 11, 13};
   float scores[] = {-0.5, -1.0, -10.0, -1.0};
-  std::unique_ptr<SentencePieceMatcher> matcher(new SortedStringsTable(
-      /*num_pieces=*/4, offsets, StringPiece(pieces, 18)));
-  const Encoder encoder(matcher.get(),
+  std::unique_ptr<StringSet> pieces(new SortedStringsTable(
+      /*num_pieces=*/4, offsets, StringPiece(pieces_table, 18)));
+  const Encoder encoder(pieces.get(),
                         /*num_pieces=*/4, scores,
                         /*start_code=*/0, /*end_code=*/1,
                         /*encoding_offset=*/3, /*unknown_code=*/2,

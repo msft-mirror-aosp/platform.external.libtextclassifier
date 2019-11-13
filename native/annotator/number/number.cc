@@ -288,7 +288,7 @@ int NumberAnnotator::GetPercentSuffixLength(const UnicodeText& context,
   const StringPiece suffix_context(
       context_it.utf8_data(),
       std::distance(context_it.utf8_data(), context.end().utf8_data()));
-  TrieMatch match;
+  StringSet::Match match;
   percentage_suffixes_trie_.LongestPrefixMatch(suffix_context, &match);
 
   if (match.match_length == -1) {

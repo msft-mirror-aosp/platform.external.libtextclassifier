@@ -60,15 +60,6 @@ public final class TextClassificationConstants {
    * languages in {@link
    * com.android.textclassifier.ulp.LanguageProfileAnalyzer#getFrequentLanguages(int)}.
    */
-  private static final String FREQUENT_LANGUAGES_BOOTSTRAPPING_COUNT =
-      "frequent_languages_bootstrapping_count";
-
-  /**
-   * Default count for the language in the system settings while calculating {@code
-   * LanguageProfileAnalyzer.getRecognizedLanguages()}
-   */
-  private static final String LANGUAGE_PROFICIENCY_BOOTSTRAPPING_COUNT =
-      "language_proficiency_bootstrapping_count";
 
   /**
    * A colon(:) separated string that specifies the default entities types for generateLinks when
@@ -136,8 +127,6 @@ public final class TextClassificationConstants {
   private static final int CLASSIFY_TEXT_MAX_RANGE_LENGTH_DEFAULT = 10 * 1000;
   private static final int GENERATE_LINKS_MAX_TEXT_LENGTH_DEFAULT = 100 * 1000;
   private static final int GENERATE_LINKS_LOG_SAMPLE_RATE_DEFAULT = 100;
-  private static final int FREQUENT_LANGUAGES_BOOTSTRAPPING_COUNT_DEFAULT = 100;
-  private static final int LANGUAGE_PROFICIENCY_BOOTSTRAPPING_COUNT_DEFAULT = 100;
 
   private static final ImmutableList<String> ENTITY_LIST_DEFAULT_VALUE =
       ImmutableList.of(
@@ -202,20 +191,6 @@ public final class TextClassificationConstants {
         DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
         GENERATE_LINKS_LOG_SAMPLE_RATE,
         GENERATE_LINKS_LOG_SAMPLE_RATE_DEFAULT);
-  }
-
-  public int getFrequentLanguagesBootstrappingCount() {
-    return DeviceConfig.getInt(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        FREQUENT_LANGUAGES_BOOTSTRAPPING_COUNT,
-        FREQUENT_LANGUAGES_BOOTSTRAPPING_COUNT_DEFAULT);
-  }
-
-  public int getLanguageProficiencyBootstrappingCount() {
-    return DeviceConfig.getInt(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        LANGUAGE_PROFICIENCY_BOOTSTRAPPING_COUNT,
-        LANGUAGE_PROFICIENCY_BOOTSTRAPPING_COUNT_DEFAULT);
   }
 
   public List<String> getEntityListDefault() {
@@ -295,8 +270,6 @@ public final class TextClassificationConstants {
     pw.printPair("entity_list_editable", getEntityListEditable());
     pw.printPair("entity_list_not_editable", getEntityListNotEditable());
     pw.printPair("generate_links_log_sample_rate", getGenerateLinksLogSampleRate());
-    pw.printPair(
-        "frequent_languages_bootstrapping_count", getFrequentLanguagesBootstrappingCount());
     pw.printPair("generate_links_max_text_length", getGenerateLinksMaxTextLength());
     pw.printPair("in_app_conversation_action_types_default", getInAppConversationActionTypes());
     pw.printPair("lang_id_context_settings", Arrays.toString(getLangIdContextSettings()));
@@ -308,8 +281,6 @@ public final class TextClassificationConstants {
     pw.printPair("user_language_profile_enabled", isUserLanguageProfileEnabled());
     pw.printPair("template_intent_factory_enabled", isTemplateIntentFactoryEnabled());
     pw.printPair("translate_in_classification_enabled", isTranslateInClassificationEnabled());
-    pw.printPair(
-        "language proficiency bootstrapping count", getLanguageProficiencyBootstrappingCount());
     pw.decreaseIndent();
   }
 

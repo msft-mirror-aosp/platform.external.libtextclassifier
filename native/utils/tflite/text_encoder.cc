@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
+#include "utils/tflite/text_encoder.h"
+
 #include <memory>
 #include <vector>
 
 #include "utils/base/logging.h"
-#include "utils/sentencepiece/double_array_trie.h"
+#include "utils/container/double-array-trie.h"
+#include "utils/container/sorted-strings-table.h"
 #include "utils/sentencepiece/encoder.h"
 #include "utils/sentencepiece/normalizer.h"
-#include "utils/sentencepiece/sorted_strings_table.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/tflite/encoder_common.h"
-#include "utils/tflite/text_encoder.h"
 #include "utils/tflite/text_encoder_config_generated.h"
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/flexbuffers.h"
@@ -38,7 +39,7 @@ namespace {
 struct TextEncoderOp {
   std::unique_ptr<SentencePieceNormalizer> normalizer;
   std::unique_ptr<Encoder> encoder;
-  std::unique_ptr<SentencePieceMatcher> matcher;
+  std::unique_ptr<StringSet> matcher;
 };
 
 // Input parameters for the op.

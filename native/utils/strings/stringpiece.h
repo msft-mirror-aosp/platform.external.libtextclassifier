@@ -27,6 +27,8 @@ namespace libtextclassifier3 {
 // Read-only "view" of a piece of data.  Does not own the underlying data.
 class StringPiece {
  public:
+  static constexpr size_t npos = static_cast<size_t>(-1);
+
   StringPiece() : StringPiece(nullptr, 0) {}
 
   StringPiece(const char* str)  // NOLINT(runtime/explicit)
@@ -82,7 +84,62 @@ class StringPiece {
     size_ -= n;
   }
 
+  // Removes the last `n` characters from the string piece. Note that the
+  // underlying string is not changed, only the view.
+  void RemoveSuffix(int n) {
+    TC3_CHECK_LE(n, size_);
+    size_ -= n;
+  }
+
+  // Finds the first occurrence of the substring `s` within the `StringPiece`,
+  // returning the position of the first character's match, or `npos` if no
+  // match was found.
+  // Here
+  // - c is the char to search for in the StringPiece
+  // - pos is the position at which to start the search.
+  size_t find(char c, size_t pos = 0) const noexcept {
+    if (empty() || pos >= size_) {
+      return npos;
+    }
+    const char* result =
+        static_cast<const char*>(memchr(start_ + pos, c, size_ - pos));
+    return result != nullptr ? result - start_ : npos;
+  }
+
+  size_t find(StringPiece s, size_t pos = 0) const noexcept {
+    if (empty() || pos >= size_) {
+      if (empty() && pos == 0 && s.empty()) {
+        return 0;
+      }
+      return npos;
+    }
+    const char* result = memmatch(start_ + pos, size_ - pos, s.start_, s.size_);
+    return result ? result - start_ : npos;
+  }
+
  private:
+  const char* memmatch(const char* phaystack, size_t haylen,
+                       const char* pneedle, size_t neelen) const {
+    if (0 == neelen) {
+      return phaystack;  // Even if haylen is 0.
+    }
+    if (haylen < neelen) {
+      return nullptr;
+    }
+
+    const char* match;
+    const char* hayend = phaystack + haylen - neelen + 1;
+    while ((match = static_cast<const char*>(
+                memchr(phaystack, pneedle[0], hayend - phaystack)))) {
+      if (memcmp(match, pneedle, neelen) == 0) {
+        return match;
+      } else {
+        phaystack = match + 1;
+      }
+    }
+    return nullptr;
+  }
+
   const char* start_;  // Not owned.
   size_t size_;
 };
@@ -100,6 +157,14 @@ inline bool ConsumePrefix(StringPiece* text, StringPiece prefix) {
     return false;
   }
   text->RemovePrefix(prefix.size());
+  return true;
+}
+
+inline bool ConsumeSuffix(StringPiece* text, StringPiece suffix) {
+  if (!text->EndsWith(suffix)) {
+    return false;
+  }
+  text->RemoveSuffix(suffix.size());
   return true;
 }
 

@@ -26,7 +26,7 @@
 
 #include "utils/base/statusor.h"
 #include "utils/flatbuffers.h"
-#include "utils/intents/intent-generator.h"
+#include "utils/intents/remote-action-template.h"
 #include "utils/java/jni-base.h"
 #include "utils/java/jni-cache.h"
 #include "utils/optional.h"

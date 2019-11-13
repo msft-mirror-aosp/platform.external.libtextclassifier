@@ -39,6 +39,10 @@ TEST(ParseInt32Test, Normal) {
   TestParseInt32("  +7", true, 7);
   TestParseInt32("-23", true, -23);
   TestParseInt32("  -23", true, -23);
+  TestParseInt32("04", true, 4);
+  TestParseInt32("07", true, 7);
+  TestParseInt32("08", true, 8);
+  TestParseInt32("09", true, 9);
 }
 
 TEST(ParseInt32Test, ErrorCases) {
@@ -65,6 +69,8 @@ TEST(ParseInt64Test, Normal) {
   TestParseInt64("  +7", true, 7);
   TestParseInt64("-23", true, -23);
   TestParseInt64("  -23", true, -23);
+  TestParseInt64("07", true, 7);
+  TestParseInt64("08", true, 8);
 }
 
 TEST(ParseInt64Test, ErrorCases) {

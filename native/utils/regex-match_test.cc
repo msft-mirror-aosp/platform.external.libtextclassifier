@@ -33,10 +33,13 @@ class RegexMatchTest : public testing::Test {
 };
 
 #ifdef TC3_UNILIB_ICU
+#ifndef TC3_DISABLE_LUA
 TEST_F(RegexMatchTest, HandlesSimpleVerification) {
   EXPECT_TRUE(VerifyMatch(/*context=*/"", /*matcher=*/nullptr, "return true;"));
 }
+#endif  // TC3_DISABLE_LUA
 
+#ifndef TC3_DISABLE_LUA
 TEST_F(RegexMatchTest, HandlesCustomVerification) {
   UnicodeText pattern = UTF8ToUnicodeText("(\\d{16})",
                                           /*do_copy=*/true);
@@ -73,6 +76,7 @@ return luhn(match[1].text);
 
   EXPECT_TRUE(VerifyMatch(message.ToUTF8String(), matcher.get(), verifier));
 }
+#endif  // TC3_DISABLE_LUA
 
 TEST_F(RegexMatchTest, RetrievesMatchGroupTest) {
   UnicodeText pattern =

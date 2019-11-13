@@ -142,6 +142,7 @@ table Iban {
   country_code:string (shared);
 }
 
+// The issuer/network of the package tracking number.
 namespace libtextclassifier3.EntityData_.ParcelTracking_;
 enum Carrier : int {
   UNKNOWN_CARRIER = 0,

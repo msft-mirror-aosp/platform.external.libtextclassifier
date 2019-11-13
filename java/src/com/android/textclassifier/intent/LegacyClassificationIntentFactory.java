@@ -30,7 +30,7 @@ import android.provider.CalendarContract;
 import android.provider.ContactsContract;
 import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.R;
-import com.android.textclassifier.TcLog;
+import com.android.textclassifier.common.base.TcLog;
 import com.google.android.textclassifier.AnnotatorModel;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
