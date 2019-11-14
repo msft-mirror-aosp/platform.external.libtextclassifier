@@ -54,5 +54,42 @@ TEST(StringPieceTest, ConsumePrefix) {
   EXPECT_FALSE(ConsumePrefix(&str, "!"));
 }
 
+TEST(StringPieceTest, ConsumeSuffix) {
+  StringPiece str("hello there!");
+  EXPECT_TRUE(ConsumeSuffix(&str, "!"));
+  EXPECT_EQ(str.ToString(), "hello there");
+  EXPECT_TRUE(ConsumeSuffix(&str, " there"));
+  EXPECT_EQ(str.ToString(), "hello");
+  EXPECT_FALSE(ConsumeSuffix(&str, "!!"));
+  EXPECT_TRUE(ConsumeSuffix(&str, ""));
+  EXPECT_TRUE(ConsumeSuffix(&str, "hello"));
+  EXPECT_EQ(str.ToString(), "");
+  EXPECT_TRUE(ConsumeSuffix(&str, ""));
+  EXPECT_FALSE(ConsumeSuffix(&str, "!"));
+}
+
+TEST(StringPieceTest, Find) {
+  StringPiece str("<hello there!>");
+  EXPECT_EQ(str.find('<'), 0);
+  EXPECT_EQ(str.find('>'), str.length() - 1);
+  EXPECT_EQ(str.find('?'), StringPiece::npos);
+  EXPECT_EQ(str.find('<', str.length() - 1), StringPiece::npos);
+  EXPECT_EQ(str.find('<', 0), 0);
+  EXPECT_EQ(str.find('>', str.length() - 1), str.length() - 1);
+}
+
+TEST(StringPieceTest, FindStringPiece) {
+  StringPiece str("<foo bar baz!>");
+  EXPECT_EQ(str.find("foo"), 1);
+  EXPECT_EQ(str.find("bar"), 5);
+  EXPECT_EQ(str.find("baz"), 9);
+  EXPECT_EQ(str.find("qux"), StringPiece::npos);
+  EXPECT_EQ(str.find("?"), StringPiece::npos);
+  EXPECT_EQ(str.find(">"), str.length() - 1);
+  EXPECT_EQ(str.find("<", str.length() - 1), StringPiece::npos);
+  EXPECT_EQ(str.find("<", 0), 0);
+  EXPECT_EQ(str.find(">", str.length() - 1), str.length() - 1);
+}
+
 }  // namespace
 }  // namespace libtextclassifier3

@@ -42,23 +42,23 @@ import androidx.annotation.WorkerThread;
 import androidx.collection.ArraySet;
 import androidx.core.util.Pair;
 import com.android.textclassifier.ActionsModelParamsSupplier.ActionsModelParams;
+import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.statsd.GenerateLinksLogger;
+import com.android.textclassifier.common.statsd.ResultIdUtils;
+import com.android.textclassifier.common.statsd.SelectionEventConverter;
+import com.android.textclassifier.common.statsd.TextClassificationSessionIdConverter;
+import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
+import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
 import com.android.textclassifier.intent.ClassificationIntentFactory;
 import com.android.textclassifier.intent.LabeledIntent;
 import com.android.textclassifier.intent.LegacyClassificationIntentFactory;
 import com.android.textclassifier.intent.TemplateClassificationIntentFactory;
 import com.android.textclassifier.intent.TemplateIntentFactory;
-import com.android.textclassifier.logging.GenerateLinksLogger;
-import com.android.textclassifier.logging.ResultIdUtils;
-import com.android.textclassifier.logging.SelectionEventConverter;
-import com.android.textclassifier.logging.TextClassifierEventLogger;
-import com.android.textclassifier.ulp.LanguageProfileAnalyzer;
-import com.android.textclassifier.ulp.LanguageProfileUpdater;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.LangIdModel;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -72,7 +72,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
@@ -137,8 +136,6 @@ final class TextClassifierImpl {
   private final ModelFileManager annotatorModelFileManager;
   private final ModelFileManager langIdModelFileManager;
   private final ModelFileManager actionsModelFileManager;
-  private final LanguageProfileUpdater languageProfileUpdater;
-  private final LanguageProfileAnalyzer languageProfileAnalyzer;
   private final ClassificationIntentFactory classificationIntentFactory;
   private final TemplateIntentFactory templateIntentFactory;
   private final Supplier<ActionsModelParams> actionsModelParamsSupplier;
@@ -173,10 +170,6 @@ final class TextClassifierImpl {
                 UPDATED_ACTIONS_MODEL,
                 ActionsSuggestionsModel::getVersion,
                 ActionsSuggestionsModel::getLocales));
-    languageProfileUpdater =
-        new LanguageProfileUpdater(
-            this.context, MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor()));
-    languageProfileAnalyzer = LanguageProfileAnalyzer.create(context, this.settings);
 
     templateIntentFactory = new TemplateIntentFactory();
     classificationIntentFactory =
@@ -271,9 +264,6 @@ final class TextClassifierImpl {
     try {
       List<String> detectLanguageTags =
           detectLanguages(request.getText(), getLangIdThreshold()).getEntities();
-      if (settings.isUserLanguageProfileEnabled()) {
-        languageProfileUpdater.updateFromClassifyTextAsync(detectLanguageTags);
-      }
       final int rangeLength = request.getEndIndex() - request.getStartIndex();
       final String string = request.getText().toString();
       if (string.length() > 0 && rangeLength <= settings.getClassifyTextMaxRangeLength()) {
@@ -407,10 +397,9 @@ final class TextClassifierImpl {
 
   void onTextClassifierEvent(
       @Nullable TextClassificationSessionId sessionId, TextClassifierEvent event) {
-    textClassifierEventLogger.writeEvent(sessionId, event);
-    if (settings.isUserLanguageProfileEnabled()) {
-      languageProfileAnalyzer.onTextClassifierEven(event);
-    }
+    textClassifierEventLogger.writeEvent(
+        TextClassificationSessionIdConverter.fromPlatform(sessionId),
+        TextClassifierEventConverter.fromPlatform(event));
   }
 
   TextLanguage detectLanguage(TextLanguage.Request request) {
@@ -435,11 +424,6 @@ final class TextClassifierImpl {
   ConversationActions suggestConversationActions(ConversationActions.Request request) {
     Preconditions.checkNotNull(request);
     checkMainThread();
-    if (settings.isUserLanguageProfileEnabled()) {
-      // TODO(tonymak): Reuse the LangID result.
-      languageProfileUpdater.updateFromConversationActionsAsync(
-          request, text -> detectLanguages(text, getLangIdThreshold()).getEntities());
-    }
     try {
       ActionsSuggestionsModel actionsImpl = getActionsImpl();
       if (actionsImpl == null) {
@@ -756,18 +740,12 @@ final class TextClassifierImpl {
       }
 
       TcLog.v(TAG, String.format(Locale.US, "Language detected: <%s:%.2f>", language, score));
-      if (settings.isUserLanguageProfileEnabled()) {
-        if (!languageProfileAnalyzer.shouldShowTranslation(language)) {
+      final Locale detected = new Locale(language);
+      final LocaleList deviceLocales = LocaleList.getDefault();
+      final int size = deviceLocales.size();
+      for (int i = 0; i < size; i++) {
+        if (deviceLocales.get(i).getLanguage().equals(detected.getLanguage())) {
           return Pair.create(textLanguagesBundle, null);
-        }
-      } else {
-        final Locale detected = new Locale(language);
-        final LocaleList deviceLocales = LocaleList.getDefault();
-        final int size = deviceLocales.size();
-        for (int i = 0; i < size; i++) {
-          if (deviceLocales.get(i).getLanguage().equals(detected.getLanguage())) {
-            return Pair.create(textLanguagesBundle, null);
-          }
         }
       }
       final Bundle foreignLanguageBundle =
@@ -909,12 +887,6 @@ final class TextClassifierImpl {
       printWriter.decreaseIndent();
       printWriter.println();
       settings.dump(printWriter);
-      if (settings.isUserLanguageProfileEnabled()) {
-        printWriter.println();
-        languageProfileUpdater.dump(printWriter);
-        printWriter.println();
-        languageProfileAnalyzer.dump(printWriter);
-      }
     }
   }
 

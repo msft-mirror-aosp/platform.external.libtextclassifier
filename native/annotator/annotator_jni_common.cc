@@ -108,7 +108,9 @@ StatusOr<T> FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
 StatusOr<SelectionOptions> FromJavaSelectionOptions(JNIEnv* env,
                                                     jobject joptions) {
   if (!joptions) {
-    return {Status::UNKNOWN};
+    // Falling back to default options in case joptions is null
+    SelectionOptions default_selection_options;
+    return default_selection_options;
   }
 
   TC3_ASSIGN_OR_RETURN(
@@ -143,6 +145,11 @@ StatusOr<SelectionOptions> FromJavaSelectionOptions(JNIEnv* env,
 
 StatusOr<ClassificationOptions> FromJavaClassificationOptions(
     JNIEnv* env, jobject joptions) {
+  if (!joptions) {
+    // Falling back to default options in case joptions is null
+    ClassificationOptions default_classification_options;
+    return default_classification_options;
+  }
   return FromJavaOptionsInternal<ClassificationOptions>(
       env, joptions,
       TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$ClassificationOptions");
@@ -151,7 +158,9 @@ StatusOr<ClassificationOptions> FromJavaClassificationOptions(
 StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
                                                       jobject joptions) {
   if (!joptions) {
-    return {Status::UNKNOWN};
+    // Falling back to default options in case joptions is null
+    AnnotationOptions default_annotation_options;
+    return default_annotation_options;
   }
 
   TC3_ASSIGN_OR_RETURN(

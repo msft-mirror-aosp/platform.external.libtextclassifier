@@ -78,17 +78,17 @@ public class ActionsSuggestionsHelperTest {
 
   @Test
   public void testToNativeMessages_userIdEncoding() {
-    Person userA = new Person.Builder().setName("userA").build();
-    Person userB = new Person.Builder().setName("userB").build();
+    Person.Builder userA = new Person.Builder().setName("userA").setKey("A");
+    Person.Builder userB = new Person.Builder().setName("userB").setKey("B");
 
     ConversationActions.Message firstMessage =
-        new ConversationActions.Message.Builder(userB).setText("first").build();
+        new ConversationActions.Message.Builder(userB.build()).setText("first").build();
     ConversationActions.Message secondMessage =
-        new ConversationActions.Message.Builder(userA).setText("second").build();
+        new ConversationActions.Message.Builder(userA.build()).setText("second").build();
     ConversationActions.Message thirdMessage =
         new ConversationActions.Message.Builder(PERSON_USER_SELF).setText("third").build();
     ConversationActions.Message fourthMessage =
-        new ConversationActions.Message.Builder(userA).setText("fourth").build();
+        new ConversationActions.Message.Builder(userA.build()).setText("fourth").build();
 
     ActionsSuggestionsModel.ConversationMessage[] conversationMessages =
         ActionsSuggestionsHelper.toNativeMessages(

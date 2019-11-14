@@ -84,6 +84,17 @@ const CalendarLib* MaybeCreateCalendarlib(
   }
 }
 
+// Returns whether the provided input is valid:
+//   * Valid utf8 text.
+//   * Sane span indices.
+bool IsValidSpanInput(const UnicodeText& context, const CodepointSpan span) {
+  if (!context.is_valid()) {
+    return false;
+  }
+  return (span.first >= 0 && span.first < span.second &&
+          span.second <= context.size_codepoints());
+}
+
 }  // namespace
 
 tflite::Interpreter* InterpreterManager::SelectionInterpreter() {
@@ -689,18 +700,10 @@ CodepointSpan Annotator::SuggestSelection(
   const UnicodeText context_unicode = UTF8ToUnicodeText(context,
                                                         /*do_copy=*/false);
 
-  if (!context_unicode.is_valid()) {
-    return original_click_indices;
-  }
-
-  const int context_codepoint_size = context_unicode.size_codepoints();
-
-  if (click_indices.first < 0 || click_indices.second < 0 ||
-      click_indices.first >= context_codepoint_size ||
-      click_indices.second > context_codepoint_size ||
-      click_indices.first >= click_indices.second) {
-    TC3_VLOG(1) << "Trying to run SuggestSelection with invalid indices: "
-                << click_indices.first << " " << click_indices.second;
+  if (!IsValidSpanInput(context_unicode, click_indices)) {
+    TC3_VLOG(1)
+        << "Trying to run SuggestSelection with invalid input, indices: "
+        << click_indices.first << " " << click_indices.second;
     return original_click_indices;
   }
 
@@ -1524,12 +1527,9 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     return {};
   }
 
-  if (!UTF8ToUnicodeText(context, /*do_copy=*/false).is_valid()) {
-    return {};
-  }
-
-  if (std::get<0>(selection_indices) >= std::get<1>(selection_indices)) {
-    TC3_VLOG(1) << "Trying to run ClassifyText with invalid indices: "
+  if (!IsValidSpanInput(UTF8ToUnicodeText(context, /*do_copy=*/false),
+                        selection_indices)) {
+    TC3_VLOG(1) << "Trying to run ClassifyText with invalid input: "
                 << std::get<0>(selection_indices) << " "
                 << std::get<1>(selection_indices);
     return {};

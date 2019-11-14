@@ -216,6 +216,42 @@ TEST_F(UniLibTest, RegexGroups) {
   EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
 }
 
+TEST_F(UniLibTest, RegexGroupsNotAllGroupsInvolved) {
+  const UnicodeText regex_pattern =
+      UTF8ToUnicodeText("([0-9])([a-z])?", /*do_copy=*/false);
+  std::unique_ptr<UniLib::RegexPattern> pattern =
+      unilib_.CreateRegexPattern(regex_pattern);
+  int status;
+  std::unique_ptr<UniLib::RegexMatcher> matcher;
+
+  matcher = pattern->Matcher(UTF8ToUnicodeText("7", /*do_copy=*/false));
+  EXPECT_TRUE(matcher->Find(&status));
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+  EXPECT_EQ(matcher->Group(0, &status).ToUTF8String(), "7");
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+  EXPECT_EQ(matcher->Group(1, &status).ToUTF8String(), "7");
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+  EXPECT_EQ(matcher->Group(2, &status).ToUTF8String(), "");
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+}
+
+TEST_F(UniLibTest, RegexGroupsEmptyResult) {
+  const UnicodeText regex_pattern =
+      UTF8ToUnicodeText("(.*)", /*do_copy=*/false);
+  std::unique_ptr<UniLib::RegexPattern> pattern =
+      unilib_.CreateRegexPattern(regex_pattern);
+  int status;
+  std::unique_ptr<UniLib::RegexMatcher> matcher;
+
+  matcher = pattern->Matcher(UTF8ToUnicodeText("", /*do_copy=*/false));
+  EXPECT_TRUE(matcher->Find(&status));
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+  EXPECT_EQ(matcher->Group(0, &status).ToUTF8String(), "");
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+  EXPECT_EQ(matcher->Group(1, &status).ToUTF8String(), "");
+  EXPECT_EQ(status, UniLib::RegexMatcher::kNoError);
+}
+
 TEST_F(UniLibTest, BreakIterator) {
   const UnicodeText text = UTF8ToUnicodeText("some text", /*do_copy=*/false);
   std::unique_ptr<UniLib::BreakIterator> iterator =

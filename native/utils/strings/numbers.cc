@@ -24,9 +24,9 @@
 
 namespace libtextclassifier3 {
 
+// This conversion is only valid for numerical base is 10 (radix)
 bool ParseInt32(const char *c_str, int32 *value) {
   char *temp;
-
   // Short version of man strtol:
   //
   // strtol parses some optional whitespaces, an optional +/- sign, and next a
@@ -36,7 +36,9 @@ bool ParseInt32(const char *c_str, int32 *value) {
   //
   // If there were no digits at all, strtol() sets temp to be c_str (the start
   // address) and returns 0.
-  *value = strtol(c_str, &temp, 0);  // NOLINT
+  // Explicitly setting this to base 10 as 0 means the base used is determined
+  // by the format which can cause problems
+  *value = strtol(c_str, &temp, 10);  // NOLINT
 
   // temp != c_str means that the input string contained at least one digit (see
   // above).  *temp == '\0' means the input string does not contain any random
@@ -44,9 +46,13 @@ bool ParseInt32(const char *c_str, int32 *value) {
   return (temp != c_str) && (*temp == '\0');
 }
 
+// This conversion is only valid for numerical base is 10 (radix)
 bool ParseInt64(const char *c_str, int64 *value) {
   char *temp;
-  *value = strtoll(c_str, &temp, 0);  // NOLINT
+
+  // Explicitly setting this to base 10 as 0 means the base used is determined
+  // by the format which can cause problems
+  *value = strtoll(c_str, &temp, 10);  // NOLINT
 
   // See comments inside ParseInt32.
   return (temp != c_str) && (*temp == '\0');

@@ -17,7 +17,7 @@
 package com.android.textclassifier.intent;
 
 import android.content.Context;
-import com.android.textclassifier.TcLog;
+import com.android.textclassifier.common.base.TcLog;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import com.google.common.base.Preconditions;

@@ -20,7 +20,7 @@
 #include <memory>
 #include <string>
 
-#include "utils/sentencepiece/double_array_trie.h"
+#include "utils/container/double-array-trie.h"
 #include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {

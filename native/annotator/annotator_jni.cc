@@ -31,6 +31,7 @@
 #include "utils/calendar/calendar.h"
 #include "utils/intents/intent-generator.h"
 #include "utils/intents/jni.h"
+#include "utils/intents/remote-action-template.h"
 #include "utils/java/jni-cache.h"
 #include "utils/java/jni-helper.h"
 #include "utils/java/string_utils.h"

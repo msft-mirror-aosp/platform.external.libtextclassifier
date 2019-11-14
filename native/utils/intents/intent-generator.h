@@ -13,55 +13,13 @@
 #include "annotator/types.h"
 #include "utils/i18n/locale.h"
 #include "utils/intents/intent-config_generated.h"
+#include "utils/intents/remote-action-template.h"
 #include "utils/java/jni-cache.h"
-#include "utils/optional.h"
 #include "utils/resources.h"
 #include "utils/resources_generated.h"
 #include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {
-
-// A template with parameters for an Android remote action.
-struct RemoteActionTemplate {
-  // Title shown for the action (see: RemoteAction.getTitle).
-  Optional<std::string> title_without_entity;
-
-  // Title with entity for the action. It is not guaranteed that the client
-  // will use this, so title should be always given and general enough.
-  Optional<std::string> title_with_entity;
-
-  // Description shown for the action (see: RemoteAction.getContentDescription).
-  Optional<std::string> description;
-
-  // Description shown for the action (see: RemoteAction.getContentDescription)
-  // when app name is available. Caller is expected to replace the placeholder
-  // by the name of the app that is going to handle the action.
-  Optional<std::string> description_with_app_name;
-
-  // The action to set on the Intent (see: Intent.setAction).
-  Optional<std::string> action;
-
-  // The data to set on the Intent (see: Intent.setData).
-  Optional<std::string> data;
-
-  // The type to set on the Intent (see: Intent.setType).
-  Optional<std::string> type;
-
-  // Flags for launching the Intent (see: Intent.setFlags).
-  Optional<int> flags;
-
-  // Categories to set on the Intent (see: Intent.addCategory).
-  std::vector<std::string> category;
-
-  // Explicit application package to set on the Intent (see: Intent.setPackage).
-  Optional<std::string> package_name;
-
-  // The list of all the extras to add to the Intent.
-  std::map<std::string, Variant> extra;
-
-  // Private request code ot use for the Intent.
-  Optional<int> request_code;
-};
 
 // Helper class to generate Android intents for text classifier results.
 class IntentGenerator {

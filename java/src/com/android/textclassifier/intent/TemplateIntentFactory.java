@@ -20,7 +20,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
-import com.android.textclassifier.TcLog;
+import com.android.textclassifier.common.base.TcLog;
 import com.google.android.textclassifier.NamedVariant;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import java.util.ArrayList;
