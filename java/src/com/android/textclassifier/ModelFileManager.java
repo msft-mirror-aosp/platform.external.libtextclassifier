@@ -19,6 +19,7 @@ package com.android.textclassifier;
 import android.os.LocaleList;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
+import com.android.textclassifier.common.base.TcLog;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import java.io.File;

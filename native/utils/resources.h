@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "utils/i18n/language-tag_generated.h"
 #include "utils/i18n/locale.h"
 #include "utils/resources_generated.h"
 #include "utils/strings/stringpiece.h"

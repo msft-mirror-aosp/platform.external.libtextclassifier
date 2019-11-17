@@ -25,7 +25,7 @@
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
-#include "utils/sentencepiece/sorted_strings_table.h"
+#include "utils/container/sorted-strings-table.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {

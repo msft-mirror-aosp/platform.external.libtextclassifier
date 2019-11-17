@@ -117,7 +117,7 @@ bool SentencePieceNormalizer::Normalize(StringPiece input,
 bool SentencePieceNormalizer::NormalizePrefix(
     StringPiece input, std::pair<StringPiece, int>* prefix) const {
   if (input.empty()) return true;
-  TrieMatch match;
+  StringSet::Match match;
   if (!charsmap_trie_.LongestPrefixMatch(input, &match)) {
     TC3_LOG(ERROR) << "Couldn't find match in normalization table.";
     return false;

@@ -26,11 +26,15 @@ import android.util.ArrayMap;
 import android.util.Pair;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
+import android.view.textclassifier.ConversationActions.Message;
+import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.statsd.ResultIdUtils;
 import com.android.textclassifier.intent.LabeledIntent;
 import com.android.textclassifier.intent.TemplateIntentFactory;
-import com.android.textclassifier.logging.ResultIdUtils;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
+import com.google.common.base.Equivalence;
+import com.google.common.base.Equivalence.Wrapper;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -194,20 +198,40 @@ final class ActionsSuggestionsHelper {
   }
 
   private static final class PersonEncoder {
-    private final Map<Person, Integer> personToUserIdMap = new ArrayMap<>();
+    private static final Equivalence<Person> EQUIVALENCE = new PersonEquivalence();
+    private static final Equivalence.Wrapper<Person> PERSON_USER_SELF =
+        EQUIVALENCE.wrap(Message.PERSON_USER_SELF);
+
+    private final Map<Equivalence.Wrapper<Person>, Integer> personToUserIdMap = new ArrayMap<>();
     private int nextUserId = FIRST_NON_LOCAL_USER;
 
     private int encode(Person person) {
-      if (ConversationActions.Message.PERSON_USER_SELF.equals(person)) {
+      Wrapper<Person> personWrapper = EQUIVALENCE.wrap(person);
+      if (PERSON_USER_SELF.equals(personWrapper)) {
         return USER_LOCAL;
       }
-      Integer result = personToUserIdMap.get(person);
+      Integer result = personToUserIdMap.get(personWrapper);
       if (result == null) {
-        personToUserIdMap.put(person, nextUserId);
+        personToUserIdMap.put(personWrapper, nextUserId);
         result = nextUserId;
         nextUserId++;
       }
       return result;
+    }
+
+    private static final class PersonEquivalence extends Equivalence<Person> {
+
+      @Override
+      protected boolean doEquivalent(Person a, Person b) {
+        return Objects.equals(a.getKey(), b.getKey())
+            && TextUtils.equals(a.getName(), b.getName())
+            && Objects.equals(a.getUri(), b.getUri());
+      }
+
+      @Override
+      protected int doHash(Person person) {
+        return Objects.hash(person.getKey(), person.getName(), person.getUri());
+      }
     }
   }
 

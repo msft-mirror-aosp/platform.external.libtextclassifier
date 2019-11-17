@@ -57,8 +57,8 @@ bool Encoder::Encode(StringPiece normalized_text,
         }
       }
     }
-    std::vector<TrieMatch> matches;
-    if (!matcher_->FindAllPrefixMatches(normalized_text, &matches)) {
+    std::vector<StringSet::Match> matches;
+    if (!pieces_->FindAllPrefixMatches(normalized_text, &matches)) {
       TC3_LOG(ERROR)
           << "Couldn't successfully gather prefix sentence piece matches.";
       return false;

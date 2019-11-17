@@ -19,7 +19,7 @@
 #include <memory>
 
 #include "utils/base/integral_types.h"
-#include "utils/sentencepiece/double_array_trie.h"
+#include "utils/container/double-array-trie.h"
 #include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {

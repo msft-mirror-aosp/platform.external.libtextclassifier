@@ -92,7 +92,8 @@ bool DatetimeExtractor::Extract(DatetimeParsedData* result,
       }
       case DatetimeGroupType_GROUP_MINUTE: {
         int minute;
-        if (!ParseDigits(group_text, &(minute))) {
+        if (!ParseDigits(group_text, &(minute)) &&
+            !ParseWrittenNumber(group_text, &(minute))) {
           TC3_LOG(ERROR) << "Couldn't extract MINUTE.";
           return false;
         }

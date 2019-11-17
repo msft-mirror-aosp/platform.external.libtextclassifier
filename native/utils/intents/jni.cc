@@ -19,7 +19,6 @@
 #include <memory>
 
 #include "utils/base/statusor.h"
-#include "utils/intents/intent-generator.h"
 #include "utils/java/jni-base.h"
 #include "utils/java/jni-helper.h"
 

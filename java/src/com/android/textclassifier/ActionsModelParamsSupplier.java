@@ -20,6 +20,7 @@ import android.content.Context;
 import android.database.ContentObserver;
 import android.provider.Settings;
 import androidx.annotation.GuardedBy;
+import com.android.textclassifier.common.base.TcLog;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.lang.ref.WeakReference;

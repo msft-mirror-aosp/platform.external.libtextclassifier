@@ -29,7 +29,7 @@ import android.text.TextUtils;
 import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.ExtrasUtils;
 import com.android.textclassifier.R;
-import com.android.textclassifier.TcLog;
+import com.android.textclassifier.common.base.TcLog;
 import com.google.common.base.Preconditions;
 import javax.annotation.Nullable;
 
@@ -154,7 +154,7 @@ public final class LabeledIntent {
   }
 
   @Nullable
-  private String getApplicationName(ResolveInfo resolveInfo, PackageManager packageManager) {
+  private static String getApplicationName(ResolveInfo resolveInfo, PackageManager packageManager) {
     if (resolveInfo.activityInfo == null) {
       return null;
     }
@@ -167,7 +167,7 @@ public final class LabeledIntent {
     return (String) packageManager.getApplicationLabel(resolveInfo.activityInfo.applicationInfo);
   }
 
-  private Bundle getFromTextClassifierExtra(@Nullable Bundle textLanguagesBundle) {
+  private static Bundle getFromTextClassifierExtra(@Nullable Bundle textLanguagesBundle) {
     if (textLanguagesBundle != null) {
       final Bundle bundle = new Bundle();
       ExtrasUtils.putTextLanguagesExtra(bundle, textLanguagesBundle);

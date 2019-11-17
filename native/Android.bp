@@ -100,6 +100,7 @@ cc_defaults {
         "libtextclassifier_fbgen_lang_id_model",
         "libtextclassifier_fbgen_actions-entity-data",
         "libtextclassifier_fbgen_normalization",
+        "libtextclassifier_fbgen_language-tag",
     ],
 
     header_libs: [
@@ -226,6 +227,13 @@ genrule {
     name: "libtextclassifier_fbgen_normalization",
     srcs: ["utils/normalization.fbs"],
     out: ["utils/normalization_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_language-tag",
+    srcs: ["utils/i18n/language-tag.fbs"],
+    out: ["utils/i18n/language-tag_generated.h"],
     defaults: ["fbgen"],
 }
 
