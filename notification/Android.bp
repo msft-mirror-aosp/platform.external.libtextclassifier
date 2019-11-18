@@ -33,4 +33,5 @@ android_library {
     ],
     sdk_version: "system_current",
     min_sdk_version: "29",
+    manifest: "LibNoManifest_AndroidManifest.xml",
 }

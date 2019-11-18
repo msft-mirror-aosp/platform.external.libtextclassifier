@@ -41,6 +41,7 @@ android_library {
 android_library {
     name: "TextClassifierServiceLibNoManifest",
     srcs: ["src/**/*.java"],
+    manifest: "LibNoManifest_AndroidManifest.xml",
     static_libs: [
         "androidx.core_core",
         "libtextclassifier-java",

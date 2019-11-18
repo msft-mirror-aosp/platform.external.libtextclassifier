@@ -18,22 +18,13 @@
 -->
 
 <!--
-  This manifest file is for used for testing.
-  This library is typically shipped as part of ExtServices and is configured in ExtServices's
-  manifest.
+  This is for the AndroidManifest.xml for the TextClassifierNotificationLibNoManifest library.
+  The user of this library should explicitly put the necssary components in their own
+  AndroidManifest.xml, see AndroidManifest.xml under the same folder.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.android.textclassifier.notification">
+          package="com.android.textclassifier.notification">
 
-  <uses-sdk
-      android:minSdkVersion="29"
-      android:targetSdkVersion="29" />
-
-  <application>
-    <activity
-        android:name=".CopyCodeActivity"
-        android:exported="false"
-        android:theme="@android:style/Theme.NoDisplay" />
-  </application>
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29"/>
 
 </manifest>
