@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">فرستادن ایمیل</string>
+  <string name="tcs_email_desc">ارسال ایمیل به نشانی انتخابی</string>
+  <string name="tcs_dial">تماس گرفتن</string>
+  <string name="tcs_dial_desc">تماس با شماره تلفن انتخابی</string>
+  <string name="tcs_map">نقشه</string>
+  <string name="tcs_map_desc">مکان‌یابی نشانی انتخاب‌شده</string>
+  <string name="tcs_browse">باز کردن</string>
+  <string name="tcs_browse_desc">باز کردن نشانی وب انتخابی</string>
+  <string name="tcs_sms">فرستادن پیام</string>
+  <string name="tcs_sms_desc">ارسال پیام به شماره تلفن انتخابی</string>
+  <string name="tcs_add_contact">افزودن</string>
+  <string name="tcs_add_contact_desc">افزودن به مخاطبین</string>
+  <string name="tcs_view_calendar">مشاهده</string>
+  <string name="tcs_view_calendar_desc">مشاهده زمان انتخابی در تقویم</string>
+  <string name="tcs_add_calendar_event">زمان‌بندی کردن</string>
+  <string name="tcs_add_calendar_event_desc">زمان‌بندی رویداد برای زمان انتخابی</string>
+  <string name="tcs_view_flight">انجام پیگیری</string>
+  <string name="tcs_view_flight_desc">ردیابی پرواز انتخابی</string>
+  <string name="tcs_translate">ترجمه کردن</string>
+  <string name="tcs_translate_desc">ترجمه کردن نوشتار انتخاب‌شده</string>
+  <string name="tcs_define">تعریف کردن</string>
+  <string name="tcs_define_desc">تعریف نوشتار انتخابی</string>
+</resources>

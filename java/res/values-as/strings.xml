@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ইমেইল কৰক</string>
+  <string name="tcs_email_desc">বাছনি কৰা ঠিকনালৈ ইমেইল পঠিয়াওক</string>
+  <string name="tcs_dial">কল কৰক</string>
+  <string name="tcs_dial_desc">বাছনি কৰা ফ\'ন নাম্বাৰত কল কৰক</string>
+  <string name="tcs_map">মেপ খোলক</string>
+  <string name="tcs_map_desc">বাছনি কৰা ঠিকনাটো বিচাৰি উলিয়াওক</string>
+  <string name="tcs_browse">খোলক</string>
+  <string name="tcs_browse_desc">বাছনি কৰা URL খোলক</string>
+  <string name="tcs_sms">বাৰ্তা পঠিয়াওক</string>
+  <string name="tcs_sms_desc">বাছনি কৰা ফ’ন নম্বৰলৈ বাৰ্তা পঠিয়াওক</string>
+  <string name="tcs_add_contact">যোগ দিয়ক</string>
+  <string name="tcs_add_contact_desc">সর্ম্পকসূচীত যোগ কৰক</string>
+  <string name="tcs_view_calendar">চাওক</string>
+  <string name="tcs_view_calendar_desc">কেলেণ্ডাৰত বাছনি কৰা সময় চাওক</string>
+  <string name="tcs_add_calendar_event">সময়সূচী নিৰ্ধাৰণ কৰক</string>
+  <string name="tcs_add_calendar_event_desc">বাছনি কৰা তাৰিখটো কাৰ্যক্ৰমৰ সময় হিচাপে নিৰ্ধাৰণ কৰক</string>
+  <string name="tcs_view_flight">ট্ৰেক কৰক</string>
+  <string name="tcs_view_flight_desc">বাছনি কৰা বিমানটো ট্ৰেক কৰক</string>
+  <string name="tcs_translate">অনুবাদ কৰক</string>
+  <string name="tcs_translate_desc">বাছনি কৰা পাঠ অনুবাদ কৰক</string>
+  <string name="tcs_define">সংজ্ঞা দিব পাৰে</string>
+  <string name="tcs_define_desc">বাছনি কৰা পাঠৰ সংজ্ঞা দিব পাৰে</string>
+</resources>

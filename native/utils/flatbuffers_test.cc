@@ -270,6 +270,22 @@ TEST(FlatbuffersTest, PrimitiveAndNestedFieldsAreCorrectlyFlattened) {
   EXPECT_EQ(38, entity_data_map["flight_number.flight_code"].IntValue());
 }
 
+TEST(FlatbuffersTest, ToTextProtoWorks) {
+  std::string metadata_buffer = LoadTestMetadata();
+  ReflectiveFlatbufferBuilder reflective_builder(
+      flatbuffers::GetRoot<reflection::Schema>(metadata_buffer.data()));
+  std::unique_ptr<ReflectiveFlatbuffer> buffer = reflective_builder.NewRoot();
+  buffer->Set("an_int_field", 42);
+  buffer->Set("a_long_field", 84ll);
+  ReflectiveFlatbuffer* flight_info = buffer->Mutable("flight_number");
+  flight_info->Set("carrier_code", "LX");
+  flight_info->Set("flight_code", 38);
+
+  EXPECT_EQ(buffer->ToTextProto(),
+            "a_long_field: 84, an_int_field: 42, flight_number "
+            "{flight_code: 38, carrier_code: 'LX'}");
+}
+
 TEST(FlatbuffersTest, RepeatedFieldSetThroughReflectionCanBeRead) {
   std::string metadata_buffer = LoadTestMetadata();
   const reflection::Schema* schema =

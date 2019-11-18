@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">E-mail</string>
+  <string name="tcs_email_desc">E-mail küldése a kiválasztott címre</string>
+  <string name="tcs_dial">Hívás</string>
+  <string name="tcs_dial_desc">Kiválasztott telefonszám hívása</string>
+  <string name="tcs_map">Térkép</string>
+  <string name="tcs_map_desc">Kiválasztott cím megkeresése a térképen</string>
+  <string name="tcs_browse">Megnyitás</string>
+  <string name="tcs_browse_desc">Kiválasztott URL megnyitása</string>
+  <string name="tcs_sms">Üzenet</string>
+  <string name="tcs_sms_desc">Üzenet küldése a kijelölt telefonszámra</string>
+  <string name="tcs_add_contact">Hozzáadás</string>
+  <string name="tcs_add_contact_desc">Hozzáadás a névjegyekhez</string>
+  <string name="tcs_view_calendar">Megtekintés</string>
+  <string name="tcs_view_calendar_desc">Kijelölt idő megtekintése a naptárban</string>
+  <string name="tcs_add_calendar_event">Ütemezés</string>
+  <string name="tcs_add_calendar_event_desc">Esemény ütemezése a kiválasztott időpontra</string>
+  <string name="tcs_view_flight">Nyomon követés</string>
+  <string name="tcs_view_flight_desc">Kiválasztott járat nyomon követése</string>
+  <string name="tcs_translate">Fordítás</string>
+  <string name="tcs_translate_desc">A kijelölt szöveg fordítása</string>
+  <string name="tcs_define">Definiálás</string>
+  <string name="tcs_define_desc">Kijelölt szöveg definiálása</string>
+</resources>

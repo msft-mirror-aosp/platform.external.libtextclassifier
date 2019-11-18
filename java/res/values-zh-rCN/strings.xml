@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">发送电子邮件</string>
+  <string name="tcs_email_desc">将电子邮件发送至所选地址</string>
+  <string name="tcs_dial">拨打电话</string>
+  <string name="tcs_dial_desc">拨打所选电话号码</string>
+  <string name="tcs_map">查看地图</string>
+  <string name="tcs_map_desc">找到所选地址</string>
+  <string name="tcs_browse">打开</string>
+  <string name="tcs_browse_desc">打开所选网址</string>
+  <string name="tcs_sms">发短信</string>
+  <string name="tcs_sms_desc">将短信发送至所选电话号码</string>
+  <string name="tcs_add_contact">添加</string>
+  <string name="tcs_add_contact_desc">添加到通讯录</string>
+  <string name="tcs_view_calendar">查看</string>
+  <string name="tcs_view_calendar_desc">在日历中查看所选时间</string>
+  <string name="tcs_add_calendar_event">排定时间</string>
+  <string name="tcs_add_calendar_event_desc">将活动安排在所选时间</string>
+  <string name="tcs_view_flight">跟踪</string>
+  <string name="tcs_view_flight_desc">跟踪所选航班</string>
+  <string name="tcs_translate">翻译</string>
+  <string name="tcs_translate_desc">翻译所选文字</string>
+  <string name="tcs_define">定义</string>
+  <string name="tcs_define_desc">定义所选文字</string>
+</resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Испрати е-пошта</string>
+  <string name="tcs_email_desc">Испраќа е-порака на избраната адреса</string>
+  <string name="tcs_dial">Повикај</string>
+  <string name="tcs_dial_desc">Го повикува избраниот телефонски број</string>
+  <string name="tcs_map">Отвори карта</string>
+  <string name="tcs_map_desc">Лоцирај ја избраната адреса</string>
+  <string name="tcs_browse">Отвори</string>
+  <string name="tcs_browse_desc">Ја отвора избраната URL</string>
+  <string name="tcs_sms">Испрати порака</string>
+  <string name="tcs_sms_desc">Испраќа порака на избраниот телефонски број</string>
+  <string name="tcs_add_contact">Додај</string>
+  <string name="tcs_add_contact_desc">Додава во контакти</string>
+  <string name="tcs_view_calendar">Прикажи</string>
+  <string name="tcs_view_calendar_desc">Го гледа избраното време во календарот</string>
+  <string name="tcs_add_calendar_event">Закажи</string>
+  <string name="tcs_add_calendar_event_desc">Закажува настан за избраното време</string>
+  <string name="tcs_view_flight">Следи го</string>
+  <string name="tcs_view_flight_desc">Следи избран лет</string>
+  <string name="tcs_translate">Преведи</string>
+  <string name="tcs_translate_desc">Преведете го избраниот текст</string>
+  <string name="tcs_define">Дефинирај</string>
+  <string name="tcs_define_desc">Дефинирајте го избраниот текст</string>
+</resources>

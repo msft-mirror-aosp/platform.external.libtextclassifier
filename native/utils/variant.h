@@ -89,6 +89,10 @@ class Variant {
     return string_value_;
   }
 
+  // Converts the value of this variant to its string representation, regardless
+  // of the type of the actual value.
+  std::string ToString() const;
+
   bool HasInt() const { return type_ == TYPE_INT_VALUE; }
 
   bool HasInt64() const { return type_ == TYPE_INT64_VALUE; }
@@ -116,6 +120,10 @@ class Variant {
   };
   std::string string_value_;
 };
+
+// Pretty-printing function for Variant.
+logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
+                                         const Variant& value);
 
 }  // namespace libtextclassifier3
 

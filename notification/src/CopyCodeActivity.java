@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,8 @@ public class CopyCodeActivity extends Activity {
     ClipboardManager clipboardManager = getSystemService(ClipboardManager.class);
     ClipData clipData = ClipData.newPlainText(null, code);
     clipboardManager.setPrimaryClip(clipData);
-    Toast.makeText(getApplicationContext(), R.string.code_copied_to_clipboard, Toast.LENGTH_SHORT)
+    Toast.makeText(
+            getApplicationContext(), R.string.tc_notif_code_copied_to_clipboard, Toast.LENGTH_SHORT)
         .show();
   }
 }

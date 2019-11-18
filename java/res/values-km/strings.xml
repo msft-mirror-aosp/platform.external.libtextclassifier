@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">អ៊ីមែល</string>
+  <string name="tcs_email_desc">ផ្ញើ​អ៊ីមែល​ទៅ​អាសយដ្ឋាន​ដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_dial">ហៅទូរសព្ទ</string>
+  <string name="tcs_dial_desc">ហៅ​ទូរសព្ទ​ទៅ​លេខ​ដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_map">ផែនទី</string>
+  <string name="tcs_map_desc">កំណត់​ទីតាំង​អាសយដ្ឋាន​ដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_browse">បើក</string>
+  <string name="tcs_browse_desc">បើក URL ដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_sms">សារ</string>
+  <string name="tcs_sms_desc">ផ្ញើសារ​ទៅ​លេខ​ទូរសព្ទ​ដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_add_contact">បញ្ចូល</string>
+  <string name="tcs_add_contact_desc">បញ្ចូល​ទៅ​ក្នុង​ទំនាក់ទំនង</string>
+  <string name="tcs_view_calendar">មើល</string>
+  <string name="tcs_view_calendar_desc">មើល​ពេលវេលា​ដែល​បាន​ជ្រើសរើស​នៅក្នុង​ប្រតិទិន</string>
+  <string name="tcs_add_calendar_event">កំណត់​កាលវិភាគ</string>
+  <string name="tcs_add_calendar_event_desc">កំណត់​កាលវិភាគ​ព្រឹត្តិការណ៍​សម្រាប់ពេល​វេលាដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_view_flight">តាម​ដាន</string>
+  <string name="tcs_view_flight_desc">តាមដាន​ជើង​ហោះហើរ​ដែល​បាន​ជ្រើសរើស</string>
+  <string name="tcs_translate">បកប្រែ</string>
+  <string name="tcs_translate_desc">បកប្រែអត្ថបទដែលបានជ្រើសរើស</string>
+  <string name="tcs_define">កំណត់​អត្ថន័យ</string>
+  <string name="tcs_define_desc">កំណត់​អត្ថន័យ​ពាក្យដែល​បានជ្រើសរើស</string>
+</resources>

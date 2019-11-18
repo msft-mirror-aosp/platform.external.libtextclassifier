@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">E-pos</string>
+  <string name="tcs_email_desc">Stuur e-pos aan gekose adres</string>
+  <string name="tcs_dial">Bel</string>
+  <string name="tcs_dial_desc">Bel dié foonnommer</string>
+  <string name="tcs_map">Kaart</string>
+  <string name="tcs_map_desc">Soek geselekteerde adres</string>
+  <string name="tcs_browse">Maak oop</string>
+  <string name="tcs_browse_desc">Maak gekose URL oop</string>
+  <string name="tcs_sms">SMS</string>
+  <string name="tcs_sms_desc">Stuur SMS aan gekose foonnommer</string>
+  <string name="tcs_add_contact">Voeg by</string>
+  <string name="tcs_add_contact_desc">Voeg by kontakte</string>
+  <string name="tcs_view_calendar">Bekyk</string>
+  <string name="tcs_view_calendar_desc">Bekyk gekose tyd in kalender</string>
+  <string name="tcs_add_calendar_event">Skeduleer</string>
+  <string name="tcs_add_calendar_event_desc">Skeduleer geleentheid vir gekose tyd</string>
+  <string name="tcs_view_flight">Spoor na</string>
+  <string name="tcs_view_flight_desc">Spoor gekose vlug na</string>
+  <string name="tcs_translate">Vertaal</string>
+  <string name="tcs_translate_desc">Vertaal geselekteerde teks</string>
+  <string name="tcs_define">Definieer</string>
+  <string name="tcs_define_desc">Definieer geselekteerde teks</string>
+</resources>

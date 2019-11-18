@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">إرسال بريد إلكتروني</string>
+  <string name="tcs_email_desc">مراسلة العنوان المختار عبر البريد الإلكتروني</string>
+  <string name="tcs_dial">اتصال</string>
+  <string name="tcs_dial_desc">الاتصال برقم الهاتف المختار</string>
+  <string name="tcs_map">فتح تطبيق خرائط</string>
+  <string name="tcs_map_desc">تحديد موقع العنوان المختار</string>
+  <string name="tcs_browse">فتح</string>
+  <string name="tcs_browse_desc">فتح عنوان URL المختار</string>
+  <string name="tcs_sms">إرسال رسائل قصيرة</string>
+  <string name="tcs_sms_desc">مراسلة رقم الهاتف المختار</string>
+  <string name="tcs_add_contact">إضافة</string>
+  <string name="tcs_add_contact_desc">إضافة إلى جهات الاتصال</string>
+  <string name="tcs_view_calendar">عرض</string>
+  <string name="tcs_view_calendar_desc">عرض الوقت المختار في التقويم</string>
+  <string name="tcs_add_calendar_event">تحديد موعد حدث</string>
+  <string name="tcs_add_calendar_event_desc">جدولة الحدث في الوقت المختار</string>
+  <string name="tcs_view_flight">تتبّع</string>
+  <string name="tcs_view_flight_desc">تتبُّع الرحلة الجوية المختارة</string>
+  <string name="tcs_translate">ترجمة</string>
+  <string name="tcs_translate_desc">ترجمة النص المُختار</string>
+  <string name="tcs_define">تعريف</string>
+  <string name="tcs_define_desc">تحديد النص المُختار</string>
+</resources>

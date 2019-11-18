@@ -31,8 +31,8 @@
 
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <application android:label="@string/app_name"
-                 android:icon="@drawable/app_icon"
+    <application android:label="@string/tcs_app_name"
+                 android:icon="@drawable/tcs_app_icon"
                  android:extractNativeLibs="false">
         <service
             android:exported="true"

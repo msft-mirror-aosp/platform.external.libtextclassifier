@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ଇମେଲ୍</string>
+  <string name="tcs_email_desc">ଚୟନିତ ଠିକଣାକୁ ଇମେଲ୍‍ ପଠାନ୍ତୁ</string>
+  <string name="tcs_dial">କଲ୍</string>
+  <string name="tcs_dial_desc">ଚୟନିତ ଫୋନ୍‍ ନମ୍ବର୍‍କୁ କଲ୍‍ କରନ୍ତୁ</string>
+  <string name="tcs_map">ମ୍ୟାପ୍‍</string>
+  <string name="tcs_map_desc">ଚୟନିତ ଠିକଣା ଖୋଜନ୍ତୁ</string>
+  <string name="tcs_browse">ଖୋଲନ୍ତୁ</string>
+  <string name="tcs_browse_desc">ଚୟନିତ URL ଖୋଲନ୍ତୁ</string>
+  <string name="tcs_sms">ମେସେଜ୍‌</string>
+  <string name="tcs_sms_desc">ଚୟନିତ ଫୋନ୍‌ ନମ୍ବର୍‌କୁ ମେସେଜ୍‌ ପଠାନ୍ତୁ</string>
+  <string name="tcs_add_contact">ଯୋଗ କରନ୍ତୁ</string>
+  <string name="tcs_add_contact_desc">ଯୋଗାଯୋଗରେ ଯୋଗ କରନ୍ତୁ</string>
+  <string name="tcs_view_calendar">ଦେଖନ୍ତୁ</string>
+  <string name="tcs_view_calendar_desc">କ୍ୟାଲେଣ୍ଡର୍‌ରେ ଚୟନିତ ସମୟ ଦେଖନ୍ତୁ</string>
+  <string name="tcs_add_calendar_event">ସୂଚୀ</string>
+  <string name="tcs_add_calendar_event_desc">ଚୟନିତ ସମୟ ପାଇଁ ଇଭେଣ୍ଟ ସୂଚୀବଦ୍ଧ କରନ୍ତୁ</string>
+  <string name="tcs_view_flight">ଟ୍ରାକ୍‌ କରନ୍ତୁ</string>
+  <string name="tcs_view_flight_desc">ଚୟନିତ ଫ୍ଲାଇଟ୍‍କୁ ଟ୍ରାକ କରନ୍ତୁ</string>
+  <string name="tcs_translate">ଅନୁବାଦ କରନ୍ତୁ</string>
+  <string name="tcs_translate_desc">ଚୟନିତ ଟେକ୍ସଟ୍‍କୁ ଅନୁବାଦ କରନ୍ତୁ</string>
+  <string name="tcs_define">ପରିଭାଷିତ କରନ୍ତୁ</string>
+  <string name="tcs_define_desc">ଚୟନିତି ଟେକ୍ସଟ୍‍କୁ ପରିଭାଷିତ କରନ୍ତୁ</string>
+</resources>

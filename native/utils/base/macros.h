@@ -108,6 +108,31 @@ namespace libtextclassifier3 {
 #define TC3_PREDICT_TRUE(x) (x)
 #endif
 
+// TC3_HAVE_ATTRIBUTE
+//
+// A function-like feature checking macro that is a wrapper around
+// `__has_attribute`, which is defined by GCC 5+ and Clang and evaluates to a
+// nonzero constant integer if the attribute is supported or 0 if not.
+//
+// It evaluates to zero if `__has_attribute` is not defined by the compiler.
+//
+// GCC: https://gcc.gnu.org/gcc-5/changes.html
+// Clang: https://clang.llvm.org/docs/LanguageExtensions.html
+#ifdef __has_attribute
+#define TC3_HAVE_ATTRIBUTE(x) __has_attribute(x)
+#else
+#define TC3_HAVE_ATTRIBUTE(x) 0
+#endif
+
+// TC3_ATTRIBUTE_PACKED
+//
+// Prevents the compiler from padding a structure to natural alignment
+#if TC3_HAVE_ATTRIBUTE(packed) || (defined(__GNUC__) && !defined(__clang__))
+#define TC3_ATTRIBUTE_PACKED __attribute__((__packed__))
+#else
+#define TC3_ATTRIBUTE_PACKED
+#endif
+
 }  // namespace libtextclassifier3
 
 #endif  // LIBTEXTCLASSIFIER_UTILS_BASE_MACROS_H_

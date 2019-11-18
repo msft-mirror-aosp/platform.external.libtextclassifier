@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ඊ-තැපෑල</string>
+  <string name="tcs_email_desc">තෝරා ගත් ලිපිනයට ඊ-තැපැල් කරන්න</string>
+  <string name="tcs_dial">අමතන්න</string>
+  <string name="tcs_dial_desc">තෝරා ගත් දුරකථන අංකය අමතන්න</string>
+  <string name="tcs_map">සිතියම</string>
+  <string name="tcs_map_desc">තෝරා ගත් ලිපිනය සොයා ගන්න</string>
+  <string name="tcs_browse">විවෘත කරන්න</string>
+  <string name="tcs_browse_desc">තෝරා ගත් URL විවෘත කරන්න</string>
+  <string name="tcs_sms">පණිවිඩය</string>
+  <string name="tcs_sms_desc">තෝරා ගත් දුරකථන අංකයට පණිවිඩයක් යවන්න</string>
+  <string name="tcs_add_contact">එක් කරන්න</string>
+  <string name="tcs_add_contact_desc">සම්බන්ධතාවලට එක් කරන්න</string>
+  <string name="tcs_view_calendar">බලන්න</string>
+  <string name="tcs_view_calendar_desc">තෝරා ගත් වේලාව දින දර්ශනයෙහි බලන්න</string>
+  <string name="tcs_add_calendar_event">කාල සටහන</string>
+  <string name="tcs_add_calendar_event_desc">තෝරා ගත් වේලාව සඳහා සිදුවීම කාලසටහන්ගත කරන්න</string>
+  <string name="tcs_view_flight">ශ්‍රව්‍ය ඛණ්ඩය</string>
+  <string name="tcs_view_flight_desc">තෝරා ගත් ගුවන් ගමන හඹා යන්න</string>
+  <string name="tcs_translate">පරිවර්තනය කරන්න</string>
+  <string name="tcs_translate_desc">තෝරා ගත් පෙළ පරිවර්තනය කරන්න</string>
+  <string name="tcs_define">නිර්වචනය කරන්න</string>
+  <string name="tcs_define_desc">තෝරා ගත් පෙළ නිර්වචනය කරන්න</string>
+</resources>

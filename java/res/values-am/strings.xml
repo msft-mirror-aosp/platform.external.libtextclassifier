@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ኢሜይል</string>
+  <string name="tcs_email_desc">ለተመረጡ አድራሻዎች ኢሜይል ላክ</string>
+  <string name="tcs_dial">ጥሪ</string>
+  <string name="tcs_dial_desc">ወደ ተመረጠው ስልክ ቁጥር ደውል</string>
+  <string name="tcs_map">ካርታ</string>
+  <string name="tcs_map_desc">የተመረጠውን አድራሻ ያለበትን አግኝ</string>
+  <string name="tcs_browse">ክፈት</string>
+  <string name="tcs_browse_desc">የተመረጠውን ዩአርኤል ክፈት</string>
+  <string name="tcs_sms">መልዕክት</string>
+  <string name="tcs_sms_desc">ለተመረጠው ስልክ ቁጥር መልዕክት ላክ</string>
+  <string name="tcs_add_contact">አክል</string>
+  <string name="tcs_add_contact_desc">ወደ እውቂያዎች ያክሉ</string>
+  <string name="tcs_view_calendar">ይመልከቱ</string>
+  <string name="tcs_view_calendar_desc">የተመረጠውን ሰዓት በቀን መቁጠሪያ ውስጥ ይመልከቱ</string>
+  <string name="tcs_add_calendar_event">መርሐግብር</string>
+  <string name="tcs_add_calendar_event_desc">ለተመረጠው ጊዜ የክስተት መርሐግብር ያስይዙ</string>
+  <string name="tcs_view_flight">ተከታተል</string>
+  <string name="tcs_view_flight_desc">የተመረጠውን በረራ ይከታተሉ</string>
+  <string name="tcs_translate">ተርጉም</string>
+  <string name="tcs_translate_desc">የተመረጠ ጽሑፍን ተርጉም</string>
+  <string name="tcs_define">ግለጽ</string>
+  <string name="tcs_define_desc">የተመረጠ ጽሑፍን ግለጽ</string>
+</resources>

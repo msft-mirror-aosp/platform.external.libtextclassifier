@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Siųsti el. laišką</string>
+  <string name="tcs_email_desc">Siųsti el. laišką pasirinktu adresu</string>
+  <string name="tcs_dial">Skambinti</string>
+  <string name="tcs_dial_desc">Skambinti pasirinktu telefono numeriu</string>
+  <string name="tcs_map">Žemėlapis</string>
+  <string name="tcs_map_desc">Rasti vietą pasirinktu adresu</string>
+  <string name="tcs_browse">Atidaryti</string>
+  <string name="tcs_browse_desc">Atidaryti pasirinktą URL</string>
+  <string name="tcs_sms">Rašyti pranešimą</string>
+  <string name="tcs_sms_desc">Siųsti pranešimą pasirinktu telefono numeriu</string>
+  <string name="tcs_add_contact">Pridėti</string>
+  <string name="tcs_add_contact_desc">Pridėti prie kontaktų</string>
+  <string name="tcs_view_calendar">Peržiūrėti</string>
+  <string name="tcs_view_calendar_desc">Peržiūrėti kalendoriuje pasirinktą laiką</string>
+  <string name="tcs_add_calendar_event">Tvarkaraštis</string>
+  <string name="tcs_add_calendar_event_desc">Planuoti įvykį pasirinktam laikui</string>
+  <string name="tcs_view_flight">Stebėti</string>
+  <string name="tcs_view_flight_desc">Stebėti pasirinktą skrydį</string>
+  <string name="tcs_translate">Versti</string>
+  <string name="tcs_translate_desc">Versti pasirinktą tekstą</string>
+  <string name="tcs_define">Apibrėžti</string>
+  <string name="tcs_define_desc">Apibrėžti pasirinktą tekstą</string>
+</resources>

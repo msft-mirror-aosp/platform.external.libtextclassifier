@@ -220,6 +220,10 @@ class ReflectiveFlatbuffer {
     return result;
   }
 
+  // Converts the flatbuffer's content to a human-readable textproto
+  // representation.
+  std::string ToTextProto() const;
+
  private:
   const reflection::Schema* const schema_;
   const reflection::Object* const type_;

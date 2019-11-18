@@ -35,6 +35,7 @@ namespace {
 using testing::AllOf;
 using testing::ElementsAre;
 using testing::Field;
+using testing::IsEmpty;
 
 const DurationAnnotatorOptions* TestingDurationAnnotatorOptions() {
   static const flatbuffers::DetachedBuffer* options_data = []() {
@@ -425,6 +426,134 @@ TEST_F(DurationAnnotatorTest,
                           Field(&ClassificationResult::collection, "duration"),
                           Field(&ClassificationResult::duration_ms,
                                 3.5 * 60 * 1000)))))));
+}
+
+TEST_F(DurationAnnotatorTest, CorrectlyAnnotatesSpanWithDanglingQuantity) {
+  const UnicodeText text = UTF8ToUnicodeText("20 minutes 10");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  // TODO(b/144752747) Include test for duration_ms.
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(0, 13)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(Field(&ClassificationResult::collection,
+                                              "duration")))))));
+}
+
+const DurationAnnotatorOptions* TestingJapaneseDurationAnnotatorOptions() {
+  static const flatbuffers::DetachedBuffer* options_data = []() {
+    DurationAnnotatorOptionsT options;
+    options.enabled = true;
+
+    options.week_expressions.push_back("週間");
+
+    options.day_expressions.push_back("日間");
+
+    options.hour_expressions.push_back("時間");
+
+    options.minute_expressions.push_back("分");
+    options.minute_expressions.push_back("分間");
+
+    options.second_expressions.push_back("秒");
+    options.second_expressions.push_back("秒間");
+
+    options.half_expressions.push_back("半");
+
+    options.require_quantity = true;
+    options.enable_dangling_quantity_interpretation = false;
+
+    flatbuffers::FlatBufferBuilder builder;
+    builder.Finish(DurationAnnotatorOptions::Pack(builder, &options));
+    return new flatbuffers::DetachedBuffer(builder.Release());
+  }();
+
+  return flatbuffers::GetRoot<DurationAnnotatorOptions>(options_data->data());
+}
+
+class JapaneseDurationAnnotatorTest : public ::testing::Test {
+ protected:
+  JapaneseDurationAnnotatorTest()
+      : INIT_UNILIB_FOR_TESTING(unilib_),
+        feature_processor_(BuildFeatureProcessor(&unilib_)),
+        duration_annotator_(TestingJapaneseDurationAnnotatorOptions(),
+                            feature_processor_.get(), &unilib_) {}
+
+  std::vector<Token> Tokenize(const UnicodeText& text) {
+    return feature_processor_->Tokenize(text);
+  }
+
+  UniLib unilib_;
+  std::unique_ptr<FeatureProcessor> feature_processor_;
+  DurationAnnotator duration_annotator_;
+};
+
+TEST_F(JapaneseDurationAnnotatorTest, FindsDuration) {
+  const UnicodeText text = UTF8ToUnicodeText("10 分 の アラーム");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(0, 4)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                10 * 60 * 1000)))))));
+}
+
+TEST_F(JapaneseDurationAnnotatorTest, FindsDurationWithHalfExpression) {
+  const UnicodeText text = UTF8ToUnicodeText("2 分 半 の アラーム");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(0, 5)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                2.5 * 60 * 1000)))))));
+}
+
+TEST_F(JapaneseDurationAnnotatorTest, IgnoresDurationWithoutQuantity) {
+  const UnicodeText text = UTF8ToUnicodeText("分 の アラーム");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(result, IsEmpty());
+}
+
+TEST_F(JapaneseDurationAnnotatorTest, IgnoresDanglingQuantity) {
+  const UnicodeText text = UTF8ToUnicodeText("2 分 10 の アラーム");
+  std::vector<Token> tokens = Tokenize(text);
+  std::vector<AnnotatedSpan> result;
+  EXPECT_TRUE(duration_annotator_.FindAll(
+      text, tokens, AnnotationUsecase_ANNOTATION_USECASE_RAW, &result));
+
+  EXPECT_THAT(
+      result,
+      ElementsAre(
+          AllOf(Field(&AnnotatedSpan::span, CodepointSpan(0, 3)),
+                Field(&AnnotatedSpan::classification,
+                      ElementsAre(AllOf(
+                          Field(&ClassificationResult::collection, "duration"),
+                          Field(&ClassificationResult::duration_ms,
+                                2 * 60 * 1000)))))));
 }
 
 }  // namespace

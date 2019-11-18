@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Gửi email</string>
+  <string name="tcs_email_desc">Gửi email đến địa chỉ đã chọn</string>
+  <string name="tcs_dial">Gọi điện</string>
+  <string name="tcs_dial_desc">Gọi đến số điện thoại đã chọn</string>
+  <string name="tcs_map">Xem bản đồ</string>
+  <string name="tcs_map_desc">Tìm địa chỉ đã chọn</string>
+  <string name="tcs_browse">Mở</string>
+  <string name="tcs_browse_desc">Mở URL đã chọn</string>
+  <string name="tcs_sms">Nhắn tin</string>
+  <string name="tcs_sms_desc">Nhắn tin đến số điện thoại đã chọn</string>
+  <string name="tcs_add_contact">Thêm</string>
+  <string name="tcs_add_contact_desc">Thêm vào danh bạ</string>
+  <string name="tcs_view_calendar">Xem</string>
+  <string name="tcs_view_calendar_desc">Xem thời gian đã chọn trong lịch</string>
+  <string name="tcs_add_calendar_event">Lên lịch</string>
+  <string name="tcs_add_calendar_event_desc">Lên lịch sự kiện cho thời gian đã chọn</string>
+  <string name="tcs_view_flight">Theo dõi</string>
+  <string name="tcs_view_flight_desc">Theo dõi chuyến bay đã chọn</string>
+  <string name="tcs_translate">Dịch</string>
+  <string name="tcs_translate_desc">Dịch văn bản đã chọn</string>
+  <string name="tcs_define">Định nghĩa</string>
+  <string name="tcs_define_desc">Định nghĩa văn bản đã chọn</string>
+</resources>

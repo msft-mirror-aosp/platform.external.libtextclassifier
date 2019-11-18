@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">மின்னஞ்சல் அனுப்பு</string>
+  <string name="tcs_email_desc">தேர்ந்தெடுத்த முகவரிக்கு மின்னஞ்சல் அனுப்பும்</string>
+  <string name="tcs_dial">அழை</string>
+  <string name="tcs_dial_desc">தேர்ந்தெடுத்த ஃபோன் எண்ணை அழைக்கும்</string>
+  <string name="tcs_map">வரைபடம்</string>
+  <string name="tcs_map_desc">தேர்ந்தெடுத்த முகவரிக்கான வரைபடத்தைத் திறக்கும்</string>
+  <string name="tcs_browse">திற</string>
+  <string name="tcs_browse_desc">தேர்ந்தெடுத்த URLஐத் திறக்கும்</string>
+  <string name="tcs_sms">செய்தி அனுப்பு</string>
+  <string name="tcs_sms_desc">தேர்ந்தெடுத்த ஃபோன் எண்ணிற்குச் செய்தி அனுப்பும்</string>
+  <string name="tcs_add_contact">சேர்</string>
+  <string name="tcs_add_contact_desc">தொடர்புகளில் சேர்க்கும்</string>
+  <string name="tcs_view_calendar">காண்பி</string>
+  <string name="tcs_view_calendar_desc">கேலெண்டரில் தேர்ந்தெடுத்த நேரத்தைக் காட்டும்</string>
+  <string name="tcs_add_calendar_event">திட்டமிடு</string>
+  <string name="tcs_add_calendar_event_desc">தேர்ந்தெடுத்த நேரத்திற்கு நிகழ்வைத் திட்டமிடும்</string>
+  <string name="tcs_view_flight">கண்காணி</string>
+  <string name="tcs_view_flight_desc">தேர்ந்தெடுத்த விமானத்தைக் கண்காணிக்கும்</string>
+  <string name="tcs_translate">மொழிபெயர்</string>
+  <string name="tcs_translate_desc">தேர்ந்தெடுத்த உரையை மொழிபெயர்க்கும்</string>
+  <string name="tcs_define">விளக்குக</string>
+  <string name="tcs_define_desc">தேர்ந்தெடுத்த உரையை விளக்கும்</string>
+</resources>

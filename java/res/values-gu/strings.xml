@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ઇમેઇલ કરો</string>
+  <string name="tcs_email_desc">પસંદ કરેલ ઍડ્રેસ પર ઇમેઇલ મોકલો</string>
+  <string name="tcs_dial">કૉલ કરો</string>
+  <string name="tcs_dial_desc">પસંદ કરેલ ફોન નંબર પર કૉલ કરો</string>
+  <string name="tcs_map">નકશો ખોલો</string>
+  <string name="tcs_map_desc">પસંદ કરેલ સરનામું શોધો</string>
+  <string name="tcs_browse">ખોલો</string>
+  <string name="tcs_browse_desc">પસંદ કરેલ URL ખોલો</string>
+  <string name="tcs_sms">સંદેશ મોકલો</string>
+  <string name="tcs_sms_desc">પસંદ કરેલ ફોન નંબર પર સંદેશ મોકલો</string>
+  <string name="tcs_add_contact">ઉમેરો</string>
+  <string name="tcs_add_contact_desc">સંપર્કોમાં ઉમેરો</string>
+  <string name="tcs_view_calendar">જુઓ</string>
+  <string name="tcs_view_calendar_desc">કૅલેન્ડરમાં પસંદ કરેલો સમય જુઓ</string>
+  <string name="tcs_add_calendar_event">શેડ્યૂલ કરો</string>
+  <string name="tcs_add_calendar_event_desc">પસંદ કરેલ સમય માટે ઇવેન્ટ શેડ્યૂલ કરો</string>
+  <string name="tcs_view_flight">ટ્રૅક કરો</string>
+  <string name="tcs_view_flight_desc">પસંદ કરેલ ફ્લાઇટને ટ્રૅક કરો</string>
+  <string name="tcs_translate">અનુવાદ કરો</string>
+  <string name="tcs_translate_desc">પસંદ કરેલી ટેક્સ્ટનો અનુવાદ કરો</string>
+  <string name="tcs_define">વ્યાખ્યાતિત કરો</string>
+  <string name="tcs_define_desc">પસંદ કરેલી ટેક્સ્ટને વ્યાખ્યાતિત કરો</string>
+</resources>

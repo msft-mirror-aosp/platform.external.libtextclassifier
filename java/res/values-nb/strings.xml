@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Send e-post</string>
+  <string name="tcs_email_desc">Send e-post til den valgte adressen</string>
+  <string name="tcs_dial">Ring</string>
+  <string name="tcs_dial_desc">Ring det valgte telefonnummeret</string>
+  <string name="tcs_map">Se Kart</string>
+  <string name="tcs_map_desc">Finn den valgte adressen</string>
+  <string name="tcs_browse">Åpne</string>
+  <string name="tcs_browse_desc">Åpne den valgte nettadressen</string>
+  <string name="tcs_sms">Send melding</string>
+  <string name="tcs_sms_desc">Send melding til det valgte telefonnummeret</string>
+  <string name="tcs_add_contact">Legg til</string>
+  <string name="tcs_add_contact_desc">Legg til i kontakter</string>
+  <string name="tcs_view_calendar">Se</string>
+  <string name="tcs_view_calendar_desc">Se det valgte klokkeslettet i kalenderen</string>
+  <string name="tcs_add_calendar_event">Planlegg</string>
+  <string name="tcs_add_calendar_event_desc">Planlegg aktivitet for valgt klokkeslett</string>
+  <string name="tcs_view_flight">Spor</string>
+  <string name="tcs_view_flight_desc">Spor den valgte flyvningen</string>
+  <string name="tcs_translate">Oversett</string>
+  <string name="tcs_translate_desc">Oversett den valgte teksten</string>
+  <string name="tcs_define">Definer</string>
+  <string name="tcs_define_desc">Definer den valgte teksten</string>
+</resources>

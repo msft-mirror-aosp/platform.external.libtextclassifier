@@ -109,17 +109,17 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     final List<LabeledIntent> actions = new ArrayList<>();
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.email),
+            context.getString(R.string.tcs_email),
             /* titleWithEntity */ null,
-            context.getString(R.string.email_desc),
+            context.getString(R.string.tcs_email_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_SENDTO).setData(Uri.parse(String.format("mailto:%s", text))),
             LabeledIntent.DEFAULT_REQUEST_CODE));
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.add_contact),
+            context.getString(R.string.tcs_add_contact),
             /* titleWithEntity */ null,
-            context.getString(R.string.add_contact_desc),
+            context.getString(R.string.tcs_add_contact_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_INSERT_OR_EDIT)
                 .setType(ContactsContract.Contacts.CONTENT_ITEM_TYPE)
@@ -136,18 +136,18 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     if (!userRestrictions.getBoolean(UserManager.DISALLOW_OUTGOING_CALLS, false)) {
       actions.add(
           new LabeledIntent(
-              context.getString(R.string.dial),
+              context.getString(R.string.tcs_dial),
               /* titleWithEntity */ null,
-              context.getString(R.string.dial_desc),
+              context.getString(R.string.tcs_dial_desc),
               /* descriptionWithAppName */ null,
               new Intent(Intent.ACTION_DIAL).setData(Uri.parse(String.format("tel:%s", text))),
               LabeledIntent.DEFAULT_REQUEST_CODE));
     }
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.add_contact),
+            context.getString(R.string.tcs_add_contact),
             /* titleWithEntity */ null,
-            context.getString(R.string.add_contact_desc),
+            context.getString(R.string.tcs_add_contact_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_INSERT_OR_EDIT)
                 .setType(ContactsContract.Contacts.CONTENT_ITEM_TYPE)
@@ -156,9 +156,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     if (!userRestrictions.getBoolean(UserManager.DISALLOW_SMS, false)) {
       actions.add(
           new LabeledIntent(
-              context.getString(R.string.sms),
+              context.getString(R.string.tcs_sms),
               /* titleWithEntity */ null,
-              context.getString(R.string.sms_desc),
+              context.getString(R.string.tcs_sms_desc),
               /* descriptionWithAppName */ null,
               new Intent(Intent.ACTION_SENDTO).setData(Uri.parse(String.format("smsto:%s", text))),
               LabeledIntent.DEFAULT_REQUEST_CODE));
@@ -172,9 +172,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
       final String encText = URLEncoder.encode(text, "UTF-8");
       actions.add(
           new LabeledIntent(
-              context.getString(R.string.map),
+              context.getString(R.string.tcs_map),
               /* titleWithEntity */ null,
-              context.getString(R.string.map_desc),
+              context.getString(R.string.tcs_map_desc),
               /* descriptionWithAppName */ null,
               new Intent(Intent.ACTION_VIEW)
                   .setData(Uri.parse(String.format("geo:0,0?q=%s", encText))),
@@ -192,9 +192,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     final List<LabeledIntent> actions = new ArrayList<>();
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.browse),
+            context.getString(R.string.tcs_browse),
             /* titleWithEntity */ null,
-            context.getString(R.string.browse_desc),
+            context.getString(R.string.tcs_browse_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_VIEW)
                 .setDataAndNormalize(Uri.parse(text))
@@ -222,9 +222,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     final List<LabeledIntent> actions = new ArrayList<>();
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.view_flight),
+            context.getString(R.string.tcs_view_flight),
             /* titleWithEntity */ null,
-            context.getString(R.string.view_flight_desc),
+            context.getString(R.string.tcs_view_flight_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_WEB_SEARCH).putExtra(SearchManager.QUERY, text),
             text.hashCode()));
@@ -236,9 +236,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     builder.appendPath("time");
     ContentUris.appendId(builder, parsedTime.toEpochMilli());
     return new LabeledIntent(
-        context.getString(R.string.view_calendar),
+        context.getString(R.string.tcs_view_calendar),
         /* titleWithEntity */ null,
-        context.getString(R.string.view_calendar_desc),
+        context.getString(R.string.tcs_view_calendar_desc),
         /* descriptionWithAppName */ null,
         new Intent(Intent.ACTION_VIEW).setData(builder.build()),
         LabeledIntent.DEFAULT_REQUEST_CODE);
@@ -248,9 +248,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
       Context context, Instant parsedTime, String type) {
     final boolean isAllDay = TextClassifier.TYPE_DATE.equals(type);
     return new LabeledIntent(
-        context.getString(R.string.add_calendar_event),
+        context.getString(R.string.tcs_add_calendar_event),
         /* titleWithEntity */ null,
-        context.getString(R.string.add_calendar_event_desc),
+        context.getString(R.string.tcs_add_calendar_event_desc),
         /* descriptionWithAppName */ null,
         new Intent(Intent.ACTION_INSERT)
             .setData(CalendarContract.Events.CONTENT_URI)
@@ -266,9 +266,9 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     final List<LabeledIntent> actions = new ArrayList<>();
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.define),
+            context.getString(R.string.tcs_define),
             /* titleWithEntity */ null,
-            context.getString(R.string.define_desc),
+            context.getString(R.string.tcs_define_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_DEFINE).putExtra(Intent.EXTRA_TEXT, text),
             text.hashCode()));

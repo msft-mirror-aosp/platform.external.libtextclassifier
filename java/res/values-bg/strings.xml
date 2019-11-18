@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Имейл</string>
+  <string name="tcs_email_desc">Изпращане на имейл до избрания адрес</string>
+  <string name="tcs_dial">Обаждане</string>
+  <string name="tcs_dial_desc">Обаждане на избрания телефонен номер</string>
+  <string name="tcs_map">Карта</string>
+  <string name="tcs_map_desc">Намиране на избрания адрес</string>
+  <string name="tcs_browse">Отваряне</string>
+  <string name="tcs_browse_desc">Отваряне на избрания URL адрес</string>
+  <string name="tcs_sms">Съобщение</string>
+  <string name="tcs_sms_desc">Изпращане на съобщение до избрания телефонен номер</string>
+  <string name="tcs_add_contact">Добавяне</string>
+  <string name="tcs_add_contact_desc">Добавяне към контактите</string>
+  <string name="tcs_view_calendar">Преглед</string>
+  <string name="tcs_view_calendar_desc">Преглед на избраната дата в календара</string>
+  <string name="tcs_add_calendar_event">Насрочване</string>
+  <string name="tcs_add_calendar_event_desc">Насрочване на събитие за избраната дата</string>
+  <string name="tcs_view_flight">Проследяване</string>
+  <string name="tcs_view_flight_desc">Проследяване на избрания полет</string>
+  <string name="tcs_translate">Превод</string>
+  <string name="tcs_translate_desc">Превод на избрания текст</string>
+  <string name="tcs_define">Определение</string>
+  <string name="tcs_define_desc">Определение на избрания текст</string>
+</resources>

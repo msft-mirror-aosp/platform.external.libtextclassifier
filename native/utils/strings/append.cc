@@ -16,6 +16,8 @@
 
 #include "utils/strings/append.h"
 
+#include <stdarg.h>
+
 #include <cstring>
 #include <string>
 #include <vector>

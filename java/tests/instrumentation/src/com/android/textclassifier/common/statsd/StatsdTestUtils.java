@@ -44,14 +44,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /** Util functions to make statsd testing easier by using adb shell cmd stats commands. */
-class StatsdTestUtils {
+public class StatsdTestUtils {
   private static final String TAG = "StatsdTestUtils";
-  private static final long SHORT_WAIT_MS = 500;
+  private static final long SHORT_WAIT_MS = 1000;
 
   private StatsdTestUtils() {}
 
   /** Push a config which specifies what loggings we are interested in. */
-  static void pushConfig(StatsdConfig config) throws Exception {
+  public static void pushConfig(StatsdConfig config) throws Exception {
     String command = String.format("cmd stats config update %s", config.getId());
     Log.v(TAG, "pushConfig: " + config);
     String output = new String(runShellCommand(command, config.toByteArray()));
@@ -59,7 +59,7 @@ class StatsdTestUtils {
   }
 
   /** Adds a atom matcher to capture logs with given atom tag. */
-  static void addAtomMatcher(StatsdConfig.Builder builder, int atomTag) {
+  public static void addAtomMatcher(StatsdConfig.Builder builder, int atomTag) {
     final String atomName = "Atom" + atomTag;
     final String eventName = "Event" + atomTag;
     SimpleAtomMatcher simpleAtomMatcher = SimpleAtomMatcher.newBuilder().setAtomId(atomTag).build();
@@ -74,7 +74,7 @@ class StatsdTestUtils {
   /**
    * Extracts logged atoms from the report, sorted by logging time, and deletes the saved report.
    */
-  static ImmutableList<Atom> getLoggedAtoms(long configId) throws Exception {
+  public static ImmutableList<Atom> getLoggedAtoms(long configId) throws Exception {
     // There is no callback to notify us the log is collected. So we do a short wait here.
     Thread.sleep(SHORT_WAIT_MS);
 
@@ -91,7 +91,7 @@ class StatsdTestUtils {
   }
 
   /** Removes the pushed config file and existing reports. */
-  static void cleanup(long configId) throws Exception {
+  public static void cleanup(long configId) throws Exception {
     runShellCommand(String.format("cmd stats config remove %d", configId), /* input= */ null);
     // Remove existing reports.
     getAndRemoveReportList(configId);

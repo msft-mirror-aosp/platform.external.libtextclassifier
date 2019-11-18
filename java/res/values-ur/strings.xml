@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ای میل بھیجیں</string>
+  <string name="tcs_email_desc">منتخب کردہ پتہ پر ای میل کریں</string>
+  <string name="tcs_dial">کال کریں</string>
+  <string name="tcs_dial_desc">منتخب کردہ فون نمبر پر کال کریں</string>
+  <string name="tcs_map">نقشہ کی ایپ کھولیں</string>
+  <string name="tcs_map_desc">منتخب کردہ پتہ تلاش کریں</string>
+  <string name="tcs_browse">کھولیں</string>
+  <string name="tcs_browse_desc">منتخب کردہ URL کھولیں</string>
+  <string name="tcs_sms">پیغام بھیجیں</string>
+  <string name="tcs_sms_desc">منتخب کردہ فون نمبر پر پیغام بھیجیں</string>
+  <string name="tcs_add_contact">شامل کریں</string>
+  <string name="tcs_add_contact_desc">رابطوں میں شامل کریں</string>
+  <string name="tcs_view_calendar">دیکھیں</string>
+  <string name="tcs_view_calendar_desc">کیلنڈر میں منتخب کردہ وقت دیکھیں</string>
+  <string name="tcs_add_calendar_event">شیڈول کریں</string>
+  <string name="tcs_add_calendar_event_desc">منتخب کردہ وقت کے لیے ایونٹ شیٹول کریں</string>
+  <string name="tcs_view_flight">پتہ لگائیں</string>
+  <string name="tcs_view_flight_desc">منتخب کردہ پرواز ٹریک کریں</string>
+  <string name="tcs_translate">ترجمہ کریں</string>
+  <string name="tcs_translate_desc">منتخب کردہ متن کا ترجمہ کریں</string>
+  <string name="tcs_define">وضاحت کریں</string>
+  <string name="tcs_define_desc">منتخب کردہ متن کی وضاحت کریں</string>
+</resources>

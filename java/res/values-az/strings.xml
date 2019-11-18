@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">E-poçtu aç</string>
+  <string name="tcs_email_desc">Seçilmiş ünvana e-məktub yazın</string>
+  <string name="tcs_dial">Zəng edin</string>
+  <string name="tcs_dial_desc">Seçilmiş telefon nömrəsinə zəng edin</string>
+  <string name="tcs_map">Xəritəni aç</string>
+  <string name="tcs_map_desc">Seçilmiş ünvanları tapın</string>
+  <string name="tcs_browse">Açın</string>
+  <string name="tcs_browse_desc">Seçilmiş linki açın</string>
+  <string name="tcs_sms">Mesaj yazın</string>
+  <string name="tcs_sms_desc">Seçilmiş telefon nömrəsini mesajla göndərin</string>
+  <string name="tcs_add_contact">Əlavə edin</string>
+  <string name="tcs_add_contact_desc">Kontakta əlavə edin</string>
+  <string name="tcs_view_calendar">Baxın</string>
+  <string name="tcs_view_calendar_desc">Təqvimdə seçilmiş vaxta baxın</string>
+  <string name="tcs_add_calendar_event">Təqvimdə planlayın</string>
+  <string name="tcs_add_calendar_event_desc">Tədbiri seçilmiş vaxta planlaşdırın</string>
+  <string name="tcs_view_flight">İzləyin</string>
+  <string name="tcs_view_flight_desc">Seçilmiş uçuşu izləyin</string>
+  <string name="tcs_translate">Tərcümə edin</string>
+  <string name="tcs_translate_desc">Seçilmiş mətni tərcümə edin</string>
+  <string name="tcs_define">Təyin edin</string>
+  <string name="tcs_define_desc">Seçilmiş mətni təyin edin</string>
+</resources>

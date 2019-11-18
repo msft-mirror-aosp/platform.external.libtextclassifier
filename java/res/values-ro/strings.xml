@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">E-mail</string>
+  <string name="tcs_email_desc">Trimiteți un e-mail la adresa selectată</string>
+  <string name="tcs_dial">Sunați</string>
+  <string name="tcs_dial_desc">Sunați la numărul de telefon selectat</string>
+  <string name="tcs_map">Hartă</string>
+  <string name="tcs_map_desc">Localizați adresa selectată</string>
+  <string name="tcs_browse">Deschideți</string>
+  <string name="tcs_browse_desc">Deschideți adresa URL selectată</string>
+  <string name="tcs_sms">Trimiteți mesaj</string>
+  <string name="tcs_sms_desc">Trimiteți un mesaj la numărul de telefon selectat</string>
+  <string name="tcs_add_contact">Adăugați</string>
+  <string name="tcs_add_contact_desc">Adăugați în agendă</string>
+  <string name="tcs_view_calendar">Afișați</string>
+  <string name="tcs_view_calendar_desc">Afișați data selectată în calendar</string>
+  <string name="tcs_add_calendar_event">Programați</string>
+  <string name="tcs_add_calendar_event_desc">Programați evenimentul pentru data selectată</string>
+  <string name="tcs_view_flight">Urmăriți</string>
+  <string name="tcs_view_flight_desc">Urmăriți zborul selectat</string>
+  <string name="tcs_translate">Traduceți</string>
+  <string name="tcs_translate_desc">Traduceți textul selectat</string>
+  <string name="tcs_define">Definiți</string>
+  <string name="tcs_define_desc">Definiți textul selectat</string>
+</resources>

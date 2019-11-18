@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Dërgo mail</string>
+  <string name="tcs_email_desc">Dërgo email tek adresa e zgjedhur</string>
+  <string name="tcs_dial">Telefono</string>
+  <string name="tcs_dial_desc">Telefono në numrin e zgjedhur të telefonit</string>
+  <string name="tcs_map">Hap hartën</string>
+  <string name="tcs_map_desc">Gjej adresën e zgjedhur</string>
+  <string name="tcs_browse">Hap</string>
+  <string name="tcs_browse_desc">Hap URL-në e zgjedhur</string>
+  <string name="tcs_sms">Dërgo mesazh</string>
+  <string name="tcs_sms_desc">Dërgo mesazh te numri i zgjedhur i telefonit</string>
+  <string name="tcs_add_contact">Shto</string>
+  <string name="tcs_add_contact_desc">Shto te kontaktet</string>
+  <string name="tcs_view_calendar">Shiko</string>
+  <string name="tcs_view_calendar_desc">Shiko kohën e zgjedhur në kalendar</string>
+  <string name="tcs_add_calendar_event">Planifiko</string>
+  <string name="tcs_add_calendar_event_desc">Planifiko ngjarjen për kohën e zgjedhur</string>
+  <string name="tcs_view_flight">Monitoro</string>
+  <string name="tcs_view_flight_desc">Monitoro fluturimin e zgjedhur</string>
+  <string name="tcs_translate">Përkthe</string>
+  <string name="tcs_translate_desc">Përkthe tekstin e zgjedhur</string>
+  <string name="tcs_define">Përkufizo</string>
+  <string name="tcs_define_desc">Përkufizo tekstin e zgjedhur</string>
+</resources>
