@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Напісаць ліст</string>
+  <string name="tcs_email_desc">Напісаць электронны ліст на выбраны адрас</string>
+  <string name="tcs_dial">Выклікаць</string>
+  <string name="tcs_dial_desc">Звязацца з абанентам</string>
+  <string name="tcs_map">Адкрыць карту</string>
+  <string name="tcs_map_desc">Паказаць выбраны адрас на карце</string>
+  <string name="tcs_browse">Адкрыць</string>
+  <string name="tcs_browse_desc">Адкрыць URL у браўзеры</string>
+  <string name="tcs_sms">Напісаць SMS</string>
+  <string name="tcs_sms_desc">Адправіць паведамленне на выбраны нумар</string>
+  <string name="tcs_add_contact">Дадаць</string>
+  <string name="tcs_add_contact_desc">Дадаць у кантакты</string>
+  <string name="tcs_view_calendar">Прагледзець</string>
+  <string name="tcs_view_calendar_desc">Паказаць выбраны час у календары</string>
+  <string name="tcs_add_calendar_event">Запланаваць</string>
+  <string name="tcs_add_calendar_event_desc">Запланаваць падзею ў выбраны час</string>
+  <string name="tcs_view_flight">Сачыць</string>
+  <string name="tcs_view_flight_desc">Адсочваць рэйс</string>
+  <string name="tcs_translate">Перакласці</string>
+  <string name="tcs_translate_desc">Перакласці вылучаны тэкст</string>
+  <string name="tcs_define">Вызначыць</string>
+  <string name="tcs_define_desc">Вызначыць вылучаны тэкст</string>
+</resources>

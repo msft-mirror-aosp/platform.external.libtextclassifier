@@ -691,7 +691,7 @@ table NumberAnnotatorOptions {
   float_number_priority_score:float = 0;
 }
 
-// DurationAnnotator is so far tailored for English only.
+// DurationAnnotator is so far tailored for English and Japanese only.
 namespace libtextclassifier3;
 table DurationAnnotatorOptions {
   // If true, duration annotations will be produced.
@@ -731,6 +731,14 @@ table DurationAnnotatorOptions {
   // Set of condepoints that can split the Annotator tokens to sub-tokens for
   // sub-token matching.
   sub_token_separator_codepoints:[int];
+
+  // If this is true, unit must be associated with quantity. For example, a
+  // phrase "minute" is not parsed as one minute duration if this is true.
+  require_quantity:bool;
+
+  // If this is true, dangling quantity is included in the annotation. For
+  // example, "10 minutes 20" is interpreted as 10 minutes and 20 seconds.
+  enable_dangling_quantity_interpretation:bool = true;
 }
 
 root_type libtextclassifier3.Model;

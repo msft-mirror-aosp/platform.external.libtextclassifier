@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">E-mailen</string>
+  <string name="tcs_email_desc">E-mail sturen aan geselecteerd e-mailadres</string>
+  <string name="tcs_dial">Bellen</string>
+  <string name="tcs_dial_desc">Geselecteerd telefoonnummer bellen</string>
+  <string name="tcs_map">Kaart openen</string>
+  <string name="tcs_map_desc">Geselecteerd adres zoeken</string>
+  <string name="tcs_browse">Openen</string>
+  <string name="tcs_browse_desc">Geselecteerde URL openen</string>
+  <string name="tcs_sms">Bericht verzenden</string>
+  <string name="tcs_sms_desc">Sms sturen aan geselecteerd telefoonnummer</string>
+  <string name="tcs_add_contact">Toevoegen</string>
+  <string name="tcs_add_contact_desc">Toevoegen aan contacten</string>
+  <string name="tcs_view_calendar">Weergeven</string>
+  <string name="tcs_view_calendar_desc">Geselecteerde tijd weergeven op de kalender</string>
+  <string name="tcs_add_calendar_event">Plannen</string>
+  <string name="tcs_add_calendar_event_desc">Afspraak plannen voor geselecteerde tijd</string>
+  <string name="tcs_view_flight">Volgen</string>
+  <string name="tcs_view_flight_desc">Geselecteerde vlucht volgen</string>
+  <string name="tcs_translate">Vertalen</string>
+  <string name="tcs_translate_desc">Geselecteerde tekst vertalen</string>
+  <string name="tcs_define">Definiëren</string>
+  <string name="tcs_define_desc">Geselecteerde tekst definiëren</string>
+</resources>

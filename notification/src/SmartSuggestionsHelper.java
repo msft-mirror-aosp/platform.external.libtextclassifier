@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import android.content.Intent;
 import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.os.Process;
-import android.service.notification.NotificationAssistantService;
 import android.service.notification.StatusBarNotification;
 import android.text.TextUtils;
 import android.util.ArrayMap;
@@ -39,7 +38,6 @@ import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.TextClassificationContext;
 import android.view.textclassifier.TextClassificationManager;
 import android.view.textclassifier.TextClassifier;
-import android.view.textclassifier.TextClassifierEvent;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.time.Instant;
@@ -84,13 +82,18 @@ public class SmartSuggestionsHelper {
   private final Context context;
   private final TextClassificationManager textClassificationManager;
   private final SmartSuggestionsConfig config;
-  private final LruCache<String, SmartSuggestionsSession> sessionCache =
+  private final LruCache<String, SmartSuggestionsLogSession> sessionCache =
       new LruCache<>(MAX_RESULT_ID_TO_CACHE);
+  private final TextClassificationContext textClassificationContext;
 
   public SmartSuggestionsHelper(Context context, SmartSuggestionsConfig config) {
     this.context = context;
     textClassificationManager = this.context.getSystemService(TextClassificationManager.class);
     this.config = config;
+    this.textClassificationContext =
+        new TextClassificationContext.Builder(
+                context.getPackageName(), TextClassifier.WIDGET_TYPE_NOTIFICATION)
+            .build();
   }
 
   /**
@@ -100,16 +103,22 @@ public class SmartSuggestionsHelper {
   public SmartSuggestions onNotificationEnqueued(StatusBarNotification statusBarNotification) {
     // Whenever onNotificationEnqueued() is called again on the same notification key, its
     // previous session is ended.
-    sessionCache.remove(statusBarNotification.getKey());
+    removeAndDestroySession(statusBarNotification.getKey());
 
     boolean eligibleForReplyAdjustment =
         config.shouldGenerateReplies() && isEligibleForReplyAdjustment(statusBarNotification);
     boolean eligibleForActionAdjustment =
         config.shouldGenerateActions() && isEligibleForActionAdjustment(statusBarNotification);
 
+    TextClassifier textClassifier =
+        textClassificationManager.createTextClassificationSession(textClassificationContext);
+
     ConversationActions conversationActionsResult =
         suggestConversationActions(
-            statusBarNotification, eligibleForReplyAdjustment, eligibleForActionAdjustment);
+            textClassifier,
+            statusBarNotification,
+            eligibleForReplyAdjustment,
+            eligibleForActionAdjustment);
 
     String resultId = conversationActionsResult.getId();
     List<ConversationAction> conversationActions =
@@ -147,16 +156,31 @@ public class SmartSuggestionsHelper {
       }
     }
 
-    // Start a new session for logging if necessary.
-    if (!TextUtils.isEmpty(resultId)
-        && !conversationActions.isEmpty()
-        && suggestionsMightBeUsedInNotification(
-            statusBarNotification, !actions.isEmpty(), !replies.isEmpty())) {
-      sessionCache.put(
-          statusBarNotification.getKey(), new SmartSuggestionsSession(resultId, repliesScore));
+    if (!TextUtils.isEmpty(resultId)) {
+      SmartSuggestionsLogSession session =
+          new SmartSuggestionsLogSession(
+              resultId, repliesScore, textClassifier, textClassificationContext);
+      session.onSuggestionsGenerated(conversationActions);
+
+      // Store the session if we expect more logging from it, destroy it otherwise.
+      if (!conversationActions.isEmpty()
+          && suggestionsMightBeUsedInNotification(
+              statusBarNotification, !actions.isEmpty(), !replies.isEmpty())) {
+        sessionCache.put(statusBarNotification.getKey(), session);
+      } else {
+        session.destroy();
+      }
     }
 
     return new SmartSuggestions(replies, actions);
+  }
+
+  private void removeAndDestroySession(String notificationKey) {
+    SmartSuggestionsLogSession session = sessionCache.get(notificationKey);
+    if (session != null) {
+      session.destroy();
+    }
+    sessionCache.remove(notificationKey);
   }
 
   /**
@@ -175,9 +199,6 @@ public class SmartSuggestionsHelper {
   @Nullable
   private Notification.Action createCopyCodeAction(ConversationAction conversationAction) {
     Bundle extras = conversationAction.getExtras();
-    if (extras == null) {
-      return null;
-    }
     Bundle entitiesExtas = extras.getParcelable(ENTITIES_EXTRAS);
     if (entitiesExtas == null) {
       return null;
@@ -186,13 +207,13 @@ public class SmartSuggestionsHelper {
     if (TextUtils.isEmpty(code)) {
       return null;
     }
-    String contentDescription = context.getString(R.string.copy_code_desc, code);
+    String contentDescription = context.getString(R.string.tc_notif_copy_code_desc, code);
     Intent intent = new Intent(context, CopyCodeActivity.class);
     intent.putExtra(Intent.EXTRA_TEXT, code);
 
     RemoteAction remoteAction =
         new RemoteAction(
-            Icon.createWithResource(context, R.drawable.ic_menu_copy_material),
+            Icon.createWithResource(context, R.drawable.tc_notif_ic_menu_copy_material),
             code,
             contentDescription,
             PendingIntent.getActivity(
@@ -236,24 +257,12 @@ public class SmartSuggestionsHelper {
         || (hasSmartReply && allowGeneratedReplies);
   }
 
-  private void reportActionsGenerated(
-      @Nullable String resultId, List<ConversationAction> conversationActions) {
-    if (TextUtils.isEmpty(resultId)) {
-      return;
-    }
-    TextClassifierEvent textClassifierEvent =
-        createTextClassifierEventBuilder(TextClassifierEvent.TYPE_ACTIONS_GENERATED, resultId)
-            .setEntityTypes(
-                conversationActions.stream()
-                    .map(ConversationAction::getType)
-                    .toArray(String[]::new))
-            .build();
-    getTextClassifier().onTextClassifierEvent(textClassifierEvent);
-  }
-
   /** Adds action adjustments based on the notification contents. */
   private ConversationActions suggestConversationActions(
-      StatusBarNotification statusBarNotification, boolean includeReplies, boolean includeActions) {
+      TextClassifier textClassifier,
+      StatusBarNotification statusBarNotification,
+      boolean includeReplies,
+      boolean includeActions) {
     if (!includeReplies && !includeActions) {
       return EMPTY_CONVERSATION_ACTIONS;
     }
@@ -289,71 +298,46 @@ public class SmartSuggestionsHelper {
             .setTypeConfig(typeConfigBuilder.build())
             .build();
 
-    ConversationActions conversationActions =
-        getTextClassifier().suggestConversationActions(request);
-    reportActionsGenerated(
-        conversationActions.getId(), conversationActions.getConversationActions());
-    return conversationActions;
-  }
-
-  /** Notifies a notification is expanded/collapsed. */
-  public void onNotificationExpansionChanged(
-      StatusBarNotification statusBarNotification, boolean isExpanded) {
-    if (!isExpanded) {
-      return;
-    }
-    SmartSuggestionsSession session = sessionCache.get(statusBarNotification.getKey());
-    if (session == null) {
-      return;
-    }
-    // Only report if this is the first time the user sees these suggestions.
-    if (session.isSeenEventLogged()) {
-      return;
-    }
-    session.setSeenEventLogged();
-    TextClassifierEvent textClassifierEvent =
-        createTextClassifierEventBuilder(
-                TextClassifierEvent.TYPE_ACTIONS_SHOWN, session.getResultId())
-            .build();
-    // TODO(tonymak): If possible, report which replies / actions are actually seen by user.
-    getTextClassifier().onTextClassifierEvent(textClassifierEvent);
-  }
-
-  /** Notifies a a direct reply is sent from a notification. */
-  public void onNotificationDirectReplied(String key) {
-    SmartSuggestionsSession session = sessionCache.get(key);
-    if (session == null) {
-      return;
-    }
-    TextClassifierEvent textClassifierEvent =
-        createTextClassifierEventBuilder(
-                TextClassifierEvent.TYPE_MANUAL_REPLY, session.getResultId())
-            .build();
-    getTextClassifier().onTextClassifierEvent(textClassifierEvent);
+    return textClassifier.suggestConversationActions(request);
   }
 
   /**
-   * Notifies a suggested reply is sent.
+   * Notifies that a notification has been expanded or collapsed.
+   *
+   * @param statusBarNotification status bar notification
+   * @param isExpanded true for when a notification is expanded, false for when it is collapsed
+   */
+  public void onNotificationExpansionChanged(
+      StatusBarNotification statusBarNotification, boolean isExpanded) {
+    SmartSuggestionsLogSession session = sessionCache.get(statusBarNotification.getKey());
+    if (session == null) {
+      return;
+    }
+    session.onNotificationExpansionChanged(isExpanded);
+  }
+
+  /** Notifies that a direct reply has been sent from a notification. */
+  public void onNotificationDirectReplied(String key) {
+    SmartSuggestionsLogSession session = sessionCache.get(key);
+    if (session == null) {
+      return;
+    }
+    session.onDirectReplied();
+  }
+
+  /**
+   * Notifies that a suggested reply has been sent.
    *
    * @param key the notification key
    * @param reply the reply that is just sent
    * @param source the source that provided the reply, e.g. SOURCE_FROM_ASSISTANT
    */
   public void onSuggestedReplySent(String key, CharSequence reply, int source) {
-    if (source != NotificationAssistantService.SOURCE_FROM_ASSISTANT) {
-      return;
-    }
-    SmartSuggestionsSession session = sessionCache.get(key);
+    SmartSuggestionsLogSession session = sessionCache.get(key);
     if (session == null) {
       return;
     }
-    TextClassifierEvent textClassifierEvent =
-        createTextClassifierEventBuilder(
-                TextClassifierEvent.TYPE_SMART_ACTION, session.getResultId())
-            .setEntityTypes(ConversationAction.TYPE_TEXT_REPLY)
-            .setScores(session.getRepliesScores().getOrDefault(reply, 0f))
-            .build();
-    getTextClassifier().onTextClassifierEvent(textClassifierEvent);
+    session.onSuggestedReplySent(reply, source);
   }
 
   /**
@@ -364,23 +348,11 @@ public class SmartSuggestionsHelper {
    * @param source the source that provided the reply, e.g. SOURCE_FROM_ASSISTANT
    */
   public void onActionClicked(String key, Notification.Action action, int source) {
-    if (source != NotificationAssistantService.SOURCE_FROM_ASSISTANT) {
-      return;
-    }
-    SmartSuggestionsSession session = sessionCache.get(key);
+    SmartSuggestionsLogSession session = sessionCache.get(key);
     if (session == null) {
       return;
     }
-    String actionType = action.getExtras().getString(KEY_ACTION_TYPE);
-    if (actionType == null) {
-      return;
-    }
-    TextClassifierEvent textClassifierEvent =
-        createTextClassifierEventBuilder(
-                TextClassifierEvent.TYPE_SMART_ACTION, session.getResultId())
-            .setEntityTypes(actionType)
-            .build();
-    getTextClassifier().onTextClassifierEvent(textClassifierEvent);
+    session.onActionClicked(action, source);
   }
 
   /** Clears the internal cache. */
@@ -393,7 +365,7 @@ public class SmartSuggestionsHelper {
     Icon icon =
         remoteAction.shouldShowIcon()
             ? remoteAction.getIcon()
-            : Icon.createWithResource(context, R.drawable.ic_action_open);
+            : Icon.createWithResource(context, R.drawable.tc_notif_ic_action_open);
     Bundle extras = new Bundle();
     extras.putString(KEY_ACTION_TYPE, actionType);
     extras.putFloat(KEY_ACTION_SCORE, score);
@@ -402,16 +374,6 @@ public class SmartSuggestionsHelper {
         .setContextual(true)
         .addExtras(extras)
         .build();
-  }
-
-  private TextClassifierEvent.ConversationActionsEvent.Builder createTextClassifierEventBuilder(
-      int eventType, String resultId) {
-    return new TextClassifierEvent.ConversationActionsEvent.Builder(eventType)
-        .setEventContext(
-            new TextClassificationContext.Builder(
-                    context.getPackageName(), TextClassifier.WIDGET_TYPE_NOTIFICATION)
-                .build())
-        .setResultId(resultId);
   }
 
   /**
@@ -498,10 +460,6 @@ public class SmartSuggestionsHelper {
       }
     }
     return ImmutableList.copyOf(new ArrayList<>(extractMessages));
-  }
-
-  private TextClassifier getTextClassifier() {
-    return textClassificationManager.getTextClassifier();
   }
 
   private static boolean arePersonsEqual(Person left, Person right) {

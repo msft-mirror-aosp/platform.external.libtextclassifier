@@ -39,9 +39,9 @@ public interface ClassificationIntentFactory {
   static void insertTranslateAction(List<LabeledIntent> actions, Context context, String text) {
     actions.add(
         new LabeledIntent(
-            context.getString(R.string.translate),
+            context.getString(R.string.tcs_translate),
             /* titleWithEntity */ null,
-            context.getString(R.string.translate_desc),
+            context.getString(R.string.tcs_translate_desc),
             /* descriptionWithAppName */ null,
             new Intent(Intent.ACTION_TRANSLATE)
                 // TODO: Probably better to introduce a "translate" scheme instead

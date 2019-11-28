@@ -89,6 +89,11 @@ class Collections {
         *[]() { return new std::string("money"); }();
     return value;
   }
+  static const std::string& Unit() {
+    static const std::string& value =
+        *[]() { return new std::string("unit"); }();
+    return value;
+  }
   static const std::string& Number() {
     static const std::string& value =
         *[]() { return new std::string("number"); }();

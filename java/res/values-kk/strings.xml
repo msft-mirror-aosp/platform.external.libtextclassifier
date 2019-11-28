@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Эл. поштаны ашу</string>
+  <string name="tcs_email_desc">Таңдалған мекенжайға хабар жіберу</string>
+  <string name="tcs_dial">Қоңырау шалу</string>
+  <string name="tcs_dial_desc">Таңдалған телефон нөміріне қоңырау шалу</string>
+  <string name="tcs_map">Картаны ашу</string>
+  <string name="tcs_map_desc">Таңдалған мекенжайды табу</string>
+  <string name="tcs_browse">Ашу</string>
+  <string name="tcs_browse_desc">Таңдалған URL мекенжайын ашу</string>
+  <string name="tcs_sms">Хабар жазу</string>
+  <string name="tcs_sms_desc">Таңдалған телефон нөміріне хабар жіберу</string>
+  <string name="tcs_add_contact">Енгізу</string>
+  <string name="tcs_add_contact_desc">Контактілер тізіміне енгізу</string>
+  <string name="tcs_view_calendar">Көру</string>
+  <string name="tcs_view_calendar_desc">Таңдалған уақытты күнтізбеден көру</string>
+  <string name="tcs_add_calendar_event">Жоспарлау</string>
+  <string name="tcs_add_calendar_event_desc">Таңдалған уақытқа іс-шара жоспарлау</string>
+  <string name="tcs_view_flight">Қадағалау</string>
+  <string name="tcs_view_flight_desc">Таңдалған ұшу рейсін қадағалау</string>
+  <string name="tcs_translate">Аудару</string>
+  <string name="tcs_translate_desc">Таңдалған мәтінді аудару</string>
+  <string name="tcs_define">Анықтау</string>
+  <string name="tcs_define_desc">Таңдалған мәтінді анықтау</string>
+</resources>

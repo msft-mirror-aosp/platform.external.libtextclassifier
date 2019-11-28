@@ -438,16 +438,43 @@ void ReflectiveFlatbuffer::AsFlatMap(
     const std::string& key_separator, const std::string& key_prefix,
     std::map<std::string, Variant>* result) const {
   // Add direct fields.
-  for (auto it : fields_) {
+  for (const auto& it : fields_) {
     (*result)[key_prefix + it.first->name()->str()] = it.second;
   }
 
   // Add nested messages.
-  for (auto& it : children_) {
+  for (const auto& it : children_) {
     it.second->AsFlatMap(key_separator,
                          key_prefix + it.first->name()->str() + key_separator,
                          result);
   }
+}
+
+std::string ReflectiveFlatbuffer::ToTextProto() const {
+  std::string result;
+  std::string current_field_separator;
+  // Add direct fields.
+  for (const auto& field_value_pair : fields_) {
+    const std::string field_name = field_value_pair.first->name()->str();
+    const Variant& value = field_value_pair.second;
+    std::string quotes;
+    if (value.GetType() == Variant::TYPE_STRING_VALUE) {
+      quotes = "'";
+    }
+    result.append(current_field_separator + field_name + ": " + quotes +
+                  value.ToString() + quotes);
+    current_field_separator = ", ";
+  }
+
+  // Add nested messages.
+  for (const auto& field_flatbuffer_pair : children_) {
+    const std::string field_name = field_flatbuffer_pair.first->name()->str();
+    result.append(current_field_separator + field_name + " {" +
+                  field_flatbuffer_pair.second->ToTextProto() + "}");
+    current_field_separator = ", ";
+  }
+
+  return result;
 }
 
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,

@@ -18,10 +18,11 @@
 #define LIBTEXTCLASSIFIER_UTILS_BASE_UNALIGNED_ACCESS_H_
 
 #include <string.h>
+
 #include <cstdint>
 
-#include "third_party/absl/base/attributes.h"
-#include "third_party/absl/base/integral_types.h"
+#include "utils/base/integral_types.h"
+#include "utils/base/macros.h"
 
 // unaligned APIs
 
@@ -205,12 +206,12 @@ namespace libtextclassifier3 {
 struct Unaligned16Struct {
   uint16_t value;
   uint8_t dummy;  // To make the size non-power-of-two.
-} ABSL_ATTRIBUTE_PACKED;
+} TC3_ATTRIBUTE_PACKED;
 
 struct Unaligned32Struct {
   uint32_t value;
   uint8_t dummy;  // To make the size non-power-of-two.
-} ABSL_ATTRIBUTE_PACKED;
+} TC3_ATTRIBUTE_PACKED;
 
 }  // namespace libtextclassifier3
 

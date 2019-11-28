@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Skicka e-post</string>
+  <string name="tcs_email_desc">Skicka e-post till vald adress</string>
+  <string name="tcs_dial">Ring</string>
+  <string name="tcs_dial_desc">Ring valt telefonnummer</string>
+  <string name="tcs_map">Öppna karta</string>
+  <string name="tcs_map_desc">Hitta den valda adressen</string>
+  <string name="tcs_browse">Öppna</string>
+  <string name="tcs_browse_desc">Öppna vald webbadress</string>
+  <string name="tcs_sms">Sms:a</string>
+  <string name="tcs_sms_desc">Skicka meddelande till valt telefonnummer</string>
+  <string name="tcs_add_contact">Lägg till</string>
+  <string name="tcs_add_contact_desc">Lägg till i Kontakter</string>
+  <string name="tcs_view_calendar">Visa</string>
+  <string name="tcs_view_calendar_desc">Visa vald tid i kalendern</string>
+  <string name="tcs_add_calendar_event">Schemalägg</string>
+  <string name="tcs_add_calendar_event_desc">Schemalägg händelse på den valda tiden</string>
+  <string name="tcs_view_flight">Spåra</string>
+  <string name="tcs_view_flight_desc">Spåra valt flyg</string>
+  <string name="tcs_translate">Översätt</string>
+  <string name="tcs_translate_desc">Översätt markerad text</string>
+  <string name="tcs_define">Definiera</string>
+  <string name="tcs_define_desc">Definiera markerad text</string>
+</resources>

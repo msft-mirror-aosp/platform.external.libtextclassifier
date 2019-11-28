@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Pošlji e-pošto</string>
+  <string name="tcs_email_desc">Pošlji na izbrani naslov</string>
+  <string name="tcs_dial">Pokliči</string>
+  <string name="tcs_dial_desc">Pokliči izbrano telefonsko številko</string>
+  <string name="tcs_map">Odpri zemljevid</string>
+  <string name="tcs_map_desc">Poišči izbrani naslov na zemljevidu</string>
+  <string name="tcs_browse">Odpri</string>
+  <string name="tcs_browse_desc">Odpri izbrani URL</string>
+  <string name="tcs_sms">Pošlji SMS</string>
+  <string name="tcs_sms_desc">Pošlji sporočilo na izbrano telefonsko številko</string>
+  <string name="tcs_add_contact">Dodaj</string>
+  <string name="tcs_add_contact_desc">Dodaj med stike</string>
+  <string name="tcs_view_calendar">Prikaži</string>
+  <string name="tcs_view_calendar_desc">Prikaži izbrani čas v koledarju</string>
+  <string name="tcs_add_calendar_event">Dodaj na razpored</string>
+  <string name="tcs_add_calendar_event_desc">Razporedi dogodek na izbrano uro</string>
+  <string name="tcs_view_flight">Sledi</string>
+  <string name="tcs_view_flight_desc">Sledi izbranemu letu</string>
+  <string name="tcs_translate">Prevedi</string>
+  <string name="tcs_translate_desc">Prevedi izbrano besedilo</string>
+  <string name="tcs_define">Opredeli</string>
+  <string name="tcs_define_desc">Opredeli izbrano besedilo</string>
+</resources>

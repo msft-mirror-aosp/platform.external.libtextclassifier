@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">I-imeyili</string>
+  <string name="tcs_email_desc">I-imeyili ikhethe amakheli</string>
+  <string name="tcs_dial">Shaya</string>
+  <string name="tcs_dial_desc">Ikholi ikhethe inombolo yefoni</string>
+  <string name="tcs_map">Imephu</string>
+  <string name="tcs_map_desc">Thola ikheli elikhethiwe</string>
+  <string name="tcs_browse">Vula</string>
+  <string name="tcs_browse_desc">Vula i-URL ekhethiwe</string>
+  <string name="tcs_sms">Umlayezo</string>
+  <string name="tcs_sms_desc">Umlayezo ukhethe inombolo yefoni</string>
+  <string name="tcs_add_contact">Engeza</string>
+  <string name="tcs_add_contact_desc">Engeza koxhumana nabo</string>
+  <string name="tcs_view_calendar">Buka</string>
+  <string name="tcs_view_calendar_desc">Buka isikhathi esikhethiwe kwikhalenda</string>
+  <string name="tcs_add_calendar_event">Shejula</string>
+  <string name="tcs_add_calendar_event_desc">Shejula imicimbi yesikhathi esikhethiwe</string>
+  <string name="tcs_view_flight">Landelela</string>
+  <string name="tcs_view_flight_desc">Ithrekhi ikhethe indiza</string>
+  <string name="tcs_translate">Humusha</string>
+  <string name="tcs_translate_desc">Humusha umbhalo ohumushiwe</string>
+  <string name="tcs_define">Chaza</string>
+  <string name="tcs_define_desc">Chaza umbhalo okhethiwe</string>
+</resources>

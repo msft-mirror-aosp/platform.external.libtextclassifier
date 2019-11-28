@@ -166,6 +166,7 @@ int DurationAnnotator::FindDurationStartingAt(const UnicodeText& context,
   // basically iterates over tokens and changes the state variables above as it
   // goes.
   int token_index;
+  int quantity_end_index;
   for (token_index = start_token_index; token_index < tokens.size();
        token_index++) {
     const Token& token = tokens[token_index];
@@ -175,8 +176,9 @@ int DurationAnnotator::FindDurationStartingAt(const UnicodeText& context,
       if (start_index == kInvalidIndex) {
         start_index = token.start;
       }
-      end_index = token.end;
-    } else if (ParseDurationUnitToken(token, &parsed_duration.unit) ||
+      quantity_end_index = token.end;
+    } else if (((!options_->require_quantity() || has_quantity) &&
+                ParseDurationUnitToken(token, &parsed_duration.unit)) ||
                ParseQuantityDurationUnitToken(token, &parsed_duration)) {
       if (start_index == kInvalidIndex) {
         start_index = token.start;
@@ -206,11 +208,16 @@ int DurationAnnotator::FindDurationStartingAt(const UnicodeText& context,
 
   // Process suffix expressions like "and half" that don't have the
   // duration_unit explicitly mentioned.
-  if (parse_ended_without_unit_for_last_mentioned_quantity &&
-      parsed_duration.plus_half) {
-    ParsedDurationAtom atom = ParsedDurationAtom::Half();
-    atom.unit = parsed_duration_atoms.rbegin()->unit;
-    classification.duration_ms += ParsedDurationAtomsToMillis({atom});
+  if (parse_ended_without_unit_for_last_mentioned_quantity) {
+    if (parsed_duration.plus_half) {
+      end_index = quantity_end_index;
+      ParsedDurationAtom atom = ParsedDurationAtom::Half();
+      atom.unit = parsed_duration_atoms.rbegin()->unit;
+      classification.duration_ms += ParsedDurationAtomsToMillis({atom});
+    } else if (options_->enable_dangling_quantity_interpretation()) {
+      end_index = quantity_end_index;
+      // TODO(b/144752747) Add dangling quantity to duration_ms.
+    }
   }
 
   result->span = feature_processor_->StripBoundaryCodepoints(
@@ -327,7 +334,8 @@ bool DurationAnnotator::ParseQuantityDurationUnitToken(
     }
   }
 
-  return ParseDurationUnitToken(sub_token, &(value->unit));
+  return (!options_->require_quantity() || has_quantity) &&
+         ParseDurationUnitToken(sub_token, &(value->unit));
 }
 
 bool DurationAnnotator::ParseFillerToken(const Token& token) const {

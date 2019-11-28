@@ -127,7 +127,7 @@ public final class LabeledIntent {
     }
     if (icon == null) {
       // RemoteAction requires that there be an icon.
-      icon = Icon.createWithResource(context, R.drawable.app_icon);
+      icon = Icon.createWithResource(context, R.drawable.tcs_app_icon);
     }
     final PendingIntent pendingIntent = createPendingIntent(context, resolvedIntent, requestCode);
     titleChooser = titleChooser == null ? DEFAULT_TITLE_CHOOSER : titleChooser;

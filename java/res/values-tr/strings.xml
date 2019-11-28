@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">E-posta</string>
+  <string name="tcs_email_desc">Seçilen adrese e-posta gönder</string>
+  <string name="tcs_dial">Telefon et</string>
+  <string name="tcs_dial_desc">Seçilen telefon numarasını ara</string>
+  <string name="tcs_map">Harita</string>
+  <string name="tcs_map_desc">Seçilen adresi bul</string>
+  <string name="tcs_browse">Aç</string>
+  <string name="tcs_browse_desc">Seçilen URL\'yi aç</string>
+  <string name="tcs_sms">Mesaj</string>
+  <string name="tcs_sms_desc">Seçilen telefon numarasına mesaj gönder</string>
+  <string name="tcs_add_contact">Ekle</string>
+  <string name="tcs_add_contact_desc">Kişilere ekle</string>
+  <string name="tcs_view_calendar">Göster</string>
+  <string name="tcs_view_calendar_desc">Seçilen zamanı takvimde göster</string>
+  <string name="tcs_add_calendar_event">Program yap</string>
+  <string name="tcs_add_calendar_event_desc">Seçilen zaman için etkinlik programla</string>
+  <string name="tcs_view_flight">İzle</string>
+  <string name="tcs_view_flight_desc">Seçilen uçuşu takip et</string>
+  <string name="tcs_translate">Çevir</string>
+  <string name="tcs_translate_desc">Seçili metni çevir</string>
+  <string name="tcs_define">Tanımla</string>
+  <string name="tcs_define_desc">Seçilen metni tanımla</string>
+</resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">ອີເມວ</string>
+  <string name="tcs_email_desc">ສົ່ງອີເມວຫາທີ່ຢູ່ທີ່ເລືອກ</string>
+  <string name="tcs_dial">ໂທ</string>
+  <string name="tcs_dial_desc">ໂທຫາເບີໂທລະສັບທີ່ເລືອກ</string>
+  <string name="tcs_map">ແຜນທີ່</string>
+  <string name="tcs_map_desc">ຊອກຫາທີ່ຢູ່ທີ່ເລືອກ</string>
+  <string name="tcs_browse">ເປີດ</string>
+  <string name="tcs_browse_desc">ເປີດ URL ທີ່ເລືອກ</string>
+  <string name="tcs_sms">ຂໍ້ຄວາມ</string>
+  <string name="tcs_sms_desc">ສົ່ງຂໍ້ຄວາມຫາເບີໂທລະສັບທີ່ເລືອກ</string>
+  <string name="tcs_add_contact">ເພີ່ມ</string>
+  <string name="tcs_add_contact_desc">ເພີ່ມໃສ່ລາຍຊື່ຜູ້ຕິດຕໍ່</string>
+  <string name="tcs_view_calendar">ເບິ່ງ</string>
+  <string name="tcs_view_calendar_desc">ເບິ່ງເວລາທີ່ເລືອກໃນປະຕິທິນ</string>
+  <string name="tcs_add_calendar_event">ກຳນົດເວລາ</string>
+  <string name="tcs_add_calendar_event_desc">ກຳນົດເວລາສຳລັບເວລາທີ່ເລືອກ</string>
+  <string name="tcs_view_flight">ຕິດຕາມ</string>
+  <string name="tcs_view_flight_desc">ຕິດຕາມຖ້ຽວບິນທີ່ເລືອກ</string>
+  <string name="tcs_translate">ແປພາສາ</string>
+  <string name="tcs_translate_desc">ແປຂໍ້ຄວາມທີ່ເລືອກ</string>
+  <string name="tcs_define">ນິຍາມ</string>
+  <string name="tcs_define_desc">ນິຍາມຂໍ້ຄວາມທີ່ເລືອກໄວ້</string>
+</resources>

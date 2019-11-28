@@ -31,7 +31,7 @@ namespace logging {
 // A tiny code footprint string stream for assembling log messages.
 struct LoggingStringStream {
   LoggingStringStream() {}
-  LoggingStringStream &stream() { return *this; }
+  LoggingStringStream& stream() { return *this; }
   // Needed for invocation in TC3_CHECK macro.
   explicit operator bool() const { return true; }
 
@@ -39,28 +39,35 @@ struct LoggingStringStream {
 };
 
 template <typename T>
-inline LoggingStringStream &operator<<(LoggingStringStream &stream,
-                                       const T &entry) {
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       const T& entry) {
   stream.message.append(std::to_string(entry));
   return stream;
 }
 
 template <typename T>
-inline LoggingStringStream &operator<<(LoggingStringStream &stream,
-                                       T *const entry) {
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       T* const entry) {
   stream.message.append(std::to_string(reinterpret_cast<const uint64>(entry)));
   return stream;
 }
 
-inline LoggingStringStream &operator<<(LoggingStringStream &stream,
-                                       const char *message) {
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       const char* message) {
   stream.message.append(message);
   return stream;
 }
 
-inline LoggingStringStream &operator<<(LoggingStringStream &stream,
-                                       const std::string &message) {
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       const std::string& message) {
   stream.message.append(message);
+  return stream;
+}
+
+template <typename T1, typename T2>
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       const std::pair<T1, T2>& entry) {
+  stream << "(" << entry.first << ", " << entry.second << ")";
   return stream;
 }
 
@@ -75,13 +82,13 @@ inline LoggingStringStream &operator<<(LoggingStringStream &stream,
 // invoked after the last << from that logging statement.
 class LogMessage {
  public:
-  LogMessage(LogSeverity severity, const char *file_name,
+  LogMessage(LogSeverity severity, const char* file_name,
              int line_number) TC3_ATTRIBUTE_NOINLINE;
 
   ~LogMessage() TC3_ATTRIBUTE_NOINLINE;
 
   // Returns the stream associated with the logger object.
-  LoggingStringStream &stream() { return stream_; }
+  LoggingStringStream& stream() { return stream_; }
 
  private:
   const LogSeverity severity_;
@@ -96,10 +103,10 @@ class LogMessage {
 class NullStream {
  public:
   NullStream() {}
-  NullStream &stream() { return *this; }
+  NullStream& stream() { return *this; }
 };
 template <typename T>
-inline NullStream &operator<<(NullStream &str, const T &) {
+inline NullStream& operator<<(NullStream& str, const T&) {
   return str;
 }
 
@@ -111,7 +118,7 @@ inline NullStream &operator<<(NullStream &str, const T &) {
       ::libtextclassifier3::logging::severity, __FILE__, __LINE__) \
       .stream()
 
-// If condition x is true, does nothing.  Otherwise, crashes the program (liek
+// If condition x is true, does nothing.  Otherwise, crashes the program (like
 // LOG(FATAL)) with an informative message.  Can be continued with extra
 // messages, via <<, like any logging macro, e.g.,
 //

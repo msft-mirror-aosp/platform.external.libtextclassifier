@@ -16,6 +16,7 @@
 
 package com.android.textclassifier;
 
+import static com.google.common.truth.Truth.assertThat;
 import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -41,7 +42,6 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.google.common.collect.ImmutableList;
-import com.google.common.truth.Truth;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -201,9 +201,9 @@ public class TextClassifierImplTest {
     assertThat(classification, isTextClassification(classifiedText, TextClassifier.TYPE_DATE));
     Bundle extras = classification.getExtras();
     List<Bundle> entities = ExtrasUtils.getEntities(extras);
-    Truth.assertThat(entities).hasSize(1);
+    assertThat(entities).hasSize(1);
     Bundle entity = entities.get(0);
-    Truth.assertThat(ExtrasUtils.getEntityType(entity)).isEqualTo(TextClassifier.TYPE_DATE);
+    assertThat(ExtrasUtils.getEntityType(entity)).isEqualTo(TextClassifier.TYPE_DATE);
   }
 
   @Test
@@ -242,7 +242,7 @@ public class TextClassifierImplTest {
     RemoteAction translateAction = classification.getActions().get(0);
     assertEquals(1, classification.getActions().size());
     assertEquals(
-        context.getString(com.android.textclassifier.R.string.translate),
+        context.getString(com.android.textclassifier.R.string.tcs_translate),
         translateAction.getTitle().toString());
 
     assertEquals(translateAction, ExtrasUtils.findTranslateAction(classification));
@@ -349,12 +349,12 @@ public class TextClassifierImplTest {
 
     TextLinks textLinks = classifier.generateLinks(request);
 
-    Truth.assertThat(textLinks.getLinks()).hasSize(1);
+    assertThat(textLinks.getLinks()).hasSize(1);
     TextLinks.TextLink textLink = textLinks.getLinks().iterator().next();
     List<Bundle> entities = ExtrasUtils.getEntities(textLink.getExtras());
-    Truth.assertThat(entities).hasSize(1);
+    assertThat(entities).hasSize(1);
     Bundle entity = entities.get(0);
-    Truth.assertThat(ExtrasUtils.getEntityType(entity)).isEqualTo(TextClassifier.TYPE_PHONE);
+    assertThat(ExtrasUtils.getEntityType(entity)).isEqualTo(TextClassifier.TYPE_PHONE);
   }
 
   @Test
@@ -364,10 +364,10 @@ public class TextClassifierImplTest {
 
     TextLinks textLinks = classifier.generateLinks(request);
 
-    Truth.assertThat(textLinks.getLinks()).hasSize(1);
+    assertThat(textLinks.getLinks()).hasSize(1);
     TextLinks.TextLink textLink = textLinks.getLinks().iterator().next();
     List<Bundle> entities = ExtrasUtils.getEntities(textLink.getExtras());
-    Truth.assertThat(entities).isNull();
+    assertThat(entities).isNull();
   }
 
   @Test
@@ -405,10 +405,10 @@ public class TextClassifierImplTest {
             .build();
 
     ConversationActions conversationActions = classifier.suggestConversationActions(request);
-    Truth.assertThat(conversationActions.getConversationActions()).hasSize(1);
+    assertThat(conversationActions.getConversationActions()).hasSize(1);
     ConversationAction conversationAction = conversationActions.getConversationActions().get(0);
-    Truth.assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_TEXT_REPLY);
-    Truth.assertThat(conversationAction.getTextReply()).isNotNull();
+    assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_TEXT_REPLY);
+    assertThat(conversationAction.getTextReply()).isNotNull();
   }
 
   @Ignore // Doesn't work without a language-based model.
@@ -453,12 +453,12 @@ public class TextClassifierImplTest {
             .build();
 
     ConversationActions conversationActions = classifier.suggestConversationActions(request);
-    Truth.assertThat(conversationActions.getConversationActions()).hasSize(1);
+    assertThat(conversationActions.getConversationActions()).hasSize(1);
     ConversationAction conversationAction = conversationActions.getConversationActions().get(0);
-    Truth.assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_OPEN_URL);
+    assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_OPEN_URL);
     Intent actionIntent = ExtrasUtils.getActionIntent(conversationAction.getExtras());
-    Truth.assertThat(actionIntent.getAction()).isEqualTo(Intent.ACTION_VIEW);
-    Truth.assertThat(actionIntent.getData()).isEqualTo(Uri.parse("https://www.android.com"));
+    assertThat(actionIntent.getAction()).isEqualTo(Intent.ACTION_VIEW);
+    assertThat(actionIntent.getData()).isEqualTo(Uri.parse("https://www.android.com"));
   }
 
   @Ignore // Doesn't work without a language-based model.
@@ -480,15 +480,14 @@ public class TextClassifierImplTest {
             .build();
 
     ConversationActions conversationActions = classifier.suggestConversationActions(request);
-    Truth.assertThat(conversationActions.getConversationActions()).hasSize(1);
+    assertThat(conversationActions.getConversationActions()).hasSize(1);
     ConversationAction conversationAction = conversationActions.getConversationActions().get(0);
-    Truth.assertThat(conversationAction.getType()).isEqualTo(TYPE_COPY);
-    Truth.assertThat(conversationAction.getTextReply()).isAnyOf(null, "");
-    Truth.assertThat(conversationAction.getAction()).isNull();
+    assertThat(conversationAction.getType()).isEqualTo(TYPE_COPY);
+    assertThat(conversationAction.getTextReply()).isAnyOf(null, "");
+    assertThat(conversationAction.getAction()).isNull();
     String code = ExtrasUtils.getCopyText(conversationAction.getExtras());
-    Truth.assertThat(code).isEqualTo("12345");
-    Truth.assertThat(ExtrasUtils.getSerializedEntityData(conversationAction.getExtras()))
-        .isNotEmpty();
+    assertThat(code).isEqualTo("12345");
+    assertThat(ExtrasUtils.getSerializedEntityData(conversationAction.getExtras())).isNotEmpty();
   }
 
   @Test
@@ -504,7 +503,7 @@ public class TextClassifierImplTest {
 
     ConversationActions conversationActions = classifier.suggestConversationActions(request);
 
-    Truth.assertThat(conversationActions.getConversationActions()).isEmpty();
+    assertThat(conversationActions.getConversationActions()).isEmpty();
   }
 
   private static Matcher<TextSelection> isTextSelection(

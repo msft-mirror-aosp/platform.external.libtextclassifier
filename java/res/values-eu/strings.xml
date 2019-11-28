@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">Bidali mezu bat</string>
+  <string name="tcs_email_desc">Bidali mezu elektroniko bat hautatutako helbidera</string>
+  <string name="tcs_dial">Deitu</string>
+  <string name="tcs_dial_desc">Deitu hautatutako telefono-zenbakira</string>
+  <string name="tcs_map">Mapa</string>
+  <string name="tcs_map_desc">Bilatu hautatutako helbidea</string>
+  <string name="tcs_browse">Ireki</string>
+  <string name="tcs_browse_desc">Ireki hautatutako URLa</string>
+  <string name="tcs_sms">Bidali SMS bat</string>
+  <string name="tcs_sms_desc">Bidali testu-mezu bat hautatutako telefono-zenbakira</string>
+  <string name="tcs_add_contact">Gehitu</string>
+  <string name="tcs_add_contact_desc">Gehitu kontaktuetan</string>
+  <string name="tcs_view_calendar">Ikusi</string>
+  <string name="tcs_view_calendar_desc">Ikusi hautatutako ordua egutegian</string>
+  <string name="tcs_add_calendar_event">Antolatu</string>
+  <string name="tcs_add_calendar_event_desc">Antolatu gertaera bat hautatutako ordurako</string>
+  <string name="tcs_view_flight">Egin jarraipena</string>
+  <string name="tcs_view_flight_desc">Egin hautatutako hegaldiaren jarraipena</string>
+  <string name="tcs_translate">Itzuli</string>
+  <string name="tcs_translate_desc">Itzuli hautatutako testua</string>
+  <string name="tcs_define">Definitu</string>
+  <string name="tcs_define_desc">Definitu hautatutako testua</string>
+</resources>

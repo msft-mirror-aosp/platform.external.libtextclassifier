@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+  <string name="tcs_email">အီးမေးလ်ပို့ရန်</string>
+  <string name="tcs_email_desc">ရွေးထားသည့် လိပ်စာသို့ အီးမေးလ်ပို့ရန်</string>
+  <string name="tcs_dial">ခေါ်ဆိုရန်</string>
+  <string name="tcs_dial_desc">ရွေးထားသည့် ဖုန်းနံပါတ်ကို ခေါ်ရန်</string>
+  <string name="tcs_map">မြေပုံဖွင့်ရန်</string>
+  <string name="tcs_map_desc">ရွေးထားသည့် လိပ်စာကို ရှာဖွေရန်</string>
+  <string name="tcs_browse">ဖွင့်ရန်</string>
+  <string name="tcs_browse_desc">ရွေးထားသည့် URL ကို ဖွင့်ရန်</string>
+  <string name="tcs_sms">SMS ပို့ရန်</string>
+  <string name="tcs_sms_desc">ရွေးထားသည့် ဖုန်းနံပါတ်ကို မက်ဆေ့ဂျ်ပို့ရန်</string>
+  <string name="tcs_add_contact">ထည့်ရန်</string>
+  <string name="tcs_add_contact_desc">အဆက်အသွယ်များသို့ ထည့်ရန်</string>
+  <string name="tcs_view_calendar">ကြည့်ရန်</string>
+  <string name="tcs_view_calendar_desc">ရွေးထားသည့် အချိန်ကို ပြက္ခဒိန်တွင် ကြည့်ရန်</string>
+  <string name="tcs_add_calendar_event">အစီအစဉ်ထည့်ရန်</string>
+  <string name="tcs_add_calendar_event_desc">ရွေးထားသည့်အချိန်အတွက် အစီအစဉ်ပြုလုပ်ရန်</string>
+  <string name="tcs_view_flight">ရှာရန်</string>
+  <string name="tcs_view_flight_desc">ရွေးထားသည့် လေယာဉ်ခရီးစဉ်ကို ရှာရန်</string>
+  <string name="tcs_translate">ဘာသာပြန်ရန်</string>
+  <string name="tcs_translate_desc">ရွေးထားသောစာသားကို ဘာသာပြန်ရန်</string>
+  <string name="tcs_define">အဓိပ္ပာယ်ဖွင့်ဆိုရန်</string>
+  <string name="tcs_define_desc">ရွေးထားသောစာသားကို အဓိပ္ပာယ်ဖွင့်ဆိုရန်</string>
+</resources>
