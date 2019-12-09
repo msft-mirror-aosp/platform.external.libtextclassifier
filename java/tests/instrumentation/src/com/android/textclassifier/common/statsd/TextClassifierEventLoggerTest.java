@@ -164,6 +164,7 @@ public class TextClassifierEventLoggerTest {
             .setThirdEntityType("third")
             .setScore(0.5f)
             .setPackageName(PKG_NAME)
+            .setAnnotatorModelName("")
             .build();
     ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
     assertThat(atoms).hasSize(1);

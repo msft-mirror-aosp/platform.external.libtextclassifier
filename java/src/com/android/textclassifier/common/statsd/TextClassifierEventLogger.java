@@ -100,7 +100,8 @@ public final class TextClassifierEventLogger {
         getItemAt(event.getEntityTypes(), /* index= */ 1),
         getItemAt(event.getEntityTypes(), /* index= */ 2),
         getFloatAt(event.getScores(), /* index= */ 0),
-        getPackageName(event));
+        getPackageName(event),
+        "");
   }
 
   private static void logLanguageDetectionEvent(
