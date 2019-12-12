@@ -44,13 +44,12 @@ android_test {
     ],
 
     test_suites: [
-        "device-tests",
+        "device-tests", "mts"
     ],
 
     plugins: ["androidx.room_room-compiler-plugin",],
     platform_apis: true,
     use_embedded_native_libs: true,
-    certificate: "platform",
 
     instrumentation_for: "TextClassifierService",
 }
