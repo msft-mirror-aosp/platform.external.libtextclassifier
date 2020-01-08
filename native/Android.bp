@@ -101,6 +101,7 @@ cc_defaults {
         "libtextclassifier_fbgen_actions-entity-data",
         "libtextclassifier_fbgen_normalization",
         "libtextclassifier_fbgen_language-tag",
+        "libtextclassifier_fbgen_person_name_model",
     ],
 
     header_libs: [
@@ -234,6 +235,13 @@ genrule {
     name: "libtextclassifier_fbgen_language-tag",
     srcs: ["utils/i18n/language-tag.fbs"],
     out: ["utils/i18n/language-tag_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_person_name_model",
+    srcs: ["annotator/person_name/person_name_model.fbs"],
+    out: ["annotator/person_name/person_name_model_generated.h"],
     defaults: ["fbgen"],
 }
 

@@ -34,6 +34,7 @@
 #include "annotator/model-executor.h"
 #include "annotator/model_generated.h"
 #include "annotator/number/number.h"
+#include "annotator/person_name/person-name-engine.h"
 #include "annotator/strip-unpaired-brackets.h"
 #include "annotator/types.h"
 #include "annotator/zlib-utils.h"
@@ -225,6 +226,11 @@ class Annotator {
 
   // Initializes the installed app engine with the given config.
   bool InitializeInstalledAppEngine(const std::string& serialized_config);
+
+  // Initializes the person name engine with the given person name model in the
+  // provided file descriptor.
+  bool InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
+                                                    int size);
 
   // Runs inference for given a context and current selection (i.e. index
   // of the first and one past last selected characters (utf8 codepoint
@@ -516,6 +522,7 @@ class Annotator {
   std::unique_ptr<const InstalledAppEngine> installed_app_engine_;
   std::unique_ptr<const NumberAnnotator> number_annotator_;
   std::unique_ptr<const DurationAnnotator> duration_annotator_;
+  std::unique_ptr<const PersonNameEngine> person_name_engine_;
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;

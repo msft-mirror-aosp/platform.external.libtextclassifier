@@ -66,7 +66,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   @Override
   public void onCreate() {
     super.onCreate();
-    textClassifier = new TextClassifierImpl(this, new TextClassificationConstants());
+    textClassifier = new TextClassifierImpl(this, new TextClassifierSettings());
   }
 
   @Override

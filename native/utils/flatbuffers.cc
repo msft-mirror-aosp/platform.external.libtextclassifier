@@ -20,6 +20,7 @@
 
 #include "utils/strings/numbers.h"
 #include "utils/variant.h"
+#include "flatbuffers/reflection_generated.h"
 
 namespace libtextclassifier3 {
 namespace {
@@ -30,11 +31,23 @@ bool CreateRepeatedField(const reflection::Schema* schema,
     case reflection::Bool:
       repeated_field->reset(new TypedRepeatedField<bool>);
       return true;
+    case reflection::Byte:
+      repeated_field->reset(new TypedRepeatedField<char>);
+      return true;
+    case reflection::UByte:
+      repeated_field->reset(new TypedRepeatedField<unsigned char>);
+      return true;
     case reflection::Int:
       repeated_field->reset(new TypedRepeatedField<int>);
       return true;
+    case reflection::UInt:
+      repeated_field->reset(new TypedRepeatedField<uint>);
+      return true;
     case reflection::Long:
       repeated_field->reset(new TypedRepeatedField<int64>);
+      return true;
+    case reflection::ULong:
+      repeated_field->reset(new TypedRepeatedField<uint64>);
       return true;
     case reflection::Float:
       repeated_field->reset(new TypedRepeatedField<float>);
@@ -175,10 +188,18 @@ bool ReflectiveFlatbuffer::IsMatchingType(const reflection::Field* field,
   switch (field->type()->base_type()) {
     case reflection::Bool:
       return value.HasBool();
+    case reflection::Byte:
+      return value.HasInt8();
+    case reflection::UByte:
+      return value.HasUInt8();
     case reflection::Int:
       return value.HasInt();
+    case reflection::UInt:
+      return value.HasUInt();
     case reflection::Long:
       return value.HasInt64();
+    case reflection::ULong:
+      return value.HasUInt64();
     case reflection::Float:
       return value.HasFloat();
     case reflection::Double:
@@ -338,14 +359,33 @@ flatbuffers::uoffset_t ReflectiveFlatbuffer::Serialize(
             it.first->offset(), static_cast<uint8_t>(it.second.BoolValue()),
             static_cast<uint8_t>(it.first->default_integer()));
         continue;
+      case Variant::TYPE_INT8_VALUE:
+        builder->AddElement<int8_t>(
+            it.first->offset(), static_cast<int8_t>(it.second.Int8Value()),
+            static_cast<int8_t>(it.first->default_integer()));
+        continue;
+      case Variant::TYPE_UINT8_VALUE:
+        builder->AddElement<uint8_t>(
+            it.first->offset(), static_cast<uint8_t>(it.second.UInt8Value()),
+            static_cast<uint8_t>(it.first->default_integer()));
+        continue;
       case Variant::TYPE_INT_VALUE:
         builder->AddElement<int32>(
             it.first->offset(), it.second.IntValue(),
             static_cast<int32>(it.first->default_integer()));
         continue;
+      case Variant::TYPE_UINT_VALUE:
+        builder->AddElement<uint32>(
+            it.first->offset(), it.second.UIntValue(),
+            static_cast<uint32>(it.first->default_integer()));
+        continue;
       case Variant::TYPE_INT64_VALUE:
         builder->AddElement<int64>(it.first->offset(), it.second.Int64Value(),
                                    it.first->default_integer());
+        continue;
+      case Variant::TYPE_UINT64_VALUE:
+        builder->AddElement<uint64>(it.first->offset(), it.second.UInt64Value(),
+                                    it.first->default_integer());
         continue;
       case Variant::TYPE_FLOAT_VALUE:
         builder->AddElement<float>(
@@ -376,6 +416,44 @@ std::string ReflectiveFlatbuffer::Serialize() const {
                      builder.GetSize());
 }
 
+template <>
+bool ReflectiveFlatbuffer::AppendFromVector<std::string>(
+    const flatbuffers::Table* from, const reflection::Field* field) {
+  auto* from_vector = from->GetPointer<
+      const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(
+      field->offset());
+  if (from_vector == nullptr) {
+    return false;
+  }
+
+  TypedRepeatedField<std::string>* to_repeated = Repeated<std::string>(field);
+  for (const flatbuffers::String* element : *from_vector) {
+    to_repeated->Add(element->str());
+  }
+  return true;
+}
+
+template <>
+bool ReflectiveFlatbuffer::AppendFromVector<ReflectiveFlatbuffer>(
+    const flatbuffers::Table* from, const reflection::Field* field) {
+  auto* from_vector = from->GetPointer<const flatbuffers::Vector<
+      flatbuffers::Offset<const flatbuffers::Table>>*>(field->offset());
+  if (from_vector == nullptr) {
+    return false;
+  }
+
+  TypedRepeatedField<ReflectiveFlatbuffer>* to_repeated =
+      Repeated<ReflectiveFlatbuffer>(field);
+  for (const flatbuffers::Table* const from_element : *from_vector) {
+    ReflectiveFlatbuffer* to_element = to_repeated->Add();
+    if (to_element == nullptr) {
+      return false;
+    }
+    to_element->MergeFrom(from_element);
+  }
+  return true;
+}
+
 bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
   // No fields to set.
   if (type_->fields() == nullptr) {
@@ -393,13 +471,29 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
         Set<bool>(field, from->GetField<uint8_t>(field->offset(),
                                                  field->default_integer()));
         break;
+      case reflection::Byte:
+        Set<int8_t>(field, from->GetField<int8_t>(field->offset(),
+                                                  field->default_integer()));
+        break;
+      case reflection::UByte:
+        Set<uint8_t>(field, from->GetField<uint8_t>(field->offset(),
+                                                    field->default_integer()));
+        break;
       case reflection::Int:
         Set<int32>(field, from->GetField<int32>(field->offset(),
                                                 field->default_integer()));
         break;
+      case reflection::UInt:
+        Set<uint32>(field, from->GetField<uint32>(field->offset(),
+                                                  field->default_integer()));
+        break;
       case reflection::Long:
         Set<int64>(field, from->GetField<int64>(field->offset(),
                                                 field->default_integer()));
+        break;
+      case reflection::ULong:
+        Set<uint64>(field, from->GetField<uint64>(field->offset(),
+                                                  field->default_integer()));
         break;
       case reflection::Float:
         Set<float>(field, from->GetField<float>(field->offset(),
@@ -421,8 +515,43 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
           return false;
         }
         break;
+      case reflection::Vector:
+        switch (field->type()->element()) {
+          case reflection::Int:
+            AppendFromVector<int>(from, field);
+            break;
+          case reflection::UInt:
+            AppendFromVector<uint>(from, field);
+            break;
+          case reflection::Long:
+            AppendFromVector<int64>(from, field);
+            break;
+          case reflection::ULong:
+            AppendFromVector<uint64>(from, field);
+            break;
+          case reflection::Byte:
+            AppendFromVector<int8_t>(from, field);
+            break;
+          case reflection::UByte:
+            AppendFromVector<uint8_t>(from, field);
+            break;
+          case reflection::String:
+            AppendFromVector<std::string>(from, field);
+            break;
+          case reflection::Obj:
+            AppendFromVector<ReflectiveFlatbuffer>(from, field);
+            break;
+          default:
+            TC3_LOG(ERROR) << "Repeated unsupported type: "
+                           << field->type()->element()
+                           << " for field: " << field->name()->str();
+            return false;
+            break;
+        }
+        break;
       default:
-        TC3_LOG(ERROR) << "Unsupported type: " << type;
+        TC3_LOG(ERROR) << "Unsupported type: " << type
+                       << " for field: " << field->name()->str();
         return false;
     }
   }

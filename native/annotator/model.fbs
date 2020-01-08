@@ -338,6 +338,16 @@ table DatetimeModel {
   prefer_future_for_unspecified_date:bool = false;
 }
 
+namespace libtextclassifier3;
+table GrammarDatetimeModel {
+  // List of BCP 47 locale strings representing all locales supported by the
+  // model.
+  locales:[string];
+
+  // If true, will give only future dates (when the day is not specified).
+  prefer_future_for_unspecified_date:bool = false;
+}
+
 namespace libtextclassifier3.DatetimeModelLibrary_;
 table Item {
   key:string (shared);
@@ -373,6 +383,9 @@ table ModelTriggeringOptions {
 
   // Priority score assigned to knowledge engine annotations.
   knowledge_priority_score:float = 0;
+
+  // If true, will prioritize the longest annotation during conflict resolution.
+  prioritize_longest_annotation:bool = false;
 }
 
 // Options controlling the output of the classifier.
@@ -468,6 +481,7 @@ table Model {
   triggering_locales:string (shared);
 
   embedding_pruning_mask:Model_.EmbeddingPruningMask;
+  grammar_datetime_model:GrammarDatetimeModel;
 }
 
 // Method for selecting the center token.

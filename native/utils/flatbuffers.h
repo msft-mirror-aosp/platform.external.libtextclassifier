@@ -225,6 +225,12 @@ class ReflectiveFlatbuffer {
   std::string ToTextProto() const;
 
  private:
+  // Helper function for merging given repeated field from given flatbuffer
+  // table. Appends the elements.
+  template <typename T>
+  bool AppendFromVector(const flatbuffers::Table* from,
+                        const reflection::Field* field);
+
   const reflection::Schema* const schema_;
   const reflection::Object* const type_;
 
@@ -345,6 +351,22 @@ class TypedRepeatedField<ReflectiveFlatbuffer> : public RepeatedField {
 // Resolves field lookups by name to the concrete field offsets.
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
                                     FlatbufferFieldPathT* path);
+
+template <typename T>
+bool ReflectiveFlatbuffer::AppendFromVector(const flatbuffers::Table* from,
+                                            const reflection::Field* field) {
+  const flatbuffers::Vector<T>* from_vector =
+      from->GetPointer<const flatbuffers::Vector<T>*>(field->offset());
+  if (from_vector == nullptr) {
+    return false;
+  }
+
+  TypedRepeatedField<T>* to_repeated = Repeated<T>(field);
+  for (const T element : *from_vector) {
+    to_repeated->Add(element);
+  }
+  return true;
+}
 
 }  // namespace libtextclassifier3
 

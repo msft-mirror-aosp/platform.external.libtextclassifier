@@ -438,14 +438,16 @@ TEST(TokenizerTest, MixedTokenize) {
                                   /*icu_preserve_whitespace_tokens=*/false);
 
   std::vector<Token> tokens = tokenizer.Tokenize(
-      "こんにちはJapanese-ląnguagę text 世界 http://www.google.com/");
-  ASSERT_EQ(tokens,
-            // clang-format off
-            std::vector<Token>({Token("こんにちは", 0, 5),
-                                Token("Japanese-ląnguagę", 5, 22),
-                                Token("text", 23, 27),
-                                Token("世界", 28, 30),
-                                Token("http://www.google.com/", 31, 53)}));
+      "こんにちはJapanese-ląnguagę text 你好世界 http://www.google.com/");
+  ASSERT_EQ(
+      tokens,
+      // clang-format off
+      std::vector<Token>({Token("こんにちは", 0, 5),
+                          Token("Japanese-ląnguagę", 5, 22),
+                          Token("text", 23, 27),
+                          Token("你好", 28, 30),
+                          Token("世界", 30, 32),
+                          Token("http://www.google.com/", 33, 55)}));
   // clang-format on
 }
 

@@ -114,6 +114,11 @@ class Collections {
         *[]() { return new std::string("percentage"); }();
     return value;
   }
+  static const std::string& PersonName() {
+    static const std::string& value =
+        *[]() { return new std::string("person_name"); }();
+    return value;
+  }
   static const std::string& Phone() {
     static const std::string& value =
         *[]() { return new std::string("phone"); }();

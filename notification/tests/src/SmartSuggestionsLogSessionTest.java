@@ -17,7 +17,7 @@
 package com.android.textclassifier.notification;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -85,7 +85,7 @@ public class SmartSuggestionsLogSessionTest {
     session.onActionClicked(
         createNotificationAction(), NotificationAssistantService.SOURCE_FROM_APP);
 
-    verify(textClassifier, never()).onTextClassifierEvent(any(TextClassifierEvent.class));
+    verify(textClassifier, never()).onTextClassifierEvent(any());
   }
 
   private static Notification.Action createNotificationAction() {
@@ -135,7 +135,7 @@ public class SmartSuggestionsLogSessionTest {
   public void onNotificationExpansionChanged_collapsed() {
     session.onNotificationExpansionChanged(/* isExpanded= */ false);
 
-    verify(textClassifier, never()).onTextClassifierEvent(any(TextClassifierEvent.class));
+    verify(textClassifier, never()).onTextClassifierEvent(any());
   }
 
   @Test
@@ -152,7 +152,7 @@ public class SmartSuggestionsLogSessionTest {
   public void onSuggestedReplySent_sourceFromApp() {
     session.onSuggestedReplySent(REPLY, NotificationAssistantService.SOURCE_FROM_APP);
 
-    verify(textClassifier, never()).onTextClassifierEvent(any(TextClassifierEvent.class));
+    verify(textClassifier, never()).onTextClassifierEvent(any());
   }
 
   @Test

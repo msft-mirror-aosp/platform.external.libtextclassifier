@@ -49,6 +49,10 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
                nativeInitializeInstalledAppEngine)
 (JNIEnv* env, jobject thiz, jlong ptr, jbyteArray serialized_config);
 
+TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
+               nativeInitializePersonNameEngine)
+(JNIEnv* env, jobject thiz, jlong ptr, jint fd, jlong offset, jlong size);
+
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeGetNativeModelPtr)
 (JNIEnv* env, jobject thiz, jlong ptr);
 

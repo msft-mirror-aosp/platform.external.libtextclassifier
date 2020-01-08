@@ -72,7 +72,7 @@ public class TextClassifierImplTest {
   @Before
   public void setup() {
     Context context = ApplicationProvider.getApplicationContext();
-    classifier = new TextClassifierImpl(context, new TextClassificationConstants());
+    classifier = new TextClassifierImpl(context, new TextClassifierSettings());
   }
 
   @Test
@@ -232,7 +232,7 @@ public class TextClassifierImplTest {
             .setIntentComponent(Intent.ACTION_TRANSLATE, FakeContextBuilder.DEFAULT_COMPONENT)
             .build();
     TextClassifierImpl textClassifier =
-        new TextClassifierImpl(context, new TextClassificationConstants());
+        new TextClassifierImpl(context, new TextClassifierSettings());
     TextClassification.Request request =
         new TextClassification.Request.Builder(japaneseText, 0, japaneseText.length())
             .setDefaultLocales(LOCALES)

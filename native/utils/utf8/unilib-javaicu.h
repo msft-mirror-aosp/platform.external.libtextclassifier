@@ -30,6 +30,7 @@
 #include "utils/base/integral_types.h"
 #include "utils/java/jni-base.h"
 #include "utils/java/jni-cache.h"
+#include "utils/java/jni-helper.h"
 #include "utils/java/string_utils.h"
 #include "utils/utf8/unicodetext.h"
 
@@ -40,7 +41,10 @@ class UniLibBase {
   UniLibBase();
   explicit UniLibBase(const std::shared_ptr<JniCache>& jni_cache);
 
-  bool ParseInt32(const UnicodeText& text, int* result) const;
+  bool ParseInt32(const UnicodeText& text, int32* result) const;
+  bool ParseInt64(const UnicodeText& text, int64* result) const;
+  bool ParseDouble(const UnicodeText& text, double* result) const;
+
   bool IsOpeningBracket(char32 codepoint) const;
   bool IsClosingBracket(char32 codepoint) const;
   bool IsWhitespace(char32 codepoint) const;
@@ -71,7 +75,7 @@ class UniLibBase {
     bool ApproximatelyMatches(int* status);
 
     // Finds occurrences of the pattern in the input text.
-    // Can be called repeatedly to find all occurences. A call will update
+    // Can be called repeatedly to find all occurrences. A call will update
     // internal state, so that 'Start', 'End' and 'Group' can be called to get
     // information about the match.
     // NOTE: Any call to ApproximatelyMatches() in between Find() calls will
@@ -178,8 +182,27 @@ class UniLibBase {
       const UnicodeText& text) const;
 
  private:
+  template <class T>
+  bool ParseInt(const UnicodeText& text, T* result) const;
+
   std::shared_ptr<JniCache> jni_cache_;
 };
+
+template <class T>
+bool UniLibBase::ParseInt(const UnicodeText& text, T* result) const {
+  if (!jni_cache_) {
+    return false;
+  }
+
+  JNIEnv* env = jni_cache_->GetEnv();
+  TC3_ASSIGN_OR_RETURN_FALSE(const ScopedLocalRef<jstring> text_java,
+                             jni_cache_->ConvertToJavaString(text));
+  TC3_ASSIGN_OR_RETURN_FALSE(
+      *result, JniHelper::CallStaticIntMethod<T>(
+                   env, jni_cache_->integer_class.get(),
+                   jni_cache_->integer_parse_int, text_java.get()));
+  return true;
+}
 
 }  // namespace libtextclassifier3
 

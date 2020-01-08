@@ -20,6 +20,7 @@ import android.provider.DeviceConfig;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.utils.IndentingPrintWriter;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
@@ -40,15 +41,14 @@ import javax.annotation.Nullable;
  *
  * @see android.provider.DeviceConfig#NAMESPACE_TEXTCLASSIFIER
  */
-// TODO: Rename to TextClassifierSettings.
-public final class TextClassificationConstants {
+public final class TextClassifierSettings {
   private static final String DELIMITER = ":";
 
   /** Whether the user language profile feature is enabled. */
   private static final String USER_LANGUAGE_PROFILE_ENABLED = "user_language_profile_enabled";
   /** Max length of text that suggestSelection can accept. */
-  private static final String SUGGEST_SELECTION_MAX_RANGE_LENGTH =
-      "suggest_selection_max_range_length";
+  @VisibleForTesting
+  static final String SUGGEST_SELECTION_MAX_RANGE_LENGTH = "suggest_selection_max_range_length";
   /** Max length of text that classifyText can accept. */
   private static final String CLASSIFY_TEXT_MAX_RANGE_LENGTH = "classify_text_max_range_length";
   /** Max length of text that generateLinks can accept. */
@@ -65,7 +65,7 @@ public final class TextClassificationConstants {
    * A colon(:) separated string that specifies the default entities types for generateLinks when
    * hint is not given.
    */
-  private static final String ENTITY_LIST_DEFAULT = "entity_list_default";
+  @VisibleForTesting static final String ENTITY_LIST_DEFAULT = "entity_list_default";
   /**
    * A colon(:) separated string that specifies the default entities types for generateLinks when
    * the text is in a not editable UI widget.
@@ -89,9 +89,10 @@ public final class TextClassificationConstants {
   private static final String NOTIFICATION_CONVERSATION_ACTION_TYPES_DEFAULT =
       "notification_conversation_action_types_default";
   /** Threshold to accept a suggested language from LangID model. */
-  private static final String LANG_ID_THRESHOLD_OVERRIDE = "lang_id_threshold_override";
+  @VisibleForTesting static final String LANG_ID_THRESHOLD_OVERRIDE = "lang_id_threshold_override";
   /** Whether to enable {@link com.android.textclassifier.intent.TemplateIntentFactory}. */
-  private static final String TEMPLATE_INTENT_FACTORY_ENABLED = "template_intent_factory_enabled";
+  @VisibleForTesting
+  static final String TEMPLATE_INTENT_FACTORY_ENABLED = "template_intent_factory_enabled";
   /** Whether to enable "translate" action in classifyText. */
   private static final String TRANSLATE_IN_CLASSIFICATION_ENABLED =
       "translate_in_classification_enabled";
@@ -114,7 +115,7 @@ public final class TextClassificationConstants {
    *
    * @see {@code TextClassifierImpl#detectLanguages(String, int, int)} for reference.
    */
-  private static final String LANG_ID_CONTEXT_SETTINGS = "lang_id_context_settings";
+  @VisibleForTesting static final String LANG_ID_CONTEXT_SETTINGS = "lang_id_context_settings";
   /** Default threshold to translate the language of the context the user selects */
   private static final String TRANSLATE_ACTION_THRESHOLD = "translate_action_threshold";
 
@@ -262,7 +263,7 @@ public final class TextClassificationConstants {
   }
 
   void dump(IndentingPrintWriter pw) {
-    pw.println("TextClassificationConstants:");
+    pw.println("TextClassifierSettings:");
     pw.increaseIndent();
     pw.printPair("classify_text_max_range_length", getClassifyTextMaxRangeLength());
     pw.printPair("detect_language_from_text_enabled", isDetectLanguagesFromTextEnabled());

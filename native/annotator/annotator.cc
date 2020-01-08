@@ -61,6 +61,16 @@ const Model* LoadAndVerifyModel(const void* addr, int size) {
   }
 }
 
+const PersonNameModel* LoadAndVerifyPersonNameModel(const void* addr,
+                                                    int size) {
+  flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(addr), size);
+  if (VerifyPersonNameModelBuffer(verifier)) {
+    return GetPersonNameModel(addr);
+  } else {
+    return nullptr;
+  }
+}
+
 // If lib is not nullptr, just returns lib. Otherwise, if lib is nullptr, will
 // create a new instance, assign ownership to owned_lib, and return it.
 const UniLib* MaybeCreateUnilib(const UniLib* lib,
@@ -548,6 +558,37 @@ bool Annotator::InitializeInstalledAppEngine(
   return true;
 }
 
+bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
+                                                             int size) {
+  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(fd, offset, size));
+
+  if (!mmap->handle().ok()) {
+    TC3_LOG(ERROR) << "Mmap for person name model failed.";
+    return false;
+  }
+
+  const PersonNameModel* person_name_model = LoadAndVerifyPersonNameModel(
+      mmap->handle().start(), mmap->handle().num_bytes());
+
+  if (person_name_model == nullptr) {
+    TC3_LOG(ERROR) << "Person name model verification failed.";
+    return false;
+  }
+
+  if (!person_name_model->enabled()) {
+    return true;
+  }
+
+  std::unique_ptr<PersonNameEngine> person_name_engine(
+      new PersonNameEngine(unilib_));
+  if (!person_name_engine->Initialize(person_name_model)) {
+    TC3_LOG(ERROR) << "Failed to initialize the person name engine.";
+    return false;
+  }
+  person_name_engine_ = std::move(person_name_engine);
+  return true;
+}
+
 namespace {
 
 int CountDigits(const std::string& str, CodepointSpan selection_indices) {
@@ -775,6 +816,11 @@ CodepointSpan Annotator::SuggestSelection(
     TC3_LOG(ERROR) << "Duration annotator failed in suggest selection.";
     return original_click_indices;
   }
+  if (person_name_engine_ != nullptr &&
+      !person_name_engine_->Chunk(context_unicode, tokens, &candidates)) {
+    TC3_LOG(ERROR) << "Person name suggest selection failed.";
+    return original_click_indices;
+  }
 
   // Sort candidates according to their position in the input, so that the next
   // code can assume that any connected component of overlapping spans forms a
@@ -930,11 +976,13 @@ bool Annotator::ResolveConflict(
     InterpreterManager* interpreter_manager,
     std::vector<int>* chosen_indices) const {
   std::vector<int> conflicting_indices;
-  std::unordered_map<int, float> scores;
+  std::unordered_map<int, std::pair<float, int>> scores_lengths;
   for (int i = start_index; i < end_index; ++i) {
     conflicting_indices.push_back(i);
     if (!candidates[i].classification.empty()) {
-      scores[i] = GetPriorityScore(candidates[i].classification);
+      scores_lengths[i] = {
+          GetPriorityScore(candidates[i].classification),
+          candidates[i].span.second - candidates[i].span.first};
       continue;
     }
 
@@ -951,12 +999,23 @@ bool Annotator::ResolveConflict(
     }
 
     if (!classification.empty()) {
-      scores[i] = GetPriorityScore(classification);
+      scores_lengths[i] = {
+          GetPriorityScore(classification),
+          candidates[i].span.second - candidates[i].span.first};
     }
   }
 
-  std::sort(conflicting_indices.begin(), conflicting_indices.end(),
-            [&scores](int i, int j) { return scores[i] > scores[j]; });
+  std::sort(
+      conflicting_indices.begin(), conflicting_indices.end(),
+      [&scores_lengths, candidates, conflicting_indices, this](int i, int j) {
+        if (scores_lengths[i].first == scores_lengths[j].first &&
+            this->model_->triggering_options() != nullptr &&
+            this->model_->triggering_options()
+                ->prioritize_longest_annotation()) {
+          return scores_lengths[i].second > scores_lengths[j].second;
+        }
+        return scores_lengths[i].first > scores_lengths[j].first;
+      });
 
   // Here we keep a set of indices that were chosen, per-source, to enable
   // effective computation.
@@ -1559,6 +1618,14 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, {contact_result}});
   }
 
+  // Try the person name engine.
+  ClassificationResult person_name_result;
+  if (person_name_engine_ &&
+      person_name_engine_->ClassifyText(context, selection_indices,
+                                        &person_name_result)) {
+    candidates.push_back({selection_indices, {person_name_result}});
+  }
+
   // Try the installed app engine.
   // TODO(b/126579108): Propagate error status.
   ClassificationResult installed_app_result;
@@ -1920,6 +1987,14 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
       !duration_annotator_->FindAll(context_unicode, tokens,
                                     options.annotation_usecase, &candidates)) {
     TC3_LOG(ERROR) << "Couldn't run duration annotator FindAll.";
+    return {};
+  }
+
+  // Annotate with the person name engine.
+  if (is_entity_type_enabled(Collections::PersonName()) &&
+      person_name_engine_ &&
+      !person_name_engine_->Chunk(context_unicode, tokens, &candidates)) {
+    TC3_LOG(ERROR) << "Couldn't run person name engine Chunk.";
     return {};
   }
 

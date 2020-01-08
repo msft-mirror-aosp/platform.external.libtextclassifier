@@ -166,6 +166,19 @@ table ParcelTracking {
   tracking_number:string (shared);
 }
 
+// Parsed money amount.
+namespace libtextclassifier3.EntityData_;
+table Money {
+  // String representation of currency, unnormalized.
+  unnormalized_currency:string (shared);
+
+  // Whole part of the amount (e.g. 123 from "CHF 123.45").
+  amount_whole_part:int;
+
+  // Decimal part of the amount (e.g. 45 from "CHF 123.45").
+  amount_decimal_part:int;
+}
+
 // Represents an entity annotated in text.
 namespace libtextclassifier3;
 table EntityData {
@@ -187,6 +200,7 @@ table EntityData {
   isbn:EntityData_.Isbn;
   iban:EntityData_.Iban;
   parcel:EntityData_.ParcelTracking;
+  money:EntityData_.Money;
 }
 
 root_type libtextclassifier3.EntityData;

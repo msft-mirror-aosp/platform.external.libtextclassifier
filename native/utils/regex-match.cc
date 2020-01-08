@@ -19,9 +19,9 @@
 #include <memory>
 
 #include "annotator/types.h"
-#include "utils/lua-utils.h"
 
 #ifndef TC3_DISABLE_LUA
+#include "utils/lua-utils.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

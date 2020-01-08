@@ -41,7 +41,6 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.WorkerThread;
 import androidx.collection.ArraySet;
 import androidx.core.util.Pair;
-import com.android.textclassifier.ActionsModelParamsSupplier.ActionsModelParams;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.statsd.GenerateLinksLogger;
 import com.android.textclassifier.common.statsd.ResultIdUtils;
@@ -72,7 +71,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 /**
@@ -131,17 +129,15 @@ final class TextClassifierImpl {
   private final TextClassifierEventLogger textClassifierEventLogger =
       new TextClassifierEventLogger();
 
-  private final TextClassificationConstants settings;
+  private final TextClassifierSettings settings;
 
   private final ModelFileManager annotatorModelFileManager;
   private final ModelFileManager langIdModelFileManager;
   private final ModelFileManager actionsModelFileManager;
   private final ClassificationIntentFactory classificationIntentFactory;
   private final TemplateIntentFactory templateIntentFactory;
-  private final Supplier<ActionsModelParams> actionsModelParamsSupplier;
 
-  TextClassifierImpl(
-      Context context, TextClassificationConstants settings, TextClassifier fallback) {
+  TextClassifierImpl(Context context, TextClassifierSettings settings, TextClassifier fallback) {
     this.context = Preconditions.checkNotNull(context);
     this.fallback = Preconditions.checkNotNull(fallback);
     this.settings = Preconditions.checkNotNull(settings);
@@ -177,21 +173,9 @@ final class TextClassifierImpl {
             ? new TemplateClassificationIntentFactory(
                 templateIntentFactory, new LegacyClassificationIntentFactory())
             : new LegacyClassificationIntentFactory();
-    actionsModelParamsSupplier =
-        new ActionsModelParamsSupplier(
-            this.context,
-            () -> {
-              synchronized (lock) {
-                // Clear actionsImpl here, so that we will create a new
-                // ActionsSuggestionsModel object with the new flag in the next
-                // request.
-                actionsImpl = null;
-                actionModelInUse = null;
-              }
-            });
   }
 
-  TextClassifierImpl(Context context, TextClassificationConstants settings) {
+  TextClassifierImpl(Context context, TextClassifierSettings settings) {
     this(context, settings, TextClassifier.NO_OP);
   }
 
@@ -587,10 +571,7 @@ final class TextClassifierImpl {
             TcLog.d(TAG, "Failed to read the model file: " + bestModel.getPath());
             return null;
           }
-          ActionsModelParams params = actionsModelParamsSupplier.get();
-          actionsImpl =
-              new ActionsSuggestionsModel(
-                  pfd.getFd(), params.getSerializedPreconditions(bestModel));
+          actionsImpl = new ActionsSuggestionsModel(pfd.getFd());
           actionModelInUse = bestModel;
         } finally {
           maybeCloseAndLogError(pfd);

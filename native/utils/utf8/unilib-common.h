@@ -29,6 +29,12 @@ bool IsDigit(char32 codepoint);
 bool IsLower(char32 codepoint);
 bool IsUpper(char32 codepoint);
 bool IsPunctuation(char32 codepoint);
+bool IsPercentage(char32 codepoint);
+bool IsSlash(char32 codepoint);
+bool IsMinus(char32 codepoint);
+bool IsNumberSign(char32 codepoint);
+bool IsDot(char32 codepoint);
+
 char32 ToLower(char32 codepoint);
 char32 ToUpper(char32 codepoint);
 char32 GetPairedBracket(char32 codepoint);
