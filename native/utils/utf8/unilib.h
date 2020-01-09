@@ -19,9 +19,23 @@
 
 #include "utils/base/integral_types.h"
 #include "utils/utf8/unicodetext.h"
+#include "utils/utf8/unilib-common.h"
 
+#if defined TC3_UNILIB_ICU
+#include "utils/utf8/unilib-icu.h"
+#define INIT_UNILIB_FOR_TESTING(VAR) VAR()
+#elif defined TC3_UNILIB_JAVAICU
 #include "utils/utf8/unilib-javaicu.h"
 #define INIT_UNILIB_FOR_TESTING(VAR) VAR(nullptr)
+#elif defined TC3_UNILIB_APPLE
+#include "utils/utf8/unilib-apple.h"
+#define INIT_UNILIB_FOR_TESTING(VAR) VAR()
+#elif defined TC3_UNILIB_DUMMY
+#include "utils/utf8/unilib-dummy.h"
+#define INIT_UNILIB_FOR_TESTING(VAR) VAR()
+#else
+#error No TC3_UNILIB implementation specified.
+#endif
 
 namespace libtextclassifier3 {
 
@@ -54,6 +68,26 @@ class UniLib : public UniLibBase {
       }
     }
     return true;
+  }
+
+  bool IsPercentage(char32 codepoint) const {
+    return libtextclassifier3::IsPercentage(codepoint);
+  }
+
+  bool IsSlash(char32 codepoint) const {
+    return libtextclassifier3::IsSlash(codepoint);
+  }
+
+  bool IsMinus(char32 codepoint) const {
+    return libtextclassifier3::IsMinus(codepoint);
+  }
+
+  bool IsNumberSign(char32 codepoint) const {
+    return libtextclassifier3::IsNumberSign(codepoint);
+  }
+
+  bool IsDot(char32 codepoint) const {
+    return libtextclassifier3::IsDot(codepoint);
   }
 };
 

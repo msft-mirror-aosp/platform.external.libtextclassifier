@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
+#include "utils/strings/utf8.h"
+
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
-#include "utils/strings/utf8.h"
 
 namespace libtextclassifier3 {
 namespace {
 
+using testing::Eq;
+
 TEST(Utf8Test, GetNumBytesForUTF8Char) {
-  EXPECT_EQ(GetNumBytesForUTF8Char("\x00"), 0);
-  EXPECT_EQ(GetNumBytesForUTF8Char("h"), 1);
-  EXPECT_EQ(GetNumBytesForUTF8Char("😋"), 4);
-  EXPECT_EQ(GetNumBytesForUTF8Char("㍿"), 3);
+  EXPECT_THAT(GetNumBytesForUTF8Char("\x00"), Eq(0));
+  EXPECT_THAT(GetNumBytesForUTF8Char("h"), Eq(1));
+  EXPECT_THAT(GetNumBytesForUTF8Char("😋"), Eq(4));
+  EXPECT_THAT(GetNumBytesForUTF8Char("㍿"), Eq(3));
 }
 
 TEST(Utf8Test, IsValidUTF8) {
@@ -43,16 +45,36 @@ TEST(Utf8Test, IsValidUTF8) {
 }
 
 TEST(Utf8Test, ValidUTF8CharLength) {
-  EXPECT_EQ(ValidUTF8CharLength("1234😋hello", 13), 1);
-  EXPECT_EQ(ValidUTF8CharLength("\u304A\u00B0\u106B", 8), 3);
-  EXPECT_EQ(ValidUTF8CharLength("this is a test😋😋😋", 26), 1);
-  EXPECT_EQ(ValidUTF8CharLength("\xf0\x9f\x98\x8b", 4), 4);
+  EXPECT_THAT(ValidUTF8CharLength("1234😋hello", 13), Eq(1));
+  EXPECT_THAT(ValidUTF8CharLength("\u304A\u00B0\u106B", 8), Eq(3));
+  EXPECT_THAT(ValidUTF8CharLength("this is a test😋😋😋", 26), Eq(1));
+  EXPECT_THAT(ValidUTF8CharLength("\xf0\x9f\x98\x8b", 4), Eq(4));
   // Too short (string is too short).
-  EXPECT_EQ(ValidUTF8CharLength("\xf0\x9f", 2), -1);
+  EXPECT_THAT(ValidUTF8CharLength("\xf0\x9f", 2), Eq(-1));
   // Too long (too many trailing bytes). First character is valid.
-  EXPECT_EQ(ValidUTF8CharLength("\xf0\x9f\x98\x8b\x8b", 5), 4);
+  EXPECT_THAT(ValidUTF8CharLength("\xf0\x9f\x98\x8b\x8b", 5), Eq(4));
   // Too short (too few trailing bytes).
-  EXPECT_EQ(ValidUTF8CharLength("\xf0\x9f\x98\x61\x61", 5), -1);
+  EXPECT_THAT(ValidUTF8CharLength("\xf0\x9f\x98\x61\x61", 5), Eq(-1));
+}
+
+TEST(Utf8Test, CorrectlyTruncatesStrings) {
+  EXPECT_THAT(SafeTruncateLength("FooBar", 3), Eq(3));
+  EXPECT_THAT(SafeTruncateLength("früh", 3), Eq(2));
+  EXPECT_THAT(SafeTruncateLength("مَمِمّمَّمِّ", 5), Eq(4));
+}
+
+TEST(Utf8Test, CorrectlyConvertsFromUtf8) {
+  EXPECT_THAT(ValidCharToRune("a"), Eq(97));
+  EXPECT_THAT(ValidCharToRune("\0"), Eq(0));
+  EXPECT_THAT(ValidCharToRune("\u304A"), Eq(0x304a));
+  EXPECT_THAT(ValidCharToRune("\xe3\x81\x8a"), Eq(0x304a));
+}
+
+TEST(Utf8Test, CorrectlyConvertsToUtf8) {
+  char utf8_encoding[4];
+  EXPECT_THAT(ValidRuneToChar(97, utf8_encoding), Eq(1));
+  EXPECT_THAT(ValidRuneToChar(0, utf8_encoding), Eq(1));
+  EXPECT_THAT(ValidRuneToChar(0x304a, utf8_encoding), Eq(3));
 }
 
 }  // namespace

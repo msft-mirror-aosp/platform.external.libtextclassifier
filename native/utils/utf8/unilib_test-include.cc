@@ -44,6 +44,17 @@ TEST_F(UniLibTest, CharacterClassesAscii) {
   EXPECT_TRUE(unilib_.IsPunctuation('('));
   EXPECT_FALSE(unilib_.IsPunctuation('0'));
   EXPECT_FALSE(unilib_.IsPunctuation('$'));
+  EXPECT_TRUE(unilib_.IsPercentage('%'));
+  EXPECT_TRUE(unilib_.IsPercentage(u'％'));
+  EXPECT_TRUE(unilib_.IsSlash('/'));
+  EXPECT_TRUE(unilib_.IsSlash(u'／'));
+  EXPECT_TRUE(unilib_.IsMinus('-'));
+  EXPECT_TRUE(unilib_.IsMinus(u'－'));
+  EXPECT_TRUE(unilib_.IsNumberSign('#'));
+  EXPECT_TRUE(unilib_.IsNumberSign(u'＃'));
+  EXPECT_TRUE(unilib_.IsDot('.'));
+  EXPECT_TRUE(unilib_.IsDot(u'．'));
+
   EXPECT_EQ(unilib_.ToLower('A'), 'a');
   EXPECT_EQ(unilib_.ToLower('Z'), 'z');
   EXPECT_EQ(unilib_.ToLower(')'), ')');
@@ -89,6 +100,17 @@ TEST_F(UniLibTest, CharacterClassesUnicode) {
   EXPECT_TRUE(unilib_.IsPunctuation(0x10AF2));  // DOUBLE DOT WITHIN DOT
   EXPECT_FALSE(unilib_.IsPunctuation(0x00A3));  // POUND SIGN
   EXPECT_FALSE(unilib_.IsPunctuation(0xA838));  // NORTH INDIC RUPEE MARK
+  EXPECT_TRUE(unilib_.IsPercentage(0x0025));    // PERCENT SIGN
+  EXPECT_TRUE(unilib_.IsPercentage(0xFF05));    // FULLWIDTH PERCENT SIGN
+  EXPECT_TRUE(unilib_.IsSlash(0x002F));         // SOLIDUS
+  EXPECT_TRUE(unilib_.IsSlash(0xFF0F));         // FULLWIDTH SOLIDUS
+  EXPECT_TRUE(unilib_.IsMinus(0x002D));         // HYPHEN-MINUS
+  EXPECT_TRUE(unilib_.IsMinus(0xFF0D));         // FULLWIDTH HYPHEN-MINUS
+  EXPECT_TRUE(unilib_.IsNumberSign(0x0023));    // NUMBER SIGN
+  EXPECT_TRUE(unilib_.IsNumberSign(0xFF03));    // FULLWIDTH NUMBER SIGN
+  EXPECT_TRUE(unilib_.IsDot(0x002E));           // FULL STOP
+  EXPECT_TRUE(unilib_.IsDot(0xFF0E));           // FULLWIDTH FULL STOP
+
   EXPECT_EQ(unilib_.ToLower(0x0391), 0x03B1);   // GREEK ALPHA
   EXPECT_EQ(unilib_.ToLower(0x03AB), 0x03CB);   // GREEK UPSILON WITH DIALYTIKA
   EXPECT_EQ(unilib_.ToLower(0x03C0), 0x03C0);   // GREEK SMALL PI
@@ -276,14 +298,33 @@ TEST_F(UniLibTest, BreakIterator4ByteUTF8) {
   EXPECT_THAT(break_indices, ElementsAre(1, 2, 3));
 }
 
-TEST_F(UniLibTest, IntegerParse) {
+TEST_F(UniLibTest, Integer32Parse) {
   int result;
   EXPECT_TRUE(
       unilib_.ParseInt32(UTF8ToUnicodeText("123", /*do_copy=*/false), &result));
   EXPECT_EQ(result, 123);
 }
 
-TEST_F(UniLibTest, IntegerParseFullWidth) {
+TEST_F(UniLibTest, Integer32ParseFloatNumber) {
+  int result;
+  EXPECT_FALSE(unilib_.ParseInt32(UTF8ToUnicodeText("12.3", /*do_copy=*/false),
+                                  &result));
+}
+
+TEST_F(UniLibTest, Integer32ParseLongNumber) {
+  int32 result;
+  EXPECT_TRUE(unilib_.ParseInt32(
+      UTF8ToUnicodeText("1000000000", /*do_copy=*/false), &result));
+  EXPECT_EQ(result, 1000000000);
+}
+
+TEST_F(UniLibTest, Integer32ParseEmptyString) {
+  int result;
+  EXPECT_FALSE(
+      unilib_.ParseInt32(UTF8ToUnicodeText("", /*do_copy=*/false), &result));
+}
+
+TEST_F(UniLibTest, Integer32ParseFullWidth) {
   int result;
   // The input string here is full width
   EXPECT_TRUE(unilib_.ParseInt32(UTF8ToUnicodeText("１２３", /*do_copy=*/false),
@@ -291,11 +332,117 @@ TEST_F(UniLibTest, IntegerParseFullWidth) {
   EXPECT_EQ(result, 123);
 }
 
-TEST_F(UniLibTest, IntegerParseFullWidthWithAlpha) {
+TEST_F(UniLibTest, Integer32ParseFullWidthWithAlpha) {
   int result;
   // The input string here is full width
   EXPECT_FALSE(unilib_.ParseInt32(UTF8ToUnicodeText("１a３", /*do_copy=*/false),
                                   &result));
 }
+
+TEST_F(UniLibTest, Integer64Parse) {
+  int64 result;
+  EXPECT_TRUE(
+      unilib_.ParseInt64(UTF8ToUnicodeText("123", /*do_copy=*/false), &result));
+  EXPECT_EQ(result, 123);
+}
+
+TEST_F(UniLibTest, Integer64ParseFloatNumber) {
+  int64 result;
+  EXPECT_FALSE(unilib_.ParseInt64(UTF8ToUnicodeText("12.3", /*do_copy=*/false),
+                                  &result));
+}
+
+TEST_F(UniLibTest, Integer64ParseLongNumber) {
+  int64 result;
+  // The limitation comes from the javaicu implementation: parseDouble does not
+  // have ICU support and parseInt limit the size of the number.
+  EXPECT_TRUE(unilib_.ParseInt64(
+      UTF8ToUnicodeText("1000000000", /*do_copy=*/false), &result));
+  EXPECT_EQ(result, 1000000000);
+}
+
+TEST_F(UniLibTest, Integer64ParseEmptyString) {
+  int64 result;
+  EXPECT_FALSE(
+      unilib_.ParseInt64(UTF8ToUnicodeText("", /*do_copy=*/false), &result));
+}
+
+TEST_F(UniLibTest, Integer64ParseFullWidth) {
+  int64 result;
+  // The input string here is full width
+  EXPECT_TRUE(unilib_.ParseInt64(UTF8ToUnicodeText("１２３", /*do_copy=*/false),
+                                 &result));
+  EXPECT_EQ(result, 123);
+}
+
+TEST_F(UniLibTest, Integer64ParseFullWidthWithAlpha) {
+  int64 result;
+  // The input string here is full width
+  EXPECT_FALSE(unilib_.ParseInt64(UTF8ToUnicodeText("１a４", /*do_copy=*/false),
+                                  &result));
+}
+
+TEST_F(UniLibTest, DoubleParse) {
+  double result;
+  EXPECT_TRUE(unilib_.ParseDouble(UTF8ToUnicodeText("1.23", /*do_copy=*/false),
+                                  &result));
+  EXPECT_EQ(result, 1.23);
+}
+
+TEST_F(UniLibTest, DoubleParseLongNumber) {
+  double result;
+  // The limitation comes from the javaicu implementation: parseDouble does not
+  // have ICU support and parseInt limit the size of the number.
+  EXPECT_TRUE(unilib_.ParseDouble(
+      UTF8ToUnicodeText("999999999.999999999", /*do_copy=*/false), &result));
+  EXPECT_EQ(result, 999999999.999999999);
+}
+
+TEST_F(UniLibTest, DoubleParseWithoutFractionalPart) {
+  double result;
+  EXPECT_TRUE(unilib_.ParseDouble(UTF8ToUnicodeText("123", /*do_copy=*/false),
+                                  &result));
+  EXPECT_EQ(result, 123);
+}
+
+TEST_F(UniLibTest, DoubleParseEmptyString) {
+  double result;
+  EXPECT_FALSE(
+      unilib_.ParseDouble(UTF8ToUnicodeText("", /*do_copy=*/false), &result));
+}
+
+TEST_F(UniLibTest, DoubleParsePrecedingDot) {
+  double result;
+  EXPECT_FALSE(unilib_.ParseDouble(UTF8ToUnicodeText(".123", /*do_copy=*/false),
+                                   &result));
+}
+
+TEST_F(UniLibTest, DoubleParseLeadingDot) {
+  double result;
+  EXPECT_FALSE(unilib_.ParseDouble(UTF8ToUnicodeText("123.", /*do_copy=*/false),
+                                   &result));
+}
+
+TEST_F(UniLibTest, DoubleParseMultipleDots) {
+  double result;
+  EXPECT_FALSE(unilib_.ParseDouble(
+      UTF8ToUnicodeText("1.2.3", /*do_copy=*/false), &result));
+}
+
+TEST_F(UniLibTest, DoubleParseFullWidth) {
+  double result;
+  // The input string here is full width
+  EXPECT_TRUE(unilib_.ParseDouble(
+      UTF8ToUnicodeText("１.２３", /*do_copy=*/false), &result));
+  EXPECT_EQ(result, 1.23);
+}
+
+TEST_F(UniLibTest, DoubleParseFullWidthWithAlpha) {
+  double result;
+  // The input string here is full width
+  EXPECT_FALSE(unilib_.ParseDouble(
+      UTF8ToUnicodeText("１a５", /*do_copy=*/false), &result));
+}
+
 }  // namespace test_internal
 }  // namespace libtextclassifier3

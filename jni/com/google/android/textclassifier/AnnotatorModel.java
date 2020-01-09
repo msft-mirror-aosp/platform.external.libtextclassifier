@@ -592,6 +592,9 @@ public final class AnnotatorModel implements AutoCloseable {
 
   private native boolean nativeInitializeInstalledAppEngine(long context, byte[] serializedConfig);
 
+  private native boolean nativeInitializePersonNameEngine(
+      long context, int fd, long offset, long size);
+
   private native int[] nativeSuggestSelection(
       long context, String text, int selectionBegin, int selectionEnd, SelectionOptions options);
 

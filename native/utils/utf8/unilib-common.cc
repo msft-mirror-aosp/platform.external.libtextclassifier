@@ -301,6 +301,26 @@ constexpr int kToUpperRangesOffsets[]{
     128, 112, 126, 8,  -48,   -1,   -7264, -1,    -38864, -32, -40, -64, -32};
 constexpr int kNumToUpperRangesOffsets = ARRAYSIZE(kToUpperRangesOffsets);
 
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=PERCENT
+constexpr char32 kPercentages[] = {0x0025, 0x066A, 0xFE6A, 0xFF05};
+constexpr int kNumPercentages = ARRAYSIZE(kPercentages);
+
+// Source from https://unicode-search.net/unicode-namesearch.pl?term=SLASH
+constexpr char32 kSlashes[] = {0x002f, 0x0337, 0x0338, 0x2044, 0x2215, 0xff0f};
+constexpr int kNumSlashes = ARRAYSIZE(kSlashes);
+
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=minus
+constexpr char32 kMinuses[] = {0x002d, 0x02d7, 0x2212, 0xff0d};
+constexpr int kNumMinuses = ARRAYSIZE(kMinuses);
+
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=NUMBER%20SIGN
+constexpr char32 kNumberSign[] = {0x0023, 0xfe5f, 0xff03};
+constexpr int kNumNumberSign = ARRAYSIZE(kNumberSign);
+
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=period
+constexpr char32 kDots[] = {0x002e, 0xfe52, 0xff0e};
+constexpr int kNumDots = ARRAYSIZE(kDots);
+
 #undef ARRAYSIZE
 
 static_assert(kNumOpeningBrackets == kNumClosingBrackets,
@@ -442,6 +462,26 @@ bool IsPunctuation(char32 codepoint) {
   return (GetOverlappingRangeIndex(
               kPunctuationRangesStart, kPunctuationRangesEnd,
               kNumPunctuationRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsPercentage(char32 codepoint) {
+  return GetMatchIndex(kPercentages, kNumPercentages, codepoint) >= 0;
+}
+
+bool IsSlash(char32 codepoint) {
+  return GetMatchIndex(kSlashes, kNumSlashes, codepoint) >= 0;
+}
+
+bool IsMinus(char32 codepoint) {
+  return GetMatchIndex(kMinuses, kNumMinuses, codepoint) >= 0;
+}
+
+bool IsNumberSign(char32 codepoint) {
+  return GetMatchIndex(kNumberSign, kNumNumberSign, codepoint) >= 0;
+}
+
+bool IsDot(char32 codepoint) {
+  return GetMatchIndex(kDots, kNumDots, codepoint) >= 0;
 }
 
 char32 ToLower(char32 codepoint) {

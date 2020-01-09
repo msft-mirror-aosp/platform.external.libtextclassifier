@@ -14,21 +14,9 @@
  * limitations under the License.
  */
 
-#include "utils/base/status.h"
+#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_PERSON_NAME_PERSON_NAME_ENGINE_H_
+#define LIBTEXTCLASSIFIER_ANNOTATOR_PERSON_NAME_PERSON_NAME_ENGINE_H_
 
-namespace libtextclassifier3 {
+#include "annotator/person_name/person-name-engine-dummy.h"
 
-const Status& Status::OK = *new Status(StatusCode::OK, "");
-const Status& Status::UNKNOWN = *new Status(StatusCode::UNKNOWN, "");
-
-Status::Status() : code_(StatusCode::OK) {}
-Status::Status(StatusCode error, const std::string& message)
-    : code_(error), message_(message) {}
-
-logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
-                                         const Status& status) {
-  stream << status.error_code();
-  return stream;
-}
-
-}  // namespace libtextclassifier3
+#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_PERSON_NAME_PERSON_NAME_ENGINE_H_

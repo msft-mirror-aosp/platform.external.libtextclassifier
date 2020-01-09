@@ -64,6 +64,12 @@ inline LoggingStringStream& operator<<(LoggingStringStream& stream,
   return stream;
 }
 
+inline LoggingStringStream& operator<<(LoggingStringStream& stream,
+                                       const std::string_view message) {
+  stream.message.append(message);
+  return stream;
+}
+
 template <typename T1, typename T2>
 inline LoggingStringStream& operator<<(LoggingStringStream& stream,
                                        const std::pair<T1, T2>& entry) {
@@ -162,7 +168,7 @@ inline NullStream& operator<<(NullStream& str, const T&) {
 
 #endif  // NDEBUG
 
-#ifdef TC3_VLOG
+#ifdef TC3_ENABLE_VLOG
 #define TC3_VLOG(severity)                                     \
   ::libtextclassifier3::logging::LogMessage(                   \
       ::libtextclassifier3::logging::INFO, __FILE__, __LINE__) \

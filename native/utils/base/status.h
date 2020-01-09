@@ -27,11 +27,23 @@ enum class StatusCode {
   // Not an error; returned on success
   OK = 0,
 
-  // Unknown error.
+  // All of the following StatusCodes represent errors.
+  CANCELLED = 1,
   UNKNOWN = 2,
-
-  // Client specified an invalid argument.
   INVALID_ARGUMENT = 3,
+  DEADLINE_EXCEEDED = 4,
+  NOT_FOUND = 5,
+  ALREADY_EXISTS = 6,
+  PERMISSION_DENIED = 7,
+  RESOURCE_EXHAUSTED = 8,
+  FAILED_PRECONDITION = 9,
+  ABORTED = 10,
+  OUT_OF_RANGE = 11,
+  UNIMPLEMENTED = 12,
+  INTERNAL = 13,
+  UNAVAILABLE = 14,
+  DATA_LOSS = 15,
+  UNAUTHENTICATED = 16
 };
 
 // A Status is a combination of an error code and a string message (for non-OK
@@ -44,8 +56,6 @@ class Status {
   // Make a Status from the specified error and message.
   Status(StatusCode error, const std::string& error_message);
 
-  Status& operator=(const Status& other);
-
   // Some pre-defined Status objects
   static const Status& OK;
   static const Status& UNKNOWN;
@@ -57,6 +67,10 @@ class Status {
   StatusCode CanonicalCode() const { return code_; }
 
   const std::string& error_message() const { return message_; }
+
+  // Noop function provided to allow callers to suppress compiler warnings about
+  // ignored return values.
+  void IgnoreError() const {}
 
   bool operator==(const Status& x) const;
   bool operator!=(const Status& x) const;

@@ -17,7 +17,20 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_H_
 #define LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_H_
 
+#if defined TC3_CALENDAR_ICU
+#include "utils/calendar/calendar-icu.h"
+#define INIT_CALENDARLIB_FOR_TESTING(VAR) VAR()
+#elif defined TC3_CALENDAR_DUMMY
+#include "utils/calendar/calendar-dummy.h"
+#define INIT_CALENDARLIB_FOR_TESTING(VAR) VAR()
+#elif defined TC3_CALENDAR_APPLE
+#include "utils/calendar/calendar-apple.h"
+#define INIT_CALENDARLIB_FOR_TESTING(VAR) VAR()
+#elif defined TC3_CALENDAR_JAVAICU
 #include "utils/calendar/calendar-javaicu.h"
 #define INIT_CALENDARLIB_FOR_TESTING(VAR) VAR(nullptr)
+#else
+#error No TC3_CALENDAR implementation specified.
+#endif
 
 #endif  // LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_H_

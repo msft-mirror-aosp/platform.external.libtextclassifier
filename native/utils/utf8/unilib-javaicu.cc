@@ -16,14 +16,17 @@
 
 #include "utils/utf8/unilib-javaicu.h"
 
+#include <math.h>
+
 #include <cassert>
 #include <cctype>
 #include <map>
 
+#include "utils/base/logging.h"
 #include "utils/base/statusor.h"
 #include "utils/java/jni-base.h"
-#include "utils/java/jni-helper.h"
 #include "utils/java/string_utils.h"
+#include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib-common.h"
 
 namespace libtextclassifier3 {
@@ -79,18 +82,56 @@ char32 UniLibBase::GetPairedBracket(char32 codepoint) const {
 // Implementations that call out to JVM. Behold the beauty.
 // -----------------------------------------------------------------------------
 
-bool UniLibBase::ParseInt32(const UnicodeText& text, int* result) const {
-  if (jni_cache_) {
-    JNIEnv* env = jni_cache_->GetEnv();
-    TC3_ASSIGN_OR_RETURN_FALSE(const ScopedLocalRef<jstring> text_java,
-                               jni_cache_->ConvertToJavaString(text));
-    TC3_ASSIGN_OR_RETURN_FALSE(
-        *result, JniHelper::CallStaticIntMethod(
-                     env, jni_cache_->integer_class.get(),
-                     jni_cache_->integer_parse_int, text_java.get()));
-    return true;
+bool UniLibBase::ParseInt32(const UnicodeText& text, int32* result) const {
+  return ParseInt(text, result);
+}
+
+bool UniLibBase::ParseInt64(const UnicodeText& text, int64* result) const {
+  return ParseInt(text, result);
+}
+
+bool UniLibBase::ParseDouble(const UnicodeText& text, double* result) const {
+  if (!jni_cache_) {
+    return false;
   }
-  return false;
+
+  JNIEnv* env = jni_cache_->GetEnv();
+  auto it_dot = text.begin();
+  for (; !IsDot(*it_dot) && it_dot != text.end(); it_dot++) {
+  }
+
+  int64 integer_part;
+  std::string integer_part_str =
+      UnicodeText::UTF8Substring(text.begin(), it_dot);
+  TC3_ASSIGN_OR_RETURN_FALSE(const ScopedLocalRef<jstring> integer_text_java,
+                             jni_cache_->ConvertToJavaString(integer_part_str));
+  TC3_ASSIGN_OR_RETURN_FALSE(
+      integer_part,
+      JniHelper::CallStaticIntMethod<int64>(
+          env, jni_cache_->integer_class.get(), jni_cache_->integer_parse_int,
+          integer_text_java.get()));
+
+  int64 fractional_part = 0;
+  if (it_dot != text.end()) {
+    std::string fractional_part_str =
+        UnicodeText::UTF8Substring(++it_dot, text.end());
+    TC3_ASSIGN_OR_RETURN_FALSE(
+        const ScopedLocalRef<jstring> fractional_text_java,
+        jni_cache_->ConvertToJavaString(fractional_part_str));
+    TC3_ASSIGN_OR_RETURN_FALSE(
+        fractional_part,
+        JniHelper::CallStaticIntMethod<int64>(
+            env, jni_cache_->integer_class.get(), jni_cache_->integer_parse_int,
+            fractional_text_java.get()));
+  }
+
+  double factional_part_double = fractional_part;
+  while (factional_part_double >= 1) {
+    factional_part_double /= 10;
+  }
+  *result = integer_part + factional_part_double;
+
+  return true;
 }
 
 std::unique_ptr<UniLibBase::RegexPattern> UniLibBase::CreateRegexPattern(

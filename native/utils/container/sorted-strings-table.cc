@@ -83,7 +83,7 @@ void SortedStringsTable::GatherPrefixMatches(
     int piece_match_length = match_length;
     for (int k = LittleEndian::ToHost32(offsets_[i]) + piece_match_length;
          pieces_[k] != 0; k++) {
-      if (match_length >= input.size() ||
+      if (piece_match_length >= input.size() ||
           input[piece_match_length] != pieces_[k]) {
         matches = false;
         break;

@@ -222,6 +222,12 @@ TEST(FlatbuffersTest, PartialBuffersAreCorrectlyMerged) {
   ReflectiveFlatbuffer* flight_info = buffer->Mutable("flight_number");
   flight_info->Set("carrier_code", "LX");
   flight_info->Set("flight_code", 38);
+  auto* reminders = buffer->Repeated<ReflectiveFlatbuffer>("reminders");
+  ReflectiveFlatbuffer* reminder1 = reminders->Add();
+  reminder1->Set("title", "reminder1");
+  auto* reminder1_notes = reminder1->Repeated<std::string>("notes");
+  reminder1_notes->Add("note1");
+  reminder1_notes->Add("note2");
 
   // Create message to merge.
   test::EntityDataT additional_entity_data;
@@ -230,6 +236,15 @@ TEST(FlatbuffersTest, PartialBuffersAreCorrectlyMerged) {
   additional_entity_data.flight_number->flight_code = 39;
   additional_entity_data.contact_info.reset(new test::ContactInfoT);
   additional_entity_data.contact_info->first_name = "Barack";
+  additional_entity_data.reminders.push_back(
+      std::unique_ptr<test::ReminderT>(new test::ReminderT));
+  additional_entity_data.reminders[0]->notes.push_back("additional note1");
+  additional_entity_data.reminders[0]->notes.push_back("additional note2");
+  additional_entity_data.numbers.push_back(9);
+  additional_entity_data.numbers.push_back(10);
+  additional_entity_data.strings.push_back("str1");
+  additional_entity_data.strings.push_back("str2");
+
   flatbuffers::FlatBufferBuilder to_merge_builder;
   to_merge_builder.Finish(
       test::EntityData::Pack(to_merge_builder, &additional_entity_data));
@@ -249,6 +264,15 @@ TEST(FlatbuffersTest, PartialBuffersAreCorrectlyMerged) {
   EXPECT_EQ(entity_data->flight_number->carrier_code, "LX");
   EXPECT_EQ(entity_data->flight_number->flight_code, 39);
   EXPECT_EQ(entity_data->contact_info->first_name, "Barack");
+  ASSERT_EQ(entity_data->reminders.size(), 2);
+  EXPECT_EQ(entity_data->reminders[1]->notes[0], "additional note1");
+  EXPECT_EQ(entity_data->reminders[1]->notes[1], "additional note2");
+  ASSERT_EQ(entity_data->numbers.size(), 2);
+  EXPECT_EQ(entity_data->numbers[0], 9);
+  EXPECT_EQ(entity_data->numbers[1], 10);
+  ASSERT_EQ(entity_data->strings.size(), 2);
+  EXPECT_EQ(entity_data->strings[0], "str1");
+  EXPECT_EQ(entity_data->strings[1], "str2");
 }
 
 TEST(FlatbuffersTest, PrimitiveAndNestedFieldsAreCorrectlyFlattened) {

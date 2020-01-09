@@ -167,6 +167,10 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
 
     case Variant::TYPE_EMPTY:
       return {Status::UNKNOWN};
+
+    default:
+      TC3_LOG(ERROR) << "Unsupported NamedVariant type: " << value.GetType();
+      return {Status::UNKNOWN};
   }
 }
 

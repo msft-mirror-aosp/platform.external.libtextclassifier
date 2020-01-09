@@ -1,0 +1,40 @@
+//
+// Copyright (C) 2018 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+file_identifier "TC2 ";
+
+// Next ID: 2
+namespace libtextclassifier3.PersonNameModel_;
+table PersonName {
+  // Person name which is considered by the person name annotator. This
+  // attribute should contain 'atomic' person names, e.g., 'John' and 'Doe'
+  // should be two separate person names.
+  // required
+  person_name:string (shared);
+}
+
+// Next ID: 3
+namespace libtextclassifier3;
+table PersonNameModel {
+  // Decides if the person name annotator is enabled.
+  // required
+  enabled:bool;
+
+  // List of all person names which are considered by the person name annotator.
+  person_names:[PersonNameModel_.PersonName];
+}
+
+root_type libtextclassifier3.PersonNameModel;

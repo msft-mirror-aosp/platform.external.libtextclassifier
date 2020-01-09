@@ -560,6 +560,18 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
   return model->InitializeInstalledAppEngine(serialized_config_string);
 }
 
+TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
+               nativeInitializePersonNameEngine)
+(JNIEnv* env, jobject thiz, jlong ptr, jint fd, jlong offset, jlong size) {
+  if (!ptr) {
+    return false;
+  }
+
+  Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
+
+  return model->InitializePersonNameEngineFromFileDescriptor(fd, offset, size);
+}
+
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeGetNativeModelPtr)
 (JNIEnv* env, jobject thiz, jlong ptr) {
   if (!ptr) {

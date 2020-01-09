@@ -44,6 +44,7 @@ table EntityData {
   reminders: [Reminder];
   numbers: [int];
   strings: [string];
+  mystic: string;  // Extra field.
 }
 
 root_type libtextclassifier3.test.EntityData;

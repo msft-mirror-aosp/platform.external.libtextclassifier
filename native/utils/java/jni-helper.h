@@ -108,8 +108,9 @@ class JniHelper {
                                        jmethodID method_id, ...);
   static StatusOr<int64> CallLongMethod(JNIEnv* env, jobject object,
                                         jmethodID method_id, ...);
-  static StatusOr<int32> CallStaticIntMethod(JNIEnv* env, jclass clazz,
-                                             jmethodID method_id, ...);
+  template <class T>
+  static StatusOr<T> CallStaticIntMethod(JNIEnv* env, jclass clazz,
+                                         jmethodID method_id, ...);
 };
 
 template <typename T>
@@ -119,6 +120,18 @@ StatusOr<ScopedLocalRef<T>> JniHelper::GetObjectArrayElement(JNIEnv* env,
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
   ScopedLocalRef<T> result(
       reinterpret_cast<T>(env->GetObjectArrayElement(array, index)), env);
+
+  TC3_NO_EXCEPTION_OR_RETURN;
+  return result;
+}
+
+template <class T>
+StatusOr<T> JniHelper::CallStaticIntMethod(JNIEnv* env, jclass clazz,
+                                           jmethodID method_id, ...) {
+  va_list args;
+  va_start(args, method_id);
+  jint result = env->CallStaticIntMethodV(clazz, method_id, args);
+  va_end(args);
 
   TC3_NO_EXCEPTION_OR_RETURN;
   return result;

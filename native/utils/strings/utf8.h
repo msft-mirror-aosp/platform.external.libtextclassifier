@@ -17,6 +17,8 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_STRINGS_UTF8_H_
 #define LIBTEXTCLASSIFIER_UTILS_STRINGS_UTF8_H_
 
+#include "utils/base/integral_types.h"
+
 namespace libtextclassifier3 {
 
 // Returns the length (number of bytes) of the Unicode code point starting at
@@ -50,6 +52,20 @@ bool IsValidUTF8(const char *src, int size);
 // Returns byte length of the first valid codepoint in the string, otherwise -1
 // if pointing to an ill-formed UTF-8 character.
 int ValidUTF8CharLength(const char *src, int size);
+
+// Helper to ensure that strings are not truncated in the middle of
+// multi-byte UTF-8 characters.
+// Given a string, and a position at which to truncate, returns the
+// last position not after the provided cut point, that would truncate a
+// full character.
+int SafeTruncateLength(const char *str, int truncate_at);
+
+// Gets a unicode codepoint from a valid utf8 encoding.
+char32 ValidCharToRune(const char *str);
+
+// Converts a valid codepoint to utf8.
+// Returns the length of the encoding.
+int ValidRuneToChar(const char32 rune, char *dest);
 
 }  // namespace libtextclassifier3
 
