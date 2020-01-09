@@ -27,6 +27,7 @@ import android.util.Pair;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.ConversationActions.Message;
+import com.android.textclassifier.ModelFileManager.ModelFile;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.statsd.ResultIdUtils;
 import com.android.textclassifier.intent.LabeledIntent;
@@ -39,9 +40,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -106,14 +107,21 @@ final class ActionsSuggestionsHelper {
   public static String createResultId(
       Context context,
       List<ConversationActions.Message> messages,
-      int modelVersion,
-      List<Locale> modelLocales) {
-    final int hash =
+      ModelFile actionsModel,
+      Optional<ModelFile> annotatorModel) {
+    int hash =
         Objects.hash(
             messages.stream().mapToInt(ActionsSuggestionsHelper::hashMessage),
             context.getPackageName(),
             System.currentTimeMillis());
-    return ResultIdUtils.createId(modelVersion, modelLocales, hash);
+    List<ResultIdUtils.ModelInfo> modelInfos = new ArrayList<>();
+    modelInfos.add(createModelInfo(actionsModel));
+    annotatorModel.ifPresent(model -> modelInfos.add(createModelInfo(model)));
+    return ResultIdUtils.createId(modelInfos, hash);
+  }
+
+  private static ResultIdUtils.ModelInfo createModelInfo(ModelFile modelFile) {
+    return new ResultIdUtils.ModelInfo(modelFile.getVersion(), modelFile.getSupportedLocales());
   }
 
   /** Generated labeled intent from an action suggestion and return the resolved result. */

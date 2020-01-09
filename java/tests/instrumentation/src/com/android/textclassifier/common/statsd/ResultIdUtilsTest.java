@@ -21,7 +21,10 @@ import static com.google.common.truth.Truth.assertThat;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
+import com.google.common.collect.ImmutableList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -34,10 +37,14 @@ public class ResultIdUtilsTest {
 
   @Test
   public void createId_customHash() {
-    String resultId =
-        ResultIdUtils.createId(MODEL_VERSION, Collections.singletonList(Locale.ENGLISH), HASH);
+    List<ModelInfo> modelInfos =
+        ImmutableList.of(
+            new ModelInfo(/* version= */ 1, ImmutableList.of(Locale.ENGLISH, Locale.FRENCH)),
+            new ModelInfo(/* version= */ 2, ImmutableList.of(Locale.CHINESE)));
 
-    assertThat(resultId).isEqualTo("androidtc|en_v703|12345");
+    String resultId = ResultIdUtils.createId(modelInfos, HASH);
+
+    assertThat(resultId).isEqualTo("androidtc|en,fr_v1;zh_v2|12345");
   }
 
   @Test
@@ -52,5 +59,33 @@ public class ResultIdUtilsTest {
             Collections.singletonList(Locale.ENGLISH));
 
     assertThat(resultId).matches("androidtc\\|en_v703\\|-?\\d+");
+  }
+
+  @Test
+  public void getModelName() {
+    assertThat(ResultIdUtils.getModelName("androidtc|en_v703|12344")).isEqualTo("en_v703");
+  }
+
+  @Test
+  public void getModelName_multipleModels() {
+    assertThat(ResultIdUtils.getModelName("androidtc|en_v703;zh_v101|12344")).isEqualTo("en_v703");
+  }
+
+  @Test
+  public void getModelName_invalid() {
+    assertThat(ResultIdUtils.getModelNames("a|b")).isEmpty();
+  }
+
+  @Test
+  public void getModelNames() {
+    assertThat(ResultIdUtils.getModelNames("androidtc|en_v703;zh_v101|12344"))
+        .containsExactly("en_v703", "zh_v101")
+        .inOrder();
+  }
+
+  @Test
+  public void getModelNames_invalid() {
+    assertThat(ResultIdUtils.getModelNames("a|b")).isEmpty();
+    assertThat(ResultIdUtils.getModelNames("a|b|c|d")).isEmpty();
   }
 }
