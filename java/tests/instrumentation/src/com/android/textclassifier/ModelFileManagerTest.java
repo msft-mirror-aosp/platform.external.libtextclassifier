@@ -23,10 +23,10 @@ import android.os.LocaleList;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.ModelFileManager.ModelFile;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -43,7 +43,7 @@ import org.mockito.MockitoAnnotations;
 @RunWith(AndroidJUnit4.class)
 public class ModelFileManagerTest {
   private static final Locale DEFAULT_LOCALE = Locale.forLanguageTag("en-US");
-  @Mock private Supplier<List<ModelFileManager.ModelFile>> modelFileSupplier;
+  @Mock private Supplier<ImmutableList<ModelFile>> modelFileSupplier;
   private ModelFileManager.ModelFileSupplierImpl modelFileSupplierImpl;
   private ModelFileManager modelFileManager;
   private File rootTestDir;
@@ -96,7 +96,7 @@ public class ModelFileManagerTest {
 
     ModelFileManager.ModelFile newerModelFile =
         new ModelFileManager.ModelFile(new File("/path/b"), 2, ImmutableList.of(), "", true);
-    when(modelFileSupplier.get()).thenReturn(Arrays.asList(olderModelFile, newerModelFile));
+    when(modelFileSupplier.get()).thenReturn(ImmutableList.of(olderModelFile, newerModelFile));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(LocaleList.getEmptyLocaleList());
@@ -118,7 +118,7 @@ public class ModelFileManagerTest {
             locale.toLanguageTag(),
             false);
     when(modelFileSupplier.get())
-        .thenReturn(Arrays.asList(languageIndependentModelFile, languageDependentModelFile));
+        .thenReturn(ImmutableList.of(languageIndependentModelFile, languageDependentModelFile));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(LocaleList.forLanguageTags(locale.toLanguageTag()));
@@ -140,7 +140,7 @@ public class ModelFileManagerTest {
             false);
 
     when(modelFileSupplier.get())
-        .thenReturn(Arrays.asList(languageIndependentModelFile, languageDependentModelFile));
+        .thenReturn(ImmutableList.of(languageIndependentModelFile, languageDependentModelFile));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(LocaleList.forLanguageTags("zh-hk"));
@@ -161,7 +161,7 @@ public class ModelFileManagerTest {
             false);
 
     when(modelFileSupplier.get())
-        .thenReturn(Arrays.asList(languageIndependentModelFile, languageDependentModelFile));
+        .thenReturn(ImmutableList.of(languageIndependentModelFile, languageDependentModelFile));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(LocaleList.forLanguageTags("zh-hk"));
@@ -187,7 +187,7 @@ public class ModelFileManagerTest {
             false);
 
     when(modelFileSupplier.get())
-        .thenReturn(Arrays.asList(matchButOlderModel, mismatchButNewerModel));
+        .thenReturn(ImmutableList.of(matchButOlderModel, mismatchButNewerModel));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(LocaleList.forLanguageTags("fr"));
@@ -207,7 +207,7 @@ public class ModelFileManagerTest {
     ModelFileManager.ModelFile languageIndependentModel =
         new ModelFileManager.ModelFile(new File("/path/a"), 2, ImmutableList.of(), "", true);
     when(modelFileSupplier.get())
-        .thenReturn(Arrays.asList(matchLocaleModel, languageIndependentModel));
+        .thenReturn(ImmutableList.of(matchLocaleModel, languageIndependentModel));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(LocaleList.forLanguageTags("ja"));

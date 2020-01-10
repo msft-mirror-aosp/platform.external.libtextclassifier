@@ -28,8 +28,9 @@ import android.view.textclassifier.TextSelection;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayDeque;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.Locale;
 import org.junit.Before;
@@ -76,8 +77,7 @@ public class SelectionEventConverterTest {
   public void convert_smartSelection() {
     session.onSelectionEvent(
         SelectionEvent.createSelectionStartedEvent(SelectionEvent.INVOCATION_MANUAL, START));
-    String resultId =
-        ResultIdUtils.createId(702, Collections.singletonList(Locale.ENGLISH), /*hash=*/ 12345);
+    String resultId = createResultId();
     session.onSelectionEvent(
         SelectionEvent.createSelectionActionEvent(
             SMART_START,
@@ -108,8 +108,7 @@ public class SelectionEventConverterTest {
   public void convert_smartShare() {
     session.onSelectionEvent(
         SelectionEvent.createSelectionStartedEvent(SelectionEvent.INVOCATION_MANUAL, START));
-    String resultId =
-        ResultIdUtils.createId(702, Collections.singletonList(Locale.ENGLISH), /*hash=*/ 12345);
+    String resultId = createResultId();
     session.onSelectionEvent(
         SelectionEvent.createSelectionModifiedEvent(
             SMART_START,
@@ -140,8 +139,7 @@ public class SelectionEventConverterTest {
   public void convert_smartLinkify() {
     session.onSelectionEvent(
         SelectionEvent.createSelectionStartedEvent(SelectionEvent.INVOCATION_LINK, START));
-    String resultId =
-        ResultIdUtils.createId(702, Collections.singletonList(Locale.ENGLISH), /*hash=*/ 12345);
+    String resultId = createResultId();
     session.onSelectionEvent(
         SelectionEvent.createSelectionModifiedEvent(
             SMART_START,
@@ -174,6 +172,12 @@ public class SelectionEventConverterTest {
   private static void assertEventContext(TextClassificationContext eventContext) {
     assertThat(eventContext.getPackageName()).isEqualTo(PKG_NAME);
     assertThat(eventContext.getWidgetType()).isEqualTo(WIDGET_TYPE);
+  }
+
+  private static String createResultId() {
+    return ResultIdUtils.createId(
+        ImmutableList.of(new ModelInfo(/* version= */ 702, ImmutableList.of(Locale.ENGLISH))),
+        /*hash=*/ 12345);
   }
 
   private static class TestTextClassifier implements TextClassifier {

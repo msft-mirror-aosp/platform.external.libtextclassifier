@@ -145,7 +145,7 @@ public class TextClassifierEventLoggerTest {
         new TextClassifierEvent.ConversationActionsEvent.Builder(
                 TextClassifierEvent.TYPE_SELECTION_STARTED)
             .setEventContext(createTextClassificationContext())
-            .setModelName(MODEL_NAME)
+            .setResultId("android_tc|en_v1;zh_v2|12345")
             .setEventIndex(1)
             .setEntityTypes("first", "second", "third", "fourth")
             .setScores(0.5f)
@@ -157,14 +157,14 @@ public class TextClassifierEventLoggerTest {
         AtomsProto.ConversationActionsEvent.newBuilder()
             .setSessionId(sessionId.flattenToString())
             .setEventType(EventType.SELECTION_STARTED)
-            .setModelName(MODEL_NAME)
+            .setModelName("en_v1")
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)
             .setFirstEntityType("first")
             .setSecondEntityType("second")
             .setThirdEntityType("third")
             .setScore(0.5f)
             .setPackageName(PKG_NAME)
-            .setAnnotatorModelName("")
+            .setAnnotatorModelName("zh_v2")
             .build();
     ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
     assertThat(atoms).hasSize(1);

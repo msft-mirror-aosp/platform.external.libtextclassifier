@@ -23,6 +23,8 @@ import com.android.textclassifier.common.logging.TextClassificationContext;
 import com.android.textclassifier.common.logging.TextClassificationSessionId;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import java.util.List;
 import javax.annotation.Nullable;
 
 /** Logs {@link android.view.textclassifier.TextClassifierEvent}. */
@@ -88,20 +90,21 @@ public final class TextClassifierEventLogger {
   private static void logConversationActionsEvent(
       @Nullable TextClassificationSessionId sessionId,
       TextClassifierEvent.ConversationActionsEvent event) {
+    ImmutableList<String> modelNames = ResultIdUtils.getModelNames(event.getResultId());
     TextClassifierStatsLog.write(
         TextClassifierStatsLog.CONVERSATION_ACTIONS_EVENT,
         sessionId == null
             ? event.getResultId() // TODO: Update ExtServices to set the session id.
             : sessionId.flattenToString(),
         event.getEventType(),
-        getModelName(event),
+        getItemAt(modelNames, 0, null),
         getWidgetType(event),
         getItemAt(event.getEntityTypes(), /* index= */ 0),
         getItemAt(event.getEntityTypes(), /* index= */ 1),
         getItemAt(event.getEntityTypes(), /* index= */ 2),
         getFloatAt(event.getScores(), /* index= */ 0),
         getPackageName(event),
-        "");
+        getItemAt(modelNames, 1, null));
   }
 
   private static void logLanguageDetectionEvent(
@@ -117,6 +120,17 @@ public final class TextClassifierEventLogger {
         getFloatAt(event.getScores(), /* index= */ 0),
         getIntAt(event.getActionIndices(), /* index= */ 0),
         getPackageName(event));
+  }
+
+  @Nullable
+  private static <T> T getItemAt(List<T> list, int index, T defaultValue) {
+    if (list == null) {
+      return defaultValue;
+    }
+    if (index >= list.size()) {
+      return defaultValue;
+    }
+    return list.get(index);
   }
 
   @Nullable

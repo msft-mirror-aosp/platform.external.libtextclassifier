@@ -19,9 +19,11 @@ package com.android.textclassifier;
 import android.os.LocaleList;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
+import androidx.annotation.GuardedBy;
 import com.android.textclassifier.common.base.TcLog;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -41,27 +43,15 @@ import javax.annotation.Nullable;
 final class ModelFileManager {
   private static final String TAG = "ModelFileManager";
 
-  private final Object lock = new Object();
-  private final Supplier<List<ModelFile>> modelFileSupplier;
+  private final Supplier<ImmutableList<ModelFile>> modelFileSupplier;
 
-  private List<ModelFile> modelFiles;
-
-  public ModelFileManager(Supplier<List<ModelFile>> modelFileSupplier) {
+  public ModelFileManager(Supplier<ImmutableList<ModelFile>> modelFileSupplier) {
     this.modelFileSupplier = Preconditions.checkNotNull(modelFileSupplier);
   }
 
-  /**
-   * Returns an unmodifiable list of model files listed by the given model files supplier.
-   *
-   * <p>The result is cached.
-   */
-  public List<ModelFile> listModelFiles() {
-    synchronized (lock) {
-      if (modelFiles == null) {
-        modelFiles = Collections.unmodifiableList(modelFileSupplier.get());
-      }
-      return modelFiles;
-    }
+  /** Returns an immutable list of model files listed by the given model files supplier. */
+  public ImmutableList<ModelFile> listModelFiles() {
+    return modelFileSupplier.get();
   }
 
   /**
@@ -88,12 +78,16 @@ final class ModelFileManager {
   }
 
   /** Default implementation of the model file supplier. */
-  public static final class ModelFileSupplierImpl implements Supplier<List<ModelFile>> {
+  public static final class ModelFileSupplierImpl implements Supplier<ImmutableList<ModelFile>> {
     private final File updatedModelFile;
     private final File factoryModelDir;
     private final Pattern modelFilenamePattern;
     private final Function<Integer, Integer> versionSupplier;
     private final Function<Integer, String> supportedLocalesSupplier;
+    private final Object lock = new Object();
+
+    @GuardedBy("lock")
+    private ImmutableList<ModelFile> factoryModels;
 
     public ModelFileSupplierImpl(
         File factoryModelDir,
@@ -109,7 +103,7 @@ final class ModelFileManager {
     }
 
     @Override
-    public List<ModelFile> get() {
+    public ImmutableList<ModelFile> get() {
       final List<ModelFile> modelFiles = new ArrayList<>();
       // The update model has the highest precedence.
       if (updatedModelFile.exists()) {
@@ -119,6 +113,17 @@ final class ModelFileManager {
         }
       }
       // Factory models should never have overlapping locales, so the order doesn't matter.
+      synchronized (lock) {
+        if (factoryModels == null) {
+          factoryModels = getFactoryModels();
+        }
+        modelFiles.addAll(factoryModels);
+      }
+      return ImmutableList.copyOf(modelFiles);
+    }
+
+    private ImmutableList<ModelFile> getFactoryModels() {
+      List<ModelFile> factoryModelFiles = new ArrayList<>();
       if (factoryModelDir.exists() && factoryModelDir.isDirectory()) {
         final File[] files = factoryModelDir.listFiles();
         for (File file : files) {
@@ -126,12 +131,12 @@ final class ModelFileManager {
           if (matcher.matches() && file.isFile()) {
             final ModelFile model = createModelFile(file);
             if (model != null) {
-              modelFiles.add(model);
+              factoryModelFiles.add(model);
             }
           }
         }
       }
-      return modelFiles;
+      return ImmutableList.copyOf(factoryModelFiles);
     }
 
     /** Returns null if the path did not point to a compatible model. */

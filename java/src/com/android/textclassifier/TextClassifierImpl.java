@@ -58,6 +58,7 @@ import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.LangIdModel;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -70,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -188,9 +190,9 @@ final class TextClassifierImpl {
       final String string = request.getText().toString();
       if (string.length() > 0 && rangeLength <= settings.getSuggestSelectionMaxRangeLength()) {
         final String localesString = concatenateLocales(request.getDefaultLocales());
+        final Optional<LangIdModel> langIdModel = getLangIdImpl();
         final String detectLanguageTags =
-            String.join(
-                ",", detectLanguages(request.getText(), getLangIdThreshold()).getEntities());
+            String.join(",", detectLanguageTags(langIdModel, request.getText()));
         final ZonedDateTime refTime = ZonedDateTime.now(ZoneId.systemDefault());
         final AnnotatorModel annotatorImpl = getAnnotatorImpl(request.getDefaultLocales());
         final int[] startEnd =
@@ -246,8 +248,8 @@ final class TextClassifierImpl {
     Preconditions.checkNotNull(request);
     checkMainThread();
     try {
-      List<String> detectLanguageTags =
-          detectLanguages(request.getText(), getLangIdThreshold()).getEntities();
+      Optional<LangIdModel> langId = getLangIdImpl();
+      List<String> detectLanguageTags = detectLanguageTags(langId, request.getText());
       final int rangeLength = request.getEndIndex() - request.getStartIndex();
       final String string = request.getText().toString();
       if (string.length() > 0 && rangeLength <= settings.getClassifyTextMaxRangeLength()) {
@@ -271,7 +273,12 @@ final class TextClassifierImpl {
                     getResourceLocalesString());
         if (results.length > 0) {
           return createClassificationResult(
-              results, string, request.getStartIndex(), request.getEndIndex(), refTime.toInstant());
+              results,
+              string,
+              request.getStartIndex(),
+              request.getEndIndex(),
+              refTime.toInstant(),
+              langId);
         }
       }
     } catch (Throwable t) {
@@ -305,8 +312,8 @@ final class TextClassifierImpl {
                       getEntitiesForHints(request.getEntityConfig().getHints()))
               : settings.getEntityListDefault();
       final String localesString = concatenateLocales(request.getDefaultLocales());
-      final String detectLanguageTags =
-          String.join(",", detectLanguages(request.getText(), getLangIdThreshold()).getEntities());
+      Optional<LangIdModel> langId = getLangIdImpl();
+      ImmutableList<String> detectLanguageTags = detectLanguageTags(langId, request.getText());
       final AnnotatorModel annotatorImpl = getAnnotatorImpl(request.getDefaultLocales());
       final boolean isSerializedEntityDataEnabled =
           ExtrasUtils.isSerializedEntityDataEnabled(request);
@@ -317,7 +324,7 @@ final class TextClassifierImpl {
                   refTime.toInstant().toEpochMilli(),
                   refTime.getZone().getId(),
                   localesString,
-                  detectLanguageTags,
+                  String.join(",", detectLanguageTags),
                   entitiesToIdentify,
                   AnnotatorModel.AnnotationUsecase.SMART.getValue(),
                   isSerializedEntityDataEnabled));
@@ -391,13 +398,16 @@ final class TextClassifierImpl {
     checkMainThread();
     try {
       final TextLanguage.Builder builder = new TextLanguage.Builder();
-      final LangIdModel.LanguageResult[] langResults =
-          getLangIdImpl().detectLanguages(request.getText().toString());
-      for (int i = 0; i < langResults.length; i++) {
-        builder.putLocale(
-            ULocale.forLanguageTag(langResults[i].getLanguage()), langResults[i].getScore());
+      Optional<LangIdModel> langIdImpl = getLangIdImpl();
+      if (langIdImpl.isPresent()) {
+        final LangIdModel.LanguageResult[] langResults =
+            langIdImpl.get().detectLanguages(request.getText().toString());
+        for (int i = 0; i < langResults.length; i++) {
+          builder.putLocale(
+              ULocale.forLanguageTag(langResults[i].getLanguage()), langResults[i].getScore());
+        }
+        return builder.build();
       }
-      return builder.build();
     } catch (Throwable t) {
       // Avoid throwing from this method. Log the error.
       TcLog.e(TAG, "Error detecting text language.", t);
@@ -414,10 +424,10 @@ final class TextClassifierImpl {
         // Actions model is optional, fallback if it is not available.
         return fallback.suggestConversationActions(request);
       }
+      Optional<LangIdModel> langId = getLangIdImpl();
       ActionsSuggestionsModel.ConversationMessage[] nativeMessages =
           ActionsSuggestionsHelper.toNativeMessages(
-              request.getConversation(),
-              text -> detectLanguages(text, getLangIdThreshold()).getEntities());
+              request.getConversation(), text -> detectLanguageTags(langId, text));
       if (nativeMessages.length == 0) {
         return fallback.suggestConversationActions(request);
       }
@@ -485,8 +495,8 @@ final class TextClassifierImpl {
           ActionsSuggestionsHelper.createResultId(
               context,
               request.getConversation(),
-              actionModelInUse.getVersion(),
-              actionModelInUse.getSupportedLocales());
+              actionModelInUse,
+              Optional.of(annotatorModelInUse));
       return new ConversationActions(conversationActions, resultId);
     }
   }
@@ -528,17 +538,23 @@ final class TextClassifierImpl {
     }
   }
 
-  private LangIdModel getLangIdImpl() throws FileNotFoundException {
+  private Optional<LangIdModel> getLangIdImpl() {
     synchronized (lock) {
       final ModelFileManager.ModelFile bestModel = langIdModelFileManager.findBestModelFile(null);
       if (bestModel == null) {
-        throw new FileNotFoundException("No LangID model is found");
+        return Optional.empty();
       }
       if (langIdImpl == null || !Objects.equals(langIdModelInUse, bestModel)) {
         TcLog.d(TAG, "Loading " + bestModel);
-        final ParcelFileDescriptor pfd =
-            ParcelFileDescriptor.open(
-                new File(bestModel.getPath()), ParcelFileDescriptor.MODE_READ_ONLY);
+        final ParcelFileDescriptor pfd;
+        try {
+          pfd =
+              ParcelFileDescriptor.open(
+                  new File(bestModel.getPath()), ParcelFileDescriptor.MODE_READ_ONLY);
+        } catch (FileNotFoundException e) {
+          TcLog.e(TAG, "Failed to open the LangID model file", e);
+          return Optional.empty();
+        }
         try {
           if (pfd != null) {
             langIdImpl = new LangIdModel(pfd.getFd());
@@ -548,7 +564,7 @@ final class TextClassifierImpl {
           maybeCloseAndLogError(pfd);
         }
       }
-      return langIdImpl;
+      return Optional.of(langIdImpl);
     }
   }
 
@@ -602,7 +618,8 @@ final class TextClassifierImpl {
       String text,
       int start,
       int end,
-      @Nullable Instant referenceTime) {
+      @Nullable Instant referenceTime,
+      Optional<LangIdModel> langId) {
     final String classifiedText = text.substring(start, end);
     final TextClassification.Builder builder =
         new TextClassification.Builder().setText(classifiedText);
@@ -616,7 +633,10 @@ final class TextClassifierImpl {
         highestScoringResult = classifications[i];
       }
     }
-    final Pair<Bundle, Bundle> languagesBundles = generateLanguageBundles(text, start, end);
+    final Pair<Bundle, Bundle> languagesBundles =
+        langId
+            .map(model -> generateLanguageBundles(model, text, start, end))
+            .orElse(Pair.create(null, null));
     final Bundle textLanguagesBundle = languagesBundles.first;
     final Bundle foreignLanguageBundle = languagesBundles.second;
 
@@ -695,18 +715,19 @@ final class TextClassifierImpl {
    */
   // TODO: Revisit this algorithm.
   // TODO: Consider making this public API.
-  private Pair<Bundle, Bundle> generateLanguageBundles(String context, int start, int end) {
+  private Pair<Bundle, Bundle> generateLanguageBundles(
+      LangIdModel langId, String context, int start, int end) {
     if (!settings.isTranslateInClassificationEnabled()) {
       return null;
     }
     try {
-      final float threshold = getLangIdThreshold();
+      final float threshold = getLangIdThreshold(langId);
       if (threshold < 0 || threshold > 1) {
         TcLog.w(TAG, "[detectForeignLanguage] unexpected threshold is found: " + threshold);
         return Pair.create(null, null);
       }
 
-      final EntityConfidence languageScores = detectLanguages(context, start, end);
+      final EntityConfidence languageScores = detectLanguages(langId, context, start, end);
       if (languageScores.getEntities().isEmpty()) {
         return Pair.create(null, null);
       }
@@ -730,12 +751,24 @@ final class TextClassifierImpl {
         }
       }
       final Bundle foreignLanguageBundle =
-          ExtrasUtils.createForeignLanguageExtra(language, score, getLangIdImpl().getVersion());
+          ExtrasUtils.createForeignLanguageExtra(language, score, langId.getVersion());
       return Pair.create(textLanguagesBundle, foreignLanguageBundle);
     } catch (Throwable t) {
       TcLog.e(TAG, "Error generating language bundles.", t);
     }
     return Pair.create(null, null);
+  }
+
+  private ImmutableList<String> detectLanguageTags(
+      Optional<LangIdModel> langId, CharSequence text) {
+    return langId
+        .map(
+            model -> {
+              float threshold = getLangIdThreshold(model);
+              EntityConfidence languagesConfidence = detectLanguages(model, text, threshold);
+              return ImmutableList.copyOf(languagesConfidence.getEntities());
+            })
+        .orElse(ImmutableList.of());
   }
 
   /**
@@ -746,7 +779,8 @@ final class TextClassifierImpl {
    * @param end the end index of the text to detect its language
    */
   // TODO: Revisit this algorithm.
-  private EntityConfidence detectLanguages(String text, int start, int end) {
+  private EntityConfidence detectLanguages(
+      LangIdModel langIdModel, String text, int start, int end) {
     Preconditions.checkArgument(start >= 0);
     Preconditions.checkArgument(end <= text.length());
     Preconditions.checkArgument(start <= end);
@@ -776,7 +810,7 @@ final class TextClassifierImpl {
     }
 
     final String subject = text.substring(start, end);
-    final EntityConfidence scores = detectLanguages(subject, /* threshold= */ 0f);
+    final EntityConfidence scores = detectLanguages(langIdModel, subject, /* threshold= */ 0f);
 
     if (subject.length() >= minimumTextSize
         || subject.length() == text.length()
@@ -788,7 +822,7 @@ final class TextClassifierImpl {
     if (moreTextScoreRatio >= 0) {
       // Attempt to grow the detection text to be at least minimumTextSize long.
       final String moreText = StringUtils.getSubString(text, start, end, minimumTextSize);
-      moreTextScores = detectLanguages(moreText, /* threshold= */ 0f);
+      moreTextScores = detectLanguages(langIdModel, moreText, /* threshold= */ 0f);
     } else {
       moreTextScores = EntityConfidence.EMPTY;
     }
@@ -812,14 +846,7 @@ final class TextClassifierImpl {
    * Detects languages for the specified text. Only returns languages with score that is higher than
    * or equal to the specified threshold.
    */
-  private EntityConfidence detectLanguages(CharSequence text, float threshold) {
-    final LangIdModel langId;
-    try {
-      langId = getLangIdImpl();
-    } catch (FileNotFoundException e) {
-      TcLog.e(TAG, "detectLanguages: Failed to call getLangIdImpl ", e);
-      return EntityConfidence.EMPTY;
-    }
+  private EntityConfidence detectLanguages(LangIdModel langId, CharSequence text, float threshold) {
     final LangIdModel.LanguageResult[] langResults = langId.detectLanguages(text.toString());
     final Map<String, Float> languagesMap = new ArrayMap<>();
     for (LangIdModel.LanguageResult langResult : langResults) {
@@ -830,16 +857,10 @@ final class TextClassifierImpl {
     return new EntityConfidence(languagesMap);
   }
 
-  private float getLangIdThreshold() {
-    try {
-      return settings.getLangIdThresholdOverride() >= 0
-          ? settings.getLangIdThresholdOverride()
-          : getLangIdImpl().getLangIdThreshold();
-    } catch (FileNotFoundException e) {
-      final float defaultThreshold = 0.5f;
-      TcLog.v(TAG, "Using default foreign language threshold: " + defaultThreshold);
-      return defaultThreshold;
-    }
+  private float getLangIdThreshold(LangIdModel langId) {
+    return settings.getLangIdThresholdOverride() >= 0
+        ? settings.getLangIdThresholdOverride()
+        : langId.getLangIdThreshold();
   }
 
   void dump(IndentingPrintWriter printWriter) {

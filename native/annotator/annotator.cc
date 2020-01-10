@@ -1005,17 +1005,18 @@ bool Annotator::ResolveConflict(
     }
   }
 
-  std::sort(
-      conflicting_indices.begin(), conflicting_indices.end(),
-      [&scores_lengths, candidates, conflicting_indices, this](int i, int j) {
-        if (scores_lengths[i].first == scores_lengths[j].first &&
-            this->model_->triggering_options() != nullptr &&
-            this->model_->triggering_options()
-                ->prioritize_longest_annotation()) {
-          return scores_lengths[i].second > scores_lengths[j].second;
-        }
-        return scores_lengths[i].first > scores_lengths[j].first;
-      });
+  const bool prioritize_longest_annotation =
+      model_->triggering_options() != nullptr &&
+      model_->triggering_options()->prioritize_longest_annotation();
+  std::sort(conflicting_indices.begin(), conflicting_indices.end(),
+            [&scores_lengths, candidates, conflicting_indices,
+             prioritize_longest_annotation](int i, int j) {
+              if (scores_lengths[i].first == scores_lengths[j].first &&
+                  prioritize_longest_annotation) {
+                return scores_lengths[i].second > scores_lengths[j].second;
+              }
+              return scores_lengths[i].first > scores_lengths[j].first;
+            });
 
   // Here we keep a set of indices that were chosen, per-source, to enable
   // effective computation.
