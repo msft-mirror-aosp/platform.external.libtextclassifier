@@ -48,7 +48,8 @@ cc_library_static {
 
 cc_defaults {
     name: "libtextclassifier_defaults",
-
+    stl: "libc++_static",
+    sdk_version: "current",
     // For debug / treemap purposes.
     //strip: {
     //    keep_symbols: true,
@@ -111,13 +112,13 @@ cc_defaults {
 
     shared_libs: [
         "liblog",
-        "libtflite",
-        "libz",
     ],
 
     static_libs: [
         "liblua",
         "libutf",
+        "libtflite_static",
+        "libz_current",
     ],
 }
 
@@ -295,7 +296,7 @@ cc_test {
         "utils/utf8/*_test-include.*"
     ],
 
-    static_libs: ["libgmock"],
+    static_libs: ["libgmock_ndk"],
 
     multilib: {
         lib32: {
