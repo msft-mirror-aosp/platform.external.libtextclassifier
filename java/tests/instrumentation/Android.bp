@@ -50,6 +50,7 @@ android_test {
     plugins: ["androidx.room_room-compiler-plugin",],
     platform_apis: true,
     use_embedded_native_libs: true,
+    compile_multilib: "both",
 
     instrumentation_for: "TextClassifierService",
 }
