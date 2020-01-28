@@ -47,13 +47,11 @@ android_library {
         "libtextclassifier-java",
         "androidx.annotation_annotation",
         "guava",
-        "androidx.room_room-runtime",
         "textclassifier-statsd",
         "error_prone_annotations",
     ],
     sdk_version: "system_current",
     min_sdk_version: "28",
-    plugins: ["androidx.room_room-compiler-plugin",],
 }
 
 java_library {
