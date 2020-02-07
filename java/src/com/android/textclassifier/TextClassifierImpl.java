@@ -496,7 +496,7 @@ final class TextClassifierImpl {
               context,
               request.getConversation(),
               actionModelInUse,
-              Optional.of(annotatorModelInUse));
+              Optional.ofNullable(annotatorModelInUse));
       return new ConversationActions(conversationActions, resultId);
     }
   }

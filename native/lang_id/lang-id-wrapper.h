@@ -41,6 +41,11 @@ std::unique_ptr<libtextclassifier3::mobile::lang_id::LangId> LoadFromDescriptor(
 std::vector<std::pair<std::string, float>> GetPredictions(
     const libtextclassifier3::mobile::lang_id::LangId* model, const std::string& text);
 
+// Same as above but takes a char pointer and byte length.
+std::vector<std::pair<std::string, float>> GetPredictions(
+    const libtextclassifier3::mobile::lang_id::LangId* model, const char* text,
+    int text_size);
+
 // Returns the language tags string from the given LangId model. The language
 // tags will be filtered internally by the LangId threshold.
 std::string GetLanguageTags(const libtextclassifier3::mobile::lang_id::LangId* model,

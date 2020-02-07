@@ -98,7 +98,13 @@ void UnicodeText::Repr::clear() {
 
 UnicodeText::UnicodeText() {}
 
-UnicodeText::UnicodeText(const UnicodeText& src) { Copy(src); }
+UnicodeText::UnicodeText(const UnicodeText& src, bool do_copy) {
+  if (do_copy) {
+    Copy(src);
+  } else {
+    repr_.PointTo(src.repr_.data_, src.repr_.size_);
+  }
+}
 
 UnicodeText& UnicodeText::operator=(UnicodeText&& src) {
   this->repr_ = std::move(src.repr_);
@@ -211,8 +217,8 @@ std::string UnicodeText::UTF8Substring(int begin_codepoint,
                                        int end_codepoint) const {
   auto span_begin = begin();
   std::advance(span_begin, begin_codepoint);
-  auto span_end = begin();
-  std::advance(span_end, end_codepoint);
+  auto span_end = span_begin;
+  std::advance(span_end, end_codepoint - begin_codepoint);
   return UTF8Substring(span_begin, span_end);
 }
 
@@ -228,6 +234,11 @@ UnicodeText UnicodeText::Substring(const UnicodeText& text, int begin_codepoint,
   auto it_end = text.begin();
   std::advance(it_end, end_codepoint);
 
+  return Substring(it_begin, it_end, do_copy);
+}
+
+UnicodeText UnicodeText::Substring(const const_iterator& it_begin,
+                                   const const_iterator& it_end, bool do_copy) {
   if (do_copy) {
     UnicodeText result;
     result.repr_.Copy(it_begin.it_, it_end.it_ - it_begin.it_);

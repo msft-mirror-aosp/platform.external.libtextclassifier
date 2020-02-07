@@ -55,6 +55,23 @@ TEST_F(UniLibTest, CharacterClassesAscii) {
   EXPECT_TRUE(unilib_.IsDot('.'));
   EXPECT_TRUE(unilib_.IsDot(u'．'));
 
+  EXPECT_TRUE(unilib_.IsLatinLetter('A'));
+  EXPECT_TRUE(unilib_.IsArabicLetter(u'ب'));  // ARABIC LETTER BEH
+  EXPECT_TRUE(
+      unilib_.IsCyrillicLetter(u'ᲀ'));  // CYRILLIC SMALL LETTER ROUNDED VE
+  EXPECT_TRUE(unilib_.IsChineseLetter(u'豈'));   // CJK COMPATIBILITY IDEOGRAPH
+  EXPECT_TRUE(unilib_.IsJapaneseLetter(u'ぁ'));  // HIRAGANA LETTER SMALL A
+  EXPECT_TRUE(unilib_.IsKoreanLetter(u'ㄱ'));    // HANGUL LETTER KIYEOK
+  EXPECT_TRUE(unilib_.IsThaiLetter(u'ก'));       // THAI CHARACTER KO KAI
+  EXPECT_TRUE(unilib_.IsCJTletter(u'ก'));        // THAI CHARACTER KO KAI
+  EXPECT_FALSE(unilib_.IsCJTletter('A'));
+
+  EXPECT_TRUE(unilib_.IsLetter('A'));
+  EXPECT_TRUE(unilib_.IsLetter(u'Ａ'));
+  EXPECT_TRUE(unilib_.IsLetter(u'ト'));  // KATAKANA LETTER TO
+  EXPECT_TRUE(unilib_.IsLetter(u'ﾄ'));   // HALFWIDTH KATAKANA LETTER TO
+  EXPECT_TRUE(unilib_.IsLetter(u'豈'));  // CJK COMPATIBILITY IDEOGRAPH
+
   EXPECT_EQ(unilib_.ToLower('A'), 'a');
   EXPECT_EQ(unilib_.ToLower('Z'), 'z');
   EXPECT_EQ(unilib_.ToLower(')'), ')');
@@ -110,6 +127,23 @@ TEST_F(UniLibTest, CharacterClassesUnicode) {
   EXPECT_TRUE(unilib_.IsNumberSign(0xFF03));    // FULLWIDTH NUMBER SIGN
   EXPECT_TRUE(unilib_.IsDot(0x002E));           // FULL STOP
   EXPECT_TRUE(unilib_.IsDot(0xFF0E));           // FULLWIDTH FULL STOP
+
+  EXPECT_TRUE(unilib_.IsLatinLetter(0x0041));   // LATIN CAPITAL LETTER A
+  EXPECT_TRUE(unilib_.IsArabicLetter(0x0628));  // ARABIC LETTER BEH
+  EXPECT_TRUE(
+      unilib_.IsCyrillicLetter(0x1C80));  // CYRILLIC SMALL LETTER ROUNDED VE
+  EXPECT_TRUE(unilib_.IsChineseLetter(0xF900));   // CJK COMPATIBILITY IDEOGRAPH
+  EXPECT_TRUE(unilib_.IsJapaneseLetter(0x3041));  // HIRAGANA LETTER SMALL A
+  EXPECT_TRUE(unilib_.IsKoreanLetter(0x3131));    // HANGUL LETTER KIYEOK
+  EXPECT_TRUE(unilib_.IsThaiLetter(0x0E01));      // THAI CHARACTER KO KAI
+  EXPECT_TRUE(unilib_.IsCJTletter(0x0E01));       // THAI CHARACTER KO KAI
+  EXPECT_FALSE(unilib_.IsCJTletter(0x0041));      // LATIN CAPITAL LETTER A
+
+  EXPECT_TRUE(unilib_.IsLetter(0x0041));  // LATIN CAPITAL LETTER A
+  EXPECT_TRUE(unilib_.IsLetter(0xFF21));  // FULLWIDTH LATIN CAPITAL LETTER A
+  EXPECT_TRUE(unilib_.IsLetter(0x30C8));  // KATAKANA LETTER TO
+  EXPECT_TRUE(unilib_.IsLetter(0xFF84));  // HALFWIDTH KATAKANA LETTER TO
+  EXPECT_TRUE(unilib_.IsLetter(0xF900));  // CJK COMPATIBILITY IDEOGRAPH
 
   EXPECT_EQ(unilib_.ToLower(0x0391), 0x03B1);   // GREEK ALPHA
   EXPECT_EQ(unilib_.ToLower(0x03AB), 0x03CB);   // GREEK UPSILON WITH DIALYTIKA
@@ -332,11 +366,18 @@ TEST_F(UniLibTest, Integer32ParseFullWidth) {
   EXPECT_EQ(result, 123);
 }
 
-TEST_F(UniLibTest, Integer32ParseFullWidthWithAlpha) {
+TEST_F(UniLibTest, Integer32ParseNotNumber) {
   int result;
   // The input string here is full width
   EXPECT_FALSE(unilib_.ParseInt32(UTF8ToUnicodeText("１a３", /*do_copy=*/false),
                                   &result));
+  // Strings starting with "nan" are not numbers.
+  EXPECT_FALSE(unilib_.ParseInt32(UTF8ToUnicodeText("Nancy",
+                                                    /*do_copy=*/false),
+                                  &result));
+  // Strings starting with "inf" are not numbers
+  EXPECT_FALSE(unilib_.ParseInt32(
+      UTF8ToUnicodeText("Information", /*do_copy=*/false), &result));
 }
 
 TEST_F(UniLibTest, Integer64Parse) {
@@ -375,11 +416,18 @@ TEST_F(UniLibTest, Integer64ParseFullWidth) {
   EXPECT_EQ(result, 123);
 }
 
-TEST_F(UniLibTest, Integer64ParseFullWidthWithAlpha) {
+TEST_F(UniLibTest, Integer64ParseNotNumber) {
   int64 result;
   // The input string here is full width
   EXPECT_FALSE(unilib_.ParseInt64(UTF8ToUnicodeText("１a４", /*do_copy=*/false),
                                   &result));
+  // Strings starting with "nan" are not numbers.
+  EXPECT_FALSE(unilib_.ParseInt64(UTF8ToUnicodeText("Nancy",
+                                                    /*do_copy=*/false),
+                                  &result));
+  // Strings starting with "inf" are not numbers
+  EXPECT_FALSE(unilib_.ParseInt64(
+      UTF8ToUnicodeText("Information", /*do_copy=*/false), &result));
 }
 
 TEST_F(UniLibTest, DoubleParse) {
@@ -437,11 +485,17 @@ TEST_F(UniLibTest, DoubleParseFullWidth) {
   EXPECT_EQ(result, 1.23);
 }
 
-TEST_F(UniLibTest, DoubleParseFullWidthWithAlpha) {
+TEST_F(UniLibTest, DoubleParseNotNumber) {
   double result;
   // The input string here is full width
   EXPECT_FALSE(unilib_.ParseDouble(
       UTF8ToUnicodeText("１a５", /*do_copy=*/false), &result));
+  // Strings starting with "nan" are not numbers.
+  EXPECT_FALSE(unilib_.ParseDouble(
+      UTF8ToUnicodeText("Nancy", /*do_copy=*/false), &result));
+  // Strings starting with "inf" are not numbers
+  EXPECT_FALSE(unilib_.ParseDouble(
+      UTF8ToUnicodeText("Information", /*do_copy=*/false), &result));
 }
 
 }  // namespace test_internal

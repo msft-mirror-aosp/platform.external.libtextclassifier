@@ -115,6 +115,34 @@ Locale Locale::FromBCP47(const std::string& locale_tag) {
   return Locale(language.ToString(), script.ToString(), region.ToString());
 }
 
+Locale Locale::FromLanguageTag(const LanguageTag* language_tag) {
+  if (language_tag == nullptr || language_tag->language() == nullptr) {
+    return Locale::Invalid();
+  }
+
+  StringPiece language = language_tag->language()->c_str();
+  if (!CheckLanguage(language)) {
+    return Locale::Invalid();
+  }
+
+  StringPiece script;
+  if (language_tag->script() != nullptr) {
+    script = language_tag->script()->c_str();
+    if (!CheckScript(script)) {
+      script = "";
+    }
+  }
+
+  StringPiece region;
+  if (language_tag->region() != nullptr) {
+    region = language_tag->region()->c_str();
+    if (!CheckRegion(region)) {
+      region = "";
+    }
+  }
+  return Locale(language.ToString(), script.ToString(), region.ToString());
+}
+
 bool Locale::IsUnknown() const {
   return is_valid_ && language_ == kUnknownLanguageCode;
 }

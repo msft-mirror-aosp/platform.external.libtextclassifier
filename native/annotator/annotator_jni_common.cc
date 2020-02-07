@@ -92,6 +92,31 @@ StatusOr<T> FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
       int32 annotation_usecase,
       JniHelper::CallIntMethod(env, joptions, get_annotation_usecase));
 
+  // .getUserLocationLat()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_user_location_lat,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getUserLocationLat", "()D"));
+  TC3_ASSIGN_OR_RETURN(
+      double user_location_lat,
+      JniHelper::CallDoubleMethod(env, joptions, get_user_location_lat));
+
+  // .getUserLocationLng()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_user_location_lng,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getUserLocationLng", "()D"));
+  TC3_ASSIGN_OR_RETURN(
+      double user_location_lng,
+      JniHelper::CallDoubleMethod(env, joptions, get_user_location_lng));
+
+  // .getUserLocationAccuracyMeters()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_user_location_accuracy_meters,
+      JniHelper::GetMethodID(env, options_class.get(),
+                             "getUserLocationAccuracyMeters", "()F"));
+  TC3_ASSIGN_OR_RETURN(float user_location_accuracy_meters,
+                       JniHelper::CallFloatMethod(
+                           env, joptions, get_user_location_accuracy_meters));
+
   T options;
   TC3_ASSIGN_OR_RETURN(options.locales, ToStlString(env, locales.get()));
   TC3_ASSIGN_OR_RETURN(options.reference_timezone,
@@ -101,6 +126,8 @@ StatusOr<T> FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
                        ToStlString(env, detected_text_language_tags.get()));
   options.annotation_usecase =
       static_cast<AnnotationUsecase>(annotation_usecase);
+  options.location_context = {user_location_lat, user_location_lng,
+                              user_location_accuracy_meters};
   return options;
 }
 }  // namespace

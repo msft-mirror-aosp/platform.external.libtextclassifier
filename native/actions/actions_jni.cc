@@ -178,8 +178,8 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
       std::vector<RemoteActionTemplate> remote_action_templates;
       if (context->intent_generator()->GenerateIntents(
               device_locales, action_result[i], conversation, app_context,
-              /*annotations_entity_data_schema=*/nullptr,
-              /*actions_entity_data_schema=*/nullptr,
+              /*annotations_entity_data_schema=*/annotations_entity_data_schema,
+              /*actions_entity_data_schema=*/actions_entity_data_schema,
               &remote_action_templates)) {
         TC3_ASSIGN_OR_RETURN(
             remote_action_templates_result,

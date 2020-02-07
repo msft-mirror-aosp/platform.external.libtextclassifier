@@ -177,6 +177,9 @@ table Money {
 
   // Decimal part of the amount (e.g. 45 from "CHF 123.45").
   amount_decimal_part:int;
+
+  // Money amount (e.g. 123.45 from "CHF 123.45").
+  unnormalized_amount:string (shared);
 }
 
 // Represents an entity annotated in text.

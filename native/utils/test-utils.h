@@ -25,9 +25,8 @@
 
 namespace libtextclassifier3 {
 
-// Returns a list of Tokens for given input string. Can't handle non-ASCII
-// input.
-std::vector<Token> TokenizeAsciiOnSpace(const std::string& text);
+// Returns a list of Tokens for a given input string.
+std::vector<Token> TokenizeOnSpace(const std::string& text);
 
 }  // namespace  libtextclassifier3
 

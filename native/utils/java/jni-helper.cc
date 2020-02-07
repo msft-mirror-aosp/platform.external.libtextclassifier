@@ -89,6 +89,28 @@ StatusOr<int64> JniHelper::CallLongMethod(JNIEnv* env, jobject object,
   return result;
 }
 
+StatusOr<float> JniHelper::CallFloatMethod(JNIEnv* env, jobject object,
+                                           jmethodID method_id, ...) {
+  va_list args;
+  va_start(args, method_id);
+  jfloat result = env->CallFloatMethodV(object, method_id, args);
+  va_end(args);
+
+  TC3_NO_EXCEPTION_OR_RETURN;
+  return result;
+}
+
+StatusOr<double> JniHelper::CallDoubleMethod(JNIEnv* env, jobject object,
+                                             jmethodID method_id, ...) {
+  va_list args;
+  va_start(args, method_id);
+  jdouble result = env->CallDoubleMethodV(object, method_id, args);
+  va_end(args);
+
+  TC3_NO_EXCEPTION_OR_RETURN;
+  return result;
+}
+
 StatusOr<ScopedLocalRef<jintArray>> JniHelper::NewIntArray(JNIEnv* env,
                                                            jsize length) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;

@@ -21,20 +21,24 @@
 #include <cmath>
 #include <iterator>
 #include <numeric>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "annotator/collections.h"
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
 #include "utils/checksum.h"
+#include "utils/i18n/locale.h"
 #include "utils/math/softmax.h"
 #include "utils/normalization.h"
 #include "utils/optional.h"
 #include "utils/regex-match.h"
+#include "utils/strings/numbers.h"
+#include "utils/strings/split.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/zlib/zlib_regex.h"
-
 
 namespace libtextclassifier3 {
 
@@ -105,6 +109,18 @@ bool IsValidSpanInput(const UnicodeText& context, const CodepointSpan span) {
           span.second <= context.size_codepoints());
 }
 
+std::unordered_set<char32> FlatbuffersIntVectorToChar32UnorderedSet(
+    const flatbuffers::Vector<int32_t>* ints) {
+  if (ints == nullptr) {
+    return {};
+  }
+  std::unordered_set<char32> ints_set;
+  for (auto value : *ints) {
+    ints_set.insert(static_cast<char32>(value));
+  }
+  return ints_set;
+}
+
 }  // namespace
 
 tflite::Interpreter* InterpreterManager::SelectionInterpreter() {
@@ -145,7 +161,6 @@ std::unique_ptr<Annotator> Annotator::FromUnownedBuffer(
 
   return classifier;
 }
-
 
 std::unique_ptr<Annotator> Annotator::FromScopedMmap(
     std::unique_ptr<ScopedMmap>* mmap, const UniLib* unilib,
@@ -390,8 +405,20 @@ void Annotator::ValidateAndInitialize() {
       return;
     }
   }
-
-  if (model_->datetime_model()) {
+  if (model_->grammar_datetime_model() &&
+      model_->grammar_datetime_model()->datetime_rules()) {
+    cfg_datetime_parser_.reset(new dates::CfgDatetimeAnnotator(
+        *unilib_,
+        /*tokenizer_options=*/
+        model_->grammar_datetime_model()->grammar_tokenizer_options(),
+        *calendarlib_,
+        /*datetime_rules=*/model_->grammar_datetime_model()->datetime_rules()));
+    if (!cfg_datetime_parser_) {
+      TC3_LOG(ERROR) << "Could not initialize context free grammar based "
+                        "datetime parser.";
+      return;
+    }
+  } else if (model_->datetime_model()) {
     datetime_parser_ = DatetimeParser::Instance(
         model_->datetime_model(), *unilib_, *calendarlib_, decompressor.get());
     if (!datetime_parser_) {
@@ -423,15 +450,13 @@ void Annotator::ValidateAndInitialize() {
 
   if (model_->number_annotator_options() &&
       model_->number_annotator_options()->enabled()) {
-    if (selection_feature_processor_ == nullptr) {
-      TC3_LOG(ERROR)
-          << "Could not initialize NumberAnnotator without a feature processor";
-      return;
-    }
-
     number_annotator_.reset(
-        new NumberAnnotator(model_->number_annotator_options(),
-                            selection_feature_processor_.get()));
+        new NumberAnnotator(model_->number_annotator_options(), unilib_));
+  }
+
+  if (model_->money_parsing_options()) {
+    money_separators_ = FlatbuffersIntVectorToChar32UnorderedSet(
+        model_->money_parsing_options()->separators());
   }
 
   if (model_->duration_annotator_options() &&
@@ -523,7 +548,7 @@ bool Annotator::InitializeRegexModel(ZlibDecompressor* decompressor) {
 bool Annotator::InitializeKnowledgeEngine(
     const std::string& serialized_config) {
   std::unique_ptr<KnowledgeEngine> knowledge_engine(new KnowledgeEngine());
-  if (!knowledge_engine->Initialize(serialized_config)) {
+  if (!knowledge_engine->Initialize(serialized_config, unilib_)) {
     TC3_LOG(ERROR) << "Failed to initialize the knowledge engine.";
     return false;
   }
@@ -537,7 +562,8 @@ bool Annotator::InitializeKnowledgeEngine(
 
 bool Annotator::InitializeContactEngine(const std::string& serialized_config) {
   std::unique_ptr<ContactEngine> contact_engine(
-      new ContactEngine(selection_feature_processor_.get(), unilib_));
+      new ContactEngine(selection_feature_processor_.get(), unilib_,
+                        model_->contact_annotator_options()));
   if (!contact_engine->Initialize(serialized_config)) {
     TC3_LOG(ERROR) << "Failed to initialize the contact engine.";
     return false;
@@ -556,6 +582,16 @@ bool Annotator::InitializeInstalledAppEngine(
   }
   installed_app_engine_ = std::move(installed_app_engine);
   return true;
+}
+
+void Annotator::SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id) {
+  lang_id_ = lang_id;
+
+  if (model_->translate_annotator_options() &&
+      model_->translate_annotator_options()->enabled()) {
+    translate_annotator_.reset(new TranslateAnnotator(
+        model_->translate_annotator_options(), lang_id_, unilib_));
+  }
 }
 
 bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
@@ -790,7 +826,7 @@ CodepointSpan Annotator::SuggestSelection(
   }
   if (knowledge_engine_ != nullptr &&
       !knowledge_engine_->Chunk(context, options.annotation_usecase,
-                                &candidates)) {
+                                options.location_context, &candidates)) {
     TC3_LOG(ERROR) << "Knowledge suggest selection failed.";
     return original_click_indices;
   }
@@ -1517,13 +1553,14 @@ std::string CreateDatetimeSerializedEntityData(
   return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
                      builder.GetSize());
 }
+
 }  // namespace
 
 bool Annotator::DatetimeClassifyText(
     const std::string& context, CodepointSpan selection_indices,
     const ClassificationOptions& options,
     std::vector<ClassificationResult>* classification_results) const {
-  if (!datetime_parser_) {
+  if (!datetime_parser_ && !cfg_datetime_parser_) {
     return false;
   }
 
@@ -1532,13 +1569,25 @@ bool Annotator::DatetimeClassifyText(
           .UTF8Substring(selection_indices.first, selection_indices.second);
 
   std::vector<DatetimeParseResultSpan> datetime_spans;
-  if (!datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
-                               options.reference_timezone, options.locales,
-                               ModeFlag_CLASSIFICATION,
-                               options.annotation_usecase,
-                               /*anchor_start_end=*/true, &datetime_spans)) {
-    TC3_LOG(ERROR) << "Error during parsing datetime.";
-    return false;
+  if (cfg_datetime_parser_) {
+    if (!(model_->grammar_datetime_model()->enabled_modes() &
+          ModeFlag_CLASSIFICATION)) {
+      return true;
+    }
+    std::vector<Locale> parsed_locales;
+    ParseLocales(options.locales, &parsed_locales);
+    cfg_datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
+                                options.reference_timezone, parsed_locales,
+                                &datetime_spans);
+  } else if (datetime_parser_) {
+    if (!datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
+                                 options.reference_timezone, options.locales,
+                                 ModeFlag_CLASSIFICATION,
+                                 options.annotation_usecase,
+                                 /*anchor_start_end=*/true, &datetime_spans)) {
+      TC3_LOG(ERROR) << "Error during parsing datetime.";
+      return false;
+    }
   }
   for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {
     // Only consider the result valid if the selection and extracted datetime
@@ -1602,9 +1651,10 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   // Try the knowledge engine.
   // TODO(b/126579108): Propagate error status.
   ClassificationResult knowledge_result;
-  if (knowledge_engine_ && knowledge_engine_->ClassifyText(
-                               context, selection_indices,
-                               options.annotation_usecase, &knowledge_result)) {
+  if (knowledge_engine_ &&
+      knowledge_engine_->ClassifyText(
+          context, selection_indices, options.annotation_usecase,
+          options.location_context, &knowledge_result)) {
     candidates.push_back({selection_indices, {knowledge_result}});
     candidates.back().source = AnnotatedSpan::Source::KNOWLEDGE;
   }
@@ -1679,6 +1729,15 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
           options.annotation_usecase, &duration_annotator_result)) {
     candidates.push_back({selection_indices, {duration_annotator_result}});
     candidates.back().source = AnnotatedSpan::Source::DURATION;
+  }
+
+  // Try the translate annotator.
+  ClassificationResult translate_annotator_result;
+  if (translate_annotator_ &&
+      translate_annotator_->ClassifyText(
+          UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
+          options.user_familiar_language_tags, &translate_annotator_result)) {
+    candidates.push_back({selection_indices, {translate_annotator_result}});
   }
 
   // Try the ML model.
@@ -1946,6 +2005,7 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
   std::vector<AnnotatedSpan> knowledge_candidates;
   if (knowledge_engine_ &&
       !knowledge_engine_->Chunk(context, options.annotation_usecase,
+                                options.location_context,
                                 &knowledge_candidates)) {
     TC3_LOG(ERROR) << "Couldn't run knowledge engine Chunk.";
     return {};
@@ -2099,8 +2159,7 @@ bool Annotator::HasEntityData(const RegexModel_::Pattern* pattern) const {
     return true;
   }
   if (pattern->capturing_group() != nullptr) {
-    for (const RegexModel_::Pattern_::CapturingGroup* group :
-         *pattern->capturing_group()) {
+    for (const CapturingGroup* group : *pattern->capturing_group()) {
       if (group->entity_field_path() != nullptr) {
         return true;
       }
@@ -2137,8 +2196,7 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
   if (pattern->capturing_group() != nullptr) {
     const int num_groups = pattern->capturing_group()->size();
     for (int i = 0; i < num_groups; i++) {
-      const RegexModel_::Pattern_::CapturingGroup* group =
-          pattern->capturing_group()->Get(i);
+      const CapturingGroup* group = pattern->capturing_group()->Get(i);
 
       // Check whether the group matched.
       Optional<std::string> group_match_text =
@@ -2181,6 +2239,75 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
   return true;
 }
 
+UnicodeText RemoveMoneySeparators(
+    const std::unordered_set<char32>& decimal_separators,
+    const UnicodeText& amount,
+    UnicodeText::const_iterator it_decimal_separator) {
+  UnicodeText whole_amount;
+  for (auto it = amount.begin();
+       it != amount.end() && it != it_decimal_separator; ++it) {
+    if (std::find(decimal_separators.begin(), decimal_separators.end(),
+                  static_cast<char32>(*it)) == decimal_separators.end()) {
+      whole_amount.push_back(*it);
+    }
+  }
+  return whole_amount;
+}
+
+bool Annotator::ParseAndFillInMoneyAmount(
+    std::string* serialized_entity_data) const {
+  std::unique_ptr<EntityDataT> data =
+      LoadAndVerifyMutableFlatbuffer<libtextclassifier3::EntityData>(
+          *serialized_entity_data);
+  if (data == nullptr) {
+    return false;
+  }
+
+  UnicodeText amount =
+      UTF8ToUnicodeText(data->money->unnormalized_amount, /*do_copy=*/false);
+  int separator_back_index = 0;
+  auto it_decimal_separator = amount.end();
+  for (; it_decimal_separator != amount.begin();
+       --it_decimal_separator, ++separator_back_index) {
+    if (std::find(money_separators_.begin(), money_separators_.end(),
+                  static_cast<char32>(*it_decimal_separator)) !=
+        money_separators_.end()) {
+      break;
+    }
+  }
+
+  // If there are 3 digits after the last separator, we consider that a
+  // thousands separator => the number is an int (e.g. 1.234 is considered int).
+  // If there is no separator in number, also that number is an int.
+  if (separator_back_index == 4 || it_decimal_separator == amount.begin()) {
+    it_decimal_separator = amount.end();
+  }
+
+  if (!unilib_->ParseInt32(RemoveMoneySeparators(money_separators_, amount,
+                                                 it_decimal_separator),
+                           &data->money->amount_whole_part)) {
+    TC3_LOG(ERROR) << "Could not parse the money whole part as int32.";
+    return false;
+  }
+  if (it_decimal_separator == amount.end()) {
+    data->money->amount_decimal_part = 0;
+  } else {
+    const int amount_codepoints_size = amount.size_codepoints();
+    if (!unilib_->ParseInt32(
+            UnicodeText::Substring(
+                amount, amount_codepoints_size - separator_back_index + 1,
+                amount_codepoints_size, /*do_copy=*/false),
+            &data->money->amount_decimal_part)) {
+      TC3_LOG(ERROR) << "Could not parse the money decimal part as int32.";
+      return false;
+    }
+  }
+
+  *serialized_entity_data =
+      PackFlatbuffer<libtextclassifier3::EntityData>(data.get());
+  return true;
+}
+
 bool Annotator::RegexChunk(const UnicodeText& context_unicode,
                            const std::vector<int>& rules,
                            std::vector<AnnotatedSpan>* result,
@@ -2211,6 +2338,16 @@ bool Annotator::RegexChunk(const UnicodeText& context_unicode,
                 regex_pattern.config, matcher.get(), &serialized_entity_data)) {
           TC3_LOG(ERROR) << "Could not get entity data.";
           return false;
+        }
+
+        // Further parsing unnormalized_amount for money into amount_whole_part
+        // and amount_decimal_part. Can't do this with regexes because we cannot
+        // have empty groups (amount_decimal_part might be an empty group).
+        if (regex_pattern.config->collection_name()->str() ==
+            Collections::Money()) {
+          if (!ParseAndFillInMoneyAmount(&serialized_entity_data)) {
+            TC3_LOG(ERROR) << "Could not parse and fill in money amount.";
+          }
         }
       }
 
@@ -2483,17 +2620,27 @@ bool Annotator::DatetimeChunk(const UnicodeText& context_unicode,
                               AnnotationUsecase annotation_usecase,
                               bool is_serialized_entity_data_enabled,
                               std::vector<AnnotatedSpan>* result) const {
-  if (!datetime_parser_) {
+  std::vector<DatetimeParseResultSpan> datetime_spans;
+  if (cfg_datetime_parser_) {
+    if (!(model_->grammar_datetime_model()->enabled_modes() & mode)) {
+      return true;
+    }
+    std::vector<Locale> parsed_locales;
+    ParseLocales(locales, &parsed_locales);
+    cfg_datetime_parser_->Parse(context_unicode.ToUTF8String(),
+                                reference_time_ms_utc, reference_timezone,
+                                parsed_locales, &datetime_spans);
+  } else if (datetime_parser_) {
+    if (!datetime_parser_->Parse(context_unicode, reference_time_ms_utc,
+                                 reference_timezone, locales, mode,
+                                 annotation_usecase,
+                                 /*anchor_start_end=*/false, &datetime_spans)) {
+      return false;
+    }
+  } else {
     return true;
   }
 
-  std::vector<DatetimeParseResultSpan> datetime_spans;
-  if (!datetime_parser_->Parse(context_unicode, reference_time_ms_utc,
-                               reference_timezone, locales, mode,
-                               annotation_usecase,
-                               /*anchor_start_end=*/false, &datetime_spans)) {
-    return false;
-  }
   for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {
     AnnotatedSpan annotated_span;
     annotated_span.span = datetime_span.span;

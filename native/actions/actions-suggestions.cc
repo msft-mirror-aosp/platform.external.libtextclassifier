@@ -20,17 +20,16 @@
 
 #include "actions/lua-actions.h"
 #include "actions/types.h"
+#include "actions/utils.h"
 #include "actions/zlib-utils.h"
 #include "utils/base/logging.h"
 #include "utils/flatbuffers.h"
 #include "utils/lua-utils.h"
 #include "utils/normalization.h"
 #include "utils/optional.h"
-#include "utils/regex-match.h"
 #include "utils/strings/split.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/utf8/unicodetext.h"
-#include "utils/zlib/zlib_regex.h"
 #include "tensorflow/lite/string_util.h"
 
 namespace libtextclassifier3 {
@@ -266,12 +265,6 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     }
   }
 
-  std::unique_ptr<ZlibDecompressor> decompressor = ZlibDecompressor::Instance();
-  if (!InitializeRules(decompressor.get())) {
-    TC3_LOG(ERROR) << "Could not initialize rules.";
-    return false;
-  }
-
   if (model_->actions_entity_data_schema() != nullptr) {
     entity_data_schema_ = LoadAndVerifyFlatbuffer<reflection::Schema>(
         model_->actions_entity_data_schema()->Data(),
@@ -285,6 +278,25 @@ bool ActionsSuggestions::ValidateAndInitialize() {
         new ReflectiveFlatbufferBuilder(entity_data_schema_));
   } else {
     entity_data_schema_ = nullptr;
+  }
+
+  // Initialize regular expressions model.
+  std::unique_ptr<ZlibDecompressor> decompressor = ZlibDecompressor::Instance();
+  regex_actions_.reset(
+      new RegexActions(model_->smart_reply_action_type()->str(), unilib_));
+  if (!regex_actions_->InitializeRules(
+          model_->rules(), model_->low_confidence_rules(),
+          triggering_preconditions_overlay_, decompressor.get())) {
+    TC3_LOG(ERROR) << "Could not initialize regex rules.";
+    return false;
+  }
+
+  // Setup grammar model.
+  if (model_->rules() != nullptr &&
+      model_->rules()->grammar_rules() != nullptr) {
+    grammar_actions_.reset(new GrammarActions(
+        unilib_, model_->rules()->grammar_rules(), entity_data_builder_.get(),
+        model_->smart_reply_action_type()->str()));
   }
 
   std::string actions_script;
@@ -419,176 +431,6 @@ bool ActionsSuggestions::EmbedTokenId(const int32 token_id,
       /*dense_features=*/{}, embedding_executor_.get(), embedding);
 }
 
-bool ActionsSuggestions::InitializeRules(ZlibDecompressor* decompressor) {
-  if (model_->rules() != nullptr) {
-    if (!InitializeRules(decompressor, model_->rules(), &rules_)) {
-      TC3_LOG(ERROR) << "Could not initialize action rules.";
-      return false;
-    }
-  }
-
-  if (model_->low_confidence_rules() != nullptr) {
-    if (!InitializeRules(decompressor, model_->low_confidence_rules(),
-                         &low_confidence_rules_)) {
-      TC3_LOG(ERROR) << "Could not initialize low confidence rules.";
-      return false;
-    }
-  }
-
-  // Extend by rules provided by the overwrite.
-  // NOTE: The rules from the original models are *not* cleared.
-  if (triggering_preconditions_overlay_ != nullptr &&
-      triggering_preconditions_overlay_->low_confidence_rules() != nullptr) {
-    // These rules are optionally compressed, but separately.
-    std::unique_ptr<ZlibDecompressor> overwrite_decompressor =
-        ZlibDecompressor::Instance();
-    if (overwrite_decompressor == nullptr) {
-      TC3_LOG(ERROR) << "Could not initialze decompressor for overwrite rules.";
-      return false;
-    }
-    if (!InitializeRules(
-            overwrite_decompressor.get(),
-            triggering_preconditions_overlay_->low_confidence_rules(),
-            &low_confidence_rules_)) {
-      TC3_LOG(ERROR)
-          << "Could not initialize low confidence rules from overwrite.";
-      return false;
-    }
-  }
-
-  return true;
-}
-
-bool ActionsSuggestions::InitializeRules(
-    ZlibDecompressor* decompressor, const RulesModel* rules,
-    std::vector<CompiledRule>* compiled_rules) const {
-  for (const RulesModel_::Rule* rule : *rules->rule()) {
-    std::unique_ptr<UniLib::RegexPattern> compiled_pattern =
-        UncompressMakeRegexPattern(
-            *unilib_, rule->pattern(), rule->compressed_pattern(),
-            rules->lazy_regex_compilation(), decompressor);
-    if (compiled_pattern == nullptr) {
-      TC3_LOG(ERROR) << "Failed to load rule pattern.";
-      return false;
-    }
-
-    // Check whether there is a check on the output.
-    std::unique_ptr<UniLib::RegexPattern> compiled_output_pattern;
-    if (rule->output_pattern() != nullptr ||
-        rule->compressed_output_pattern() != nullptr) {
-      compiled_output_pattern = UncompressMakeRegexPattern(
-          *unilib_, rule->output_pattern(), rule->compressed_output_pattern(),
-          rules->lazy_regex_compilation(), decompressor);
-      if (compiled_output_pattern == nullptr) {
-        TC3_LOG(ERROR) << "Failed to load rule output pattern.";
-        return false;
-      }
-    }
-
-    compiled_rules->emplace_back(rule, std::move(compiled_pattern),
-                                 std::move(compiled_output_pattern));
-  }
-
-  return true;
-}
-
-bool ActionsSuggestions::IsLowConfidenceInput(
-    const Conversation& conversation, const int num_messages,
-    std::vector<int>* post_check_rules) const {
-  for (int i = 1; i <= num_messages; i++) {
-    const std::string& message =
-        conversation.messages[conversation.messages.size() - i].text;
-    const UnicodeText message_unicode(
-        UTF8ToUnicodeText(message, /*do_copy=*/false));
-
-    // Run ngram linear regression model.
-    if (ngram_model_ != nullptr) {
-      if (ngram_model_->Eval(message_unicode)) {
-        return true;
-      }
-    }
-
-    // Run the regex based rules.
-    for (int low_confidence_rule = 0;
-         low_confidence_rule < low_confidence_rules_.size();
-         low_confidence_rule++) {
-      const CompiledRule& rule = low_confidence_rules_[low_confidence_rule];
-      const std::unique_ptr<UniLib::RegexMatcher> matcher =
-          rule.pattern->Matcher(message_unicode);
-      int status = UniLib::RegexMatcher::kNoError;
-      if (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
-        // Rule only applies to input-output pairs, so defer the check.
-        if (rule.output_pattern != nullptr) {
-          post_check_rules->push_back(low_confidence_rule);
-          continue;
-        }
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-bool ActionsSuggestions::FilterConfidenceOutput(
-    const std::vector<int>& post_check_rules,
-    std::vector<ActionSuggestion>* actions) const {
-  if (post_check_rules.empty() || actions->empty()) {
-    return true;
-  }
-  std::vector<ActionSuggestion> filtered_text_replies;
-  for (const ActionSuggestion& action : *actions) {
-    if (action.response_text.empty()) {
-      filtered_text_replies.push_back(action);
-      continue;
-    }
-    bool passes_post_check = true;
-    const UnicodeText text_reply_unicode(
-        UTF8ToUnicodeText(action.response_text, /*do_copy=*/false));
-    for (const int rule_id : post_check_rules) {
-      const std::unique_ptr<UniLib::RegexMatcher> matcher =
-          low_confidence_rules_[rule_id].output_pattern->Matcher(
-              text_reply_unicode);
-      if (matcher == nullptr) {
-        TC3_LOG(ERROR) << "Could not create matcher for post check rule.";
-        return false;
-      }
-      int status = UniLib::RegexMatcher::kNoError;
-      if (matcher->Find(&status) || status != UniLib::RegexMatcher::kNoError) {
-        passes_post_check = false;
-        break;
-      }
-    }
-    if (passes_post_check) {
-      filtered_text_replies.push_back(action);
-    }
-  }
-  *actions = std::move(filtered_text_replies);
-  return true;
-}
-
-ActionSuggestion ActionsSuggestions::SuggestionFromSpec(
-    const ActionSuggestionSpec* action, const std::string& default_type,
-    const std::string& default_response_text,
-    const std::string& default_serialized_entity_data,
-    const float default_score, const float default_priority_score) const {
-  ActionSuggestion suggestion;
-  suggestion.score = action != nullptr ? action->score() : default_score;
-  suggestion.priority_score =
-      action != nullptr ? action->priority_score() : default_priority_score;
-  suggestion.type = action != nullptr && action->type() != nullptr
-                        ? action->type()->str()
-                        : default_type;
-  suggestion.response_text =
-      action != nullptr && action->response_text() != nullptr
-          ? action->response_text()->str()
-          : default_response_text;
-  suggestion.serialized_entity_data =
-      action != nullptr && action->serialized_entity_data() != nullptr
-          ? action->serialized_entity_data()->str()
-          : default_serialized_entity_data;
-  return suggestion;
-}
-
 std::vector<std::vector<Token>> ActionsSuggestions::Tokenize(
     const std::vector<std::string>& context) const {
   std::vector<std::vector<Token>> tokens;
@@ -648,7 +490,7 @@ bool ActionsSuggestions::EmbedTokensPerMessage(
 }
 
 bool ActionsSuggestions::EmbedAndFlattenTokens(
-    const std::vector<std::vector<Token>> tokens,
+    const std::vector<std::vector<Token>>& tokens,
     std::vector<float>* embeddings, int* total_token_count) const {
   const int num_messages = tokens.size();
   int start_message = 0;
@@ -1188,136 +1030,6 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
   return result;
 }
 
-bool ActionsSuggestions::FillAnnotationFromMatchGroup(
-    const UniLib::RegexMatcher* matcher,
-    const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
-    const std::string& group_match_text, const int message_index,
-    ActionSuggestionAnnotation* annotation) const {
-  if (group->annotation_name() != nullptr ||
-      group->annotation_type() != nullptr) {
-    int status = UniLib::RegexMatcher::kNoError;
-    const CodepointSpan span = {matcher->Start(group->group_id(), &status),
-                                matcher->End(group->group_id(), &status)};
-    if (status != UniLib::RegexMatcher::kNoError) {
-      TC3_LOG(ERROR) << "Could not extract span from rule capturing group.";
-      return false;
-    }
-
-    // The capturing group was not part of the match.
-    if (span.first == kInvalidIndex || span.second == kInvalidIndex) {
-      return false;
-    }
-    annotation->span.span = span;
-    annotation->span.message_index = message_index;
-    annotation->span.text = group_match_text;
-    if (group->annotation_name() != nullptr) {
-      annotation->name = group->annotation_name()->str();
-    }
-    if (group->annotation_type() != nullptr) {
-      annotation->entity.collection = group->annotation_type()->str();
-    }
-  }
-  return true;
-}
-
-bool ActionsSuggestions::SuggestActionsFromRules(
-    const Conversation& conversation,
-    std::vector<ActionSuggestion>* actions) const {
-  // Create actions based on rules checking the last message.
-  const int message_index = conversation.messages.size() - 1;
-  const std::string& message = conversation.messages.back().text;
-  const UnicodeText message_unicode(
-      UTF8ToUnicodeText(message, /*do_copy=*/false));
-  for (const CompiledRule& rule : rules_) {
-    const std::unique_ptr<UniLib::RegexMatcher> matcher =
-        rule.pattern->Matcher(message_unicode);
-    int status = UniLib::RegexMatcher::kNoError;
-    while (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
-      for (const RulesModel_::Rule_::RuleActionSpec* rule_action :
-           *rule.rule->actions()) {
-        const ActionSuggestionSpec* action = rule_action->action();
-        std::vector<ActionSuggestionAnnotation> annotations;
-
-        bool sets_entity_data = false;
-        std::unique_ptr<ReflectiveFlatbuffer> entity_data =
-            entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
-                                            : nullptr;
-
-        // Set static entity data.
-        if (action != nullptr && action->serialized_entity_data() != nullptr) {
-          TC3_CHECK(entity_data != nullptr);
-          sets_entity_data = true;
-          entity_data->MergeFromSerializedFlatbuffer(
-              StringPiece(action->serialized_entity_data()->c_str(),
-                          action->serialized_entity_data()->size()));
-        }
-
-        // Add entity data from rule capturing groups.
-        if (rule_action->capturing_group() != nullptr) {
-          for (const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup*
-                   group : *rule_action->capturing_group()) {
-            Optional<std::string> group_match_text =
-                GetCapturingGroupText(matcher.get(), group->group_id());
-            if (!group_match_text.has_value()) {
-              // The group was not part of the match, ignore and continue.
-              continue;
-            }
-
-            UnicodeText normalized_group_match_text =
-                UTF8ToUnicodeText(group_match_text.value(), /*do_copy=*/false);
-
-            // Apply normalization if specified.
-            if (group->normalization_options() != nullptr) {
-              normalized_group_match_text =
-                  NormalizeText(unilib_, group->normalization_options(),
-                                normalized_group_match_text);
-            }
-
-            if (group->entity_field() != nullptr) {
-              TC3_CHECK(entity_data != nullptr);
-              sets_entity_data = true;
-              if (!entity_data->ParseAndSet(
-                      group->entity_field(),
-                      normalized_group_match_text.ToUTF8String())) {
-                TC3_LOG(ERROR)
-                    << "Could not set entity data from rule capturing group.";
-                return false;
-              }
-            }
-
-            // Create a text annotation for the group span.
-            ActionSuggestionAnnotation annotation;
-            if (FillAnnotationFromMatchGroup(matcher.get(), group,
-                                             group_match_text.value(),
-                                             message_index, &annotation)) {
-              annotations.push_back(annotation);
-            }
-
-            // Create text reply.
-            if (group->text_reply() != nullptr) {
-              actions->push_back(SuggestionFromSpec(
-                  group->text_reply(),
-                  /*default_type=*/model_->smart_reply_action_type()->str(),
-                  /*default_response_text=*/
-                  normalized_group_match_text.ToUTF8String()));
-            }
-          }
-        }
-
-        if (action != nullptr) {
-          ActionSuggestion suggestion = SuggestionFromSpec(action);
-          suggestion.annotations = annotations;
-          if (sets_entity_data) {
-            suggestion.serialized_entity_data = entity_data->Serialize();
-          }
-          actions->push_back(suggestion);
-        }
-      }
-    }
-  }
-  return true;
-}
-
 bool ActionsSuggestions::SuggestActionsFromLua(
     const Conversation& conversation, const TfLiteModelExecutor* model_executor,
     const tflite::Interpreter* interpreter,
@@ -1390,11 +1102,15 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
-  std::vector<int> post_check_rules;
-  if (preconditions_.suppress_on_low_confidence_input &&
-      IsLowConfidenceInput(conversation, num_messages, &post_check_rules)) {
-    response->output_filtered_low_confidence = true;
-    return true;
+  std::vector<const UniLib::RegexPattern*> post_check_rules;
+  if (preconditions_.suppress_on_low_confidence_input) {
+    if ((ngram_model_ != nullptr &&
+         ngram_model_->EvalConversation(conversation, num_messages)) ||
+        regex_actions_->IsLowConfidenceInput(conversation, num_messages,
+                                             &post_check_rules)) {
+      response->output_filtered_low_confidence = true;
+      return true;
+    }
   }
 
   std::unique_ptr<tflite::Interpreter> interpreter;
@@ -1418,13 +1134,21 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return false;
   }
 
-  if (!SuggestActionsFromRules(conversation, &response->actions)) {
-    TC3_LOG(ERROR) << "Could not suggest actions from rules.";
+  if (!regex_actions_->SuggestActions(conversation, entity_data_builder_.get(),
+                                      &response->actions)) {
+    TC3_LOG(ERROR) << "Could not suggest actions from regex rules.";
+    return false;
+  }
+
+  if (grammar_actions_ != nullptr &&
+      !grammar_actions_->SuggestActions(conversation, &response->actions)) {
+    TC3_LOG(ERROR) << "Could not suggest actions from grammar rules.";
     return false;
   }
 
   if (preconditions_.suppress_on_low_confidence_input &&
-      !FilterConfidenceOutput(post_check_rules, &response->actions)) {
+      !regex_actions_->FilterConfidenceOutput(post_check_rules,
+                                              &response->actions)) {
     TC3_LOG(ERROR) << "Could not post-check actions.";
     return false;
   }

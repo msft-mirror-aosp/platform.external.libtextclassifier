@@ -24,6 +24,7 @@
 #include <string>
 
 #include "annotator/model_generated.h"
+#include "utils/base/logging.h"
 #include "utils/flatbuffers_generated.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/variant.h"
@@ -366,6 +367,14 @@ bool ReflectiveFlatbuffer::AppendFromVector(const flatbuffers::Table* from,
     to_repeated->Add(element);
   }
   return true;
+}
+
+inline logging::LoggingStringStream& operator<<(
+    logging::LoggingStringStream& stream, flatbuffers::String* message) {
+  if (message != nullptr) {
+    stream.message.append(message->c_str(), message->size());
+  }
+  return stream;
 }
 
 }  // namespace libtextclassifier3

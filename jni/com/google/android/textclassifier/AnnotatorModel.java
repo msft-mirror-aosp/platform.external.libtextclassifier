@@ -43,6 +43,10 @@ public final class AnnotatorModel implements AutoCloseable {
   static final String TYPE_DATE_TIME = "datetime";
   static final String TYPE_FLIGHT_NUMBER = "flight";
 
+  public static final double INVALID_LATITUDE = 180;
+  public static final double INVALID_LONGITUDE = 360;
+  public static final float INVALID_LOCATION_ACCURACY_METERS = 0;
+
   private long annotatorPtr;
 
   /** Enumeration for specifying the usecase of the annotations. */
@@ -399,17 +403,26 @@ public final class AnnotatorModel implements AutoCloseable {
     }
   }
 
-  /** Represents options for the suggestSelection call. */
+  /**
+   * Represents options for the suggestSelection call. TODO(b/63427420): Use location with Selection
+   * options.
+   */
   public static final class SelectionOptions {
     private final String locales;
     private final String detectedTextLanguageTags;
     private final int annotationUsecase;
+    private final double userLocationLat;
+    private final double userLocationLng;
+    private final float userLocationAccuracyMeters;
 
     public SelectionOptions(
         String locales, String detectedTextLanguageTags, int annotationUsecase) {
       this.locales = locales;
       this.detectedTextLanguageTags = detectedTextLanguageTags;
       this.annotationUsecase = annotationUsecase;
+      this.userLocationLat = INVALID_LATITUDE;
+      this.userLocationLng = INVALID_LONGITUDE;
+      this.userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
     }
 
     public SelectionOptions(String locales, String detectedTextLanguageTags) {
@@ -428,15 +441,33 @@ public final class AnnotatorModel implements AutoCloseable {
     public int getAnnotationUsecase() {
       return annotationUsecase;
     }
+
+    public double getUserLocationLat() {
+      return userLocationLat;
+    }
+
+    public double getUserLocationLng() {
+      return userLocationLng;
+    }
+
+    public float getUserLocationAccuracyMeters() {
+      return userLocationAccuracyMeters;
+    }
   }
 
-  /** Represents options for the classifyText call. */
+  /**
+   * Represents options for the classifyText call. TODO(b/63427420): Use location with
+   * Classification options.
+   */
   public static final class ClassificationOptions {
     private final long referenceTimeMsUtc;
     private final String referenceTimezone;
     private final String locales;
     private final String detectedTextLanguageTags;
     private final int annotationUsecase;
+    private final double userLocationLat;
+    private final double userLocationLng;
+    private final float userLocationAccuracyMeters;
 
     public ClassificationOptions(
         long referenceTimeMsUtc,
@@ -449,6 +480,9 @@ public final class AnnotatorModel implements AutoCloseable {
       this.locales = locales;
       this.detectedTextLanguageTags = detectedTextLanguageTags;
       this.annotationUsecase = annotationUsecase;
+      this.userLocationLat = INVALID_LATITUDE;
+      this.userLocationLng = INVALID_LONGITUDE;
+      this.userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
     }
 
     public ClassificationOptions(
@@ -484,6 +518,18 @@ public final class AnnotatorModel implements AutoCloseable {
     public int getAnnotationUsecase() {
       return annotationUsecase;
     }
+
+    public double getUserLocationLat() {
+      return userLocationLat;
+    }
+
+    public double getUserLocationLng() {
+      return userLocationLng;
+    }
+
+    public float getUserLocationAccuracyMeters() {
+      return userLocationAccuracyMeters;
+    }
   }
 
   /** Represents options for the annotate call. */
@@ -495,6 +541,32 @@ public final class AnnotatorModel implements AutoCloseable {
     private final String[] entityTypes;
     private final int annotationUsecase;
     private final boolean isSerializedEntityDataEnabled;
+    private final double userLocationLat;
+    private final double userLocationLng;
+    private final float userLocationAccuracyMeters;
+
+    public AnnotationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags,
+        Collection<String> entityTypes,
+        int annotationUsecase,
+        boolean isSerializedEntityDataEnabled,
+        double userLocationLat,
+        double userLocationLng,
+        float userLocationAccuracyMeters) {
+      this.referenceTimeMsUtc = referenceTimeMsUtc;
+      this.referenceTimezone = referenceTimezone;
+      this.locales = locales;
+      this.detectedTextLanguageTags = detectedTextLanguageTags;
+      this.entityTypes = entityTypes == null ? new String[0] : entityTypes.toArray(new String[0]);
+      this.annotationUsecase = annotationUsecase;
+      this.isSerializedEntityDataEnabled = isSerializedEntityDataEnabled;
+      this.userLocationLat = userLocationLat;
+      this.userLocationLng = userLocationLng;
+      this.userLocationAccuracyMeters = userLocationAccuracyMeters;
+    }
 
     public AnnotationOptions(
         long referenceTimeMsUtc,
@@ -504,13 +576,17 @@ public final class AnnotatorModel implements AutoCloseable {
         Collection<String> entityTypes,
         int annotationUsecase,
         boolean isSerializedEntityDataEnabled) {
-      this.referenceTimeMsUtc = referenceTimeMsUtc;
-      this.referenceTimezone = referenceTimezone;
-      this.locales = locales;
-      this.detectedTextLanguageTags = detectedTextLanguageTags;
-      this.entityTypes = entityTypes == null ? new String[0] : entityTypes.toArray(new String[0]);
-      this.annotationUsecase = annotationUsecase;
-      this.isSerializedEntityDataEnabled = isSerializedEntityDataEnabled;
+      this(
+          referenceTimeMsUtc,
+          referenceTimezone,
+          locales,
+          detectedTextLanguageTags,
+          entityTypes,
+          annotationUsecase,
+          isSerializedEntityDataEnabled,
+          INVALID_LATITUDE,
+          INVALID_LONGITUDE,
+          INVALID_LOCATION_ACCURACY_METERS);
     }
 
     public AnnotationOptions(
@@ -555,6 +631,18 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public boolean isSerializedEntityDataEnabled() {
       return isSerializedEntityDataEnabled;
+    }
+
+    public double getUserLocationLat() {
+      return userLocationLat;
+    }
+
+    public double getUserLocationLng() {
+      return userLocationLng;
+    }
+
+    public float getUserLocationAccuracyMeters() {
+      return userLocationAccuracyMeters;
     }
   }
 
