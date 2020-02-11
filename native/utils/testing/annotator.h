@@ -19,6 +19,7 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_TESTING_ANNOTATOR_H_
 #define LIBTEXTCLASSIFIER_UTILS_TESTING_ANNOTATOR_H_
 
+#include <fstream>
 #include <memory>
 #include <string>
 
@@ -45,6 +46,33 @@ std::string ModifyAnnotatorModel(const std::string& model_flatbuffer,
   return std::string(reinterpret_cast<char*>(builder.GetBufferPointer()),
                      builder.GetSize());
 }
+
+std::string FirstResult(const std::vector<ClassificationResult>& results);
+
+std::string ReadFile(const std::string& file_name);
+
+std::unique_ptr<RegexModel_::PatternT> MakePattern(
+    const std::string& collection_name, const std::string& pattern,
+    const bool enabled_for_classification, const bool enabled_for_selection,
+    const bool enabled_for_annotation, const float score,
+    const float priority_score);
+
+// Shortcut function that doesn't need to specify the priority score.
+std::unique_ptr<RegexModel_::PatternT> MakePattern(
+    const std::string& collection_name, const std::string& pattern,
+    const bool enabled_for_classification, const bool enabled_for_selection,
+    const bool enabled_for_annotation, const float score);
+
+void AddTestRegexModel(ModelT* unpacked_model);
+
+std::string CreateEmptyModel();
+
+// Create fake entity data schema meta data.
+void AddTestEntitySchemaData(ModelT* unpacked_model);
+
+AnnotatedSpan MakeAnnotatedSpan(
+    CodepointSpan span, const std::string& collection, const float score,
+    AnnotatedSpan::Source source = AnnotatedSpan::Source::OTHER);
 
 }  // namespace libtextclassifier3
 

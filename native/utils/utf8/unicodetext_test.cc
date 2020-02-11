@@ -36,6 +36,12 @@ class UnicodeTextTest : public testing::Test {
   UnicodeText text_;
 };
 
+TEST(UnicodeTextTest, ConstructionFromUnicodeText) {
+  UnicodeText text = UTF8ToUnicodeText("1234😋hello", /*do_copy=*/false);
+  EXPECT_EQ(UnicodeText(text).ToUTF8String(), "1234😋hello");
+  EXPECT_EQ(UnicodeText(text, /*do_copy=*/false).ToUTF8String(), "1234😋hello");
+}
+
 // Tests for our modifications of UnicodeText.
 TEST(UnicodeTextTest, Custom) {
   UnicodeText text = UTF8ToUnicodeText("1234😋hello", /*do_copy=*/false);
@@ -68,6 +74,14 @@ TEST(UnicodeTextTest, StringPieceView) {
 TEST(UnicodeTextTest, Substring) {
   UnicodeText text = UTF8ToUnicodeText("1234😋hello", /*do_copy=*/false);
 
+  EXPECT_EQ(
+      UnicodeText::Substring(std::next(text.begin(), 4),
+                             std::next(text.begin(), 6), /*do_copy=*/true),
+      UTF8ToUnicodeText("😋h"));
+  EXPECT_EQ(
+      UnicodeText::Substring(std::next(text.begin(), 4),
+                             std::next(text.begin(), 6), /*do_copy=*/false),
+      UTF8ToUnicodeText("😋h"));
   EXPECT_EQ(UnicodeText::Substring(text, 4, 6, /*do_copy=*/true),
             UTF8ToUnicodeText("😋h"));
   EXPECT_EQ(UnicodeText::Substring(text, 4, 6, /*do_copy=*/false),

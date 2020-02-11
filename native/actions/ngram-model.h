@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "actions/actions_model_generated.h"
+#include "actions/types.h"
 #include "utils/tokenizer.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
@@ -36,6 +37,11 @@ class NGramModel {
   // threshold. Returns true in case of a positive classification. The caller
   // may also optionally query the score.
   bool Eval(const UnicodeText& text, float* score = nullptr) const;
+
+  // Evaluates an n-gram linear regression model against all messages in a
+  // conversation and returns true in case of any positive classification.
+  bool EvalConversation(const Conversation& conversation,
+                        const int num_messages) const;
 
   // Exposed for testing only.
   static uint64 GetNumSkipGrams(int num_tokens, int max_ngram_length,

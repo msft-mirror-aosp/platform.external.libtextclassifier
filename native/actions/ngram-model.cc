@@ -206,4 +206,19 @@ bool NGramModel::Eval(const UnicodeText& text, float* score) const {
   return internal_score > model_->threshold();
 }
 
+bool NGramModel::EvalConversation(const Conversation& conversation,
+                                  const int num_messages) const {
+  for (int i = 1; i <= num_messages; i++) {
+    const std::string& message =
+        conversation.messages[conversation.messages.size() - i].text;
+    const UnicodeText message_unicode(
+        UTF8ToUnicodeText(message, /*do_copy=*/false));
+    // Run ngram linear regression model.
+    if (Eval(message_unicode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace libtextclassifier3

@@ -46,13 +46,29 @@ class Tokenizer {
   //      script change as a token boundary.
   // `icu_preserve_whitespace_tokens`: If true, will include empty tokens in the
   // output (in the ICU tokenization mode).
+  // `preserve_floating_numbers`: If true (default), will keep dots between
+  // digits together, not making separate tokens (in the LETTER_DIGIT
+  // tokenization mode).
   Tokenizer(
       const TokenizationType type, const UniLib* unilib,
       const std::vector<const TokenizationCodepointRange*>& codepoint_ranges,
       const std::vector<const CodepointRange*>&
           internal_tokenizer_codepoint_ranges,
       const bool split_on_script_change,
-      const bool icu_preserve_whitespace_tokens);
+      const bool icu_preserve_whitespace_tokens,
+      const bool preserve_floating_numbers);
+
+  Tokenizer(
+      const TokenizationType type, const UniLib* unilib,
+      const std::vector<const TokenizationCodepointRange*>& codepoint_ranges,
+      const std::vector<const CodepointRange*>&
+          internal_tokenizer_codepoint_ranges,
+      const bool split_on_script_change,
+      const bool icu_preserve_whitespace_tokens)
+      : Tokenizer(type, unilib, codepoint_ranges,
+                  internal_tokenizer_codepoint_ranges, split_on_script_change,
+                  icu_preserve_whitespace_tokens,
+                  /*preserve_floating_numbers=*/true) {}
 
   Tokenizer(
       const std::vector<const TokenizationCodepointRange*>& codepoint_ranges,
@@ -60,7 +76,18 @@ class Tokenizer {
       : Tokenizer(TokenizationType_INTERNAL_TOKENIZER, /*unilib=*/nullptr,
                   codepoint_ranges, /*internal_tokenizer_codepoint_ranges=*/{},
                   split_on_script_change,
-                  /*icu_preserve_whitespace_tokens=*/false) {}
+                  /*icu_preserve_whitespace_tokens=*/false,
+                  /*preserve_floating_numbers=*/true) {}
+
+  // Describes the type of tokens used in the NumberTokenizer.
+  enum NumberTokenType {
+    INVALID_TOKEN_TYPE,
+    NUMERICAL,
+    TERM,
+    WHITESPACE,
+    SEPARATOR,
+    NOT_SET
+  };
 
   // Tokenizes the input string using the selected tokenization method.
   std::vector<Token> Tokenize(const std::string& text) const;
@@ -96,6 +123,10 @@ class Tokenizer {
   bool ICUTokenize(const UnicodeText& context_unicode,
                    std::vector<Token>* result) const;
 
+  // Tokenizes the input in number, word and separator tokens.
+  bool NumberTokenize(const UnicodeText& text_unicode,
+                      std::vector<Token>* result) const;
+
  private:
   const TokenizationType type_;
 
@@ -117,6 +148,7 @@ class Tokenizer {
   const bool split_on_script_change_;
 
   const bool icu_preserve_whitespace_tokens_;
+  const bool preserve_floating_numbers_;
 };
 
 }  // namespace libtextclassifier3

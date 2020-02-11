@@ -108,6 +108,11 @@ class JniHelper {
                                        jmethodID method_id, ...);
   static StatusOr<int64> CallLongMethod(JNIEnv* env, jobject object,
                                         jmethodID method_id, ...);
+  static StatusOr<float> CallFloatMethod(JNIEnv* env, jobject object,
+                                         jmethodID method_id, ...);
+  static StatusOr<double> CallDoubleMethod(JNIEnv* env, jobject object,
+                                           jmethodID method_id, ...);
+
   template <class T>
   static StatusOr<T> CallStaticIntMethod(JNIEnv* env, jclass clazz,
                                          jmethodID method_id, ...);

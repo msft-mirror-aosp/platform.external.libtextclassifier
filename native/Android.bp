@@ -104,6 +104,9 @@ cc_defaults {
         "libtextclassifier_fbgen_normalization",
         "libtextclassifier_fbgen_language-tag",
         "libtextclassifier_fbgen_person_name_model",
+        "libtextclassifier_fbgen_grammar_dates",
+        "libtextclassifier_fbgen_timezone_code",
+        "libtextclassifier_fbgen_grammar_rules"
     ],
 
     header_libs: [
@@ -247,6 +250,27 @@ genrule {
     defaults: ["fbgen"],
 }
 
+genrule {
+    name: "libtextclassifier_fbgen_grammar_dates",
+    srcs: ["annotator/grammar/dates/dates.fbs"],
+    out: ["annotator/grammar/dates/dates_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_timezone_code",
+    srcs: ["annotator/grammar/dates/timezone-code.fbs"],
+    out: ["annotator/grammar/dates/timezone-code_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_grammar_rules",
+    srcs: ["utils/grammar/rules.fbs"],
+    out: ["utils/grammar/rules_generated.h"],
+    defaults: ["fbgen"],
+}
+
 // -----------------
 // libtextclassifier
 // -----------------
@@ -259,9 +283,9 @@ cc_library_shared {
         "**/*_test.cc",
         "**/*-test-lib.cc",
         "utils/testing/*.cc",
-        "test-util.*",
-        "utils/calendar/*_test-include.*",
-        "utils/utf8/*_test-include.*"
+        "**/*test-util.*",
+        "**/*test-utils.*",
+        "**/*_test-include.*",
     ],
 
     required: [

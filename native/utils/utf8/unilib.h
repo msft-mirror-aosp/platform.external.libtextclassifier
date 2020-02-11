@@ -89,6 +89,42 @@ class UniLib : public UniLibBase {
   bool IsDot(char32 codepoint) const {
     return libtextclassifier3::IsDot(codepoint);
   }
+
+  bool IsLatinLetter(char32 codepoint) const {
+    return libtextclassifier3::IsLatinLetter(codepoint);
+  }
+
+  bool IsArabicLetter(char32 codepoint) const {
+    return libtextclassifier3::IsArabicLetter(codepoint);
+  }
+
+  bool IsCyrillicLetter(char32 codepoint) const {
+    return libtextclassifier3::IsCyrillicLetter(codepoint);
+  }
+
+  bool IsChineseLetter(char32 codepoint) const {
+    return libtextclassifier3::IsChineseLetter(codepoint);
+  }
+
+  bool IsJapaneseLetter(char32 codepoint) const {
+    return libtextclassifier3::IsJapaneseLetter(codepoint);
+  }
+
+  bool IsKoreanLetter(char32 codepoint) const {
+    return libtextclassifier3::IsKoreanLetter(codepoint);
+  }
+
+  bool IsThaiLetter(char32 codepoint) const {
+    return libtextclassifier3::IsThaiLetter(codepoint);
+  }
+
+  bool IsCJTletter(char32 codepoint) const {
+    return libtextclassifier3::IsCJTletter(codepoint);
+  }
+
+  bool IsLetter(char32 codepoint) const {
+    return libtextclassifier3::IsLetter(codepoint);
+  }
 };
 
 }  // namespace libtextclassifier3

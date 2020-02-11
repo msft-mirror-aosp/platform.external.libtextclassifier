@@ -25,7 +25,7 @@ import java.io.PrintWriter;
  * @see PrintWriter
  */
 public final class IndentingPrintWriter {
-  private static final String SINGLE_INDENT = "  ";
+  static final String SINGLE_INDENT = "  ";
 
   private final PrintWriter writer;
   private final StringBuilder indentBuilder = new StringBuilder();

@@ -21,12 +21,13 @@
 #include <memory>
 
 #include "actions/actions_model_generated.h"
-#include "actions/test_utils.h"
+#include "actions/test-utils.h"
 #include "actions/zlib-utils.h"
 #include "annotator/collections.h"
 #include "annotator/types.h"
 #include "utils/flatbuffers.h"
 #include "utils/flatbuffers_generated.h"
+#include "utils/grammar/utils/rules.h"
 #include "utils/hash/farmhash.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -35,6 +36,8 @@
 
 namespace libtextclassifier3 {
 namespace {
+
+using testing::ElementsAre;
 
 constexpr char kModelFileName[] = "actions_suggestions_test.model";
 constexpr char kHashGramModelFileName[] =
@@ -538,9 +541,9 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidence) {
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->suppress_on_low_confidence_input = true;
         actions_model->low_confidence_rules.reset(new RulesModelT);
-        actions_model->low_confidence_rules->rule.emplace_back(
-            new RulesModel_::RuleT);
-        actions_model->low_confidence_rules->rule.back()->pattern =
+        actions_model->low_confidence_rules->regex_rule.emplace_back(
+            new RulesModel_::RegexRuleT);
+        actions_model->low_confidence_rules->regex_rule.back()->pattern =
             "low-ground";
       },
       &unilib_);
@@ -553,12 +556,12 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidenceInputOutput) {
       UnPackActionsModel(actions_model_string.c_str());
   // Add custom triggering rule.
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  RulesModel_::RegexRuleT* rule = actions_model->rules->regex_rule.back().get();
   rule->pattern = "^(?i:hello\\s(there))$";
   {
-    std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT> rule_action(
-        new RulesModel_::Rule_::RuleActionSpecT);
+    std::unique_ptr<RulesModel_::RuleActionSpecT> rule_action(
+        new RulesModel_::RuleActionSpecT);
     rule_action->action.reset(new ActionSuggestionSpecT);
     rule_action->action->type = "text_reply";
     rule_action->action->response_text = "General Desaster!";
@@ -567,8 +570,8 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidenceInputOutput) {
     rule->actions.push_back(std::move(rule_action));
   }
   {
-    std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT> rule_action(
-        new RulesModel_::Rule_::RuleActionSpecT);
+    std::unique_ptr<RulesModel_::RuleActionSpecT> rule_action(
+        new RulesModel_::RuleActionSpecT);
     rule_action->action.reset(new ActionSuggestionSpecT);
     rule_action->action->type = "text_reply";
     rule_action->action->response_text = "General Kenobi!";
@@ -580,10 +583,10 @@ TEST_F(ActionsSuggestionsTest, SuggestActionsLowConfidenceInputOutput) {
   // Add input-output low confidence rule.
   actions_model->preconditions->suppress_on_low_confidence_input = true;
   actions_model->low_confidence_rules.reset(new RulesModelT);
-  actions_model->low_confidence_rules->rule.emplace_back(
-      new RulesModel_::RuleT);
-  actions_model->low_confidence_rules->rule.back()->pattern = "hello";
-  actions_model->low_confidence_rules->rule.back()->output_pattern =
+  actions_model->low_confidence_rules->regex_rule.emplace_back(
+      new RulesModel_::RegexRuleT);
+  actions_model->low_confidence_rules->regex_rule.back()->pattern = "hello";
+  actions_model->low_confidence_rules->regex_rule.back()->output_pattern =
       "(?i:desaster)";
 
   flatbuffers::FlatBufferBuilder builder;
@@ -614,12 +617,12 @@ TEST_F(ActionsSuggestionsTest,
 
   // Add custom triggering rule.
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  RulesModel_::RegexRuleT* rule = actions_model->rules->regex_rule.back().get();
   rule->pattern = "^(?i:hello\\s(there))$";
   {
-    std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT> rule_action(
-        new RulesModel_::Rule_::RuleActionSpecT);
+    std::unique_ptr<RulesModel_::RuleActionSpecT> rule_action(
+        new RulesModel_::RuleActionSpecT);
     rule_action->action.reset(new ActionSuggestionSpecT);
     rule_action->action->type = "text_reply";
     rule_action->action->response_text = "General Desaster!";
@@ -628,8 +631,8 @@ TEST_F(ActionsSuggestionsTest,
     rule->actions.push_back(std::move(rule_action));
   }
   {
-    std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT> rule_action(
-        new RulesModel_::Rule_::RuleActionSpecT);
+    std::unique_ptr<RulesModel_::RuleActionSpecT> rule_action(
+        new RulesModel_::RuleActionSpecT);
     rule_action->action.reset(new ActionSuggestionSpecT);
     rule_action->action->type = "text_reply";
     rule_action->action->response_text = "General Kenobi!";
@@ -643,9 +646,10 @@ TEST_F(ActionsSuggestionsTest,
   TriggeringPreconditionsT preconditions;
   preconditions.suppress_on_low_confidence_input = true;
   preconditions.low_confidence_rules.reset(new RulesModelT);
-  preconditions.low_confidence_rules->rule.emplace_back(new RulesModel_::RuleT);
-  preconditions.low_confidence_rules->rule.back()->pattern = "hello";
-  preconditions.low_confidence_rules->rule.back()->output_pattern =
+  preconditions.low_confidence_rules->regex_rule.emplace_back(
+      new RulesModel_::RegexRuleT);
+  preconditions.low_confidence_rules->regex_rule.back()->pattern = "hello";
+  preconditions.low_confidence_rules->regex_rule.back()->output_pattern =
       "(?i:desaster)";
   flatbuffers::FlatBufferBuilder preconditions_builder;
   preconditions_builder.Finish(
@@ -776,10 +780,10 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRules) {
   ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  RulesModel_::RegexRuleT* rule = actions_model->rules->regex_rule.back().get();
   rule->pattern = "^(?i:hello\\s(there))$";
-  rule->actions.emplace_back(new RulesModel_::Rule_::RuleActionSpecT);
+  rule->actions.emplace_back(new RulesModel_::RuleActionSpecT);
   rule->actions.back()->action.reset(new ActionSuggestionSpecT);
   ActionSuggestionSpecT* action = rule->actions.back()->action.get();
   action->type = "text_reply";
@@ -789,16 +793,16 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRules) {
 
   // Set capturing groups for entity data.
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* greeting_group =
+      new RulesModel_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::RuleActionSpec_::RuleCapturingGroupT* greeting_group =
       rule->actions.back()->capturing_group.back().get();
   greeting_group->group_id = 0;
   greeting_group->entity_field.reset(new FlatbufferFieldPathT);
   greeting_group->entity_field->field.emplace_back(new FlatbufferFieldT);
   greeting_group->entity_field->field.back()->field_name = "greeting";
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* location_group =
+      new RulesModel_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::RuleActionSpec_::RuleCapturingGroupT* location_group =
       rule->actions.back()->capturing_group.back().get();
   location_group->group_id = 1;
   location_group->entity_field.reset(new FlatbufferFieldPathT);
@@ -853,10 +857,10 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRulesWithNormalization) {
   ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  RulesModel_::RegexRuleT* rule = actions_model->rules->regex_rule.back().get();
   rule->pattern = "^(?i:hello\\sthere)$";
-  rule->actions.emplace_back(new RulesModel_::Rule_::RuleActionSpecT);
+  rule->actions.emplace_back(new RulesModel_::RuleActionSpecT);
   rule->actions.back()->action.reset(new ActionSuggestionSpecT);
   ActionSuggestionSpecT* action = rule->actions.back()->action.get();
   action->type = "text_reply";
@@ -866,8 +870,8 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRulesWithNormalization) {
 
   // Set capturing groups for entity data.
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* greeting_group =
+      new RulesModel_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::RuleActionSpec_::RuleCapturingGroupT* greeting_group =
       rule->actions.back()->capturing_group.back().get();
   greeting_group->group_id = 0;
   greeting_group->entity_field.reset(new FlatbufferFieldPathT);
@@ -913,15 +917,15 @@ TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
   ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  RulesModel_::RegexRuleT* rule = actions_model->rules->regex_rule.back().get();
   rule->pattern = "(?i:reply (stop|quit|end) (?:to|for) )";
-  rule->actions.emplace_back(new RulesModel_::Rule_::RuleActionSpecT);
+  rule->actions.emplace_back(new RulesModel_::RuleActionSpecT);
 
   // Set capturing groups for entity data.
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* code_group =
+      new RulesModel_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::RuleActionSpec_::RuleCapturingGroupT* code_group =
       rule->actions.back()->capturing_group.back().get();
   code_group->group_id = 1;
   code_group->text_reply.reset(new ActionSuggestionSpecT);
@@ -950,6 +954,63 @@ TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
   EXPECT_EQ(response.actions[0].response_text, "stop");
 }
 
+TEST_F(ActionsSuggestionsTest, CreatesActionsFromGrammarRules) {
+  const std::string actions_model_string =
+      ReadFile(GetModelPath() + kModelFileName);
+  std::unique_ptr<ActionsModelT> actions_model =
+      UnPackActionsModel(actions_model_string.c_str());
+  ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
+
+  actions_model->rules->grammar_rules.reset(new RulesModel_::GrammarRulesT);
+
+  // Set tokenizer options.
+  RulesModel_::GrammarRulesT* action_grammar_rules =
+      actions_model->rules->grammar_rules.get();
+  action_grammar_rules->tokenizer_options.reset(new ActionsTokenizerOptionsT);
+  action_grammar_rules->tokenizer_options->type = TokenizationType_ICU;
+  action_grammar_rules->tokenizer_options->icu_preserve_whitespace_tokens =
+      true;
+
+  // Setup test rules.
+  action_grammar_rules->rules.reset(new grammar::RulesSetT);
+  grammar::Rules rules;
+  rules.Add("<knock>", {"<^>", "ventura", "!?", "<$>"},
+            /*callback=*/
+            static_cast<grammar::CallbackId>(
+                GrammarActions::Callback::kActionRuleMatch),
+            /*callback_param=*/0);
+  rules.Finalize().Serialize(/*include_debug_information=*/false,
+                             action_grammar_rules->rules.get());
+  action_grammar_rules->actions.emplace_back(new RulesModel_::RuleActionSpecT);
+  RulesModel_::RuleActionSpecT* actions_spec =
+      action_grammar_rules->actions.back().get();
+  actions_spec->action.reset(new ActionSuggestionSpecT);
+  actions_spec->action->response_text = "Yes, Satan?";
+  actions_spec->action->priority_score = 1.0;
+  actions_spec->action->score = 1.0;
+  actions_spec->action->type = "text_reply";
+  action_grammar_rules->rule_match.emplace_back(
+      new RulesModel_::GrammarRules_::RuleMatchT);
+  action_grammar_rules->rule_match.back()->action_id.push_back(0);
+
+  flatbuffers::FlatBufferBuilder builder;
+  FinishActionsModelBuffer(builder,
+                           ActionsModel::Pack(builder, actions_model.get()));
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      ActionsSuggestions::FromUnownedBuffer(
+          reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
+          builder.GetSize(), &unilib_);
+
+  const ActionsSuggestionsResponse& response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "Ventura!",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{}, /*locales=*/"en"}}});
+
+  EXPECT_THAT(response.actions, ElementsAre(IsSmartReply("Yes, Satan?")));
+}
+
 TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
   ActionsSuggestionsResponse response = actions_suggestions->SuggestActions(
@@ -976,14 +1037,15 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
   ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  actions_model->rules->rule.back()->pattern = "^(?i:where are you[.?]?)$";
-  actions_model->rules->rule.back()->actions.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpecT);
-  actions_model->rules->rule.back()->actions.back()->action.reset(
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  actions_model->rules->regex_rule.back()->pattern =
+      "^(?i:where are you[.?]?)$";
+  actions_model->rules->regex_rule.back()->actions.emplace_back(
+      new RulesModel_::RuleActionSpecT);
+  actions_model->rules->regex_rule.back()->actions.back()->action.reset(
       new ActionSuggestionSpecT);
   ActionSuggestionSpecT* action =
-      actions_model->rules->rule.back()->actions.back()->action.get();
+      actions_model->rules->regex_rule.back()->actions.back()->action.get();
   action->score = 1.0f;
   action->type = ActionsSuggestions::kShareLocation;
 
@@ -1026,18 +1088,18 @@ TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
   ASSERT_TRUE(DecompressActionsModel(actions_model.get()));
 
   actions_model->rules.reset(new RulesModelT());
-  actions_model->rules->rule.emplace_back(new RulesModel_::RuleT);
-  RulesModel_::RuleT* rule = actions_model->rules->rule.back().get();
+  actions_model->rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  RulesModel_::RegexRuleT* rule = actions_model->rules->regex_rule.back().get();
   rule->pattern = "^(?i:I'm on ([a-z0-9]+))$";
-  rule->actions.emplace_back(new RulesModel_::Rule_::RuleActionSpecT);
+  rule->actions.emplace_back(new RulesModel_::RuleActionSpecT);
   rule->actions.back()->action.reset(new ActionSuggestionSpecT);
   ActionSuggestionSpecT* action = rule->actions.back()->action.get();
   action->score = 1.0f;
   action->priority_score = 2.0f;
   action->type = "test_code";
   rule->actions.back()->capturing_group.emplace_back(
-      new RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT);
-  RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT* code_group =
+      new RulesModel_::RuleActionSpec_::RuleCapturingGroupT);
+  RulesModel_::RuleActionSpec_::RuleCapturingGroupT* code_group =
       rule->actions.back()->capturing_group.back().get();
   code_group->group_id = 1;
   code_group->annotation_name = "code";

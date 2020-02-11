@@ -35,6 +35,16 @@ bool IsMinus(char32 codepoint);
 bool IsNumberSign(char32 codepoint);
 bool IsDot(char32 codepoint);
 
+bool IsLatinLetter(char32 codepoint);
+bool IsArabicLetter(char32 codepoint);
+bool IsCyrillicLetter(char32 codepoint);
+bool IsChineseLetter(char32 codepoint);
+bool IsJapaneseLetter(char32 codepoint);
+bool IsKoreanLetter(char32 codepoint);
+bool IsThaiLetter(char32 codepoint);
+bool IsLetter(char32 codepoint);
+bool IsCJTletter(char32 codepoint);
+
 char32 ToLower(char32 codepoint);
 char32 ToUpper(char32 codepoint);
 char32 GetPairedBracket(char32 codepoint);

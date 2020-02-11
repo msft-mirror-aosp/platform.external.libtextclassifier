@@ -25,6 +25,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
 #include "utils/flatbuffers.h"
+#include "utils/optional.h"
 #include "utils/variant.h"
 
 namespace libtextclassifier3 {
@@ -139,13 +141,28 @@ struct Token {
   // Whether the token is a padding token.
   bool is_padding;
 
+  // Whether the token contains only white characters.
+  bool is_whitespace;
+
   // Default constructor constructs the padding-token.
   Token()
-      : value(""), start(kInvalidIndex), end(kInvalidIndex), is_padding(true) {}
+      : Token(/*arg_value=*/"", /*arg_start=*/kInvalidIndex,
+              /*arg_end=*/kInvalidIndex, /*is_padding=*/true,
+              /*is_whitespace=*/false) {}
 
   Token(const std::string& arg_value, CodepointIndex arg_start,
         CodepointIndex arg_end)
-      : value(arg_value), start(arg_start), end(arg_end), is_padding(false) {}
+      : Token(/*arg_value=*/arg_value, /*arg_start=*/arg_start,
+              /*arg_end=*/arg_end, /*is_padding=*/false,
+              /*is_whitespace=*/false) {}
+
+  Token(const std::string& arg_value, CodepointIndex arg_start,
+        CodepointIndex arg_end, bool is_padding, bool is_whitespace)
+      : value(arg_value),
+        start(arg_start),
+        end(arg_end),
+        is_padding(is_padding),
+        is_whitespace(is_whitespace) {}
 
   bool operator==(const Token& other) const {
     return value == other.value && start == other.start && end == other.end &&
@@ -386,6 +403,107 @@ struct ClassificationResult {
   }
 
   bool operator==(const ClassificationResult& other) const;
+};
+
+// Aliases for long enum values.
+const AnnotationUsecase ANNOTATION_USECASE_SMART =
+    AnnotationUsecase_ANNOTATION_USECASE_SMART;
+const AnnotationUsecase ANNOTATION_USECASE_RAW =
+    AnnotationUsecase_ANNOTATION_USECASE_RAW;
+
+struct LocationContext {
+  // User location latitude in degrees.
+  double user_location_lat = 180.;
+
+  // User location longitude in degrees.
+  double user_location_lng = 360.;
+
+  // The estimated horizontal accuracy of the user location in meters.
+  // Analogous to android.location.Location accuracy.
+  float user_location_accuracy_meters = 0.f;
+
+  bool operator==(const LocationContext& other) const {
+    return std::fabs(this->user_location_lat - other.user_location_lat) <
+               1e-8 &&
+           std::fabs(this->user_location_lng - other.user_location_lng) <
+               1e-8 &&
+           std::fabs(this->user_location_accuracy_meters -
+                     other.user_location_accuracy_meters) < 1e-8;
+  }
+};
+
+struct BaseOptions {
+  // Comma-separated list of locale specification for the input text (BCP 47
+  // tags).
+  std::string locales;
+
+  // Comma-separated list of BCP 47 language tags.
+  std::string detected_text_language_tags;
+
+  // Tailors the output annotations according to the specified use-case.
+  AnnotationUsecase annotation_usecase = ANNOTATION_USECASE_SMART;
+
+  // The location context passed along with each annotation.
+  Optional<LocationContext> location_context;
+
+  bool operator==(const BaseOptions& other) const {
+    bool location_context_equality = this->location_context.has_value() ==
+                                     other.location_context.has_value();
+    if (this->location_context.has_value() &&
+        other.location_context.has_value()) {
+      location_context_equality =
+          this->location_context.value() == other.location_context.value();
+    }
+    return this->locales == other.locales &&
+           this->annotation_usecase == other.annotation_usecase &&
+           this->detected_text_language_tags ==
+               other.detected_text_language_tags &&
+           location_context_equality;
+  }
+};
+
+struct DatetimeOptions {
+  // For parsing relative datetimes, the reference now time against which the
+  // relative datetimes get resolved.
+  // UTC milliseconds since epoch.
+  int64 reference_time_ms_utc = 0;
+
+  // Timezone in which the input text was written (format as accepted by ICU).
+  std::string reference_timezone;
+
+  bool operator==(const DatetimeOptions& other) const {
+    return this->reference_time_ms_utc == other.reference_time_ms_utc &&
+           this->reference_timezone == other.reference_timezone;
+  }
+};
+
+struct SelectionOptions : public BaseOptions {};
+
+struct ClassificationOptions : public BaseOptions, public DatetimeOptions {
+  // Comma-separated list of language tags which the user can read and
+  // understand (BCP 47).
+  std::string user_familiar_language_tags;
+
+  bool operator==(const ClassificationOptions& other) const {
+    return this->user_familiar_language_tags ==
+               other.user_familiar_language_tags &&
+           BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
+  }
+};
+
+struct AnnotationOptions : public BaseOptions, public DatetimeOptions {
+  // List of entity types that should be used for annotation.
+  std::unordered_set<std::string> entity_types;
+
+  // If true, serialized_entity_data in the results is populated."
+  bool is_serialized_entity_data_enabled = false;
+
+  bool operator==(const AnnotationOptions& other) const {
+    return this->is_serialized_entity_data_enabled ==
+               other.is_serialized_entity_data_enabled &&
+           this->entity_types == other.entity_types &&
+           BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
+  }
 };
 
 // Returns true when ClassificationResults are euqal up to scores.

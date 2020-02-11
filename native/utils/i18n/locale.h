@@ -22,6 +22,7 @@
 
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
+#include "utils/i18n/language-tag_generated.h"
 #include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {
@@ -31,6 +32,9 @@ class Locale {
   // Constructs the object from a valid BCP47 tag. If the tag is invalid,
   // an object is created that gives false when IsInvalid() is called.
   static Locale FromBCP47(const std::string& locale_tag);
+
+  // Constructs the object from a flatbuffer language tag.
+  static Locale FromLanguageTag(const LanguageTag* language_tag);
 
   // Creates a prototypical invalid locale object.
   static Locale Invalid() {

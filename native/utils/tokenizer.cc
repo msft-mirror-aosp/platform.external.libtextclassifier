@@ -21,6 +21,7 @@
 #include "utils/base/logging.h"
 #include "utils/base/macros.h"
 #include "utils/strings/utf8.h"
+#include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
 
@@ -30,11 +31,13 @@ Tokenizer::Tokenizer(
     const std::vector<const CodepointRange*>&
         internal_tokenizer_codepoint_ranges,
     const bool split_on_script_change,
-    const bool icu_preserve_whitespace_tokens)
+    const bool icu_preserve_whitespace_tokens,
+    const bool preserve_floating_numbers)
     : type_(type),
       unilib_(unilib),
       split_on_script_change_(split_on_script_change),
-      icu_preserve_whitespace_tokens_(icu_preserve_whitespace_tokens) {
+      icu_preserve_whitespace_tokens_(icu_preserve_whitespace_tokens),
+      preserve_floating_numbers_(preserve_floating_numbers) {
   for (const TokenizationCodepointRange* range : codepoint_ranges) {
     codepoint_ranges_.emplace_back(range->UnPack());
   }
@@ -108,10 +111,23 @@ std::vector<Token> Tokenizer::Tokenize(const UnicodeText& text_unicode) const {
       }
       return result;
     }
+    case TokenizationType_LETTER_DIGIT: {
+      std::vector<Token> result;
+      if (!NumberTokenize(text_unicode, &result)) {
+        return {};
+      }
+      return result;
+    }
     default:
       TC3_LOG(ERROR) << "Unknown tokenization type specified. Using internal.";
       return InternalTokenize(text_unicode);
   }
+}
+
+void AppendCodepointToToken(UnicodeText::const_iterator it, Token* token) {
+  token->value += std::string(
+      it.utf8_data(),
+      it.utf8_data() + GetNumBytesForNonZeroUTF8Char(it.utf8_data()));
 }
 
 std::vector<Token> Tokenizer::InternalTokenize(
@@ -136,10 +152,8 @@ std::vector<Token> Tokenizer::InternalTokenize(
       new_token = Token("", codepoint_index, codepoint_index);
     }
     if (!(role & TokenizationCodepointRange_::Role_DISCARD_CODEPOINT)) {
-      new_token.value += std::string(
-          it.utf8_data(),
-          it.utf8_data() + GetNumBytesForNonZeroUTF8Char(it.utf8_data()));
-      ++new_token.end;
+      new_token.end += 1;
+      AppendCodepointToToken(it, &new_token);
     }
     if (role & TokenizationCodepointRange_::Role_SPLIT_AFTER) {
       if (!new_token.value.empty()) {
@@ -247,13 +261,82 @@ bool Tokenizer::ICUTokenize(const UnicodeText& context_unicode,
         context_unicode.UTF8Substring(token_begin_it, token_end_it);
 
     if (!is_whitespace || icu_preserve_whitespace_tokens_) {
-      result->push_back(Token(token, last_unicode_index, unicode_index));
+      result->push_back(Token(token, last_unicode_index, unicode_index,
+                              /*is_padding=*/false, is_whitespace));
     }
 
     last_break_index = break_index;
     last_unicode_index = unicode_index;
     token_begin_it = token_end_it;
   }
+
+  return true;
+}
+
+bool Tokenizer::NumberTokenize(const UnicodeText& text_unicode,
+                               std::vector<Token>* result) const {
+  Token new_token("", 0, 0);
+  NumberTokenType current_token_type = NOT_SET;
+  int codepoint_index = 0;
+
+  auto PushToken = [&new_token, result]() {
+    if (!new_token.value.empty()) {
+      result->push_back(new_token);
+    }
+  };
+
+  auto MaybeResetTokenAndAddChar = [&new_token, PushToken, &current_token_type](
+                                       int codepoint_index,
+                                       NumberTokenType token_type,
+                                       UnicodeText::const_iterator it,
+                                       bool is_whitespace = false) {
+    if (current_token_type != token_type) {
+      PushToken();
+      new_token = Token("", codepoint_index, codepoint_index,
+                        /*is_padding=*/false, is_whitespace);
+    }
+    new_token.end += 1;
+    AppendCodepointToToken(it, &new_token);
+    current_token_type = token_type;
+  };
+
+  auto FinishTokenAndAddSeparator =
+      [&new_token, result, &current_token_type, PushToken](
+          int codepoint_index, UnicodeText::const_iterator it) {
+        PushToken();
+
+        result->emplace_back("", codepoint_index, codepoint_index + 1);
+        AppendCodepointToToken(it, &result->back());
+
+        new_token = Token("", codepoint_index + 1, codepoint_index + 1);
+        current_token_type = NOT_SET;
+      };
+
+  for (auto it = text_unicode.begin(); it != text_unicode.end();
+       ++it, ++codepoint_index) {
+    if (unilib_->IsDigit(*it)) {
+      MaybeResetTokenAndAddChar(codepoint_index, NUMERICAL, it);
+    } else if (unilib_->IsLetter(*it)) {
+      MaybeResetTokenAndAddChar(codepoint_index, TERM, it);
+    } else if (unilib_->IsWhitespace(*it)) {
+      MaybeResetTokenAndAddChar(codepoint_index, WHITESPACE, it,
+                                /*is_whitespace=*/true);
+    } else if (unilib_->IsDot(*it) && preserve_floating_numbers_) {
+      auto it_next = std::next(it);
+      if (current_token_type == NUMERICAL && it_next != text_unicode.end() &&
+          unilib_->IsDigit(*it_next)) {
+        new_token.end += 1;
+        AppendCodepointToToken(it, &new_token);
+      } else {
+        // If the current token is not a number or dot at the end or followed
+        // by a non digit => separate token
+        FinishTokenAndAddSeparator(codepoint_index, it);
+      }
+    } else {
+      FinishTokenAndAddSeparator(codepoint_index, it);
+    }
+  }
+  PushToken();
 
   return true;
 }
