@@ -20,6 +20,7 @@
 #include <jni.h>
 
 #include "annotator/annotator.h"
+#include "annotator/types.h"
 #include "utils/base/statusor.h"
 
 #ifndef TC3_ANNOTATOR_CLASS_NAME

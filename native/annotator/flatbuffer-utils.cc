@@ -35,8 +35,7 @@ bool SwapFieldNamesForOffsetsInPath(ModelT* model) {
 
   for (std::unique_ptr<RegexModel_::PatternT>& pattern :
        model->regex_model->patterns) {
-    for (std::unique_ptr<RegexModel_::Pattern_::CapturingGroupT>& group :
-         pattern->capturing_group) {
+    for (std::unique_ptr<CapturingGroupT>& group : pattern->capturing_group) {
       if (group->entity_field_path == nullptr) {
         continue;
       }

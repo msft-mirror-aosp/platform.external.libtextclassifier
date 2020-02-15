@@ -14,8 +14,10 @@
 // limitations under the License.
 //
 
+include "annotator/grammar/dates/dates.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
+include "utils/grammar/rules.fbs";
 include "utils/intents/intent-config.fbs";
 include "utils/normalization.fbs";
 include "utils/resources.fbs";
@@ -196,8 +198,10 @@ table VerificationOptions {
   lua_verifier:int = -1;
 }
 
-// Behaviour of capturing groups.
-namespace libtextclassifier3.RegexModel_.Pattern_;
+// Behaviour of rule capturing groups.
+// This specifies how the text and span of a capturing group, in a regular
+// expression or from a capturing match in a grammar rule, should be handled.
+namespace libtextclassifier3;
 table CapturingGroup {
   // If true, the span of the capturing group will be used to
   // extend the selection.
@@ -207,7 +211,7 @@ table CapturingGroup {
   // the classfication result entity data.
   entity_field_path:FlatbufferFieldPath;
 
-  // If set, the serialized entity data will be merged with the
+  // If set, the flatbuffer serialized entity data will be merged with the
   // classification result entity data.
   serialized_entity_data:string (shared);
 
@@ -243,7 +247,7 @@ table Pattern {
   // Verification to apply on a match.
   verification_options:VerificationOptions;
 
-  capturing_group:[Pattern_.CapturingGroup];
+  capturing_group:[CapturingGroup];
 
   // Serialized entity data to set for a match.
   serialized_entity_data:string (shared);
@@ -338,6 +342,27 @@ table DatetimeModel {
   prefer_future_for_unspecified_date:bool = false;
 }
 
+// Configuration for the tokenizer.
+namespace libtextclassifier3;
+table GrammarTokenizerOptions {
+  tokenization_type:TokenizationType = ICU;
+
+  // If true, white space tokens will be kept when using the icu tokenizer.
+  icu_preserve_whitespace_tokens:bool = false;
+
+  // Codepoint ranges that determine what role the different codepoints play
+  // during tokenized. The ranges must not overlap.
+  tokenization_codepoint_config:[TokenizationCodepointRange];
+
+  // A set of codepoint ranges to use in the mixed tokenization mode to identify
+  // stretches of tokens to re-tokenize using the internal tokenizer.
+  internal_tokenizer_codepoint_ranges:[CodepointRange];
+
+  // If true, tokens will be also split when the codepoint's script_id changes
+  // as defined in TokenizationCodepointRange.
+  tokenize_on_script_change:bool = false;
+}
+
 namespace libtextclassifier3;
 table GrammarDatetimeModel {
   // List of BCP 47 locale strings representing all locales supported by the
@@ -346,6 +371,15 @@ table GrammarDatetimeModel {
 
   // If true, will give only future dates (when the day is not specified).
   prefer_future_for_unspecified_date:bool = false;
+
+  // Grammar specific tokenizer options.
+  grammar_tokenizer_options:GrammarTokenizerOptions;
+
+  // The modes for which to apply the grammars.
+  enabled_modes:ModeFlag = ALL;
+
+  // The datetime grammar rules.
+  datetime_rules:dates.DatetimeRules;
 }
 
 namespace libtextclassifier3.DatetimeModelLibrary_;
@@ -358,6 +392,37 @@ table Item {
 namespace libtextclassifier3;
 table DatetimeModelLibrary {
   models:[DatetimeModelLibrary_.Item];
+}
+
+// Classification result to instantiate for a rule match.
+namespace libtextclassifier3.GrammarModel_;
+table RuleClassificationResult {
+  // The name of the collection.
+  collection_name:string (shared);
+
+  // The score.
+  target_classification_score:float = 1;
+
+  // The priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
+
+  // Behaviour of capturing matches.
+  capturing_group:[CapturingGroup];
+}
+
+// Configuration for grammar based annotators.
+namespace libtextclassifier3;
+table GrammarModel {
+  // The grammar rules.
+  rules:grammar.RulesSet;
+
+  rule_classification_result:[GrammarModel_.RuleClassificationResult];
+}
+
+namespace libtextclassifier3;
+table MoneyParsingOptions {
+  // Separators (codepoints) marking decimal or thousand in the money amount.
+  separators:[int];
 }
 
 // Options controlling the output of the Tensorflow Lite models.
@@ -482,6 +547,9 @@ table Model {
 
   embedding_pruning_mask:Model_.EmbeddingPruningMask;
   grammar_datetime_model:GrammarDatetimeModel;
+  contact_annotator_options:ContactAnnotatorOptions;
+  money_parsing_options:MoneyParsingOptions;
+  translate_annotator_options:TranslateAnnotatorOptions;
 }
 
 // Method for selecting the center token.
@@ -703,6 +771,10 @@ table NumberAnnotatorOptions {
   // Float number priority score used for conflict resolution with the other
   // models.
   float_number_priority_score:float = 0;
+
+  // The maximum number of digits an annotated number can have. Requirement:
+  // the value should be less or equal to 20.
+  max_number_of_digits:int = 20;
 }
 
 // DurationAnnotator is so far tailored for English and Japanese only.
@@ -753,6 +825,48 @@ table DurationAnnotatorOptions {
   // If this is true, dangling quantity is included in the annotation. For
   // example, "10 minutes 20" is interpreted as 10 minutes and 20 seconds.
   enable_dangling_quantity_interpretation:bool = true;
+}
+
+namespace libtextclassifier3;
+table ContactAnnotatorOptions {
+  // Supported for English genitives only so far.
+  enable_declension:bool;
+
+  // For each language there is a customized list of supported declensions.
+  language:string (shared);
+}
+
+namespace libtextclassifier3.TranslateAnnotatorOptions_;
+enum Algorithm : int {
+  DEFAULT_ALGORITHM = 0,
+  BACKOFF = 1,
+}
+
+// Backoff is the algorithm shipped with Android Q.
+namespace libtextclassifier3.TranslateAnnotatorOptions_;
+table BackoffOptions {
+  // The minimum size of text to prefer for detection (in codepoints).
+  min_text_size:int = 20;
+
+  // For reducing the score when text is less than the preferred size.
+  penalize_ratio:float = 1;
+
+  // Original detection score to surrounding text detection score ratios.
+  subject_text_score_ratio:float = 0.4;
+}
+
+namespace libtextclassifier3;
+table TranslateAnnotatorOptions {
+  enabled:bool = false;
+
+  // Score to assign to the classification results.
+  score:float = 1;
+
+  // Priority score used for conflict resolution with the other models.
+  priority_score:float;
+
+  algorithm:TranslateAnnotatorOptions_.Algorithm;
+  backoff_options:TranslateAnnotatorOptions_.BackoffOptions;
 }
 
 root_type libtextclassifier3.Model;

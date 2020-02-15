@@ -129,6 +129,11 @@ class Collections {
         *[]() { return new std::string("tracking_number"); }();
     return value;
   }
+  static const std::string& Translate() {
+    static const std::string& value =
+        *[]() { return new std::string("translate"); }();
+    return value;
+  }
   static const std::string& Url() {
     static const std::string& value =
         *[]() { return new std::string("url"); }();

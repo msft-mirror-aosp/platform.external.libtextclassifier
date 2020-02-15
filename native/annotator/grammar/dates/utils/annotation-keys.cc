@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef LIBTEXTCLASSIFIER_ACTIONS_TEST_UTILS_H_
-#define LIBTEXTCLASSIFIER_ACTIONS_TEST_UTILS_H_
-
-#include <string>
-#include "actions/actions_model_generated.h"
-#include "utils/flatbuffers.h"
+#include "annotator/grammar/dates/utils/annotation-keys.h"
 
 namespace libtextclassifier3 {
-
-// Create test entity data schema.
-std::string TestEntityDataSchema();
-void SetTestEntityDataSchema(ActionsModelT* test_model);
-
+namespace dates {
+const char* const kDateTimeType = "dateTime";
+const char* const kDateTimeRangeType = "dateTimeRange";
+const char* const kDateTime = "dateTime";
+const char* const kDateTimeSupplementary = "dateTimeSupplementary";
+const char* const kDateTimeRelative = "dateTimeRelative";
+const char* const kDateTimeRangeFrom = "dateTimeRangeFrom";
+const char* const kDateTimeRangeTo = "dateTimeRangeTo";
+}  // namespace dates
 }  // namespace libtextclassifier3
-
-#endif  // LIBTEXTCLASSIFIER_ACTIONS_TEST_UTILS_H_

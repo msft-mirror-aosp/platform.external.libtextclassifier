@@ -19,7 +19,7 @@
 #include <map>
 #include <string>
 
-#include "actions/test_utils.h"
+#include "actions/test-utils.h"
 #include "actions/types.h"
 #include "utils/tflite-model-executor.h"
 #include "gmock/gmock.h"
@@ -28,12 +28,7 @@
 namespace libtextclassifier3 {
 namespace {
 
-MATCHER_P2(IsAction, type, response_text, "") {
-  return testing::Value(arg.type, type) &&
-         testing::Value(arg.response_text, response_text);
-}
-
-MATCHER_P(IsActionType, type, "") { return testing::Value(arg.type, type); }
+using testing::ElementsAre;
 
 TEST(LuaActions, SimpleAction) {
   Conversation conversation;
@@ -49,8 +44,7 @@ TEST(LuaActions, SimpleAction) {
                   /*actions_entity_data_schema=*/nullptr,
                   /*annotations_entity_data_schema=*/nullptr)
                   ->SuggestActions(&actions));
-  EXPECT_THAT(actions,
-              testing::ElementsAreArray({IsActionType("test_action")}));
+  EXPECT_THAT(actions, ElementsAre(IsActionOfType("test_action")));
 }
 
 TEST(LuaActions, ConversationActions) {
@@ -88,8 +82,7 @@ TEST(LuaActions, ConversationActions) {
                   /*actions_entity_data_schema=*/nullptr,
                   /*annotations_entity_data_schema=*/nullptr)
                   ->SuggestActions(&actions));
-  EXPECT_THAT(actions, testing::ElementsAreArray(
-                           {IsAction("text_reply", "you are a bold one!")}));
+  EXPECT_THAT(actions, ElementsAre(IsSmartReply("you are a bold one!")));
 }
 
 TEST(LuaActions, SimpleModelAction) {
@@ -109,8 +102,7 @@ TEST(LuaActions, SimpleModelAction) {
                   /*actions_entity_data_schema=*/nullptr,
                   /*annotations_entity_data_schema=*/nullptr)
                   ->SuggestActions(&actions));
-  EXPECT_THAT(actions,
-              testing::ElementsAreArray({IsActionType("test_action")}));
+  EXPECT_THAT(actions, ElementsAre(IsActionOfType("test_action")));
 }
 
 TEST(LuaActions, AnnotationActions) {
@@ -156,8 +148,7 @@ TEST(LuaActions, AnnotationActions) {
                   /*actions_entity_data_schema=*/nullptr,
                   /*annotations_entity_data_schema=*/nullptr)
                   ->SuggestActions(&actions));
-  EXPECT_THAT(actions, testing::ElementsAreArray(
-                           {IsAction("text_reply", "i am at home")}));
+  EXPECT_THAT(actions, ElementsAre(IsSmartReply("i am at home")));
   EXPECT_EQ("address", actions[0].annotations[0].entity.collection);
 }
 

@@ -25,8 +25,10 @@
 
 #include "actions/actions_model_generated.h"
 #include "actions/feature-processor.h"
+#include "actions/grammar-actions.h"
 #include "actions/ngram-model.h"
 #include "actions/ranker.h"
+#include "actions/regex-actions.h"
 #include "actions/types.h"
 #include "annotator/annotator.h"
 #include "annotator/model-executor.h"
@@ -138,7 +140,7 @@ class ActionsSuggestions {
   // If the total token count is smaller than the minimum length, padding tokens
   // are added to the end.
   // Messages are assumed to be ordered by recency - most recent is last.
-  bool EmbedAndFlattenTokens(const std::vector<std::vector<Token>> tokens,
+  bool EmbedAndFlattenTokens(const std::vector<std::vector<Token>>& tokens,
                              std::vector<float>* embeddings,
                              int* total_token_count) const;
 
@@ -153,28 +155,11 @@ class ActionsSuggestions {
   int token_embedding_size_;
 
  private:
-  struct CompiledRule {
-    const RulesModel_::Rule* rule;
-    std::unique_ptr<UniLib::RegexPattern> pattern;
-    std::unique_ptr<UniLib::RegexPattern> output_pattern;
-    CompiledRule(const RulesModel_::Rule* rule,
-                 std::unique_ptr<UniLib::RegexPattern> pattern,
-                 std::unique_ptr<UniLib::RegexPattern> output_pattern)
-        : rule(rule),
-          pattern(std::move(pattern)),
-          output_pattern(std::move(output_pattern)) {}
-  };
-
   // Checks that model contains all required fields, and initializes internal
   // datastructures.
   bool ValidateAndInitialize();
 
   void SetOrCreateUnilib(const UniLib* unilib);
-
-  // Initializes regular expression rules.
-  bool InitializeRules(ZlibDecompressor* decompressor);
-  bool InitializeRules(ZlibDecompressor* decompressor, const RulesModel* rules,
-                       std::vector<CompiledRule>* compiled_rules) const;
 
   // Prepare preconditions.
   // Takes values from flag provided data, but falls back to model provided
@@ -225,9 +210,6 @@ class ActionsSuggestions {
   std::vector<int> DeduplicateAnnotations(
       const std::vector<ActionSuggestionAnnotation>& annotations) const;
 
-  bool SuggestActionsFromRules(const Conversation& conversation,
-                               std::vector<ActionSuggestion>* actions) const;
-
   bool SuggestActionsFromLua(
       const Conversation& conversation,
       const TfLiteModelExecutor* model_executor,
@@ -240,34 +222,16 @@ class ActionsSuggestions {
                                 const ActionSuggestionOptions& options,
                                 ActionsSuggestionsResponse* response) const;
 
-  // Checks whether the input triggers the low confidence checks.
-  bool IsLowConfidenceInput(const Conversation& conversation,
-                            const int num_messages,
-                            std::vector<int>* post_check_rules) const;
-  // Checks and filters suggestions triggering the low confidence post checks.
-  bool FilterConfidenceOutput(const std::vector<int>& post_check_rules,
-                              std::vector<ActionSuggestion>* actions) const;
-
-  ActionSuggestion SuggestionFromSpec(
-      const ActionSuggestionSpec* action, const std::string& default_type = "",
-      const std::string& default_response_text = "",
-      const std::string& default_serialized_entity_data = "",
-      const float default_score = 0.0f,
-      const float default_priority_score = 0.0f) const;
-
-  bool FillAnnotationFromMatchGroup(
-      const UniLib::RegexMatcher* matcher,
-      const RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroup* group,
-      const std::string& group_match_text, const int message_index,
-      ActionSuggestionAnnotation* annotation) const;
-
   std::unique_ptr<libtextclassifier3::ScopedMmap> mmap_;
 
   // Tensorflow Lite models.
   std::unique_ptr<const TfLiteModelExecutor> model_executor_;
 
-  // Rules.
-  std::vector<CompiledRule> rules_, low_confidence_rules_;
+  // Regex rules model.
+  std::unique_ptr<RegexActions> regex_actions_;
+
+  // The grammar rules model.
+  std::unique_ptr<GrammarActions> grammar_actions_;
 
   std::unique_ptr<UniLib> owned_unilib_;
   const UniLib* unilib_;

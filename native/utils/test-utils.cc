@@ -18,23 +18,40 @@
 
 #include <iterator>
 
-#include "utils/strings/split.h"
-#include "utils/strings/stringpiece.h"
+#include "utils/codepoint-range.h"
+#include "utils/strings/utf8.h"
+#include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
 
 using libtextclassifier3::Token;
 
-// Returns a list of Tokens for given input string. Can't handle non-ASCII
-// input.
-std::vector<Token> TokenizeAsciiOnSpace(const std::string& text) {
+std::vector<Token> TokenizeOnSpace(const std::string& text) {
+  const char32 space_codepoint = ValidCharToRune(" ");
+  const UnicodeText unicode_text = UTF8ToUnicodeText(text, /*do_copy=*/false);
+
   std::vector<Token> result;
-  for (const StringPiece token : strings::Split(text, ' ')) {
-    const int start_offset = std::distance(text.data(), token.data());
-    const int token_length = token.length();
-    result.push_back(
-        Token{token.ToString(), start_offset, start_offset + token_length});
+
+  int token_start_codepoint = 0;
+  auto token_start_it = unicode_text.begin();
+  int codepoint_idx = 0;
+
+  UnicodeText::const_iterator it;
+  for (it = unicode_text.begin(); it < unicode_text.end(); it++) {
+    if (*it == space_codepoint) {
+      result.push_back(Token{UnicodeText::UTF8Substring(token_start_it, it),
+                             token_start_codepoint, codepoint_idx});
+
+      token_start_codepoint = codepoint_idx + 1;
+      token_start_it = it;
+      token_start_it++;
+    }
+
+    codepoint_idx++;
   }
+  result.push_back(Token{UnicodeText::UTF8Substring(token_start_it, it),
+                         token_start_codepoint, codepoint_idx});
+
   return result;
 }
 

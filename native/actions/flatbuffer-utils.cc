@@ -37,11 +37,11 @@ bool SwapFieldNamesForOffsetsInPathInActionsModel(ActionsModelT* model) {
 
   // Resolve offsets in regex rules.
   if (model->rules != nullptr) {
-    for (std::unique_ptr<RulesModel_::RuleT>& rule : model->rules->rule) {
-      for (std::unique_ptr<RulesModel_::Rule_::RuleActionSpecT>& rule_action :
+    for (std::unique_ptr<RulesModel_::RegexRuleT>& rule :
+         model->rules->regex_rule) {
+      for (std::unique_ptr<RulesModel_::RuleActionSpecT>& rule_action :
            rule->actions) {
-        for (std::unique_ptr<
-                 RulesModel_::Rule_::RuleActionSpec_::RuleCapturingGroupT>&
+        for (std::unique_ptr<RulesModel_::RuleActionSpec_::RuleCapturingGroupT>&
                  capturing_group : rule_action->capturing_group) {
           if (capturing_group->entity_field == nullptr) {
             continue;

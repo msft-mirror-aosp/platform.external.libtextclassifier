@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.android.textclassifier.notification.tests">
+    package="com.android.textclassifier.notification">
 
   <uses-sdk
       android:minSdkVersion="29"
@@ -11,6 +11,6 @@
 
   <instrumentation
       android:name="androidx.test.runner.AndroidJUnitRunner"
-      android:targetPackage="com.android.textclassifier.notification.tests"/>
+      android:targetPackage="com.android.textclassifier.notification"/>
 
 </manifest>
