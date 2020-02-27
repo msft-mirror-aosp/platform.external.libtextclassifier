@@ -34,10 +34,11 @@ class TestingTokenizer : public Tokenizer {
       const std::vector<const CodepointRange*>&
           internal_tokenizer_codepoint_ranges,
       const bool split_on_script_change,
-      const bool icu_preserve_whitespace_tokens)
+      const bool icu_preserve_whitespace_tokens,
+      const bool preserve_floating_numbers)
       : Tokenizer(type, unilib, codepoint_ranges,
                   internal_tokenizer_codepoint_ranges, split_on_script_change,
-                  icu_preserve_whitespace_tokens) {}
+                  icu_preserve_whitespace_tokens, preserve_floating_numbers) {}
 
   using Tokenizer::FindTokenizationRange;
 };
@@ -49,7 +50,8 @@ class TestingTokenizerProxy {
       const std::vector<TokenizationCodepointRangeT>& codepoint_range_configs,
       const std::vector<CodepointRangeT>& internal_codepoint_range_configs,
       const bool split_on_script_change,
-      const bool icu_preserve_whitespace_tokens)
+      const bool icu_preserve_whitespace_tokens,
+      const bool preserve_floating_numbers)
       : INIT_UNILIB_FOR_TESTING(unilib_) {
     const int num_configs = codepoint_range_configs.size();
     std::vector<const TokenizationCodepointRange*> configs_fb;
@@ -76,7 +78,7 @@ class TestingTokenizerProxy {
     }
     tokenizer_ = std::unique_ptr<TestingTokenizer>(new TestingTokenizer(
         type, &unilib_, configs_fb, internal_configs_fb, split_on_script_change,
-        icu_preserve_whitespace_tokens));
+        icu_preserve_whitespace_tokens, preserve_floating_numbers));
   }
 
   TokenizationCodepointRange_::Role TestFindTokenizationRole(int c) const {
@@ -123,7 +125,8 @@ TEST(TokenizerTest, FindTokenizationRange) {
 
   TestingTokenizerProxy tokenizer(TokenizationType_INTERNAL_TOKENIZER, configs,
                                   {}, /*split_on_script_change=*/false,
-                                  /*icu_preserve_whitespace_tokens=*/false);
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
 
   // Test hits to the first group.
   EXPECT_EQ(tokenizer.TestFindTokenizationRole(0),
@@ -170,7 +173,8 @@ TEST(TokenizerTest, TokenizeOnSpace) {
   TestingTokenizerProxy tokenizer(TokenizationType_INTERNAL_TOKENIZER, configs,
                                   {},
                                   /*split_on_script_change=*/false,
-                                  /*icu_preserve_whitespace_tokens=*/false);
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
   std::vector<Token> tokens = tokenizer.Tokenize("Hello world!");
 
   EXPECT_THAT(tokens,
@@ -204,7 +208,8 @@ TEST(TokenizerTest, TokenizeOnSpaceAndScriptChange) {
   TestingTokenizerProxy tokenizer(TokenizationType_INTERNAL_TOKENIZER, configs,
                                   {},
                                   /*split_on_script_change=*/true,
-                                  /*icu_preserve_whitespace_tokens=*/false);
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
   EXPECT_THAT(tokenizer.Tokenize("앨라배마 주 전화(123) 456-789웹사이트"),
               std::vector<Token>({Token("앨라배마", 0, 4), Token("주", 5, 6),
                                   Token("전화", 7, 10), Token("(123)", 10, 15),
@@ -339,7 +344,8 @@ TEST(TokenizerTest, TokenizeComplex) {
   TestingTokenizerProxy tokenizer(TokenizationType_INTERNAL_TOKENIZER, configs,
                                   {},
                                   /*split_on_script_change=*/false,
-                                  /*icu_preserve_whitespace_tokens=*/false);
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
   std::vector<Token> tokens;
 
   tokens = tokenizer.Tokenize(
@@ -368,7 +374,8 @@ TEST(TokenizerTest, TokenizeComplex) {
 TEST(TokenizerTest, ICUTokenize) {
   TestingTokenizerProxy tokenizer(TokenizationType_ICU, {}, {},
                                   /*split_on_script_change=*/false,
-                                  /*icu_preserve_whitespace_tokens=*/false);
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
   std::vector<Token> tokens = tokenizer.Tokenize("พระบาทสมเด็จพระปรมิ");
   ASSERT_EQ(tokens,
             // clang-format off
@@ -383,7 +390,8 @@ TEST(TokenizerTest, ICUTokenize) {
 TEST(TokenizerTest, ICUTokenizeWithWhitespaces) {
   TestingTokenizerProxy tokenizer(TokenizationType_ICU, {}, {},
                                   /*split_on_script_change=*/false,
-                                  /*icu_preserve_whitespace_tokens=*/true);
+                                  /*icu_preserve_whitespace_tokens=*/true,
+                                  /*preserve_floating_numbers=*/false);
   std::vector<Token> tokens = tokenizer.Tokenize("พระบาท สมเด็จ พระ ปร มิ");
   ASSERT_EQ(tokens,
             // clang-format off
@@ -435,7 +443,8 @@ TEST(TokenizerTest, MixedTokenize) {
   TestingTokenizerProxy tokenizer(TokenizationType_MIXED, configs,
                                   internal_configs,
                                   /*split_on_script_change=*/false,
-                                  /*icu_preserve_whitespace_tokens=*/false);
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
 
   std::vector<Token> tokens = tokenizer.Tokenize(
       "こんにちはJapanese-ląnguagę text 你好世界 http://www.google.com/");
@@ -465,7 +474,8 @@ TEST(TokenizerTest, InternalTokenizeOnScriptChange) {
     TestingTokenizerProxy tokenizer(TokenizationType_INTERNAL_TOKENIZER,
                                     configs, {},
                                     /*split_on_script_change=*/false,
-                                    /*icu_preserve_whitespace_tokens=*/false);
+                                    /*icu_preserve_whitespace_tokens=*/false,
+                                    /*preserve_floating_numbers=*/false);
 
     EXPECT_EQ(tokenizer.Tokenize("앨라배마123웹사이트"),
               std::vector<Token>({Token("앨라배마123웹사이트", 0, 11)}));
@@ -475,13 +485,96 @@ TEST(TokenizerTest, InternalTokenizeOnScriptChange) {
     TestingTokenizerProxy tokenizer(TokenizationType_INTERNAL_TOKENIZER,
                                     configs, {},
                                     /*split_on_script_change=*/true,
-                                    /*icu_preserve_whitespace_tokens=*/false);
+                                    /*icu_preserve_whitespace_tokens=*/false,
+                                    /*preserve_floating_numbers=*/false);
     EXPECT_EQ(tokenizer.Tokenize("앨라배마123웹사이트"),
               std::vector<Token>({Token("앨라배마", 0, 4), Token("123", 4, 7),
                                   Token("웹사이트", 7, 11)}));
   }
 }
 #endif
+
+TEST(TokenizerTest, LetterDigitTokenize) {
+  TestingTokenizerProxy tokenizer(TokenizationType_LETTER_DIGIT, {}, {},
+                                  /*split_on_script_change=*/false,
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/true);
+  std::vector<Token> tokens = tokenizer.Tokenize("7% -3.14 68.9#? 7% $99 .18.");
+  ASSERT_EQ(tokens,
+            std::vector<Token>(
+                {Token("7", 0, 1), Token("%", 1, 2), Token(" ", 2, 3),
+                 Token("-", 3, 4), Token("3.14", 4, 8), Token(" ", 8, 9),
+                 Token("68.9", 9, 13), Token("#", 13, 14), Token("?", 14, 15),
+                 Token(" ", 15, 16), Token("7", 16, 17), Token("%", 17, 18),
+                 Token(" ", 18, 19), Token("$", 19, 20), Token("99", 20, 22),
+                 Token(" ", 22, 23), Token(".", 23, 24), Token("18", 24, 26),
+                 Token(".", 26, 27)}));
+}
+
+TEST(TokenizerTest, LetterDigitTokenizeUnicode) {
+  TestingTokenizerProxy tokenizer(TokenizationType_LETTER_DIGIT, {}, {},
+                                  /*split_on_script_change=*/false,
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/true);
+  std::vector<Token> tokens = tokenizer.Tokenize("２ pércént ３パーセント");
+  ASSERT_EQ(tokens, std::vector<Token>({Token("２", 0, 1), Token(" ", 1, 2),
+                                        Token("pércént", 2, 9),
+                                        Token(" ", 9, 10), Token("３", 10, 11),
+                                        Token("パーセント", 11, 16)}));
+}
+
+TEST(TokenizerTest, LetterDigitTokenizeWithDots) {
+  TestingTokenizerProxy tokenizer(TokenizationType_LETTER_DIGIT, {}, {},
+                                  /*split_on_script_change=*/false,
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/true);
+  std::vector<Token> tokens = tokenizer.Tokenize("3 3﹒2 3．3%");
+  ASSERT_EQ(tokens,
+            std::vector<Token>({Token("3", 0, 1), Token(" ", 1, 2),
+                                Token("3﹒2", 2, 5), Token(" ", 5, 6),
+                                Token("3．3", 6, 9), Token("%", 9, 10)}));
+}
+
+TEST(TokenizerTest, LetterDigitTokenizeDoNotPreserveFloatingNumbers) {
+  TestingTokenizerProxy tokenizer(TokenizationType_LETTER_DIGIT, {}, {},
+                                  /*split_on_script_change=*/false,
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
+  std::vector<Token> tokens = tokenizer.Tokenize("15.12.2019 january's 3.2");
+  ASSERT_EQ(tokens,
+            std::vector<Token>(
+                {Token("15", 0, 2), Token(".", 2, 3), Token("12", 3, 5),
+                 Token(".", 5, 6), Token("2019", 6, 10), Token(" ", 10, 11),
+                 Token("january", 11, 18), Token("'", 18, 19),
+                 Token("s", 19, 20), Token(" ", 20, 21), Token("3", 21, 22),
+                 Token(".", 22, 23), Token("2", 23, 24)}));
+}
+
+TEST(TokenizerTest, LetterDigitTokenizeStrangeStringFloatingNumbers) {
+  TestingTokenizerProxy tokenizer(TokenizationType_LETTER_DIGIT, {}, {},
+                                  /*split_on_script_change=*/false,
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
+  std::vector<Token> tokens = tokenizer.Tokenize("The+2345++the +íí+");
+  ASSERT_EQ(tokens,
+            std::vector<Token>({Token("The", 0, 3), Token("+", 3, 4),
+                                Token("2345", 4, 8), Token("+", 8, 9),
+                                Token("+", 9, 10), Token("the", 10, 13),
+                                Token(" ", 13, 14), Token("+", 14, 15),
+                                Token("íí", 15, 17), Token("+", 17, 18)}));
+}
+
+TEST(TokenizerTest, LetterDigitTokenizeWhitespcesInSameToken) {
+  TestingTokenizerProxy tokenizer(TokenizationType_LETTER_DIGIT, {}, {},
+                                  /*split_on_script_change=*/false,
+                                  /*icu_preserve_whitespace_tokens=*/false,
+                                  /*preserve_floating_numbers=*/false);
+  std::vector<Token> tokens = tokenizer.Tokenize("2 3  4   5");
+  ASSERT_EQ(tokens, std::vector<Token>({Token("2", 0, 1), Token(" ", 1, 2),
+                                        Token("3", 2, 3), Token("  ", 3, 5),
+                                        Token("4", 5, 6), Token("   ", 6, 9),
+                                        Token("5", 9, 10)}));
+}
 
 }  // namespace
 }  // namespace libtextclassifier3

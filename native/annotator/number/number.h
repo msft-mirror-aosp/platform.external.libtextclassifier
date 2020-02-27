@@ -21,36 +21,31 @@
 #include <unordered_set>
 #include <vector>
 
-#include "annotator/feature-processor.h"
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
 #include "utils/container/sorted-strings-table.h"
+#include "utils/tokenizer.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
 
 // Annotator of numbers in text.
 //
-// Only supports values in range [-999 999 999, 999 999 999] (inclusive).
-//
-// TODO(b/138639937): Add support for non-ASCII digits and multiple languages
-// percent.
-// TODO(zilka): Add support for written-out numbers.
+// Integer supported values are in range [-1 000 000 000, 1 000 000 000].
+// Doble supposted values are in range [-999999999.999999999,
+// 999999999.999999999].
 class NumberAnnotator {
  public:
   explicit NumberAnnotator(const NumberAnnotatorOptions* options,
-                           const FeatureProcessor* feature_processor)
+                           const UniLib* unilib)
       : options_(options),
-        feature_processor_(feature_processor),
-        allowed_prefix_codepoints_(
-            FlatbuffersIntVectorToSet(options->allowed_prefix_codepoints())),
-        allowed_suffix_codepoints_(
-            FlatbuffersIntVectorToSet(options->allowed_suffix_codepoints())),
-        ignored_prefix_span_boundary_codepoints_(FlatbuffersIntVectorToSet(
-            options->ignored_prefix_span_boundary_codepoints())),
-        ignored_suffix_span_boundary_codepoints_(FlatbuffersIntVectorToSet(
-            options->ignored_suffix_span_boundary_codepoints())),
+        unilib_(unilib),
+        tokenizer_(Tokenizer(TokenizationType_LETTER_DIGIT, unilib,
+                             /*codepoint_ranges=*/{},
+                             /*internal_tokenizer_codepoint_ranges=*/{},
+                             /*split_on_script_change=*/false,
+                             /*icu_preserve_whitespace_tokens=*/true)),
         percentage_pieces_string_(
             (options->percentage_pieces_string() == nullptr)
                 ? StringPiece()
@@ -61,7 +56,8 @@ class NumberAnnotator {
         percentage_suffixes_trie_(
             SortedStringsTable(/*num_pieces=*/percentage_pieces_offsets_.size(),
                                /*offsets=*/percentage_pieces_offsets_.data(),
-                               /*pieces=*/percentage_pieces_string_)) {}
+                               /*pieces=*/percentage_pieces_string_)),
+        max_number_of_digits_(options->max_number_of_digits()) {}
 
   // Classifies given text, and if it is a number, it passes the result in
   // 'classification_result' and returns true, otherwise returns false.
@@ -69,26 +65,14 @@ class NumberAnnotator {
                     AnnotationUsecase annotation_usecase,
                     ClassificationResult* classification_result) const;
 
-  // Finds all number instances in the input text.
+  // Finds all number instances in the input text. Returns true in any case.
   bool FindAll(const UnicodeText& context_unicode,
                AnnotationUsecase annotation_usecase,
                std::vector<AnnotatedSpan>* result) const;
 
  private:
-  static std::unordered_set<int> FlatbuffersIntVectorToSet(
-      const flatbuffers::Vector<int32_t>* ints);
-
   static std::vector<uint32> FlatbuffersIntVectorToStdVector(
       const flatbuffers::Vector<int32_t>* ints);
-
-  // Parses the text to an int64 value and a double value and returns true if
-  // succeeded, otherwise false. Also returns whether the number contains a
-  // decimal and the number of prefix/suffix codepoints that were stripped from
-  // the number.
-  bool ParseNumber(const UnicodeText& text, int64* int_result,
-                   double* double_result, bool* has_decimal,
-                   int* num_prefix_codepoints,
-                   int* num_suffix_codepoints) const;
 
   // Get the length of the percent suffix at the specified index in the context.
   int GetPercentSuffixLength(const UnicodeText& context,
@@ -100,15 +84,42 @@ class NumberAnnotator {
   void FindPercentages(const UnicodeText& context,
                        std::vector<AnnotatedSpan>* result) const;
 
+  // Checks if the tokens from in the interval [start_index-2, start_index] are
+  // valid characters that can preced a number context.
+  bool TokensAreValidStart(const std::vector<Token>& tokens,
+                           const int start_index) const;
+
+  // Checks if the tokens in the interval (..., prefix_end_index] are a valid
+  // number prefix.
+  bool TokensAreValidNumberPrefix(const std::vector<Token>& tokens,
+                                  const int prefix_end_index) const;
+
+  // Checks if the tokens from in the interval [ending_index, ending_index+2]
+  // are valid characters that can follow a number context.
+  bool TokensAreValidEnding(const std::vector<Token>& tokens,
+                            const int ending_index) const;
+
+  // Checks if the tokens in the interval [suffix_start_index, ...) are a valid
+  // number suffix.
+  bool TokensAreValidNumberSuffix(const std::vector<Token>& tokens,
+                                  const int suffix_start_index) const;
+
+  // Checks if the given text represents a number (either int or double).
+  bool TryParseNumber(const UnicodeText& token_text, const bool is_negative,
+                      int64* parsed_int_value,
+                      double* parsed_double_value) const;
+
+  // Checks if a word contains only CJT characters.
+  bool IsCJTterm(UnicodeText::const_iterator token_begin_it,
+                 const int token_length) const;
+
   const NumberAnnotatorOptions* options_;
-  const FeatureProcessor* feature_processor_;
-  const std::unordered_set<int> allowed_prefix_codepoints_;
-  const std::unordered_set<int> allowed_suffix_codepoints_;
-  const std::unordered_set<int> ignored_prefix_span_boundary_codepoints_;
-  const std::unordered_set<int> ignored_suffix_span_boundary_codepoints_;
+  const UniLib* unilib_;
+  const Tokenizer tokenizer_;
   const StringPiece percentage_pieces_string_;
   const std::vector<uint32> percentage_pieces_offsets_;
   const SortedStringsTable percentage_suffixes_trie_;
+  const int max_number_of_digits_;
 };
 
 }  // namespace libtextclassifier3

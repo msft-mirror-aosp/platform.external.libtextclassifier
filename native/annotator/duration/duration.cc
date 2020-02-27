@@ -117,12 +117,13 @@ bool DurationAnnotator::ClassifyText(
   const std::vector<Token> tokens = feature_processor_->Tokenize(selection);
 
   AnnotatedSpan annotated_span;
-  if (FindDurationStartingAt(context, tokens, 0, &annotated_span) !=
-      tokens.size()) {
+  if (tokens.empty() ||
+      FindDurationStartingAt(context, tokens, 0, &annotated_span) !=
+          tokens.size()) {
     return false;
   }
 
-  TC3_CHECK(!annotated_span.classification.empty());
+  TC3_DCHECK(!annotated_span.classification.empty());
 
   *classification_result = annotated_span.classification[0];
   return true;

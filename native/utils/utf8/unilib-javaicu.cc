@@ -97,19 +97,14 @@ bool UniLibBase::ParseDouble(const UnicodeText& text, double* result) const {
 
   JNIEnv* env = jni_cache_->GetEnv();
   auto it_dot = text.begin();
-  for (; !IsDot(*it_dot) && it_dot != text.end(); it_dot++) {
+  for (; it_dot != text.end() && !IsDot(*it_dot); it_dot++) {
   }
 
   int64 integer_part;
-  std::string integer_part_str =
-      UnicodeText::UTF8Substring(text.begin(), it_dot);
-  TC3_ASSIGN_OR_RETURN_FALSE(const ScopedLocalRef<jstring> integer_text_java,
-                             jni_cache_->ConvertToJavaString(integer_part_str));
-  TC3_ASSIGN_OR_RETURN_FALSE(
-      integer_part,
-      JniHelper::CallStaticIntMethod<int64>(
-          env, jni_cache_->integer_class.get(), jni_cache_->integer_parse_int,
-          integer_text_java.get()));
+  if (!ParseInt(UnicodeText::Substring(text.begin(), it_dot, /*do_copy=*/false),
+                &integer_part)) {
+    return false;
+  }
 
   int64 fractional_part = 0;
   if (it_dot != text.end()) {

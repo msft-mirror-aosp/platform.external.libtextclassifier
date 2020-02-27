@@ -140,6 +140,13 @@ TEST_F(DurationAnnotatorTest, ClassifiesWhenTokensDontAlignWithSelection) {
                     Field(&ClassificationResult::duration_ms, 15 * 60 * 1000)));
 }
 
+TEST_F(DurationAnnotatorTest, DoNotClassifyWhenInputIsInvalid) {
+  ClassificationResult classification;
+  EXPECT_FALSE(duration_annotator_.ClassifyText(
+      UTF8ToUnicodeText("Weird space"), {5, 6},
+      AnnotationUsecase_ANNOTATION_USECASE_RAW, &classification));
+}
+
 TEST_F(DurationAnnotatorTest, FindsSimpleDuration) {
   const UnicodeText text = UTF8ToUnicodeText("Wake me up in 15 minutes ok?");
   std::vector<Token> tokens = Tokenize(text);

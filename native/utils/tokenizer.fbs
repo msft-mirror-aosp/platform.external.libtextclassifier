@@ -29,6 +29,9 @@ enum TokenizationType : int {
   // consisting only of codepoints in internal_tokenizer_codepoint_ranges
   // and re-tokenize them using the internal tokenizer.
   MIXED = 3,
+
+  // Tokenizer parsing out numbers, words and separators.
+  LETTER_DIGIT = 4,
 }
 
 // Role of the codepoints in the range.

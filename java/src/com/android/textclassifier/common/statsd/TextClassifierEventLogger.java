@@ -37,7 +37,10 @@ public final class TextClassifierEventLogger {
       @Nullable TextClassificationSessionId sessionId, TextClassifierEvent event) {
     Preconditions.checkNotNull(event);
     if (TcLog.ENABLE_FULL_LOGGING) {
-      TcLog.v(TAG, "TextClassifierEventLogger.writeEvent: event = [" + event + "]");
+      TcLog.v(
+          TAG,
+          String.format(
+              "TextClassifierEventLogger.writeEvent: sessionId=%s,event=%s", sessionId, event));
     }
     if (event instanceof TextClassifierEvent.TextSelectionEvent) {
       logTextSelectionEvent(sessionId, (TextClassifierEvent.TextSelectionEvent) event);

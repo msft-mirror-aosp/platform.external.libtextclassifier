@@ -24,25 +24,31 @@
 #include "gtest/gtest.h"
 
 namespace libtextclassifier3 {
-
 namespace {
+
+using testing::ElementsAre;
+using testing::Field;
+using testing::Pointee;
 
 TEST(ZlibUtilsTest, CompressModel) {
   ActionsModelT model;
   constexpr char kTestPattern1[] = "this is a test pattern";
   constexpr char kTestPattern2[] = "this is a second test pattern";
   model.rules.reset(new RulesModelT);
-  model.rules->rule.emplace_back(new RulesModel_::RuleT);
-  model.rules->rule.back()->pattern = kTestPattern1;
-  model.rules->rule.emplace_back(new RulesModel_::RuleT);
-  model.rules->rule.back()->pattern = kTestPattern2;
+  model.rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  model.rules->regex_rule.back()->pattern = kTestPattern1;
+  model.rules->regex_rule.emplace_back(new RulesModel_::RegexRuleT);
+  model.rules->regex_rule.back()->pattern = kTestPattern2;
 
   // Compress the model.
   EXPECT_TRUE(CompressActionsModel(&model));
 
   // Sanity check that uncompressed field is removed.
-  EXPECT_TRUE(model.rules->rule[0]->pattern.empty());
-  EXPECT_TRUE(model.rules->rule[1]->pattern.empty());
+  const auto is_empty_pattern =
+      Pointee(Field(&libtextclassifier3::RulesModel_::RegexRuleT::pattern,
+                    testing::IsEmpty()));
+  EXPECT_THAT(model.rules->regex_rule,
+              ElementsAre(is_empty_pattern, is_empty_pattern));
   // Pack and load the model.
   flatbuffers::FlatBufferBuilder builder;
   FinishActionsModelBuffer(builder, ActionsModel::Pack(builder, &model));
@@ -55,18 +61,17 @@ TEST(ZlibUtilsTest, CompressModel) {
   ASSERT_TRUE(decompressor != nullptr);
   std::string uncompressed_pattern;
   EXPECT_TRUE(decompressor->MaybeDecompress(
-      compressed_model->rules()->rule()->Get(0)->compressed_pattern(),
+      compressed_model->rules()->regex_rule()->Get(0)->compressed_pattern(),
       &uncompressed_pattern));
   EXPECT_EQ(uncompressed_pattern, kTestPattern1);
   EXPECT_TRUE(decompressor->MaybeDecompress(
-      compressed_model->rules()->rule()->Get(1)->compressed_pattern(),
+      compressed_model->rules()->regex_rule()->Get(1)->compressed_pattern(),
       &uncompressed_pattern));
   EXPECT_EQ(uncompressed_pattern, kTestPattern2);
   EXPECT_TRUE(DecompressActionsModel(&model));
-  EXPECT_EQ(model.rules->rule[0]->pattern, kTestPattern1);
-  EXPECT_EQ(model.rules->rule[1]->pattern, kTestPattern2);
+  EXPECT_EQ(model.rules->regex_rule[0]->pattern, kTestPattern1);
+  EXPECT_EQ(model.rules->regex_rule[1]->pattern, kTestPattern2);
 }
 
 }  // namespace
-
 }  // namespace libtextclassifier3

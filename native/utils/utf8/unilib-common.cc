@@ -52,12 +52,13 @@ constexpr int kNumClosingBrackets = ARRAYSIZE(kClosingBrackets);
 
 // grep -E "WS" UnicodeData.txt | sed -re "s/([0-9A-Z]+);.*/0x\1, /"
 constexpr char32 kWhitespaces[] = {
-    0x0009,  0x000C,  0x0020,  0x1680,  0x2000,  0x2001,  0x2002,  0x2003,
-    0x2004,  0x2005,  0x2006,  0x2007,  0x2008,  0x2009,  0x200A,  0x2028,
-    0x205F,  0x21C7,  0x21C8,  0x21C9,  0x21CA,  0x21F6,  0x2B31,  0x2B84,
-    0x2B85,  0x2B86,  0x2B87,  0x2B94,  0x3000,  0x4DCC,  0x10344, 0x10347,
-    0x1DA0A, 0x1DA0B, 0x1DA0C, 0x1DA0D, 0x1DA0E, 0x1DA0F, 0x1DA10, 0x1F4F0,
-    0x1F500, 0x1F501, 0x1F502, 0x1F503, 0x1F504, 0x1F5D8, 0x1F5DE};
+    0x0009,  0x000A,  0x000B,  0x000C,  0x000D,  0x0020,  0x0085,  0x00A0,
+    0x1680,  0x2000,  0x2001,  0x2002,  0x2003,  0x2004,  0x2005,  0x2006,
+    0x2007,  0x2008,  0x2009,  0x200A,  0x2028,  0x2029,  0x202F,  0x205F,
+    0x21C7,  0x21C8,  0x21C9,  0x21CA,  0x21F6,  0x2B31,  0x2B84,  0x2B85,
+    0x2B86,  0x2B87,  0x2B94,  0x3000,  0x4DCC,  0x10344, 0x10347, 0x1DA0A,
+    0x1DA0B, 0x1DA0C, 0x1DA0D, 0x1DA0E, 0x1DA0F, 0x1DA10, 0x1F4F0, 0x1F500,
+    0x1F501, 0x1F502, 0x1F503, 0x1F504, 0x1F5D8, 0x1F5DE};
 constexpr int kNumWhitespaces = ARRAYSIZE(kWhitespaces);
 
 // grep -E "Nd" UnicodeData.txt | sed -re "s/([0-9A-Z]+);.*/0x\1, /"
@@ -72,6 +73,73 @@ constexpr char32 kDecimalDigitRangesEnd[] = {
     0x1113f, 0x111d9, 0x112f9, 0x11459, 0x114d9, 0x11659, 0x116c9, 0x11739,
     0x118e9, 0x11c59, 0x11d59, 0x16a69, 0x16b59, 0x1d7ff};
 constexpr int kNumDecimalDigitRangesEnd = ARRAYSIZE(kDecimalDigitRangesEnd);
+
+// Visual source: https://en.wikipedia.org/wiki/Latin_script_in_Unicode
+// Source https://unicode-search.net/unicode-namesearch.pl?term=letter
+// clang-format off
+// grep "LATIN " latters.txt | grep -v "TAG LATIN" | grep -v "SQUARED LATIN" | grep -v "CIRCLED LATIN" | grep -v "PARENTHESIZED LATIN" | cut -d'  ' -f1 | cut -d'+' -f2 | sed -re "s/([0-9A-Z]+).*/0x\1, /" | tr -d "\n" NOLINT
+// clang-format on
+constexpr char32 kLatinLettersRangesStart[] = {0x0041, 0x0061, 0x00C0, 0x00D8,
+                                               0x00F8, 0x1D00, 0x2C60, 0xAB30,
+                                               0xFF21, 0xFF41};
+constexpr int kNumLatinLettersRangesStart = ARRAYSIZE(kLatinLettersRangesStart);
+constexpr char32 kLatinLettersRangesEnd[] = {0x005A, 0x007A, 0x00D6, 0x00F7,
+                                             0x02A8, 0x1EFF, 0xA7B7, 0xAB64,
+                                             0xFF3A, 0xFF5A};
+constexpr int kNumLatinLettersRangesEnd = ARRAYSIZE(kLatinLettersRangesEnd);
+
+// Source https://unicode-search.net/unicode-namesearch.pl?term=letter
+constexpr char32 kArabicLettersRangesStart[] = {
+    0x0620, 0x0641, 0x066E, 0x06EE, 0x0750, 0x08A0, 0xFB50, 0xFDFA, 0xFE80};
+constexpr int kNumArabicLettersRangesStart =
+    ARRAYSIZE(kArabicLettersRangesStart);
+constexpr char32 kArabicLettersRangesEnd[] = {
+    0x063F, 0x064A, 0x06D5, 0x06FF, 0x077F, 0x08BD, 0xFBFF, 0xFDFB, 0xFEF4};
+constexpr int kNumArabicLettersRangesEnd = ARRAYSIZE(kArabicLettersRangesEnd);
+
+// Source https://unicode-search.net/unicode-namesearch.pl?term=letter
+constexpr char32 kCyrillicLettersRangesStart[] = {0x0400, 0x1C80, 0x2DE0,
+                                                  0xA640, 0xA674, 0xA680};
+constexpr int kNumCyrillicLettersRangesStart =
+    ARRAYSIZE(kCyrillicLettersRangesStart);
+constexpr char32 kCyrillicLettersRangesEnd[] = {0x052F, 0x1C88, 0x2DFF,
+                                                0xA66E, 0xA67B, 0xA69F};
+constexpr int kNumCyrillicLettersRangesEnd =
+    ARRAYSIZE(kCyrillicLettersRangesEnd);
+
+constexpr char32 kChineseLettersRangesStart[] = {
+    0x4E00,  0xF900,  0x2F800, 0xFE30,  0x3400,
+    0x20000, 0x2A700, 0x2B740, 0x2B820, 0x2CEB0};
+constexpr int kNumChineseLettersRangesStart =
+    ARRAYSIZE(kChineseLettersRangesStart);
+constexpr char32 kChineseLettersRangesEnd[] = {
+    0x9FFF,  0xFAFF,  0x2FA1F, 0xFE4F,  0x4DBF,
+    0x2A6DF, 0x2B73F, 0x2B81F, 0x2CEAF, 0x2EBEF};
+constexpr int kNumChineseLettersRangesEnd = ARRAYSIZE(kChineseLettersRangesEnd);
+
+// Source https://unicode-search.net/unicode-namesearch.pl?term=letter
+// Hiragana and Katakana
+constexpr char32 kJapaneseLettersRangesStart[] = {0x3041, 0x30A1, 0x31F0,
+                                                  0xFF66};
+constexpr int kNumJapaneseLettersRangesStart =
+    ARRAYSIZE(kJapaneseLettersRangesStart);
+constexpr char32 kJapaneseLettersRangesEnd[] = {0x3096, 0x30FA, 0x31FF, 0xFF9D};
+constexpr int kNumJapaneseLettersRangesEnd =
+    ARRAYSIZE(kJapaneseLettersRangesEnd);
+
+// Source https://unicode-search.net/unicode-namesearch.pl?term=letter
+// Hangul
+constexpr char32 kKoreanLettersRangesStart[] = {0x3131, 0xFFA1};
+constexpr int kNumKoreanLettersRangesStart =
+    ARRAYSIZE(kKoreanLettersRangesStart);
+constexpr char32 kKoreanLettersRangesEnd[] = {0x318E, 0xFFDC};
+constexpr int kNumKoreanLettersRangesEnd = ARRAYSIZE(kKoreanLettersRangesEnd);
+
+// Source https://unicode-search.net/unicode-namesearch.pl?term=letter
+constexpr char32 kThaiLettersRangesStart[] = {0x0E01};
+constexpr int kNumThaiLettersRangesStart = ARRAYSIZE(kThaiLettersRangesStart);
+constexpr char32 kThaiLettersRangesEnd[] = {0x0E2E};
+constexpr int kNumThaiLettersRangesEnd = ARRAYSIZE(kThaiLettersRangesEnd);
 
 // grep -E ";P.;" UnicodeData.txt | sed -re "s/([0-9A-Z]+);.*/0x\1, /"
 constexpr char32 kPunctuationRangesStart[] = {
@@ -347,6 +415,20 @@ static_assert(kNumToUpperRangesStart == kNumToUpperRangesOffsets,
               "number of to upper ranges and offsets doesn't match");
 static_assert(kNumPunctuationRangesStart == kNumPunctuationRangesEnd,
               "mismatch number of start/ends for punctuation ranges.");
+static_assert(kNumLatinLettersRangesStart == kNumLatinLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
+static_assert(kNumArabicLettersRangesStart == kNumArabicLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
+static_assert(kNumCyrillicLettersRangesStart == kNumCyrillicLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
+static_assert(kNumChineseLettersRangesStart == kNumChineseLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
+static_assert(kNumJapaneseLettersRangesStart == kNumJapaneseLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
+static_assert(kNumKoreanLettersRangesStart == kNumKoreanLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
+static_assert(kNumThaiLettersRangesStart == kNumThaiLettersRangesEnd,
+              "mismatch number of start/ends for letters ranges.");
 
 constexpr int kNoMatch = -1;
 
@@ -482,6 +564,60 @@ bool IsNumberSign(char32 codepoint) {
 
 bool IsDot(char32 codepoint) {
   return GetMatchIndex(kDots, kNumDots, codepoint) >= 0;
+}
+
+bool IsLatinLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kLatinLettersRangesStart, kLatinLettersRangesEnd,
+              kNumLatinLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsArabicLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kArabicLettersRangesStart, kArabicLettersRangesEnd,
+              kNumArabicLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsCyrillicLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kCyrillicLettersRangesStart, kCyrillicLettersRangesEnd,
+              kNumCyrillicLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsChineseLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kChineseLettersRangesStart, kChineseLettersRangesEnd,
+              kNumChineseLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsJapaneseLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kJapaneseLettersRangesStart, kJapaneseLettersRangesEnd,
+              kNumJapaneseLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsKoreanLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kKoreanLettersRangesStart, kKoreanLettersRangesEnd,
+              kNumKoreanLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsThaiLetter(char32 codepoint) {
+  return (GetOverlappingRangeIndex(
+              kThaiLettersRangesStart, kThaiLettersRangesEnd,
+              kNumThaiLettersRangesStart, /*stride=*/1, codepoint) >= 0);
+}
+
+bool IsCJTletter(char32 codepoint) {
+  return IsJapaneseLetter(codepoint) || IsChineseLetter(codepoint) ||
+         IsThaiLetter(codepoint);
+}
+
+bool IsLetter(char32 codepoint) {
+  return IsLatinLetter(codepoint) || IsArabicLetter(codepoint) ||
+         IsCyrillicLetter(codepoint) || IsJapaneseLetter(codepoint) ||
+         IsKoreanLetter(codepoint) || IsThaiLetter(codepoint) ||
+         IsChineseLetter(codepoint);
 }
 
 char32 ToLower(char32 codepoint) {

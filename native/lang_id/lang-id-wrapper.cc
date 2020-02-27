@@ -42,6 +42,12 @@ std::unique_ptr<libtextclassifier3::mobile::lang_id::LangId> LoadFromDescriptor(
 
 std::vector<std::pair<std::string, float>> GetPredictions(
     const libtextclassifier3::mobile::lang_id::LangId* model, const std::string& text) {
+  return GetPredictions(model, text.data(), text.size());
+}
+
+std::vector<std::pair<std::string, float>> GetPredictions(
+    const libtextclassifier3::mobile::lang_id::LangId* model, const char* text,
+    int text_size) {
   std::vector<std::pair<std::string, float>> prediction_results;
   if (model == nullptr) {
     return prediction_results;
@@ -58,7 +64,7 @@ std::vector<std::pair<std::string, float>> GetPredictions(
           : static_cast<int>(1 / noise_threshold) + 1;
 
   libtextclassifier3::mobile::lang_id::LangIdResult langid_result;
-  model->FindLanguages(text, &langid_result, max_results);
+  model->FindLanguages(text, text_size, &langid_result, max_results);
   for (int i = 0; i < langid_result.predictions.size(); i++) {
     const auto& prediction = langid_result.predictions[i];
     if (prediction.second >= noise_threshold && prediction.first != "und") {

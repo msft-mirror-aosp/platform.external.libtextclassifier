@@ -17,6 +17,7 @@
 include "annotator/model.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
+include "utils/grammar/rules.fbs";
 include "utils/intents/intent-config.fbs";
 include "utils/normalization.fbs";
 include "utils/resources.fbs";
@@ -369,7 +370,7 @@ table RankingOptions {
 }
 
 // Entity data to set from capturing groups.
-namespace libtextclassifier3.RulesModel_.Rule_.RuleActionSpec_;
+namespace libtextclassifier3.RulesModel_.RuleActionSpec_;
 table RuleCapturingGroup {
   // The id of group.
   group_id:int;
@@ -393,7 +394,7 @@ table RuleCapturingGroup {
 }
 
 // The actions to produce upon triggering.
-namespace libtextclassifier3.RulesModel_.Rule_;
+namespace libtextclassifier3.RulesModel_;
 table RuleActionSpec {
   // The action.
   action:ActionSuggestionSpec;
@@ -403,12 +404,12 @@ table RuleActionSpec {
 
 // List of regular expression matchers.
 namespace libtextclassifier3.RulesModel_;
-table Rule {
+table RegexRule {
   // The regular expression pattern.
   pattern:string (shared);
 
   compressed_pattern:CompressedBuffer;
-  actions:[Rule_.RuleActionSpec];
+  actions:[RuleActionSpec];
 
   // Patterns for post-checking the outputs.
   output_pattern:string (shared);
@@ -416,13 +417,39 @@ table Rule {
   compressed_output_pattern:CompressedBuffer;
 }
 
+// Action configuration.
+// Specifies an action rules match.
+namespace libtextclassifier3.RulesModel_.GrammarRules_;
+table RuleMatch {
+  // The actions to produce as part of this match.
+  // These are indices into the `actions` array below.
+  action_id:[uint];
+}
+
+// Configuration for actions based on context-free grammars.
+namespace libtextclassifier3.RulesModel_;
+table GrammarRules {
+  // The tokenizer config.
+  tokenizer_options:ActionsTokenizerOptions;
+
+  // The grammar.
+  rules:grammar.RulesSet;
+
+  rule_match:[GrammarRules_.RuleMatch];
+
+  // The action specifications used by the rule matches.
+  actions:[RuleActionSpec];
+}
+
 // Rule based actions.
 namespace libtextclassifier3;
 table RulesModel {
-  rule:[RulesModel_.Rule];
+  regex_rule:[RulesModel_.RegexRule];
 
   // If true, will compile the regexes only on first use.
   lazy_regex_compilation:bool = true;
+
+  grammar_rules:RulesModel_.GrammarRules;
 }
 
 namespace libtextclassifier3;

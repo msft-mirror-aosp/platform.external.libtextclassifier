@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "actions/test_utils.h"
+#include "actions/test-utils.h"
 
 namespace libtextclassifier3 {
 
