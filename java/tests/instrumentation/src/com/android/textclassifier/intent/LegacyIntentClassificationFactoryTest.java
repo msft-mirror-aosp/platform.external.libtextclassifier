@@ -23,6 +23,7 @@ import android.view.textclassifier.TextClassifier;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.common.intent.LabeledIntent;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.AnnotatorModel.ClassificationResult;
 import com.google.android.textclassifier.AnnotatorModel.DatetimeResult;

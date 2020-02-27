@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.intent;
+package com.android.textclassifier.common.intent;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.testng.Assert.assertThrows;
@@ -27,7 +27,7 @@ import android.os.Bundle;
 import android.view.textclassifier.TextClassifier;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
-import com.android.textclassifier.FakeContextBuilder;
+import com.android.textclassifier.testing.FakeContextBuilder;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;

@@ -29,6 +29,8 @@ import android.view.textclassifier.TextClassifier;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.common.intent.LabeledIntent;
+import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import java.util.List;

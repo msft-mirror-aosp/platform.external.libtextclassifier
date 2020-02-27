@@ -21,6 +21,7 @@
 
 #include "actions/feature-processor.h"
 #include "actions/utils.h"
+#include "annotator/types.h"
 #include "utils/grammar/callback-delegate.h"
 #include "utils/grammar/match.h"
 #include "utils/grammar/matcher.h"
@@ -30,6 +31,12 @@
 
 namespace libtextclassifier3 {
 namespace {
+
+// Represents an annotator annotated span in the grammar.
+struct AnnotationMatch : public grammar::Match {
+  static const int16 kType = 1;
+  ClassificationResult annotation;
+};
 
 class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
  public:
@@ -180,6 +187,16 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
           if (FillAnnotationFromCapturingMatch(
                   /*span=*/capturing_match->codepoint_span, group,
                   /*message_index=*/message_index, match_text, &annotation)) {
+            if (group->use_annotation_match()) {
+              const AnnotationMatch* annotation_match =
+                  grammar::SelectFirstOfType<AnnotationMatch>(
+                      capturing_match, AnnotationMatch::kType);
+              if (!annotation_match) {
+                TC3_LOG(ERROR) << "Could not get annotation for match.";
+                return false;
+              }
+              annotation.entity = annotation_match->annotation;
+            }
             annotations.push_back(annotation);
           }
         }
@@ -247,11 +264,42 @@ bool GrammarActions::SuggestActions(
           {grammar_rules_->rules()->rules()->Get(i), &callback_handler});
     }
   }
+
+  if (locale_rules.empty()) {
+    // Nothing to do.
+    return true;
+  }
+
+  std::vector<AnnotationMatch> matches;
+  if (auto annotation_nonterminals = grammar_rules_->annotation_nonterminal()) {
+    for (const AnnotatedSpan& annotation :
+         conversation.messages.back().annotations) {
+      if (annotation.classification.empty()) {
+        continue;
+      }
+      const ClassificationResult& classification =
+          annotation.classification.front();
+      if (auto entry = annotation_nonterminals->LookupByKey(
+              classification.collection.c_str())) {
+        AnnotationMatch match;
+        match.Init(entry->value(), annotation.span, annotation.span.first,
+                   AnnotationMatch::kType);
+        match.annotation = classification;
+        matches.push_back(match);
+      }
+    }
+  }
+
+  std::vector<grammar::Match*> annotation_matches(matches.size());
+  for (int i = 0; i < matches.size(); i++) {
+    annotation_matches[i] = &matches[i];
+  }
+
   grammar::Matcher matcher(*unilib_, grammar_rules_->rules(), locale_rules);
 
   // Run grammar on last message.
   lexer_.Process(tokenizer_->Tokenize(conversation.messages.back().text),
-                 &matcher);
+                 /*matches=*/annotation_matches, &matcher);
 
   // Populate results.
   return callback_handler.GetActions(conversation, smart_reply_action_type_,

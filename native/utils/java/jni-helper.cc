@@ -120,6 +120,15 @@ StatusOr<ScopedLocalRef<jintArray>> JniHelper::NewIntArray(JNIEnv* env,
   return result;
 }
 
+StatusOr<ScopedLocalRef<jfloatArray>> JniHelper::NewFloatArray(JNIEnv* env,
+                                                               jsize length) {
+  TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
+  ScopedLocalRef<jfloatArray> result(env->NewFloatArray(length), env);
+  TC3_NOT_NULL_OR_RETURN;
+  TC3_NO_EXCEPTION_OR_RETURN;
+  return result;
+}
+
 StatusOr<ScopedLocalRef<jobjectArray>> JniHelper::NewObjectArray(
     JNIEnv* env, jsize length, jclass element_class, jobject initial_element) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;

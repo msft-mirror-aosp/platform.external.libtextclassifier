@@ -17,7 +17,6 @@
 #include "annotator/annotator.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <iterator>
 #include <numeric>
@@ -38,6 +37,7 @@
 #include "utils/strings/numbers.h"
 #include "utils/strings/split.h"
 #include "utils/utf8/unicodetext.h"
+#include "utils/utf8/unilib-common.h"
 #include "utils/zlib/zlib_regex.h"
 
 namespace libtextclassifier3 {
@@ -412,7 +412,9 @@ void Annotator::ValidateAndInitialize() {
         /*tokenizer_options=*/
         model_->grammar_datetime_model()->grammar_tokenizer_options(),
         *calendarlib_,
-        /*datetime_rules=*/model_->grammar_datetime_model()->datetime_rules()));
+        /*datetime_rules=*/model_->grammar_datetime_model()->datetime_rules(),
+        model_->grammar_datetime_model()->target_classification_score(),
+        model_->grammar_datetime_model()->priority_score()));
     if (!cfg_datetime_parser_) {
       TC3_LOG(ERROR) << "Could not initialize context free grammar based "
                         "datetime parser.";
@@ -594,17 +596,15 @@ void Annotator::SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lan
   }
 }
 
-bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
-                                                             int size) {
-  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(fd, offset, size));
-
-  if (!mmap->handle().ok()) {
+bool Annotator::InitializePersonNameEngineFromScopedMmap(
+    const ScopedMmap& mmap) {
+  if (!mmap.handle().ok()) {
     TC3_LOG(ERROR) << "Mmap for person name model failed.";
     return false;
   }
 
   const PersonNameModel* person_name_model = LoadAndVerifyPersonNameModel(
-      mmap->handle().start(), mmap->handle().num_bytes());
+      mmap.handle().start(), mmap.handle().num_bytes());
 
   if (person_name_model == nullptr) {
     TC3_LOG(ERROR) << "Person name model verification failed.";
@@ -616,13 +616,24 @@ bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
   }
 
   std::unique_ptr<PersonNameEngine> person_name_engine(
-      new PersonNameEngine(unilib_));
+      new PersonNameEngine(selection_feature_processor_.get(), unilib_));
   if (!person_name_engine->Initialize(person_name_model)) {
     TC3_LOG(ERROR) << "Failed to initialize the person name engine.";
     return false;
   }
   person_name_engine_ = std::move(person_name_engine);
   return true;
+}
+
+bool Annotator::InitializePersonNameEngineFromPath(const std::string& path) {
+  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(path));
+  return InitializePersonNameEngineFromScopedMmap(*mmap);
+}
+
+bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
+                                                             int size) {
+  std::unique_ptr<ScopedMmap> mmap(new ScopedMmap(fd, offset, size));
+  return InitializePersonNameEngineFromScopedMmap(*mmap);
 }
 
 namespace {
@@ -633,7 +644,7 @@ int CountDigits(const std::string& str, CodepointSpan selection_indices) {
   const UnicodeText unicode_str = UTF8ToUnicodeText(str, /*do_copy=*/false);
   for (auto it = unicode_str.begin(); it != unicode_str.end(); ++it, ++i) {
     if (i >= selection_indices.first && i < selection_indices.second &&
-        isdigit(*it)) {
+        IsDigit(*it)) {
       ++count;
     }
   }
@@ -2259,14 +2270,14 @@ bool Annotator::ParseAndFillInMoneyAmount(
   std::unique_ptr<EntityDataT> data =
       LoadAndVerifyMutableFlatbuffer<libtextclassifier3::EntityData>(
           *serialized_entity_data);
-  if (data == nullptr) {
+  if (data == nullptr || data->money->unnormalized_amount.empty()) {
     return false;
   }
 
   UnicodeText amount =
       UTF8ToUnicodeText(data->money->unnormalized_amount, /*do_copy=*/false);
   int separator_back_index = 0;
-  auto it_decimal_separator = amount.end();
+  auto it_decimal_separator = --amount.end();
   for (; it_decimal_separator != amount.begin();
        --it_decimal_separator, ++separator_back_index) {
     if (std::find(money_separators_.begin(), money_separators_.end(),
@@ -2279,7 +2290,7 @@ bool Annotator::ParseAndFillInMoneyAmount(
   // If there are 3 digits after the last separator, we consider that a
   // thousands separator => the number is an int (e.g. 1.234 is considered int).
   // If there is no separator in number, also that number is an int.
-  if (separator_back_index == 4 || it_decimal_separator == amount.begin()) {
+  if (separator_back_index == 3 || it_decimal_separator == amount.begin()) {
     it_decimal_separator = amount.end();
   }
 
@@ -2295,7 +2306,7 @@ bool Annotator::ParseAndFillInMoneyAmount(
     const int amount_codepoints_size = amount.size_codepoints();
     if (!unilib_->ParseInt32(
             UnicodeText::Substring(
-                amount, amount_codepoints_size - separator_back_index + 1,
+                amount, amount_codepoints_size - separator_back_index,
                 amount_codepoints_size, /*do_copy=*/false),
             &data->money->amount_decimal_part)) {
       TC3_LOG(ERROR) << "Could not parse the money decimal part as int32.";
