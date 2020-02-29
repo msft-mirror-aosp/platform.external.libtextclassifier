@@ -19,7 +19,9 @@ package com.android.textclassifier.intent;
 import android.content.Context;
 import android.content.Intent;
 import com.android.textclassifier.R;
+import com.android.textclassifier.common.intent.LabeledIntent;
 import com.google.android.textclassifier.AnnotatorModel;
+import com.google.common.collect.ImmutableList;
 import java.time.Instant;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -28,7 +30,7 @@ import javax.annotation.Nullable;
 public interface ClassificationIntentFactory {
 
   /** Return a list of LabeledIntent from the classification result. */
-  List<LabeledIntent> create(
+  ImmutableList<LabeledIntent> create(
       Context context,
       String text,
       boolean foreignText,

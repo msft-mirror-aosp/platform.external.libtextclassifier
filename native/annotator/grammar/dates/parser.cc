@@ -928,7 +928,7 @@ std::vector<Annotation> DateParser::Parse(
     }
   }
   grammar::Matcher matcher(unilib_, datetime_rules_->rules(), locale_rules);
-  lexer_.Process(tokens, &matcher);
+  lexer_.Process(tokens, /*matches=*/{}, &matcher);
   return GetOutputAsAnnotationList(unilib_, extractor, codepoint_offsets,
                                    options);
 }

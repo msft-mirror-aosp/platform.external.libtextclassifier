@@ -113,6 +113,14 @@ public final class LangIdModel implements AutoCloseable {
     return nativeGetMinTextSizeInBytes(modelPtr);
   }
 
+  /**
+   * Returns the pointer to the native object. Note: Need to keep the LangIdModel alive as long as
+   * the pointer is used.
+   */
+  long getNativeLangIdPointer() {
+    return modelPtr;
+  }
+
   private static native long nativeNew(int fd);
 
   private static native long nativeNewFromPath(String path);

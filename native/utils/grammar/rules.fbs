@@ -128,6 +128,9 @@ table Nonterminals {
   // `n_digits_nt[k]` is the id of the nonterminal indicating a string of
   // `k` digits.
   n_digits_nt:[int];
+
+  // Id of the nonterminal indicating a word or token boundary.
+  wordbreak_nt:int;
 }
 
 // Callback information.

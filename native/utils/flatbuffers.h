@@ -130,8 +130,37 @@ class ReflectiveFlatbuffer {
                           reflection::Field const** field);
 
   // Checks whether a variant value type agrees with a field type.
-  bool IsMatchingType(const reflection::Field* field,
-                      const Variant& value) const;
+  template <typename T>
+  bool IsMatchingType(const reflection::BaseType type) const {
+    switch (type) {
+      case reflection::Bool:
+        return std::is_same<T, bool>::value;
+      case reflection::Byte:
+        return std::is_same<T, int8>::value;
+      case reflection::UByte:
+        return std::is_same<T, uint8>::value;
+      case reflection::Int:
+        return std::is_same<T, int32>::value;
+      case reflection::UInt:
+        return std::is_same<T, uint32>::value;
+      case reflection::Long:
+        return std::is_same<T, int64>::value;
+      case reflection::ULong:
+        return std::is_same<T, uint64>::value;
+      case reflection::Float:
+        return std::is_same<T, float>::value;
+      case reflection::Double:
+        return std::is_same<T, double>::value;
+      case reflection::String:
+        return std::is_same<T, std::string>::value ||
+               std::is_same<T, StringPiece>::value ||
+               std::is_same<T, const char*>::value;
+      case reflection::Obj:
+        return std::is_same<T, ReflectiveFlatbuffer>::value;
+      default:
+        return false;
+    }
+  }
 
   // Sets a (primitive) field to a specific value.
   // Returns true if successful, and false if the field was not found or the
@@ -154,7 +183,7 @@ class ReflectiveFlatbuffer {
       return false;
     }
     Variant variant_value(value);
-    if (!IsMatchingType(field, variant_value)) {
+    if (!IsMatchingType<T>(field->type()->base_type())) {
       TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
                      << "`, expected: " << field->type()->base_type()
                      << ", got: " << variant_value.GetType();
@@ -193,6 +222,11 @@ class ReflectiveFlatbuffer {
 
   template <typename T>
   TypedRepeatedField<T>* Repeated(const reflection::Field* field) {
+    if (!IsMatchingType<T>(field->type()->element())) {
+      TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
+                     << "`";
+      return nullptr;
+    }
     return static_cast<TypedRepeatedField<T>*>(Repeated(field));
   }
 

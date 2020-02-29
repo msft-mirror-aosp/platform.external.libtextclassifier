@@ -256,17 +256,23 @@ Tokenizer BuildTokenizer(const UniLib* unilib,
       options->tokenization_codepoint_config() != nullptr &&
       options->tokenize_on_script_change();
   return Tokenizer(options->tokenization_type(), unilib, codepoint_config,
-                   internal_codepoint_config, tokenize_on_script_change, true);
+                   internal_codepoint_config, tokenize_on_script_change,
+                   /*icu_preserve_whitespace_tokens=*/false);
 }
 
 }  // namespace
 
 CfgDatetimeAnnotator::CfgDatetimeAnnotator(
     const UniLib& unilib, const GrammarTokenizerOptions* tokenizer_options,
-    const CalendarLib& calendar_lib, const DatetimeRules* datetime_rules)
+    const CalendarLib& calendar_lib, const DatetimeRules* datetime_rules,
+    const float annotator_target_classification_score,
+    const float annotator_priority_score)
     : calendar_lib_(calendar_lib),
       tokenizer_(BuildTokenizer(&unilib, tokenizer_options)),
-      parser_(unilib, datetime_rules) {}
+      parser_(unilib, datetime_rules),
+      annotator_target_classification_score_(
+          annotator_target_classification_score),
+      annotator_priority_score_(annotator_priority_score) {}
 
 // Helper method to convert the Thing into DatetimeParseResult.
 // Thing constains the annotation instance i.e. type of the annotation and its
@@ -306,8 +312,10 @@ void CfgDatetimeAnnotator::FillDatetimeParseResultSpan(
       DatetimeParseResultSpan datetime_parse_result_span;
       datetime_parse_result_span.span =
           CodepointSpan{annotation.begin, annotation.end};
-      datetime_parse_result_span.priority_score = 0.1;
-      datetime_parse_result_span.target_classification_score = 1.0;
+      datetime_parse_result_span.target_classification_score =
+          annotator_target_classification_score_;
+      datetime_parse_result_span.priority_score = annotator_priority_score_;
+
       // Though the datastructre allow multiple DatetimeParseResult per span
       // but for annotator based on grammar there will just one.
       DatetimeParseResult datetime_parse_result;

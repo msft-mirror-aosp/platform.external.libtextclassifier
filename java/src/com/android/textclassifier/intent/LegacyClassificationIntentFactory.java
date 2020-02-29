@@ -31,7 +31,9 @@ import android.provider.ContactsContract;
 import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.R;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.intent.LabeledIntent;
 import com.google.android.textclassifier.AnnotatorModel;
+import com.google.common.collect.ImmutableList;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.time.Instant;
@@ -53,7 +55,7 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
   private static final String TYPE_DICTIONARY = "dictionary";
 
   @Override
-  public List<LabeledIntent> create(
+  public ImmutableList<LabeledIntent> create(
       Context context,
       String text,
       boolean foreignText,
@@ -102,7 +104,7 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
     if (foreignText) {
       ClassificationIntentFactory.insertTranslateAction(actions, context, text);
     }
-    return actions;
+    return ImmutableList.copyOf(actions);
   }
 
   private static List<LabeledIntent> createForEmail(Context context, String text) {
