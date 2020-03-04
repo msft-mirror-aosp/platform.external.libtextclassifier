@@ -54,6 +54,6 @@ public class TextClassificationSessionIdConverterTest {
 
     assertThat(textClassificationSessionId).isNotNull();
     assertThat(textClassificationSessionId.flattenToString())
-        .isEqualTo(platformSessionId.flattenToString());
+        .isEqualTo(platformSessionId.getValue());
   }
 }
