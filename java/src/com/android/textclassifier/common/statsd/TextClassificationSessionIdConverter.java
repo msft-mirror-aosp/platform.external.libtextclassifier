@@ -33,6 +33,6 @@ public final class TextClassificationSessionIdConverter {
     if (sessionId == null) {
       return null;
     }
-    return TextClassificationSessionId.unflattenFromString(sessionId.flattenToString());
+    return TextClassificationSessionId.unflattenFromString(sessionId.getValue());
   }
 }
