@@ -16,6 +16,11 @@ cc_library_headers {
     name: "libtextclassifier_hash_headers",
     vendor_available: true,
     export_include_dirs: ["."],
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.neuralnetworks",
+        "test_com.android.neuralnetworks",
+    ],
 }
 
 cc_defaults {
@@ -45,6 +50,11 @@ cc_library_static {
     vendor_available: true,
     sdk_version: "current",
     stl: "libc++_static",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.neuralnetworks",
+        "test_com.android.neuralnetworks",
+    ],
 }
 
 java_library_static {
