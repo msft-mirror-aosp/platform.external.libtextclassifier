@@ -380,12 +380,6 @@ table GrammarDatetimeModel {
 
   // The datetime grammar rules.
   datetime_rules:dates.DatetimeRules;
-
-  // The final score to assign to the results of grammar model
-  target_classification_score:float = 1;
-
-  // The priority score used for conflict resolution with the other models.
-  priority_score:float = 1;
 }
 
 namespace libtextclassifier3.DatetimeModelLibrary_;

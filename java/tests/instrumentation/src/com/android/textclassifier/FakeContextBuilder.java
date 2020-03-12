@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.testing;
+package com.android.textclassifier;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;

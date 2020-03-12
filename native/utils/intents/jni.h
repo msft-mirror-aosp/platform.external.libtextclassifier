@@ -60,10 +60,6 @@ class RemoteActionTemplatesHandler {
       const Optional<int>& optional) const;
   StatusOr<ScopedLocalRef<jobjectArray>> AsStringArray(
       const std::vector<std::string>& values) const;
-  StatusOr<ScopedLocalRef<jfloatArray>> AsFloatArray(
-      const std::vector<float>& values) const;
-  StatusOr<ScopedLocalRef<jintArray>> AsIntArray(
-      const std::vector<int>& values) const;
   StatusOr<ScopedLocalRef<jobject>> AsNamedVariant(const std::string& name,
                                                    const Variant& value) const;
   StatusOr<ScopedLocalRef<jobjectArray>> AsNamedVariantArray(
@@ -102,9 +98,6 @@ class RemoteActionTemplatesHandler {
   jmethodID named_variant_from_double_ = nullptr;
   jmethodID named_variant_from_bool_ = nullptr;
   jmethodID named_variant_from_string_ = nullptr;
-  jmethodID named_variant_from_string_array_ = nullptr;
-  jmethodID named_variant_from_float_array_ = nullptr;
-  jmethodID named_variant_from_int_array_ = nullptr;
 };
 
 }  // namespace libtextclassifier3

@@ -93,8 +93,6 @@ class JniHelper {
                                                          jsize length);
   static StatusOr<ScopedLocalRef<jstring>> NewStringUTF(JNIEnv* env,
                                                         const char* bytes);
-  static StatusOr<ScopedLocalRef<jfloatArray>> NewFloatArray(JNIEnv* env,
-                                                             jsize length);
 
   // Call* methods.
   TC3_DEFINE_VARIADIC_SCOPED_LOCAL_REF_ENV_METHOD(CallObjectMethod, jobject,

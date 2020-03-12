@@ -14,27 +14,30 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.common.intent;
+package com.android.textclassifier.intent;
 
 import android.app.PendingIntent;
+import android.app.RemoteAction;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.textclassifier.TextClassifier;
-import androidx.annotation.DrawableRes;
-import androidx.core.app.RemoteActionCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.graphics.drawable.IconCompat;
+import com.android.textclassifier.ExtrasUtils;
+import com.android.textclassifier.R;
 import com.android.textclassifier.common.base.TcLog;
 import com.google.common.base.Preconditions;
 import javax.annotation.Nullable;
 
-/** Helper class to store the information from which RemoteActions are built. */
+/**
+ * Helper class to store the information from which RemoteActions are built.
+ *
+ * @hide
+ */
 public final class LabeledIntent {
   private static final String TAG = "LabeledIntent";
   public static final int DEFAULT_REQUEST_CODE = 0;
@@ -101,11 +104,6 @@ public final class LabeledIntent {
       TcLog.w(TAG, "resolveInfo or activityInfo is null");
       return null;
     }
-    if (!hasPermission(context, resolveInfo.activityInfo)) {
-      TcLog.d(TAG, "No permission to access: " + resolveInfo.activityInfo);
-      return null;
-    }
-
     final String packageName = resolveInfo.activityInfo.packageName;
     final String className = resolveInfo.activityInfo.name;
     if (packageName == null || className == null) {
@@ -114,24 +112,22 @@ public final class LabeledIntent {
     }
     Intent resolvedIntent = new Intent(intent);
     resolvedIntent.putExtra(
-        TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER,
-        createFromTextClassifierExtra(textLanguagesBundle));
+        TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER, getFromTextClassifierExtra(textLanguagesBundle));
     boolean shouldShowIcon = false;
-    IconCompat icon = null;
+    Icon icon = null;
     if (!"android".equals(packageName)) {
       // We only set the component name when the package name is not resolved to "android"
       // to workaround a bug that explicit intent with component name == ResolverActivity
       // can't be launched on keyguard.
       resolvedIntent.setComponent(new ComponentName(packageName, className));
       if (resolveInfo.activityInfo.getIconResource() != 0) {
-        icon =
-            createIconFromPackage(context, packageName, resolveInfo.activityInfo.getIconResource());
+        icon = Icon.createWithResource(packageName, resolveInfo.activityInfo.getIconResource());
         shouldShowIcon = true;
       }
     }
     if (icon == null) {
       // RemoteAction requires that there be an icon.
-      icon = IconCompat.createWithResource(context, android.R.drawable.ic_menu_more);
+      icon = Icon.createWithResource(context, R.drawable.tcs_app_icon);
     }
     final PendingIntent pendingIntent = createPendingIntent(context, resolvedIntent, requestCode);
     titleChooser = titleChooser == null ? DEFAULT_TITLE_CHOOSER : titleChooser;
@@ -140,8 +136,8 @@ public final class LabeledIntent {
       TcLog.w(TAG, "Custom titleChooser return null, fallback to the default titleChooser");
       title = DEFAULT_TITLE_CHOOSER.chooseTitle(this, resolveInfo);
     }
-    final RemoteActionCompat action =
-        new RemoteActionCompat(icon, title, resolveDescription(resolveInfo, pm), pendingIntent);
+    final RemoteAction action =
+        new RemoteAction(icon, title, resolveDescription(resolveInfo, pm), pendingIntent);
     action.setShouldShowIcon(shouldShowIcon);
     return new Result(resolvedIntent, action);
   }
@@ -157,29 +153,6 @@ public final class LabeledIntent {
     return description;
   }
 
-  // TODO(b/149018167) Remove this once we have moved this to C++.
-  private static void putTextLanguagesExtra(Bundle container, Bundle extra) {
-    container.putBundle("text-languages", extra);
-  }
-
-  @Nullable
-  private static IconCompat createIconFromPackage(
-      Context context, String packageName, @DrawableRes int iconRes) {
-    try {
-      Context packageContext = context.createPackageContext(packageName, 0);
-      return IconCompat.createWithResource(packageContext, iconRes);
-    } catch (PackageManager.NameNotFoundException e) {
-      TcLog.e(TAG, "createIconFromPackage: failed to create package context", e);
-    }
-    return null;
-  }
-
-  private static PendingIntent createPendingIntent(
-      final Context context, final Intent intent, int requestCode) {
-    return PendingIntent.getActivity(
-        context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-  }
-
   @Nullable
   private static String getApplicationName(ResolveInfo resolveInfo, PackageManager packageManager) {
     if (resolveInfo.activityInfo == null) {
@@ -191,36 +164,31 @@ public final class LabeledIntent {
     if (resolveInfo.activityInfo.applicationInfo == null) {
       return null;
     }
-    return packageManager.getApplicationLabel(resolveInfo.activityInfo.applicationInfo).toString();
+    return (String) packageManager.getApplicationLabel(resolveInfo.activityInfo.applicationInfo);
   }
 
-  private static Bundle createFromTextClassifierExtra(@Nullable Bundle textLanguagesBundle) {
-    if (textLanguagesBundle == null) {
-      return Bundle.EMPTY;
-    } else {
-      Bundle bundle = new Bundle();
-      putTextLanguagesExtra(bundle, textLanguagesBundle);
+  private static Bundle getFromTextClassifierExtra(@Nullable Bundle textLanguagesBundle) {
+    if (textLanguagesBundle != null) {
+      final Bundle bundle = new Bundle();
+      ExtrasUtils.putTextLanguagesExtra(bundle, textLanguagesBundle);
       return bundle;
+    } else {
+      return Bundle.EMPTY;
     }
   }
 
-  private static boolean hasPermission(Context context, ActivityInfo info) {
-    if (!info.exported) {
-      return false;
-    }
-    if (info.permission == null) {
-      return true;
-    }
-    return ContextCompat.checkSelfPermission(context, info.permission)
-        == PackageManager.PERMISSION_GRANTED;
+  private static PendingIntent createPendingIntent(
+      final Context context, final Intent intent, int requestCode) {
+    return PendingIntent.getActivity(
+        context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT);
   }
 
   /** Data class that holds the result. */
   public static final class Result {
     public final Intent resolvedIntent;
-    public final RemoteActionCompat remoteAction;
+    public final RemoteAction remoteAction;
 
-    public Result(Intent resolvedIntent, RemoteActionCompat remoteAction) {
+    public Result(Intent resolvedIntent, RemoteAction remoteAction) {
       this.resolvedIntent = Preconditions.checkNotNull(resolvedIntent);
       this.remoteAction = Preconditions.checkNotNull(remoteAction);
     }

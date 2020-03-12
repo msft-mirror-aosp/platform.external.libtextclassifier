@@ -285,6 +285,7 @@ int NumberAnnotator::GetPercentSuffixLength(const UnicodeText& context,
 
 void NumberAnnotator::FindPercentages(
     const UnicodeText& context, std::vector<AnnotatedSpan>* result) const {
+  std::vector<AnnotatedSpan> percentage_annotations;
   const int initial_result_size = result->size();
   for (int i = 0; i < initial_result_size; ++i) {
     AnnotatedSpan annotated_span = (*result)[i];

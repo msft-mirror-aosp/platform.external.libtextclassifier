@@ -172,7 +172,7 @@ bool GrammarAnnotator::Annotate(const std::vector<Locale>& locales,
 
   // Run the grammar.
   grammar::Matcher matcher(*unilib_, model_->rules(), locale_rules);
-  lexer_.Process(tokens, /*matches=*/{}, &matcher);
+  lexer_.Process(tokens, &matcher);
 
   // Populate results.
   return callback_handler.GetAnnotations(result);

@@ -19,8 +19,9 @@
 // A lexer passes token to the matcher: literal terminal strings and token
 // types. It passes tokens to the matcher by calling AddTerminal() and
 // AddMatch() for literal terminals and token types, respectively.
-// The lexer passes each token along with the [begin, end) position range
-// in which it occurs.  So for an input string "Groundhog February 2, 2007", the
+// The lexer passes
+// each token along with the [begin, end) position range in which it
+// occurs.  So for an input string "Groundhog February 2, 2007", the
 // lexer would tell the matcher that:
 //
 //     "Groundhog" occurs at [0, 9)
@@ -46,7 +47,7 @@
 // to the matcher in left-to-right order, strictly speaking, their "end"
 // positions must be nondecreasing.  (This constraint allows a more
 // efficient matching algorithm.)  The "begin" positions can be in any
-// order.
+// order. Zero-width tokens (begin==end) are not allowed.
 //
 // There are two kinds of supported callbacks:
 // (1) OUTPUT:  Callbacks are the only output mechanism a matcher has.  For each

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.common.intent;
+package com.android.textclassifier.intent;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -23,19 +23,25 @@ import android.text.TextUtils;
 import com.android.textclassifier.common.base.TcLog;
 import com.google.android.textclassifier.NamedVariant;
 import com.google.android.textclassifier.RemoteActionTemplate;
-import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
+import java.util.List;
 import javax.annotation.Nullable;
 
-/** Creates intents based on {@link RemoteActionTemplate} objects. */
+/**
+ * Creates intents based on {@link RemoteActionTemplate} objects.
+ *
+ * @hide
+ */
 public final class TemplateIntentFactory {
   private static final String TAG = "TemplateIntentFactory";
 
   /** Constructs and returns a list of {@link LabeledIntent} based on the given templates. */
-  public ImmutableList<LabeledIntent> create(RemoteActionTemplate[] remoteActionTemplates) {
+  @Nullable
+  public List<LabeledIntent> create(RemoteActionTemplate[] remoteActionTemplates) {
     if (remoteActionTemplates.length == 0) {
-      return ImmutableList.of();
+      return new ArrayList<>();
     }
-    final ImmutableList.Builder<LabeledIntent> labeledIntents = ImmutableList.builder();
+    final List<LabeledIntent> labeledIntents = new ArrayList<>();
     for (RemoteActionTemplate remoteActionTemplate : remoteActionTemplates) {
       if (!isValidTemplate(remoteActionTemplate)) {
         TcLog.w(TAG, "Invalid RemoteActionTemplate skipped.");
@@ -52,7 +58,7 @@ public final class TemplateIntentFactory {
                   ? LabeledIntent.DEFAULT_REQUEST_CODE
                   : remoteActionTemplate.requestCode));
     }
-    return labeledIntents.build();
+    return labeledIntents;
   }
 
   private static boolean isValidTemplate(@Nullable RemoteActionTemplate remoteActionTemplate) {
@@ -92,9 +98,6 @@ public final class TemplateIntentFactory {
             : Intent.normalizeMimeType(remoteActionTemplate.type);
     intent.setDataAndType(uri, type);
     intent.setFlags(remoteActionTemplate.flags == null ? 0 : remoteActionTemplate.flags);
-    if (!TextUtils.isEmpty(remoteActionTemplate.packageName)) {
-      intent.setPackage(remoteActionTemplate.packageName);
-    }
     if (remoteActionTemplate.category != null) {
       for (String category : remoteActionTemplate.category) {
         if (category != null) {
@@ -135,16 +138,6 @@ public final class TemplateIntentFactory {
         case NamedVariant.TYPE_STRING:
           bundle.putString(namedVariant.getName(), namedVariant.getString());
           break;
-        case NamedVariant.TYPE_STRING_ARRAY:
-          bundle.putStringArray(namedVariant.getName(), namedVariant.getStringArray());
-          break;
-        case NamedVariant.TYPE_FLOAT_ARRAY:
-          bundle.putFloatArray(namedVariant.getName(), namedVariant.getFloatArray());
-          break;
-        case NamedVariant.TYPE_INT_ARRAY:
-          bundle.putIntArray(namedVariant.getName(), namedVariant.getIntArray());
-          break;
-
         default:
           TcLog.w(
               TAG, "Unsupported type found in nameVariantsToBundle : " + namedVariant.getType());

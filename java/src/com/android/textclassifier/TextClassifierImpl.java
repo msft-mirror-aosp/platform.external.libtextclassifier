@@ -42,8 +42,6 @@ import androidx.annotation.WorkerThread;
 import androidx.collection.ArraySet;
 import androidx.core.util.Pair;
 import com.android.textclassifier.common.base.TcLog;
-import com.android.textclassifier.common.intent.LabeledIntent;
-import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.android.textclassifier.common.statsd.GenerateLinksLogger;
 import com.android.textclassifier.common.statsd.ResultIdUtils;
 import com.android.textclassifier.common.statsd.SelectionEventConverter;
@@ -51,8 +49,10 @@ import com.android.textclassifier.common.statsd.TextClassificationSessionIdConve
 import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
 import com.android.textclassifier.intent.ClassificationIntentFactory;
+import com.android.textclassifier.intent.LabeledIntent;
 import com.android.textclassifier.intent.LegacyClassificationIntentFactory;
 import com.android.textclassifier.intent.TemplateClassificationIntentFactory;
+import com.android.textclassifier.intent.TemplateIntentFactory;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
@@ -471,7 +471,7 @@ final class TextClassifierImpl {
       RemoteAction remoteAction = null;
       Bundle extras = new Bundle();
       if (labeledIntentResult != null) {
-        remoteAction = labeledIntentResult.remoteAction.toRemoteAction();
+        remoteAction = labeledIntentResult.remoteAction;
         ExtrasUtils.putActionIntent(extras, labeledIntentResult.resolvedIntent);
       }
       ExtrasUtils.putSerializedEntityData(extras, nativeSuggestion.getSerializedEntityData());
@@ -641,7 +641,7 @@ final class TextClassifierImpl {
     final Bundle foreignLanguageBundle = languagesBundles.second;
 
     boolean isPrimaryAction = true;
-    final ImmutableList<LabeledIntent> labeledIntents =
+    final List<LabeledIntent> labeledIntents =
         classificationIntentFactory.create(
             context,
             classifiedText,
@@ -660,7 +660,7 @@ final class TextClassifierImpl {
       }
 
       final Intent intent = result.resolvedIntent;
-      final RemoteAction action = result.remoteAction.toRemoteAction();
+      final RemoteAction action = result.remoteAction;
       if (isPrimaryAction) {
         // For O backwards compatibility, the first RemoteAction is also written to the
         // legacy API fields.

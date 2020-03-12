@@ -109,7 +109,8 @@ std::vector<float> TokenFeatureExtractor::ExtractDenseFeatures(
     if (options_.unicode_aware_features) {
       UnicodeText token_unicode =
           UTF8ToUnicodeText(token.value, /*do_copy=*/false);
-      if (!token.value.empty() && unilib_.IsUpper(*token_unicode.begin())) {
+      const bool is_upper = unilib_.IsUpper(*token_unicode.begin());
+      if (!token.value.empty() && is_upper) {
         dense_features.push_back(1.0);
       } else {
         dense_features.push_back(-1.0);

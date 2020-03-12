@@ -223,8 +223,6 @@ typedef std::pair<UnicodeText::const_iterator, UnicodeText::const_iterator>
 // std::string, or from ::string to std::string, because if this happens it
 // often results in invalid memory access to a temporary object created during
 // such conversion (if do_copy == false).
-// NOTE: These methods don't check if the input string is UTF8 well formed, for
-// efficiency reasons. Use UnicodeText::is_valid() when explicitly needed.
 UnicodeText UTF8ToUnicodeText(const char* utf8_buf, int len,
                               bool do_copy = true);
 UnicodeText UTF8ToUnicodeText(const char* utf8_buf, bool do_copy = true);
