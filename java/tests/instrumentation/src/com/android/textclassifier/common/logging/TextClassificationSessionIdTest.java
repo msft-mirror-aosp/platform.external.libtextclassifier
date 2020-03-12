@@ -28,9 +28,9 @@ import org.junit.runner.RunWith;
 public class TextClassificationSessionIdTest {
 
   @Test
-  public void flattenToString() {
+  public void getValue() {
     TextClassificationSessionId sessionId = new TextClassificationSessionId();
 
-    assertThat(sessionId.flattenToString()).isNotEmpty();
+    assertThat(sessionId.getValue()).isNotEmpty();
   }
 }

@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+include "actions/actions-entity-data.fbs";
 include "annotator/model.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
@@ -265,11 +266,13 @@ table ActionSuggestionSpec {
   // Score.
   score:float;
 
-  // Serialized entity information.
+  // Additional entity information.
   serialized_entity_data:string (shared);
 
   // Priority score used for internal conflict resolution.
   priority_score:float = 0;
+
+  entity_data:ActionsEntityData;
 }
 
 // Options to specify triggering behaviour per action class.
@@ -339,7 +342,7 @@ table AnnotationActionsSpec {
   // user.
   only_until_last_sent:bool = true;
 
-  // If true, annotator would populare serialized_entity_data in the results.
+  // If true, annotator would populate serialized_entity_data in the results.
   is_serialized_entity_data_enabled:bool = true;
 }
 
@@ -391,6 +394,10 @@ table RuleCapturingGroup {
 
   // If set, normalization to apply to the capturing group text.
   normalization_options:NormalizationOptions;
+
+  // If set to true, an existing annotator annotation will be used to
+  // create the actions suggestions text annotation.
+  use_annotation_match:bool;
 }
 
 // The actions to produce upon triggering.
@@ -426,6 +433,12 @@ table RuleMatch {
   action_id:[uint];
 }
 
+namespace libtextclassifier3.RulesModel_.GrammarRules_;
+table AnnotationNonterminalEntry {
+  key:string (key, shared);
+  value:int;
+}
+
 // Configuration for actions based on context-free grammars.
 namespace libtextclassifier3.RulesModel_;
 table GrammarRules {
@@ -439,6 +452,10 @@ table GrammarRules {
 
   // The action specifications used by the rule matches.
   actions:[RuleActionSpec];
+
+  // Predefined nonterminals for annotations.
+  // Maps annotation/collection names to non-terminal ids.
+  annotation_nonterminal:[GrammarRules_.AnnotationNonterminalEntry];
 }
 
 // Rule based actions.

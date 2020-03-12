@@ -406,7 +406,10 @@ void Ir::Serialize(const bool include_debug_information,
   output->nonterminals.reset(new RulesSet_::NonterminalsT);
   output->nonterminals->start_nt = GetNonterminalForName(kStartNonterm);
   output->nonterminals->end_nt = GetNonterminalForName(kEndNonterm);
+  output->nonterminals->wordbreak_nt = GetNonterminalForName(kWordBreakNonterm);
   output->nonterminals->token_nt = GetNonterminalForName(kTokenNonterm);
+  output->nonterminals->uppercase_token_nt =
+      GetNonterminalForName(kUppercaseTokenNonterm);
   output->nonterminals->digits_nt = GetNonterminalForName(kDigitsNonterm);
   for (int i = 1; i <= kMaxNDigitsNontermLength; i++) {
     if (const Nonterm n_digits_nt =

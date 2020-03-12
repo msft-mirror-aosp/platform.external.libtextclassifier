@@ -182,6 +182,21 @@ table Money {
   unnormalized_amount:string (shared);
 }
 
+namespace libtextclassifier3.EntityData_.Translate_;
+table LanguagePredictionResult {
+  // BCP 47 tag for the language prediction result.
+  language_tag:string (shared);
+
+  // Confidence score for the language prediction result.
+  confidence_score:float;
+}
+
+// Details about detected foreign text.
+namespace libtextclassifier3.EntityData_;
+table Translate {
+  language_prediction_results:[Translate_.LanguagePredictionResult];
+}
+
 // Represents an entity annotated in text.
 namespace libtextclassifier3;
 table EntityData {
@@ -204,6 +219,7 @@ table EntityData {
   iban:EntityData_.Iban;
   parcel:EntityData_.ParcelTracking;
   money:EntityData_.Money;
+  translate:EntityData_.Translate;
 }
 
 root_type libtextclassifier3.EntityData;

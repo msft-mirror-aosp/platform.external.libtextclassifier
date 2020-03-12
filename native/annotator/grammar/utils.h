@@ -14,5 +14,21 @@
  * limitations under the License.
  */
 
-// The actual code of the test is in the following include:
-#include "utils/utf8/unilib_test-include.h"
+// Common utility functions for grammar annotators.
+
+#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_
+#define LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_
+
+#include "annotator/model_generated.h"
+#include "utils/tokenizer.h"
+#include "utils/utf8/unilib.h"
+
+namespace libtextclassifier3 {
+
+// Builds a tokenizer instance from options.
+Tokenizer BuildTokenizer(const UniLib* unilib,
+                         const GrammarTokenizerOptions* options);
+
+}  // namespace libtextclassifier3
+
+#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_

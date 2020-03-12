@@ -29,22 +29,21 @@ namespace libtextclassifier3 {
 
 // A text span in the conversation.
 struct MessageTextSpan {
-  // The referenced message.
-  // -1 if not referencing a particular message in the provided input.
-  int message_index;
-
-  // The span within the reference message.
-  // (-1, -1) if not referencing a particular location.
-  CodepointSpan span;
-
-  // The span text.
-  std::string text;
-
-  explicit MessageTextSpan()
-      : message_index(kInvalidIndex), span({kInvalidIndex, kInvalidIndex}) {}
+  explicit MessageTextSpan() = default;
   MessageTextSpan(const int message_index, const CodepointSpan span,
                   const std::string& text)
       : message_index(message_index), span(span), text(text) {}
+
+  // The referenced message.
+  // -1 if not referencing a particular message in the provided input.
+  int message_index = kInvalidIndex;
+
+  // The span within the reference message.
+  // (-1, -1) if not referencing a particular location.
+  CodepointSpan span = CodepointSpan{kInvalidIndex, kInvalidIndex};
+
+  // The span text.
+  std::string text;
 };
 
 // An entity associated with an action.
@@ -65,10 +64,10 @@ struct ActionSuggestion {
   std::string type;
 
   // Score.
-  float score;
+  float score = 0.f;
 
   // Priority score for internal conflict resolution.
-  float priority_score;
+  float priority_score = 0.f;
 
   // The associated annotations.
   std::vector<ActionSuggestionAnnotation> annotations;
@@ -85,29 +84,21 @@ struct ActionSuggestion {
 // Actions suggestions result containing meta - information and the suggested
 // actions.
 struct ActionsSuggestionsResponse {
-  ActionsSuggestionsResponse()
-      : sensitivity_score(-1),
-        triggering_score(-1),
-        output_filtered_sensitivity(false),
-        output_filtered_min_triggering_score(false),
-        output_filtered_low_confidence(false),
-        output_filtered_locale_mismatch(false) {}
-
   // The sensitivity assessment.
-  float sensitivity_score;
-  float triggering_score;
+  float sensitivity_score = -1.f;
+  float triggering_score = -1.f;
 
   // Whether the output was suppressed by the sensitivity threshold.
-  bool output_filtered_sensitivity;
+  bool output_filtered_sensitivity = false;
 
   // Whether the output was suppressed by the triggering score threshold.
-  bool output_filtered_min_triggering_score;
+  bool output_filtered_min_triggering_score = false;
 
   // Whether the output was suppressed by the low confidence patterns.
-  bool output_filtered_low_confidence;
+  bool output_filtered_low_confidence = false;
 
   // Whether the output was suppressed due to locale mismatch.
-  bool output_filtered_locale_mismatch;
+  bool output_filtered_locale_mismatch = false;
 
   // The suggested actions.
   std::vector<ActionSuggestion> actions;
@@ -116,13 +107,13 @@ struct ActionsSuggestionsResponse {
 // Represents a single message in the conversation.
 struct ConversationMessage {
   // User ID distinguishing the user from other users in the conversation.
-  int user_id;
+  int user_id = 0;
 
   // Text of the message.
   std::string text;
 
   // Reference time of this message.
-  int64 reference_time_ms_utc;
+  int64 reference_time_ms_utc = 0;
 
   // Timezone in which the input text was written (format as accepted by ICU).
   std::string reference_timezone;

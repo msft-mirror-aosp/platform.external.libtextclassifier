@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+include "annotator/entity-data.fbs";
 include "annotator/grammar/dates/dates.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
@@ -44,6 +45,7 @@ namespace libtextclassifier3;
 enum AnnotationUsecase : int {
   // Results are optimized for Smart{Select,Share,Linkify}.
   ANNOTATION_USECASE_SMART = 0,
+  // Smart{Select,Share,Linkify}
 
   // Results are optimized for using TextClassifier as an infrastructure that
   // annotates as much as possible.
@@ -211,12 +213,14 @@ table CapturingGroup {
   // the classfication result entity data.
   entity_field_path:FlatbufferFieldPath;
 
-  // If set, the flatbuffer serialized entity data will be merged with the
+  // If set, the flatbuffer entity data will be merged with the
   // classification result entity data.
   serialized_entity_data:string (shared);
 
   // If set, normalization to apply before text is used in entity data.
   normalization_options:NormalizationOptions;
+
+  entity_data:EntityData;
 }
 
 // List of regular expression matchers to check.
@@ -249,8 +253,10 @@ table Pattern {
 
   capturing_group:[CapturingGroup];
 
-  // Serialized entity data to set for a match.
+  // Entity data to set for a match.
   serialized_entity_data:string (shared);
+
+  entity_data:EntityData;
 }
 
 namespace libtextclassifier3;
@@ -363,6 +369,55 @@ table GrammarTokenizerOptions {
   tokenize_on_script_change:bool = false;
 }
 
+// Options for grammar date/datetime/date range annotations.
+namespace libtextclassifier3.GrammarDatetimeModel_;
+table AnnotationOptions {
+  // If enabled, extract special day offset like today, yesterday, etc.
+  enable_special_day_offset:bool = true;
+
+  // If true, merge the adjacent day of week, time and date. e.g.
+  // "20/2/2016 at 8pm" is extracted as a single instance instead of two
+  // instance: "20/2/2016" and "8pm".
+  merge_adjacent_components:bool = true;
+
+  // List the extra id of requested dates.
+  extra_requested_dates:[string];
+
+  // If true, try to include preposition to the extracted annotation. e.g.
+  // "at 6pm". if it's false, only 6pm is included. offline-actions has
+  // special requirements to include preposition.
+  include_preposition:bool = true;
+
+  // If enabled, extract range in date annotator.
+  // input: Monday, 5-6pm
+  // If the flag is true, The extracted annotation only contains 1 range
+  // instance which is from Monday 5pm to 6pm.
+  // If the flag is false, The extracted annotation contains two date
+  // instance: "Monday" and "6pm".
+  enable_date_range:bool = true;
+
+  // If enabled, expand a date series. Must have date_range enabled to be
+  // used. The date range cannot exceed 30 days.
+  // input: April 4-6, 6:30pm
+  // If the flag is true, the extracted annotation will contain 3 instance
+  // which are April 4 at 6:30pm, April 5 at 6:30pm and April 6 at 6:30pm
+  // all have the same begin and end annotation
+  // If the flag is false, the extracted annotation contains one time
+  // range instance and one date instance
+  expand_date_series:bool = true;
+
+  // If enabled, the rule priority score is used to set the priority score of
+  // the annotation.
+  // In case of false the annotation priority score is set from
+  // GrammarDatetimeModel's priority_score
+  use_rule_priority_score:bool = false;
+
+  // If enabled, annotator will try to resolve the ambiguity by generating
+  // possible alternative interpretations of the input text
+  // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
+  generate_alternative_interpretations_when_ambiguous:bool;
+}
+
 namespace libtextclassifier3;
 table GrammarDatetimeModel {
   // List of BCP 47 locale strings representing all locales supported by the
@@ -380,6 +435,15 @@ table GrammarDatetimeModel {
 
   // The datetime grammar rules.
   datetime_rules:dates.DatetimeRules;
+
+  // The final score to assign to the results of grammar model
+  target_classification_score:float = 1;
+
+  // The priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
+
+  // Options for grammar annotations.
+  annotation_options:GrammarDatetimeModel_.AnnotationOptions;
 }
 
 namespace libtextclassifier3.DatetimeModelLibrary_;
@@ -408,6 +472,14 @@ table RuleClassificationResult {
 
   // Behaviour of capturing matches.
   capturing_group:[CapturingGroup];
+
+  // Entity data to set for a match.
+  serialized_entity_data:string (shared);
+
+  // Enabled modes.
+  enabled_modes:ModeFlag = ALL;
+
+  entity_data:EntityData;
 }
 
 // Configuration for grammar based annotators.
@@ -417,6 +489,16 @@ table GrammarModel {
   rules:grammar.RulesSet;
 
   rule_classification_result:[GrammarModel_.RuleClassificationResult];
+
+  // Number of tokens in the context to use for classification and text
+  // selection suggestion.
+  // A value -1 uses the full context.
+  context_left_num_tokens:int;
+
+  context_right_num_tokens:int;
+
+  // Grammar specific tokenizer options.
+  tokenizer_options:GrammarTokenizerOptions;
 }
 
 namespace libtextclassifier3;
@@ -550,12 +632,14 @@ table Model {
   contact_annotator_options:ContactAnnotatorOptions;
   money_parsing_options:MoneyParsingOptions;
   translate_annotator_options:TranslateAnnotatorOptions;
+  grammar_model:GrammarModel;
 }
 
 // Method for selecting the center token.
 namespace libtextclassifier3.FeatureProcessorOptions_;
 enum CenterTokenSelectionMethod : int {
   DEFAULT_CENTER_TOKEN_METHOD = 0,
+  // Invalid option.
 
   // Use click indices to determine the center token.
   CENTER_TOKEN_FROM_CLICK = 1,
