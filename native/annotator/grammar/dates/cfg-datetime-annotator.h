@@ -36,9 +36,7 @@ class CfgDatetimeAnnotator {
   CfgDatetimeAnnotator(const UniLib& unilib,
                        const GrammarTokenizerOptions* tokenizer_options,
                        const CalendarLib& calendar_lib,
-                       const DatetimeRules* datetime_rules,
-                       const float annotator_target_classification_score,
-                       const float annotator_priority_score);
+                       const DatetimeRules* datetime_rules);
 
   // CfgDatetimeAnnotator is neither copyable nor movable.
   CfgDatetimeAnnotator(const CfgDatetimeAnnotator&) = delete;
@@ -73,8 +71,6 @@ class CfgDatetimeAnnotator {
   const CalendarLib& calendar_lib_;
   const Tokenizer tokenizer_;
   DateParser parser_;
-  const float annotator_target_classification_score_;
-  const float annotator_priority_score_;
 };
 
 }  // namespace libtextclassifier3::dates

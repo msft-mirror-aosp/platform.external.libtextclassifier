@@ -41,7 +41,6 @@ import android.view.textclassifier.TextSelection;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
-import com.android.textclassifier.testing.FakeContextBuilder;
 import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.Collections;

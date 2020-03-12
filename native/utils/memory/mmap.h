@@ -130,7 +130,7 @@ class ScopedMmap {
     }
   }
 
-  const MmapHandle &handle() const { return handle_; }
+  const MmapHandle &handle() { return handle_; }
 
  private:
   MmapHandle handle_;

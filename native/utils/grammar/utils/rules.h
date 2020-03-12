@@ -110,11 +110,7 @@ class Rules {
   void DefineFilter(const CallbackId filter_id) { filters_.insert(filter_id); }
 
   // Lowers the rule set into the intermediate representation.
-  // Treats nonterminals given by the argument `predefined_nonterminals` as
-  // defined externally. This allows to define rules that are dependent on
-  // non-terminals produced by e.g. existing text annotations and that will be
-  // fed to the matcher by the lexer.
-  Ir Finalize(const std::set<std::string>& predefined_nonterminals = {}) const;
+  Ir Finalize() const;
 
  private:
   // Expands optional components in rules.

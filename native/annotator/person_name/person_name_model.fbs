@@ -26,7 +26,7 @@ table PersonName {
   person_name:string (shared);
 }
 
-// Next ID: 5
+// Next ID: 3
 namespace libtextclassifier3;
 table PersonNameModel {
   // Decides if the person name annotator is enabled.
@@ -35,15 +35,6 @@ table PersonNameModel {
 
   // List of all person names which are considered by the person name annotator.
   person_names:[PersonNameModel_.PersonName];
-
-  // Decides if the English genitive ending 's is stripped, e.g., if Peter's is
-  // stripped to Peter before looking for the name in the dictionary. required
-  strip_english_genitive_ending:bool;
-
-  // List of codepoints that are considered as 'end of person name' indicator in
-  // the heuristic to find the longest person name match.
-  // required
-  end_of_person_name_indicators:[int];
 }
 
 root_type libtextclassifier3.PersonNameModel;

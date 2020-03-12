@@ -33,9 +33,8 @@ struct Match {
   static const int16 kUnknownType = 0;
   static const int16 kTokenType = -1;
   static const int16 kDigitsType = -2;
-  static const int16 kBreakType = -3;
-  static const int16 kCapturingMatch = -4;
-  static const int16 kAssertionMatch = -5;
+  static const int16 kCapturingMatch = -3;
+  static const int16 kAssertionMatch = -4;
 
   void Init(const Nonterm arg_lhs, const CodepointSpan arg_codepoint_span,
             const int arg_match_offset, const int arg_type = kUnknownType) {

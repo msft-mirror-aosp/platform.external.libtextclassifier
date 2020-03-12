@@ -197,16 +197,12 @@ class ActionsSuggestions {
       const ConversationMessage& message) const;
 
   void SuggestActionsFromAnnotations(
-      const Conversation& conversation,
-      std::vector<ActionSuggestion>* actions) const;
+      const Conversation& conversation, const ActionSuggestionOptions& options,
+      const Annotator* annotator, std::vector<ActionSuggestion>* actions) const;
 
   void SuggestActionsFromAnnotation(
       const int message_index, const ActionSuggestionAnnotation& annotation,
       std::vector<ActionSuggestion>* actions) const;
-
-  // Run annotator on the messages of a conversation.
-  Conversation AnnotateConversation(const Conversation& conversation,
-                                    const Annotator* annotator) const;
 
   // Deduplicates equivalent annotations - annotations that have the same type
   // and same span text.

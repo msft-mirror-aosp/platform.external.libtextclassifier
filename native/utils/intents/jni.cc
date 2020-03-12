@@ -77,12 +77,7 @@ RemoteActionTemplatesHandler::Create(
                  "(Ljava/lang/String;Z)V");
   TC3_GET_METHOD(named_variant_class_, named_variant_from_string_, "<init>",
                  "(Ljava/lang/String;Ljava/lang/String;)V");
-  TC3_GET_METHOD(named_variant_class_, named_variant_from_string_array_,
-                 "<init>", "(Ljava/lang/String;[Ljava/lang/String;)V");
-  TC3_GET_METHOD(named_variant_class_, named_variant_from_float_array_,
-                 "<init>", "(Ljava/lang/String;[F)V");
-  TC3_GET_METHOD(named_variant_class_, named_variant_from_int_array_, "<init>",
-                 "(Ljava/lang/String;[I)V");
+
   return handler;
 }
 
@@ -129,38 +124,6 @@ RemoteActionTemplatesHandler::AsStringArray(
   return result;
 }
 
-StatusOr<ScopedLocalRef<jfloatArray>>
-RemoteActionTemplatesHandler::AsFloatArray(
-    const std::vector<float>& values) const {
-  if (values.empty()) {
-    return {{nullptr, jni_cache_->GetEnv()}};
-  }
-
-  TC3_ASSIGN_OR_RETURN(
-      ScopedLocalRef<jfloatArray> result,
-      JniHelper::NewFloatArray(jni_cache_->GetEnv(), values.size()));
-
-  jni_cache_->GetEnv()->SetFloatArrayRegion(result.get(), /*start=*/0,
-                                            /*len=*/values.size(),
-                                            &(values[0]));
-  return result;
-}
-
-StatusOr<ScopedLocalRef<jintArray>> RemoteActionTemplatesHandler::AsIntArray(
-    const std::vector<int>& values) const {
-  if (values.empty()) {
-    return {{nullptr, jni_cache_->GetEnv()}};
-  }
-
-  TC3_ASSIGN_OR_RETURN(
-      ScopedLocalRef<jintArray> result,
-      JniHelper::NewIntArray(jni_cache_->GetEnv(), values.size()));
-
-  jni_cache_->GetEnv()->SetIntArrayRegion(result.get(), /*start=*/0,
-                                          /*len=*/values.size(), &(values[0]));
-  return result;
-}
-
 StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
     const std::string& name_str, const Variant& value) const {
   TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> name,
@@ -200,33 +163,6 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_string_, name.get(),
                                   value_jstring.get());
-    }
-
-    case Variant::TYPE_STRING_VECTOR_VALUE: {
-      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jobjectArray> value_jstring_array,
-                           AsStringArray(value.StringVectorValue()));
-
-      return JniHelper::NewObject(env, named_variant_class_.get(),
-                                  named_variant_from_string_array_, name.get(),
-                                  value_jstring_array.get());
-    }
-
-    case Variant::TYPE_FLOAT_VECTOR_VALUE: {
-      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jfloatArray> value_jfloat_array,
-                           AsFloatArray(value.FloatVectorValue()));
-
-      return JniHelper::NewObject(env, named_variant_class_.get(),
-                                  named_variant_from_float_array_, name.get(),
-                                  value_jfloat_array.get());
-    }
-
-    case Variant::TYPE_INT_VECTOR_VALUE: {
-      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jintArray> value_jint_array,
-                           AsIntArray(value.IntVectorValue()));
-
-      return JniHelper::NewObject(env, named_variant_class_.get(),
-                                  named_variant_from_float_array_, name.get(),
-                                  value_jint_array.get());
     }
 
     case Variant::TYPE_EMPTY:

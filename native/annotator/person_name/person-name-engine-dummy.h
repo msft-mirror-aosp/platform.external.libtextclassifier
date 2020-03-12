@@ -32,8 +32,7 @@ namespace libtextclassifier3 {
 // A dummy implementation of the person name engine.
 class PersonNameEngine {
  public:
-  explicit PersonNameEngine(const FeatureProcessor* feature_processor,
-                            const UniLib* unilib) {}
+  explicit PersonNameEngine(const UniLib* unilib) {}
 
   bool Initialize(const PersonNameModel* model) {
     TC3_LOG(ERROR) << "No person name engine to initialize.";

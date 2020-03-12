@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.common.intent;
+package com.android.textclassifier.intent;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -49,20 +49,10 @@ public class TemplateIntentFactoryTest {
   private static final String VALUE_ONE = "value1";
   private static final String KEY_TWO = "key2";
   private static final int VALUE_TWO = 42;
-  private static final String KEY_STRING_ARRAY = "string_array_key";
-  private static final String[] VALUE_STRING_ARRAY = new String[] {"a", "b"};
-  private static final String KEY_FLOAT_ARRAY = "float_array_key";
-  private static final float[] VALUE_FLOAT_ARRAY = new float[] {3.14f, 2.718f};
-  private static final String KEY_INT_ARRAY = "int_array_key";
-  private static final int[] VALUE_INT_ARRAY = new int[] {7, 2, 1};
 
   private static final NamedVariant[] NAMED_VARIANTS =
       new NamedVariant[] {
-        new NamedVariant(KEY_ONE, VALUE_ONE),
-        new NamedVariant(KEY_TWO, VALUE_TWO),
-        new NamedVariant(KEY_STRING_ARRAY, VALUE_STRING_ARRAY),
-        new NamedVariant(KEY_FLOAT_ARRAY, VALUE_FLOAT_ARRAY),
-        new NamedVariant(KEY_INT_ARRAY, VALUE_INT_ARRAY)
+        new NamedVariant(KEY_ONE, VALUE_ONE), new NamedVariant(KEY_TWO, VALUE_TWO)
       };
   private static final Integer REQUEST_CODE = 10;
 
@@ -110,9 +100,6 @@ public class TemplateIntentFactoryTest {
     assertThat(intent.getPackage()).isNull();
     assertThat(intent.getStringExtra(KEY_ONE)).isEqualTo(VALUE_ONE);
     assertThat(intent.getIntExtra(KEY_TWO, 0)).isEqualTo(VALUE_TWO);
-    assertThat(intent.getStringArrayExtra(KEY_STRING_ARRAY)).isEqualTo(VALUE_STRING_ARRAY);
-    assertThat(intent.getFloatArrayExtra(KEY_FLOAT_ARRAY)).isEqualTo(VALUE_FLOAT_ARRAY);
-    assertThat(intent.getIntArrayExtra(KEY_INT_ARRAY)).isEqualTo(VALUE_INT_ARRAY);
   }
 
   @Test

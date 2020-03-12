@@ -18,14 +18,11 @@ package com.android.textclassifier.intent;
 
 import android.content.Context;
 import com.android.textclassifier.common.base.TcLog;
-import com.android.textclassifier.common.intent.LabeledIntent;
-import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.time.Instant;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -49,14 +46,14 @@ public final class TemplateClassificationIntentFactory implements Classification
    * Returns a list of {@link LabeledIntent} that are constructed from the classification result.
    */
   @Override
-  public ImmutableList<LabeledIntent> create(
+  public List<LabeledIntent> create(
       Context context,
       String text,
       boolean foreignText,
       @Nullable Instant referenceTime,
       @Nullable AnnotatorModel.ClassificationResult classification) {
     if (classification == null) {
-      return ImmutableList.of();
+      return Collections.emptyList();
     }
     RemoteActionTemplate[] remoteActionTemplates = classification.getRemoteActionTemplates();
     if (remoteActionTemplates == null) {
@@ -66,11 +63,10 @@ public final class TemplateClassificationIntentFactory implements Classification
           "RemoteActionTemplate is missing, fallback to" + " LegacyClassificationIntentFactory.");
       return fallback.create(context, text, foreignText, referenceTime, classification);
     }
-    final List<LabeledIntent> labeledIntents =
-        new ArrayList<>(templateIntentFactory.create(remoteActionTemplates));
+    final List<LabeledIntent> labeledIntents = templateIntentFactory.create(remoteActionTemplates);
     if (foreignText) {
       ClassificationIntentFactory.insertTranslateAction(labeledIntents, context, text.trim());
     }
-    return ImmutableList.copyOf(labeledIntents);
+    return labeledIntents;
   }
 }

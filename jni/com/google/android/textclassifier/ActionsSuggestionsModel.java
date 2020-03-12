@@ -70,7 +70,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         actionsModelPtr,
         conversation,
         options,
-        (annotator != null ? annotator.getNativeAnnotatorPointer() : 0),
+        (annotator != null ? annotator.getNativeAnnotator() : 0),
         /* appContext= */ null,
         /* deviceLocales= */ null,
         /* generateAndroidIntents= */ false);
@@ -86,7 +86,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         actionsModelPtr,
         conversation,
         options,
-        (annotator != null ? annotator.getNativeAnnotatorPointer() : 0),
+        (annotator != null ? annotator.getNativeAnnotator() : 0),
         appContext,
         deviceLocales,
         /* generateAndroidIntents= */ true);

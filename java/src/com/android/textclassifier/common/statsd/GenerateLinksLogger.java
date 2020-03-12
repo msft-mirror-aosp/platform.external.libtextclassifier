@@ -16,11 +16,10 @@
 
 package com.android.textclassifier.common.statsd;
 
-import android.util.StatsEvent;
-import android.util.StatsLog;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLinks;
 import androidx.collection.ArrayMap;
+import com.android.textclassifier.TextClassifierStatsLog;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
 import com.google.common.annotations.VisibleForTesting;
@@ -128,24 +127,19 @@ public final class GenerateLinksLogger {
       LinkifyStats stats,
       CharSequence text,
       long latencyMs) {
-    StatsEvent statsEvent =
-        StatsEvent.newBuilder()
-            .setAtomId(TextClassifierEventLogger.TEXT_LINKIFY_EVENT_ATOM_ID)
-            .writeString(callId)
-            .writeInt(TextClassifierEvent.TYPE_LINKS_GENERATED)
-            .writeString(/* modelName */ null)
-            .writeInt(TextClassifierEventLogger.WidgetType.WIDGET_TYPE_UNKNOWN)
-            .writeInt(/* eventIndex */ 0)
-            .writeString(entityType)
-            .writeInt(stats.numLinks)
-            .writeInt(stats.numLinksTextLength)
-            .writeInt(text.length())
-            .writeLong(latencyMs)
-            .writeString(callingPackageName)
-            .usePooledBuffer()
-            .build();
-    StatsLog.write(statsEvent);
-
+    TextClassifierStatsLog.write(
+        TextClassifierStatsLog.TEXT_LINKIFY_EVENT,
+        callId,
+        TextClassifierEvent.TYPE_LINKS_GENERATED,
+        /*modelName=*/ null,
+        TextClassifierEventLogger.WidgetType.WIDGET_TYPE_UNKNOWN,
+        /*eventIndex=*/ 0,
+        entityType,
+        stats.numLinks,
+        stats.numLinksTextLength,
+        text.length(),
+        latencyMs,
+        callingPackageName);
     if (TcLog.ENABLE_FULL_LOGGING) {
       TcLog.v(
           LOG_TAG,

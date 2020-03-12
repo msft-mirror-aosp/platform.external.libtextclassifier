@@ -183,6 +183,34 @@ const reflection::Field* ReflectiveFlatbuffer::GetFieldByOffsetOrNull(
   return libtextclassifier3::GetFieldByOffsetOrNull(type_, field_offset);
 }
 
+bool ReflectiveFlatbuffer::IsMatchingType(const reflection::Field* field,
+                                          const Variant& value) const {
+  switch (field->type()->base_type()) {
+    case reflection::Bool:
+      return value.HasBool();
+    case reflection::Byte:
+      return value.HasInt8();
+    case reflection::UByte:
+      return value.HasUInt8();
+    case reflection::Int:
+      return value.HasInt();
+    case reflection::UInt:
+      return value.HasUInt();
+    case reflection::Long:
+      return value.HasInt64();
+    case reflection::ULong:
+      return value.HasUInt64();
+    case reflection::Float:
+      return value.HasFloat();
+    case reflection::Double:
+      return value.HasDouble();
+    case reflection::String:
+      return value.HasString();
+    default:
+      return false;
+  }
+}
+
 bool ReflectiveFlatbuffer::ParseAndSet(const reflection::Field* field,
                                        const std::string& value) {
   switch (field->type()->base_type()) {
@@ -490,7 +518,7 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
       case reflection::Vector:
         switch (field->type()->element()) {
           case reflection::Int:
-            AppendFromVector<int32>(from, field);
+            AppendFromVector<int>(from, field);
             break;
           case reflection::UInt:
             AppendFromVector<uint>(from, field);

@@ -139,14 +139,6 @@ class Annotator {
   // Initializes the installed app engine with the given config.
   bool InitializeInstalledAppEngine(const std::string& serialized_config);
 
-  // Initializes the person name engine with the given person name model from
-  // the provided mmap.
-  bool InitializePersonNameEngineFromScopedMmap(const ScopedMmap& mmap);
-
-  // Initializes the person name engine with the given person name model in the
-  // provided file path.
-  bool InitializePersonNameEngineFromPath(const std::string& path);
-
   // Initializes the person name engine with the given person name model in the
   // provided file descriptor.
   bool InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
