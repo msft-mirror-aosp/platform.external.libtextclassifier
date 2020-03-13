@@ -22,8 +22,8 @@ StatusOr<ScopedLocalRef<jclass>> JniHelper::FindClass(JNIEnv* env,
                                                       const char* class_name) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
   ScopedLocalRef<jclass> result(env->FindClass(class_name), env);
-  TC3_NOT_NULL_OR_RETURN;
   TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
   return result;
 }
 
@@ -31,8 +31,18 @@ StatusOr<jmethodID> JniHelper::GetMethodID(JNIEnv* env, jclass clazz,
                                            const char* method_name,
                                            const char* return_type) {
   jmethodID result = env->GetMethodID(clazz, method_name, return_type);
-  TC3_NOT_NULL_OR_RETURN;
   TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
+  return result;
+}
+
+StatusOr<ScopedLocalRef<jobject>> JniHelper::GetStaticObjectField(
+    JNIEnv* env, jclass class_name, jfieldID field_id) {
+  TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
+  ScopedLocalRef<jobject> result(
+      env->GetStaticObjectField(class_name, field_id), env);
+  TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
   return result;
 }
 
@@ -40,8 +50,8 @@ StatusOr<ScopedLocalRef<jbyteArray>> JniHelper::NewByteArray(JNIEnv* env,
                                                              jsize length) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
   ScopedLocalRef<jbyteArray> result(env->NewByteArray(length), env);
-  TC3_NOT_NULL_OR_RETURN;
   TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
   return result;
 }
 
@@ -115,8 +125,17 @@ StatusOr<ScopedLocalRef<jintArray>> JniHelper::NewIntArray(JNIEnv* env,
                                                            jsize length) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
   ScopedLocalRef<jintArray> result(env->NewIntArray(length), env);
-  TC3_NOT_NULL_OR_RETURN;
   TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
+  return result;
+}
+
+StatusOr<ScopedLocalRef<jfloatArray>> JniHelper::NewFloatArray(JNIEnv* env,
+                                                               jsize length) {
+  TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
+  ScopedLocalRef<jfloatArray> result(env->NewFloatArray(length), env);
+  TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
   return result;
 }
 
@@ -125,8 +144,8 @@ StatusOr<ScopedLocalRef<jobjectArray>> JniHelper::NewObjectArray(
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
   ScopedLocalRef<jobjectArray> result(
       env->NewObjectArray(length, element_class, initial_element), env);
-  TC3_NOT_NULL_OR_RETURN;
   TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
   return result;
 }
 
@@ -134,8 +153,8 @@ StatusOr<ScopedLocalRef<jstring>> JniHelper::NewStringUTF(JNIEnv* env,
                                                           const char* bytes) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
   ScopedLocalRef<jstring> result(env->NewStringUTF(bytes), env);
-  TC3_NOT_NULL_OR_RETURN;
   TC3_NO_EXCEPTION_OR_RETURN;
+  TC3_NOT_NULL_OR_RETURN;
   return result;
 }
 

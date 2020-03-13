@@ -48,6 +48,8 @@ public final class AnnotatorModel implements AutoCloseable {
   public static final float INVALID_LOCATION_ACCURACY_METERS = 0;
 
   private long annotatorPtr;
+  // To tell GC to keep the LangID model alive at least as long as this object.
+  private LangIdModel langIdModel;
 
   /** Enumeration for specifying the usecase of the annotations. */
   public static enum AnnotationUsecase {
@@ -115,6 +117,16 @@ public final class AnnotatorModel implements AutoCloseable {
   }
 
   /**
+   * Sets the LangId model to the annotator. Do not call close on the given LangIdModel object
+   * before this object is closed. Also, this object does not take the memory ownership of the given
+   * LangIdModel object.
+   */
+  public void setLangIdModel(LangIdModel langIdModel) {
+    this.langIdModel = langIdModel;
+    nativeSetLangId(annotatorPtr, langIdModel == null ? 0 : langIdModel.getNativePointer());
+  }
+
+  /**
    * Given a string context and current selection, computes the selection suggestion.
    *
    * <p>The begin and end are character indices into the context UTF8 string. selectionBegin is the
@@ -145,7 +157,7 @@ public final class AnnotatorModel implements AutoCloseable {
         selectionEnd,
         options,
         /*appContext=*/ null,
-        /*deviceLocales=*/ null);
+        /*resourcesLocale=*/ null);
   }
 
   public ClassificationResult[] classifyText(
@@ -154,9 +166,9 @@ public final class AnnotatorModel implements AutoCloseable {
       int selectionEnd,
       ClassificationOptions options,
       Object appContext,
-      String deviceLocales) {
+      String resourcesLocale) {
     return nativeClassifyText(
-        annotatorPtr, context, selectionBegin, selectionEnd, options, appContext, deviceLocales);
+        annotatorPtr, context, selectionBegin, selectionEnd, options, appContext, resourcesLocale);
   }
 
   /**
@@ -468,13 +480,15 @@ public final class AnnotatorModel implements AutoCloseable {
     private final double userLocationLat;
     private final double userLocationLng;
     private final float userLocationAccuracyMeters;
+    private final String userFamiliarLanguageTags;
 
     public ClassificationOptions(
         long referenceTimeMsUtc,
         String referenceTimezone,
         String locales,
         String detectedTextLanguageTags,
-        int annotationUsecase) {
+        int annotationUsecase,
+        String userFamiliarLanguageTags) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
       this.locales = locales;
@@ -483,6 +497,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.userLocationLat = INVALID_LATITUDE;
       this.userLocationLng = INVALID_LONGITUDE;
       this.userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
+      this.userFamiliarLanguageTags = userFamiliarLanguageTags;
     }
 
     public ClassificationOptions(
@@ -495,7 +510,8 @@ public final class AnnotatorModel implements AutoCloseable {
           referenceTimezone,
           locales,
           detectedTextLanguageTags,
-          AnnotationUsecase.SMART.getValue());
+          AnnotationUsecase.SMART.getValue(),
+          "");
     }
 
     public long getReferenceTimeMsUtc() {
@@ -529,6 +545,10 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public float getUserLocationAccuracyMeters() {
       return userLocationAccuracyMeters;
+    }
+
+    public String getUserFamiliarLanguageTags() {
+      return userFamiliarLanguageTags;
     }
   }
 
@@ -650,7 +670,7 @@ public final class AnnotatorModel implements AutoCloseable {
    * Retrieves the pointer to the native object. Note: Need to keep the AnnotatorModel alive as long
    * as the pointer is used.
    */
-  long getNativeAnnotator() {
+  long getNativeAnnotatorPointer() {
     return nativeGetNativeModelPtr(annotatorPtr);
   }
 
@@ -683,6 +703,8 @@ public final class AnnotatorModel implements AutoCloseable {
   private native boolean nativeInitializePersonNameEngine(
       long context, int fd, long offset, long size);
 
+  private native void nativeSetLangId(long annotatorPtr, long langIdPtr);
+
   private native int[] nativeSuggestSelection(
       long context, String text, int selectionBegin, int selectionEnd, SelectionOptions options);
 
@@ -693,7 +715,7 @@ public final class AnnotatorModel implements AutoCloseable {
       int selectionEnd,
       ClassificationOptions options,
       Object appContext,
-      String deviceLocales);
+      String resourceLocales);
 
   private native AnnotatedSpan[] nativeAnnotate(
       long context, String text, AnnotationOptions options);

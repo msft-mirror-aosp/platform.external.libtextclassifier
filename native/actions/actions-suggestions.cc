@@ -776,11 +776,17 @@ bool ActionsSuggestions::ReadModelOutput(
       if (score < action_type->min_triggering_score()) {
         continue;
       }
-      ActionSuggestion suggestion =
-          SuggestionFromSpec(action_type->action(),
-                             /*default_type=*/action_type->name()->str());
+
+      // Create action from model output.
+      ActionSuggestion suggestion;
+      suggestion.type = action_type->name()->str();
+      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+          entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                          : nullptr;
+      FillSuggestionFromSpec(action_type->action(), entity_data.get(),
+                             &suggestion);
       suggestion.score = score;
-      response->actions.push_back(suggestion);
+      response->actions.push_back(std::move(suggestion));
     }
   }
 
@@ -866,9 +872,45 @@ AnnotationOptions ActionsSuggestions::AnnotationOptionsForMessage(
   return options;
 }
 
+// Run annotator on the messages of a conversation.
+Conversation ActionsSuggestions::AnnotateConversation(
+    const Conversation& conversation, const Annotator* annotator) const {
+  if (annotator == nullptr) {
+    return conversation;
+  }
+  const int num_messages_grammar =
+      ((model_->rules() && model_->rules()->grammar_rules() &&
+        model_->rules()->grammar_rules()->annotation_nonterminal())
+           ? 1
+           : 0);
+  const int num_messages_mapping =
+      (model_->annotation_actions_spec()
+           ? std::max(model_->annotation_actions_spec()
+                          ->max_history_from_any_person(),
+                      model_->annotation_actions_spec()
+                          ->max_history_from_last_person())
+           : 0);
+  const int num_messages = std::max(num_messages_grammar, num_messages_mapping);
+  if (num_messages == 0) {
+    // No annotations are used.
+    return conversation;
+  }
+  Conversation annotated_conversation = conversation;
+  for (int i = 0, message_index = annotated_conversation.messages.size() - 1;
+       i < num_messages && message_index >= 0; i++, message_index--) {
+    ConversationMessage* message =
+        &annotated_conversation.messages[message_index];
+    if (message->annotations.empty()) {
+      message->annotations = annotator->Annotate(
+          message->text, AnnotationOptionsForMessage(*message));
+    }
+  }
+  return annotated_conversation;
+}
+
 void ActionsSuggestions::SuggestActionsFromAnnotations(
-    const Conversation& conversation, const ActionSuggestionOptions& options,
-    const Annotator* annotator, std::vector<ActionSuggestion>* actions) const {
+    const Conversation& conversation,
+    std::vector<ActionSuggestion>* actions) const {
   if (model_->annotation_actions_spec() == nullptr ||
       model_->annotation_actions_spec()->annotation_mapping() == nullptr ||
       model_->annotation_actions_spec()->annotation_mapping()->size() == 0) {
@@ -914,10 +956,6 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
       }
     }
 
-    if (annotations.empty() && annotator != nullptr) {
-      annotations = annotator->Annotate(message.text,
-                                        AnnotationOptionsForMessage(message));
-    }
     std::vector<ActionSuggestionAnnotation> action_annotations;
     action_annotations.reserve(annotations.size());
     for (const AnnotatedSpan& annotation : annotations) {
@@ -935,7 +973,7 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
               .UTF8Substring(annotation.span.first, annotation.span.second)};
       action_annotation.entity = classification_result;
       action_annotation.name = classification_result.collection;
-      action_annotations.push_back(action_annotation);
+      action_annotations.push_back(std::move(action_annotation));
     }
 
     if (model_->annotation_actions_spec()->deduplicate_annotations()) {
@@ -964,23 +1002,14 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
       if (annotation.entity.score < mapping->min_annotation_score()) {
         continue;
       }
-      ActionSuggestion suggestion = SuggestionFromSpec(mapping->action());
-      if (mapping->use_annotation_score()) {
-        suggestion.score = annotation.entity.score;
-      }
+
+      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+          entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                          : nullptr;
 
       // Set annotation text as (additional) entity data field.
       if (mapping->entity_field() != nullptr) {
-        std::unique_ptr<ReflectiveFlatbuffer> entity_data =
-            entity_data_builder_->NewRoot();
-        TC3_CHECK(entity_data != nullptr);
-
-        // Merge existing static entity data.
-        if (!suggestion.serialized_entity_data.empty()) {
-          entity_data->MergeFromSerializedFlatbuffer(
-              StringPiece(suggestion.serialized_entity_data.c_str(),
-                          suggestion.serialized_entity_data.size()));
-        }
+        TC3_CHECK_NE(entity_data, nullptr);
 
         UnicodeText normalized_annotation_text =
             UTF8ToUnicodeText(annotation.span.text, /*do_copy=*/false);
@@ -994,11 +1023,15 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
 
         entity_data->ParseAndSet(mapping->entity_field(),
                                  normalized_annotation_text.ToUTF8String());
-        suggestion.serialized_entity_data = entity_data->Serialize();
       }
 
+      ActionSuggestion suggestion;
+      FillSuggestionFromSpec(mapping->action(), entity_data.get(), &suggestion);
+      if (mapping->use_annotation_score()) {
+        suggestion.score = annotation.entity.score;
+      }
       suggestion.annotations = {annotation};
-      actions->push_back(suggestion);
+      actions->push_back(std::move(suggestion));
     }
   }
 }
@@ -1057,25 +1090,29 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
+  // Run annotator against messages.
+  const Conversation annotated_conversation =
+      AnnotateConversation(conversation, annotator);
+
   const int num_messages = NumMessagesToConsider(
-      conversation, model_->max_conversation_history_length());
+      annotated_conversation, model_->max_conversation_history_length());
 
   if (num_messages <= 0) {
     TC3_LOG(INFO) << "No messages provided for actions suggestions.";
     return false;
   }
 
-  SuggestActionsFromAnnotations(conversation, options, annotator,
-                                &response->actions);
+  SuggestActionsFromAnnotations(annotated_conversation, &response->actions);
 
   int input_text_length = 0;
   int num_matching_locales = 0;
-  for (int i = conversation.messages.size() - num_messages;
-       i < conversation.messages.size(); i++) {
-    input_text_length += conversation.messages[i].text.length();
+  for (int i = annotated_conversation.messages.size() - num_messages;
+       i < annotated_conversation.messages.size(); i++) {
+    input_text_length += annotated_conversation.messages[i].text.length();
     std::vector<Locale> message_languages;
-    if (!ParseLocales(conversation.messages[i].detected_text_language_tags,
-                      &message_languages)) {
+    if (!ParseLocales(
+            annotated_conversation.messages[i].detected_text_language_tags,
+            &message_languages)) {
       continue;
     }
     if (Locale::IsAnyLocaleSupported(
@@ -1105,17 +1142,18 @@ bool ActionsSuggestions::GatherActionsSuggestions(
   std::vector<const UniLib::RegexPattern*> post_check_rules;
   if (preconditions_.suppress_on_low_confidence_input) {
     if ((ngram_model_ != nullptr &&
-         ngram_model_->EvalConversation(conversation, num_messages)) ||
-        regex_actions_->IsLowConfidenceInput(conversation, num_messages,
-                                             &post_check_rules)) {
+         ngram_model_->EvalConversation(annotated_conversation,
+                                        num_messages)) ||
+        regex_actions_->IsLowConfidenceInput(annotated_conversation,
+                                             num_messages, &post_check_rules)) {
       response->output_filtered_low_confidence = true;
       return true;
     }
   }
 
   std::unique_ptr<tflite::Interpreter> interpreter;
-  if (!SuggestActionsFromModel(conversation, num_messages, options, response,
-                               &interpreter)) {
+  if (!SuggestActionsFromModel(annotated_conversation, num_messages, options,
+                               response, &interpreter)) {
     TC3_LOG(ERROR) << "Could not run model.";
     return false;
   }
@@ -1127,21 +1165,23 @@ bool ActionsSuggestions::GatherActionsSuggestions(
   }
 
   if (!SuggestActionsFromLua(
-          conversation, model_executor_.get(), interpreter.get(),
+          annotated_conversation, model_executor_.get(), interpreter.get(),
           annotator != nullptr ? annotator->entity_data_schema() : nullptr,
           &response->actions)) {
     TC3_LOG(ERROR) << "Could not suggest actions from script.";
     return false;
   }
 
-  if (!regex_actions_->SuggestActions(conversation, entity_data_builder_.get(),
+  if (!regex_actions_->SuggestActions(annotated_conversation,
+                                      entity_data_builder_.get(),
                                       &response->actions)) {
     TC3_LOG(ERROR) << "Could not suggest actions from regex rules.";
     return false;
   }
 
   if (grammar_actions_ != nullptr &&
-      !grammar_actions_->SuggestActions(conversation, &response->actions)) {
+      !grammar_actions_->SuggestActions(annotated_conversation,
+                                        &response->actions)) {
     TC3_LOG(ERROR) << "Could not suggest actions from grammar rules.";
     return false;
   }

@@ -624,6 +624,9 @@ class DatetimeParsedData {
   bool HasAbsoluteValue(
       const DatetimeComponent::ComponentType& field_type) const;
 
+  // Function to check if DateTimeParsedData has any DateTimeComponent.
+  bool IsEmpty() const;
+
  private:
   DatetimeComponent& GetOrCreateDatetimeComponent(
 

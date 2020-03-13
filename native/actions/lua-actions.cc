@@ -15,6 +15,7 @@
  */
 
 #include "actions/lua-actions.h"
+
 #include "utils/base/logging.h"
 #include "utils/lua-utils.h"
 
@@ -29,6 +30,7 @@ extern "C" {
 
 namespace libtextclassifier3 {
 namespace {
+
 TensorView<float> GetTensorViewForOutput(
     const TfLiteModelExecutor* model_executor,
     const tflite::Interpreter* interpreter, int output) {
@@ -37,14 +39,17 @@ TensorView<float> GetTensorViewForOutput(
   }
   return model_executor->OutputView<float>(output, interpreter);
 }
-}  // namespace
 
-int LuaActionsSuggestions::TensorViewIterator::Item(
-    const TensorView<float>* tensor, const int64 index,
-    lua_State* state) const {
-  lua_pushnumber(state, tensor->data()[index]);
-  return 1;
+std::vector<std::string> GetStringTensorForOutput(
+    const TfLiteModelExecutor* model_executor,
+    const tflite::Interpreter* interpreter, int output) {
+  if (output < 0 || model_executor == nullptr || interpreter == nullptr) {
+    return {};
+  }
+  return model_executor->Output<std::string>(output, interpreter);
 }
+
+}  // namespace
 
 std::unique_ptr<LuaActionsSuggestions>
 LuaActionsSuggestions::CreateLuaActionsSuggestions(
@@ -75,7 +80,6 @@ LuaActionsSuggestions::LuaActionsSuggestions(
     const reflection::Schema* annotations_entity_data_schema)
     : snippet_(snippet),
       conversation_(conversation),
-      conversation_iterator_(annotations_entity_data_schema, this),
       actions_scores_(
           model_spec == nullptr
               ? TensorView<float>::Invalid()
@@ -96,6 +100,10 @@ LuaActionsSuggestions::LuaActionsSuggestions(
               ? TensorView<float>::Invalid()
               : GetTensorViewForOutput(model_executor, interpreter,
                                        model_spec->output_triggering_score())),
+      smart_replies_(model_spec == nullptr ? std::vector<std::string>{}
+                                           : GetStringTensorForOutput(
+                                                 model_executor, interpreter,
+                                                 model_spec->output_replies())),
       actions_entity_data_schema_(actions_entity_data_schema),
       annotations_entity_data_schema_(annotations_entity_data_schema) {}
 
@@ -104,32 +112,28 @@ bool LuaActionsSuggestions::Initialize() {
            LoadDefaultLibraries();
 
            // Expose conversation message stream.
-           conversation_iterator_.NewIterator("messages",
-                                              &conversation_.messages, state_);
+           PushConversation(&conversation_.messages,
+                            annotations_entity_data_schema_);
            lua_setglobal(state_, "messages");
 
            // Expose ML model output.
            lua_newtable(state_);
-           {
-             tensor_iterator_.NewIterator("actions_scores", &actions_scores_,
-                                          state_);
-             lua_setfield(state_, /*idx=*/-2, "actions_scores");
-           }
-           {
-             tensor_iterator_.NewIterator("reply_scores", &smart_reply_scores_,
-                                          state_);
-             lua_setfield(state_, /*idx=*/-2, "reply_scores");
-           }
-           {
-             tensor_iterator_.NewIterator("sensitivity", &sensitivity_score_,
-                                          state_);
-             lua_setfield(state_, /*idx=*/-2, "sensitivity");
-           }
-           {
-             tensor_iterator_.NewIterator("triggering_score",
-                                          &triggering_score_, state_);
-             lua_setfield(state_, /*idx=*/-2, "triggering_score");
-           }
+
+           PushTensor(&actions_scores_);
+           lua_setfield(state_, /*idx=*/-2, "actions_scores");
+
+           PushTensor(&smart_reply_scores_);
+           lua_setfield(state_, /*idx=*/-2, "reply_scores");
+
+           PushTensor(&sensitivity_score_);
+           lua_setfield(state_, /*idx=*/-2, "sensitivity");
+
+           PushTensor(&triggering_score_);
+           lua_setfield(state_, /*idx=*/-2, "triggering_score");
+
+           PushVectorIterator(&smart_replies_);
+           lua_setfield(state_, /*idx=*/-2, "reply");
+
            lua_setglobal(state_, "model");
 
            return LUA_OK;
@@ -152,7 +156,7 @@ bool LuaActionsSuggestions::SuggestActions(
   if (RunProtected(
           [this, actions] {
             return ReadActions(actions_entity_data_schema_,
-                               annotations_entity_data_schema_, this, actions);
+                               annotations_entity_data_schema_, actions);
           },
           /*num_args=*/1) != LUA_OK) {
     TC3_LOG(ERROR) << "Could not read lua result.";

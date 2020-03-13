@@ -19,8 +19,10 @@
 #include <memory>
 
 #include "annotator/collections.h"
+#include "annotator/entity-data_generated.h"
 #include "annotator/types.h"
 #include "lang_id/lang-id-wrapper.h"
+#include "utils/base/logging.h"
 #include "utils/i18n/locale.h"
 #include "utils/utf8/unicodetext.h"
 #include "lang_id/lang-id.h"
@@ -50,7 +52,11 @@ bool TranslateAnnotator::ClassifyText(
     TC3_LOG(WARNING) << "Couldn't parse the user-understood languages.";
     return false;
   }
-
+  if (user_familiar_languages.empty()) {
+    TC3_VLOG(INFO) << "user_familiar_languages is not set, not suggesting "
+                      "translate action.";
+    return false;
+  }
   bool user_can_understand_language_of_text = false;
   for (const Locale& locale : user_familiar_languages) {
     if (locale.Language() == confidences[0].language) {
@@ -63,11 +69,33 @@ bool TranslateAnnotator::ClassifyText(
     classification_result->collection = Collections::Translate();
     classification_result->score = options_->score();
     classification_result->priority_score = options_->priority_score();
-
+    classification_result->serialized_entity_data =
+        CreateSerializedEntityData(confidences);
     return true;
   }
 
   return false;
+}
+
+std::string TranslateAnnotator::CreateSerializedEntityData(
+    const std::vector<TranslateAnnotator::LanguageConfidence>& confidences)
+    const {
+  EntityDataT entity_data;
+  entity_data.translate.reset(new EntityData_::TranslateT());
+
+  for (const LanguageConfidence& confidence : confidences) {
+    EntityData_::Translate_::LanguagePredictionResultT*
+        language_prediction_result =
+            new EntityData_::Translate_::LanguagePredictionResultT();
+    language_prediction_result->language_tag = confidence.language;
+    language_prediction_result->confidence_score = confidence.confidence;
+    entity_data.translate->language_prediction_results.emplace_back(
+        language_prediction_result);
+  }
+  flatbuffers::FlatBufferBuilder builder;
+  FinishEntityDataBuffer(builder, EntityData::Pack(builder, &entity_data));
+  return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
+                     builder.GetSize());
 }
 
 std::vector<TranslateAnnotator::LanguageConfidence>
@@ -114,6 +142,11 @@ TranslateAnnotator::BackoffDetectLanguages(
     result.push_back({key, value});
   }
 
+  std::sort(result.begin(), result.end(),
+            [](TranslateAnnotator::LanguageConfidence& a,
+               TranslateAnnotator::LanguageConfidence& b) {
+              return a.confidence > b.confidence;
+            });
   return result;
 }
 
