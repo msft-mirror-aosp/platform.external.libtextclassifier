@@ -31,6 +31,12 @@ namespace libtextclassifier3::grammar {
 // Parses the locales of each rules shard.
 std::vector<std::vector<Locale>> ParseRulesLocales(const RulesSet* rules);
 
+// Selects rules shards that match on any locale.
+std::vector<const grammar::RulesSet_::Rules*> SelectLocaleMatchingShards(
+    const RulesSet* rules,
+    const std::vector<std::vector<Locale>>& shard_locales,
+    const std::vector<Locale>& locales);
+
 // Deduplicates rule matches by containing overlap.
 // The grammar system can output multiple candidates for optional parts.
 // For example if a rule has an optional suffix, we

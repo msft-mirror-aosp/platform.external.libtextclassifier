@@ -18,7 +18,6 @@
 #define LIBTEXTCLASSIFIER_ACTIONS_LUA_ACTIONS_H_
 
 #include "actions/actions_model_generated.h"
-#include "actions/lua-utils.h"
 #include "actions/types.h"
 #include "utils/lua-utils.h"
 #include "utils/tensor-view.h"
@@ -40,15 +39,6 @@ class LuaActionsSuggestions : public LuaEnvironment {
   bool SuggestActions(std::vector<ActionSuggestion>* actions);
 
  private:
-  // Model tensor lua iterator.
-  class TensorViewIterator
-      : public LuaEnvironment::ItemIterator<TensorView<float>> {
-   public:
-    explicit TensorViewIterator() {}
-    int Item(const TensorView<float>* tensor, const int64 index,
-             lua_State* state) const override;
-  };
-
   LuaActionsSuggestions(
       const std::string& snippet, const Conversation& conversation,
       const TfLiteModelExecutor* model_executor,
@@ -59,14 +49,22 @@ class LuaActionsSuggestions : public LuaEnvironment {
 
   bool Initialize();
 
+  template <typename T>
+  void PushTensor(const TensorView<T>* tensor) const {
+    PushIterator(tensor ? tensor->size() : 0,
+                 [this, tensor](const int64 index) {
+                   Push(tensor->data()[index]);
+                   return 1;  // Num. values pushed.
+                 });
+  }
+
   const std::string& snippet_;
   const Conversation& conversation_;
-  ConversationIterator conversation_iterator_;
-  TensorViewIterator tensor_iterator_;
   TensorView<float> actions_scores_;
   TensorView<float> smart_reply_scores_;
   TensorView<float> sensitivity_score_;
   TensorView<float> triggering_score_;
+  const std::vector<std::string> smart_replies_;
   const reflection::Schema* actions_entity_data_schema_;
   const reflection::Schema* annotations_entity_data_schema_;
 };

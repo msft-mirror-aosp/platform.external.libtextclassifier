@@ -18,7 +18,6 @@
 
 #include <vector>
 
-#include "actions/lua-utils.h"
 #include "actions/types.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
@@ -83,16 +82,13 @@ class JniLuaEnvironment : public LuaEnvironment {
   int HandleUrlHost();
 
   // Checks and retrieves string resources from the model.
-  bool LookupModelStringResource();
+  bool LookupModelStringResource() const;
 
   // Reads and create a RemoteAction result from Lua.
-  RemoteActionTemplate ReadRemoteActionTemplateResult();
+  RemoteActionTemplate ReadRemoteActionTemplateResult() const;
 
   // Reads the extras from the Lua result.
-  void ReadExtras(std::map<std::string, Variant>* extra);
-
-  // Reads the intent categories array from a Lua result.
-  void ReadCategories(std::vector<std::string>* category);
+  std::map<std::string, Variant> ReadExtras() const;
 
   // Retrieves user manager if not previously done.
   bool RetrieveUserManager();
@@ -170,45 +166,40 @@ void JniLuaEnvironment::SetupExternalHook() {
   //   * android: callbacks into specific android provided methods.
   //   * android.user_restrictions: callbacks to check user permissions.
   //   * android.R: callbacks to retrieve string resources.
-  BindTable<JniLuaEnvironment, &JniLuaEnvironment::HandleExternalCallback>(
-      "external");
+  PushLazyObject(&JniLuaEnvironment::HandleExternalCallback);
 
   // android
-  BindTable<JniLuaEnvironment, &JniLuaEnvironment::HandleAndroidCallback>(
-      "android");
+  PushLazyObject(&JniLuaEnvironment::HandleAndroidCallback);
   {
     // android.user_restrictions
-    BindTable<JniLuaEnvironment,
-              &JniLuaEnvironment::HandleUserRestrictionsCallback>(
-        "user_restrictions");
+    PushLazyObject(&JniLuaEnvironment::HandleUserRestrictionsCallback);
     lua_setfield(state_, /*idx=*/-2, "user_restrictions");
 
     // android.R
     // Callback to access android string resources.
-    BindTable<JniLuaEnvironment,
-              &JniLuaEnvironment::HandleAndroidStringResources>("R");
+    PushLazyObject(&JniLuaEnvironment::HandleAndroidStringResources);
     lua_setfield(state_, /*idx=*/-2, "R");
   }
   lua_setfield(state_, /*idx=*/-2, "android");
 }
 
 int JniLuaEnvironment::HandleExternalCallback() {
-  const StringPiece key = ReadString(/*index=*/-1);
+  const StringPiece key = ReadString(kIndexStackTop);
   if (key.Equals(kHashKey)) {
-    Bind<JniLuaEnvironment, &JniLuaEnvironment::HandleHash>();
+    PushFunction(&JniLuaEnvironment::HandleHash);
     return 1;
   } else if (key.Equals(kFormatKey)) {
-    Bind<JniLuaEnvironment, &JniLuaEnvironment::HandleFormat>();
+    PushFunction(&JniLuaEnvironment::HandleFormat);
     return 1;
   } else {
-    TC3_LOG(ERROR) << "Undefined external access " << key.ToString();
+    TC3_LOG(ERROR) << "Undefined external access " << key;
     lua_error(state_);
     return 0;
   }
 }
 
 int JniLuaEnvironment::HandleAndroidCallback() {
-  const StringPiece key = ReadString(/*index=*/-1);
+  const StringPiece key = ReadString(kIndexStackTop);
   if (key.Equals(kDeviceLocaleKey)) {
     // Provide the locale as table with the individual fields set.
     lua_newtable(state_);
@@ -250,16 +241,16 @@ int JniLuaEnvironment::HandleAndroidCallback() {
     PushString(status_or_package_name_std_str.ValueOrDie());
     return 1;
   } else if (key.Equals(kUrlEncodeKey)) {
-    Bind<JniLuaEnvironment, &JniLuaEnvironment::HandleUrlEncode>();
+    PushFunction(&JniLuaEnvironment::HandleUrlEncode);
     return 1;
   } else if (key.Equals(kUrlHostKey)) {
-    Bind<JniLuaEnvironment, &JniLuaEnvironment::HandleUrlHost>();
+    PushFunction(&JniLuaEnvironment::HandleUrlHost);
     return 1;
   } else if (key.Equals(kUrlSchemaKey)) {
-    Bind<JniLuaEnvironment, &JniLuaEnvironment::HandleUrlSchema>();
+    PushFunction(&JniLuaEnvironment::HandleUrlSchema);
     return 1;
   } else {
-    TC3_LOG(ERROR) << "Undefined android reference " << key.ToString();
+    TC3_LOG(ERROR) << "Undefined android reference " << key;
     lua_error(state_);
     return 0;
   }
@@ -292,7 +283,7 @@ int JniLuaEnvironment::HandleUserRestrictionsCallback() {
     return 0;
   }
 
-  const StringPiece key_str = ReadString(/*index=*/-1);
+  const StringPiece key_str = ReadString(kIndexStackTop);
   if (key_str.empty()) {
     TC3_LOG(ERROR) << "Expected string, got null.";
     lua_error(state_);
@@ -410,7 +401,7 @@ int JniLuaEnvironment::HandleUrlSchema() {
 }
 
 int JniLuaEnvironment::HandleUrlHost() {
-  const StringPiece url = ReadString(/*index=*/-1);
+  const StringPiece url = ReadString(kIndexStackTop);
 
   const StatusOr<ScopedLocalRef<jobject>> status_or_parsed_uri = ParseUri(url);
   if (!status_or_parsed_uri.ok()) {
@@ -443,7 +434,7 @@ int JniLuaEnvironment::HandleUrlHost() {
 }
 
 int JniLuaEnvironment::HandleHash() {
-  const StringPiece input = ReadString(/*index=*/-1);
+  const StringPiece input = ReadString(kIndexStackTop);
   lua_pushinteger(state_, tc3farmhash::Hash32(input.data(), input.length()));
   return 1;
 }
@@ -458,13 +449,13 @@ int JniLuaEnvironment::HandleFormat() {
   return 1;
 }
 
-bool JniLuaEnvironment::LookupModelStringResource() {
+bool JniLuaEnvironment::LookupModelStringResource() const {
   // Handle only lookup by name.
-  if (lua_type(state_, 2) != LUA_TSTRING) {
+  if (lua_type(state_, kIndexStackTop) != LUA_TSTRING) {
     return false;
   }
 
-  const StringPiece resource_name = ReadString(/*index=*/-1);
+  const StringPiece resource_name = ReadString(kIndexStackTop);
   std::string resource_content;
   if (!resources_.GetResourceContent(device_locales_, resource_name,
                                      &resource_content)) {
@@ -490,12 +481,12 @@ int JniLuaEnvironment::HandleAndroidStringResources() {
   }
 
   int resource_id;
-  switch (lua_type(state_, -1)) {
+  switch (lua_type(state_, kIndexStackTop)) {
     case LUA_TNUMBER:
-      resource_id = static_cast<int>(lua_tonumber(state_, /*idx=*/-1));
+      resource_id = Read<int>(/*index=*/kIndexStackTop);
       break;
     case LUA_TSTRING: {
-      const StringPiece resource_name_str = ReadString(/*index=*/-1);
+      const StringPiece resource_name_str = ReadString(kIndexStackTop);
       if (resource_name_str.empty()) {
         TC3_LOG(ERROR) << "No resource name provided.";
         lua_error(state_);
@@ -588,38 +579,39 @@ bool JniLuaEnvironment::RetrieveUserManager() {
   return (usermanager_ != nullptr);
 }
 
-RemoteActionTemplate JniLuaEnvironment::ReadRemoteActionTemplateResult() {
+RemoteActionTemplate JniLuaEnvironment::ReadRemoteActionTemplateResult() const {
   RemoteActionTemplate result;
   // Read intent template.
   lua_pushnil(state_);
-  while (lua_next(state_, /*idx=*/-2)) {
+  while (Next(/*index=*/-2)) {
     const StringPiece key = ReadString(/*index=*/-2);
     if (key.Equals("title_without_entity")) {
-      result.title_without_entity = ReadString(/*index=*/-1).ToString();
+      result.title_without_entity = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("title_with_entity")) {
-      result.title_with_entity = ReadString(/*index=*/-1).ToString();
+      result.title_with_entity = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("description")) {
-      result.description = ReadString(/*index=*/-1).ToString();
+      result.description = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("description_with_app_name")) {
-      result.description_with_app_name = ReadString(/*index=*/-1).ToString();
+      result.description_with_app_name =
+          Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("action")) {
-      result.action = ReadString(/*index=*/-1).ToString();
+      result.action = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("data")) {
-      result.data = ReadString(/*index=*/-1).ToString();
+      result.data = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("type")) {
-      result.type = ReadString(/*index=*/-1).ToString();
+      result.type = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("flags")) {
-      result.flags = static_cast<int>(lua_tointeger(state_, /*idx=*/-1));
+      result.flags = Read<int>(/*index=*/kIndexStackTop);
     } else if (key.Equals("package_name")) {
-      result.package_name = ReadString(/*index=*/-1).ToString();
+      result.package_name = Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("request_code")) {
-      result.request_code = static_cast<int>(lua_tointeger(state_, /*idx=*/-1));
+      result.request_code = Read<int>(/*index=*/kIndexStackTop);
     } else if (key.Equals("category")) {
-      ReadCategories(&result.category);
+      result.category = ReadVector<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals("extra")) {
-      ReadExtras(&result.extra);
+      result.extra = ReadExtras();
     } else {
-      TC3_LOG(INFO) << "Unknown entry: " << key.ToString();
+      TC3_LOG(INFO) << "Unknown entry: " << key;
     }
     lua_pop(state_, 1);
   }
@@ -627,86 +619,82 @@ RemoteActionTemplate JniLuaEnvironment::ReadRemoteActionTemplateResult() {
   return result;
 }
 
-void JniLuaEnvironment::ReadCategories(std::vector<std::string>* category) {
-  // Read category array.
-  if (lua_type(state_, /*idx=*/-1) != LUA_TTABLE) {
-    TC3_LOG(ERROR) << "Expected categories table, got: "
-                   << lua_type(state_, /*idx=*/-1);
-    lua_pop(state_, 1);
-    return;
-  }
-  lua_pushnil(state_);
-  while (lua_next(state_, /*idx=*/-2)) {
-    category->push_back(ReadString(/*index=*/-1).ToString());
-    lua_pop(state_, 1);
-  }
-}
-
-void JniLuaEnvironment::ReadExtras(std::map<std::string, Variant>* extra) {
-  if (lua_type(state_, /*idx=*/-1) != LUA_TTABLE) {
+std::map<std::string, Variant> JniLuaEnvironment::ReadExtras() const {
+  if (lua_type(state_, kIndexStackTop) != LUA_TTABLE) {
     TC3_LOG(ERROR) << "Expected extras table, got: "
-                   << lua_type(state_, /*idx=*/-1);
+                   << lua_type(state_, kIndexStackTop);
     lua_pop(state_, 1);
-    return;
+    return {};
   }
+  std::map<std::string, Variant> extras;
   lua_pushnil(state_);
-  while (lua_next(state_, /*idx=*/-2)) {
+  while (Next(/*index=*/-2)) {
     // Each entry is a table specifying name and value.
     // The value is specified via a type specific field as Lua doesn't allow
     // to easily distinguish between different number types.
-    if (lua_type(state_, /*idx=*/-1) != LUA_TTABLE) {
+    if (lua_type(state_, kIndexStackTop) != LUA_TTABLE) {
       TC3_LOG(ERROR) << "Expected a table for an extra, got: "
-                     << lua_type(state_, /*idx=*/-1);
+                     << lua_type(state_, kIndexStackTop);
       lua_pop(state_, 1);
-      return;
+      return {};
     }
     std::string name;
     Variant value;
 
     lua_pushnil(state_);
-    while (lua_next(state_, /*idx=*/-2)) {
+    while (Next(/*index=*/-2)) {
       const StringPiece key = ReadString(/*index=*/-2);
       if (key.Equals("name")) {
-        name = ReadString(/*index=*/-1).ToString();
+        name = Read<std::string>(/*index=*/kIndexStackTop);
       } else if (key.Equals("int_value")) {
-        value = Variant(static_cast<int>(lua_tonumber(state_, /*idx=*/-1)));
+        value = Variant(Read<int>(/*index=*/kIndexStackTop));
       } else if (key.Equals("long_value")) {
-        value = Variant(static_cast<int64>(lua_tonumber(state_, /*idx=*/-1)));
+        value = Variant(Read<int64>(/*index=*/kIndexStackTop));
       } else if (key.Equals("float_value")) {
-        value = Variant(static_cast<float>(lua_tonumber(state_, /*idx=*/-1)));
+        value = Variant(Read<float>(/*index=*/kIndexStackTop));
       } else if (key.Equals("bool_value")) {
-        value = Variant(static_cast<bool>(lua_toboolean(state_, /*idx=*/-1)));
+        value = Variant(Read<bool>(/*index=*/kIndexStackTop));
       } else if (key.Equals("string_value")) {
-        value = Variant(ReadString(/*index=*/-1).ToString());
+        value = Variant(Read<std::string>(/*index=*/kIndexStackTop));
+      } else if (key.Equals("string_array_value")) {
+        value = Variant(ReadVector<std::string>(/*index=*/kIndexStackTop));
+      } else if (key.Equals("float_array_value")) {
+        value = Variant(ReadVector<float>(/*index=*/kIndexStackTop));
+      } else if (key.Equals("int_array_value")) {
+        value = Variant(ReadVector<int>(/*index=*/kIndexStackTop));
+      } else if (key.Equals("named_variant_array_value")) {
+        value = Variant(ReadExtras());
       } else {
-        TC3_LOG(INFO) << "Unknown extra field: " << key.ToString();
+        TC3_LOG(INFO) << "Unknown extra field: " << key;
       }
       lua_pop(state_, 1);
     }
     if (!name.empty()) {
-      (*extra)[name] = value;
+      extras[name] = value;
     } else {
       TC3_LOG(ERROR) << "Unnamed extra entry. Skipping.";
     }
     lua_pop(state_, 1);
   }
+  return extras;
 }
 
 int JniLuaEnvironment::ReadRemoteActionTemplates(
     std::vector<RemoteActionTemplate>* result) {
   // Read result.
-  if (lua_type(state_, /*idx=*/-1) != LUA_TTABLE) {
-    TC3_LOG(ERROR) << "Unexpected result for snippet: " << lua_type(state_, -1);
+  if (lua_type(state_, kIndexStackTop) != LUA_TTABLE) {
+    TC3_LOG(ERROR) << "Unexpected result for snippet: "
+                   << lua_type(state_, kIndexStackTop);
     lua_error(state_);
     return LUA_ERRRUN;
   }
 
   // Read remote action templates array.
   lua_pushnil(state_);
-  while (lua_next(state_, /*idx=*/-2)) {
-    if (lua_type(state_, /*idx=*/-1) != LUA_TTABLE) {
+  while (Next(/*index=*/-2)) {
+    if (lua_type(state_, kIndexStackTop) != LUA_TTABLE) {
       TC3_LOG(ERROR) << "Expected intent table, got: "
-                     << lua_type(state_, /*idx=*/-1);
+                     << lua_type(state_, kIndexStackTop);
       lua_pop(state_, 1);
       continue;
     }
@@ -772,7 +760,7 @@ class AnnotatorJniEnvironment : public JniLuaEnvironment {
     lua_pushinteger(state_, reference_time_ms_utc_);
     lua_setfield(state_, /*idx=*/-2, kReferenceTimeUsecKey);
 
-    PushAnnotation(classification_, entity_text_, entity_data_schema_, this);
+    PushAnnotation(classification_, entity_text_, entity_data_schema_);
     lua_setfield(state_, /*idx=*/-2, "entity");
   }
 
@@ -796,26 +784,24 @@ class ActionsJniLuaEnvironment : public JniLuaEnvironment {
       : JniLuaEnvironment(resources, jni_cache, context, device_locales),
         conversation_(conversation),
         action_(action),
-        annotation_iterator_(annotations_entity_data_schema, this),
-        conversation_iterator_(annotations_entity_data_schema, this),
-        entity_data_schema_(actions_entity_data_schema) {}
+        actions_entity_data_schema_(actions_entity_data_schema),
+        annotations_entity_data_schema_(annotations_entity_data_schema) {}
 
  protected:
   void SetupExternalHook() override {
     JniLuaEnvironment::SetupExternalHook();
-    conversation_iterator_.NewIterator("conversation", &conversation_.messages,
-                                       state_);
+    PushConversation(&conversation_.messages, annotations_entity_data_schema_);
     lua_setfield(state_, /*idx=*/-2, "conversation");
 
-    PushAction(action_, entity_data_schema_, annotation_iterator_, this);
+    PushAction(action_, actions_entity_data_schema_,
+               annotations_entity_data_schema_);
     lua_setfield(state_, /*idx=*/-2, "entity");
   }
 
   const Conversation& conversation_;
   const ActionSuggestion& action_;
-  const AnnotationIterator<ActionSuggestionAnnotation> annotation_iterator_;
-  const ConversationIterator conversation_iterator_;
-  const reflection::Schema* entity_data_schema_;
+  const reflection::Schema* actions_entity_data_schema_;
+  const reflection::Schema* annotations_entity_data_schema_;
 };
 
 }  // namespace
@@ -897,6 +883,7 @@ bool IntentGenerator::GenerateIntents(
   // Retrieve generator for specified entity.
   auto it = generators_.find(classification.collection);
   if (it == generators_.end()) {
+    TC3_VLOG(INFO) << "Cannot find a generator for the specified collection.";
     return true;
   }
 
