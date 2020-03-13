@@ -20,6 +20,7 @@
 #include <unordered_set>
 
 #include "annotator/datetime/extractor.h"
+#include "annotator/datetime/utils.h"
 #include "utils/calendar/calendar.h"
 #include "utils/i18n/locale.h"
 #include "utils/strings/split.h"
@@ -347,58 +348,6 @@ std::vector<int> DatetimeParser::ParseAndExpandLocales(
   return result;
 }
 
-void DatetimeParser::FillInterpretations(
-    const DatetimeParsedData& parse,
-    std::vector<DatetimeParsedData>* interpretations) const {
-  DatetimeGranularity granularity = calendarlib_.GetGranularity(parse);
-
-  DatetimeParsedData modified_parse(parse);
-  // If the relation field is not set, but relation_type field *is*, assume
-  // the relation field is NEXT_OR_SAME. This is necessary to handle e.g.
-  // "monday 3pm" (otherwise only "this monday 3pm" would work).
-  if (parse.HasFieldType(DatetimeComponent::ComponentType::DAY_OF_WEEK)) {
-    DatetimeComponent::RelativeQualifier relative_value;
-    if (parse.GetRelativeValue(DatetimeComponent::ComponentType::DAY_OF_WEEK,
-                               &relative_value)) {
-      if (relative_value == DatetimeComponent::RelativeQualifier::UNSPECIFIED) {
-        modified_parse.SetRelativeValue(
-            DatetimeComponent::ComponentType::DAY_OF_WEEK,
-            DatetimeComponent::RelativeQualifier::THIS);
-      }
-    }
-  }
-
-  // Multiple interpretations of ambiguous datetime expressions are generated
-  // here.
-  if (granularity > DatetimeGranularity::GRANULARITY_DAY &&
-      modified_parse.HasFieldType(DatetimeComponent::ComponentType::HOUR) &&
-      !modified_parse.HasRelativeValue(
-          DatetimeComponent::ComponentType::HOUR) &&
-      !modified_parse.HasFieldType(
-          DatetimeComponent::ComponentType::MERIDIEM)) {
-    int hour_value;
-    modified_parse.GetFieldValue(DatetimeComponent::ComponentType::HOUR,
-                                 &hour_value);
-    if (hour_value <= 12) {
-      modified_parse.SetAbsoluteValue(
-          DatetimeComponent::ComponentType::MERIDIEM, 0);
-      interpretations->push_back(modified_parse);
-      modified_parse.SetAbsoluteValue(
-          DatetimeComponent::ComponentType::MERIDIEM, 1);
-      interpretations->push_back(modified_parse);
-    } else {
-      interpretations->push_back(modified_parse);
-    }
-  } else {
-    // Otherwise just generate 1 variant.
-    interpretations->push_back(modified_parse);
-  }
-  // TODO(zilka): Add support for generating alternatives for "monday" -> "this
-  // monday", "next monday", "last monday". The previous implementation did not
-  // work as expected, because didn't work correctly for this/previous day of
-  // week, and resulted sometimes results in the same date being proposed.
-}
-
 bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
                                      const UniLib::RegexMatcher& matcher,
                                      const int64 reference_time_ms_utc,
@@ -416,7 +365,8 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
   }
   std::vector<DatetimeParsedData> interpretations;
   if (generate_alternative_interpretations_when_ambiguous_) {
-    FillInterpretations(parse, &interpretations);
+    FillInterpretations(parse, calendarlib_.GetGranularity(parse),
+                        &interpretations);
   } else {
     interpretations.push_back(parse);
   }

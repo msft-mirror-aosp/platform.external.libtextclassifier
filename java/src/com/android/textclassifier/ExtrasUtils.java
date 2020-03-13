@@ -18,11 +18,11 @@ package com.android.textclassifier;
 
 import android.app.RemoteAction;
 import android.content.Intent;
-import android.icu.util.ULocale;
 import android.os.Bundle;
 import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLinks;
+import androidx.core.util.Pair;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.ArrayList;
@@ -102,8 +102,7 @@ public final class ExtrasUtils {
 
   /** See {@link #putTopLanguageScores(Bundle, EntityConfidence)}. */
   @Nullable
-  @VisibleForTesting
-  public static ULocale getTopLanguage(@Nullable Intent intent) {
+  static Pair<String, Float> getTopLanguage(@Nullable Intent intent) {
     if (intent == null) {
       return null;
     }
@@ -129,7 +128,7 @@ public final class ExtrasUtils {
         highestScoringIndex = i;
       }
     }
-    return ULocale.forLanguageTag(languages[highestScoringIndex]);
+    return Pair.create(languages[highestScoringIndex], scores[highestScoringIndex]);
   }
 
   public static void putTextLanguagesExtra(Bundle container, Bundle extra) {

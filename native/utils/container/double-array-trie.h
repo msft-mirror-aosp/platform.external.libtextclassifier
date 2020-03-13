@@ -30,7 +30,7 @@ namespace libtextclassifier3 {
 // A trie node specifies a node in the tree, either an intermediate node or
 // a leaf node.
 // A leaf node contains the id as an int of the string match. This id is encoded
-// in the lower 30 bits, thus the number of distinct ids is 2^30.
+// in the lower 31 bits, thus the number of distinct ids is 2^31.
 // An intermediate node has an associated label and an offset to it's children.
 // The label is encoded in the least significant byte and must match the input
 // character during matching.
