@@ -61,13 +61,13 @@ public final class TextClassificationSessionId {
    *
    * @return The flattened id.
    */
-  public String flattenToString() {
+  public String getValue() {
     return value;
   }
 
   /**
    * Recovers a TextClassificationSessionId from a string of the form returned by {@link
-   * #flattenToString()}.
+   * #getValue()}.
    */
   public static TextClassificationSessionId unflattenFromString(String value) {
     return new TextClassificationSessionId(value);

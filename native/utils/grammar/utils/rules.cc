@@ -18,6 +18,7 @@
 
 #include <set>
 
+#include "utils/grammar/utils/ir.h"
 #include "utils/strings/append.h"
 
 namespace libtextclassifier3::grammar {
@@ -26,7 +27,8 @@ namespace {
 // Returns whether a nonterminal is a pre-defined one.
 bool IsPredefinedNonterminal(const std::string& nonterminal_name) {
   if (nonterminal_name == kStartNonterm || nonterminal_name == kEndNonterm ||
-      nonterminal_name == kTokenNonterm || nonterminal_name == kDigitsNonterm) {
+      nonterminal_name == kTokenNonterm || nonterminal_name == kDigitsNonterm ||
+      nonterminal_name == kWordBreakNonterm) {
     return true;
   }
   for (int digits = 1; digits <= kMaxNDigitsNontermLength; digits++) {
@@ -97,6 +99,22 @@ void LowerRule(const int lhs_index, const Rules::Rule& rule,
                       /*callback=*/{rule.callback, rule.callback_param},
                       /*preconditions=*/{rule.max_whitespace_gap}},
               rhs_nonterms, rule.shard);
+}
+
+// Check whether this component is a non-terminal.
+bool IsNonterminal(StringPiece rhs_component) {
+  return rhs_component[0] == '<' &&
+         rhs_component[rhs_component.size() - 1] == '>';
+}
+
+// Sanity check for common typos -- '<' or '>' in a terminal.
+void ValidateTerminal(StringPiece rhs_component) {
+  TC3_CHECK_EQ(rhs_component.find('<'), std::string::npos)
+      << "Rhs terminal `" << rhs_component << "` contains an angle bracket.";
+  TC3_CHECK_EQ(rhs_component.find('>'), std::string::npos)
+      << "Rhs terminal `" << rhs_component << "` contains an angle bracket.";
+  TC3_CHECK_EQ(rhs_component.find('?'), std::string::npos)
+      << "Rhs terminal `" << rhs_component << "` contains a question mark.";
 }
 
 }  // namespace
@@ -175,20 +193,12 @@ void Rules::Add(StringPiece lhs, const std::vector<std::string>& rhs,
     }
 
     // Check whether this component is a non-terminal.
-    if (rhs_component[0] == '<' &&
-        rhs_component[rhs_component.size() - 1] == '>') {
+    if (IsNonterminal(rhs_component)) {
       rhs_elements.push_back(RhsElement(AddNonterminal(rhs_component)));
     } else {
       // A terminal.
       // Sanity check for common typos -- '<' or '>' in a terminal.
-      TC3_CHECK_EQ(rhs_component.find('<'), std::string::npos)
-          << "Rhs terminal `" << rhs_component
-          << "` contains an angle bracket.";
-      TC3_CHECK_EQ(rhs_component.find('>'), std::string::npos)
-          << "Rhs terminal `" << rhs_component
-          << "` contains an angle bracket.";
-      TC3_CHECK_EQ(rhs_component.find('?'), std::string::npos)
-          << "Rhs terminal `" << rhs_component << "` contains a question mark.";
+      ValidateTerminal(rhs_component);
       rhs_elements.push_back(RhsElement(rhs_component.ToString()));
     }
   }
@@ -203,7 +213,7 @@ void Rules::Add(StringPiece lhs, const std::vector<std::string>& rhs,
                   optional_element_indices.end(), &omit_these);
 }
 
-Ir Rules::Finalize() const {
+Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   Ir rules(filters_, num_shards_);
   std::unordered_map<int, Nonterm> nonterminal_ids;
 
@@ -212,7 +222,9 @@ Ir Rules::Finalize() const {
 
   // Define all used predefined nonterminals.
   for (const auto it : nonterminal_names_) {
-    if (IsPredefinedNonterminal(it.first)) {
+    if (IsPredefinedNonterminal(it.first) ||
+        predefined_nonterminals.find(it.first) !=
+            predefined_nonterminals.end()) {
       nonterminal_ids[it.second] = rules.AddUnshareableNonterminal(it.first);
     }
   }

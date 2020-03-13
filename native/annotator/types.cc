@@ -270,6 +270,10 @@ bool DatetimeParsedData::HasAbsoluteValue(
   return HasFieldType(field_type) && !HasRelativeValue(field_type);
 }
 
+bool DatetimeParsedData::IsEmpty() const {
+  return date_time_components_.empty();
+}
+
 void DatetimeParsedData::GetRelativeDatetimeComponents(
     std::vector<DatetimeComponent>* date_time_components) const {
   for (auto it = date_time_components_.begin();

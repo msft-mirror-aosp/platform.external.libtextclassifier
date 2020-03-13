@@ -177,9 +177,30 @@ StatusOr<ClassificationOptions> FromJavaClassificationOptions(
     ClassificationOptions default_classification_options;
     return default_classification_options;
   }
-  return FromJavaOptionsInternal<ClassificationOptions>(
-      env, joptions,
-      TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$ClassificationOptions");
+
+  TC3_ASSIGN_OR_RETURN(ClassificationOptions classifier_options,
+                       FromJavaOptionsInternal<ClassificationOptions>(
+                           env, joptions,
+                           TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+                           "$ClassificationOptions"));
+
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jclass> options_class,
+      JniHelper::FindClass(env, TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+                           "$ClassificationOptions"));
+  // .getUserFamiliarLanguageTags()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_user_familiar_language_tags,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getUserFamiliarLanguageTags",
+                                              "()Ljava/lang/String;"));
+  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> user_familiar_language_tags,
+                       JniHelper::CallObjectMethod<jstring>(
+                           env, joptions, get_user_familiar_language_tags));
+
+  TC3_ASSIGN_OR_RETURN(classifier_options.user_familiar_language_tags,
+                       ToStlString(env, user_familiar_language_tags.get()));
+
+  return classifier_options;
 }
 
 StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,

@@ -25,21 +25,20 @@
 #include "actions/actions_model_generated.h"
 #include "actions/types.h"
 #include "annotator/types.h"
+#include "utils/flatbuffers.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
 
 namespace libtextclassifier3 {
 
-// Creates an action suggestion from a template with fallback defaults.
-ActionSuggestion SuggestionFromSpec(
-    const ActionSuggestionSpec* action, const std::string& default_type = "",
-    const std::string& default_response_text = "",
-    const std::string& default_serialized_entity_data = "",
-    const float default_score = 0.0f,
-    const float default_priority_score = 0.0f);
+// Fills an action suggestion from a template.
+void FillSuggestionFromSpec(const ActionSuggestionSpec* action,
+                            ReflectiveFlatbuffer* entity_data,
+                            ActionSuggestion* suggestion);
 
 // Creates text replies from capturing matches.
 void SuggestTextRepliesFromCapturingMatch(
+    const ReflectiveFlatbufferBuilder* entity_data_builder,
     const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
     const UnicodeText& match_text, const std::string& smart_reply_action_type,
     std::vector<ActionSuggestion>* actions);
