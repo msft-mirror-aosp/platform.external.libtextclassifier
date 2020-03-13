@@ -31,7 +31,9 @@ namespace libtextclassifier3::grammar {
 // Pre-defined nonterminal classes that the lexer can handle.
 constexpr const char* kStartNonterm = "<^>";
 constexpr const char* kEndNonterm = "<$>";
+constexpr const char* kWordBreakNonterm = "<\b>";
 constexpr const char* kTokenNonterm = "<token>";
+constexpr const char* kUppercaseTokenNonterm = "<uppercase_token>";
 constexpr const char* kDigitsNonterm = "<digits>";
 constexpr const char* kNDigitsNonterm = "<%d_digits>";
 constexpr const int kMaxNDigitsNontermLength = 20;

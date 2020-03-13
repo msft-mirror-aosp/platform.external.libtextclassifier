@@ -17,37 +17,19 @@
 package com.android.textclassifier.intent;
 
 import android.content.Context;
-import android.content.Intent;
-import com.android.textclassifier.R;
+import com.android.textclassifier.common.intent.LabeledIntent;
 import com.google.android.textclassifier.AnnotatorModel;
+import com.google.common.collect.ImmutableList;
 import java.time.Instant;
-import java.util.List;
 import javax.annotation.Nullable;
 
 /** Generates intents from classification results. */
 public interface ClassificationIntentFactory {
 
   /** Return a list of LabeledIntent from the classification result. */
-  List<LabeledIntent> create(
+  ImmutableList<LabeledIntent> create(
       Context context,
       String text,
-      boolean foreignText,
       @Nullable Instant referenceTime,
       @Nullable AnnotatorModel.ClassificationResult classification);
-
-  /** Inserts translate action to the list if it is a foreign text. */
-  static void insertTranslateAction(List<LabeledIntent> actions, Context context, String text) {
-    actions.add(
-        new LabeledIntent(
-            context.getString(R.string.tcs_translate),
-            /* titleWithEntity */ null,
-            context.getString(R.string.tcs_translate_desc),
-            /* descriptionWithAppName */ null,
-            new Intent(Intent.ACTION_TRANSLATE)
-                // TODO: Probably better to introduce a "translate" scheme instead
-                // of
-                // using EXTRA_TEXT.
-                .putExtra(Intent.EXTRA_TEXT, text),
-            text.hashCode()));
-  }
 }
