@@ -103,6 +103,11 @@ public final class LangIdModel implements AutoCloseable {
     return nativeGetVersionFromFd(fd);
   }
 
+  /** Retrieves the pointer to the native object. */
+  long getNativePointer() {
+    return modelPtr;
+  }
+
   // Visible for testing.
   float getLangIdNoiseThreshold() {
     return nativeGetLangIdNoiseThreshold(modelPtr);
@@ -111,6 +116,14 @@ public final class LangIdModel implements AutoCloseable {
   // Visible for testing.
   int getMinTextSizeInBytes() {
     return nativeGetMinTextSizeInBytes(modelPtr);
+  }
+
+  /**
+   * Returns the pointer to the native object. Note: Need to keep the LangIdModel alive as long as
+   * the pointer is used.
+   */
+  long getNativeLangIdPointer() {
+    return modelPtr;
   }
 
   private static native long nativeNew(int fd);

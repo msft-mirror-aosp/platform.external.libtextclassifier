@@ -53,6 +53,9 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
                nativeInitializePersonNameEngine)
 (JNIEnv* env, jobject thiz, jlong ptr, jint fd, jlong offset, jlong size);
 
+TC3_JNI_METHOD(void, TC3_ANNOTATOR_CLASS_NAME, nativeSetLangId)
+(JNIEnv* env, jobject thiz, jlong annotator_ptr, jlong lang_id_ptr);
+
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeGetNativeModelPtr)
 (JNIEnv* env, jobject thiz, jlong ptr);
 
