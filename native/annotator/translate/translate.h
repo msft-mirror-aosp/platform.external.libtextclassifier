@@ -47,8 +47,9 @@ class TranslateAnnotator {
   };
 
   // Detects language of the selection in given context using the "Backoff
-  // algorithm". It is based on several heuristics, see the code.
-  // This is the same algorithm that TextClassifier uses in Android Q.
+  // algorithm", sorted by the score descendingly. It is based on several
+  // heuristics, see the code. This is the same algorithm that TextClassifier
+  // uses in Android Q.
   std::vector<LanguageConfidence> BackoffDetectLanguages(
       const UnicodeText& context, CodepointSpan selection_indices) const;
 
@@ -66,6 +67,10 @@ class TranslateAnnotator {
                                               int minimum_length) const;
 
  private:
+  std::string CreateSerializedEntityData(
+      const std::vector<TranslateAnnotator::LanguageConfidence>& confidences)
+      const;
+
   const TranslateAnnotatorOptions* options_;
   const libtextclassifier3::mobile::lang_id::LangId* langid_model_;
   const UniLib* unilib_;

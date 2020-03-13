@@ -399,6 +399,7 @@ struct DateMatch {
   int begin = -1;
   int end = -1;
   int priority = 0;
+  float annotator_priority_score = 0.0;
 
   int year = NO_VAL;
   int8 month = NO_VAL;
@@ -474,6 +475,8 @@ struct DateMatch {
 
   int GetPriority() const { return priority; }
 
+  float GetAnnotatorPriorityScore() const { return annotator_priority_score; }
+
   bool IsStandaloneRelativeDayOfWeek() const {
     return (HasRelativeDate() &&
             relative_match->IsStandaloneRelativeDayOfWeek() &&
@@ -509,6 +512,11 @@ struct DateRangeMatch {
 
   int GetPriority() const {
     return std::max(from.GetPriority(), to.GetPriority());
+  }
+
+  float GetAnnotatorPriorityScore() const {
+    return std::max(from.GetAnnotatorPriorityScore(),
+                    to.GetAnnotatorPriorityScore());
   }
 };
 
