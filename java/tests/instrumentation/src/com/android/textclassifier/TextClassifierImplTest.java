@@ -38,7 +38,6 @@ import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
-import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.testing.FakeContextBuilder;
@@ -67,7 +66,11 @@ public class TextClassifierImplTest {
 
   @Before
   public void setup() {
-    Context context = ApplicationProvider.getApplicationContext();
+    Context context =
+        new FakeContextBuilder()
+            .setAllIntentComponent(FakeContextBuilder.DEFAULT_COMPONENT)
+            .setAppLabel(FakeContextBuilder.DEFAULT_COMPONENT.getPackageName(), "Test app")
+            .build();
     classifier = new TextClassifierImpl(context, new TextClassifierSettings());
   }
 
@@ -226,24 +229,15 @@ public class TextClassifierImplTest {
     LocaleList originalLocales = LocaleList.getDefault();
     LocaleList.setDefault(LocaleList.forLanguageTags("en"));
     String japaneseText = "これは日本語のテキストです";
-
-    Context context =
-        new FakeContextBuilder()
-            .setIntentComponent(Intent.ACTION_TRANSLATE, FakeContextBuilder.DEFAULT_COMPONENT)
-            .build();
-    TextClassifierImpl textClassifier =
-        new TextClassifierImpl(context, new TextClassifierSettings());
     TextClassification.Request request =
         new TextClassification.Request.Builder(japaneseText, 0, japaneseText.length())
             .setDefaultLocales(LOCALES)
             .build();
 
-    TextClassification classification = textClassifier.classifyText(request);
+    TextClassification classification = classifier.classifyText(request);
     RemoteAction translateAction = classification.getActions().get(0);
     assertEquals(1, classification.getActions().size());
-    assertEquals(
-        context.getString(com.android.textclassifier.R.string.tcs_translate),
-        translateAction.getTitle().toString());
+    assertEquals("Translate", translateAction.getTitle().toString());
 
     assertEquals(translateAction, ExtrasUtils.findTranslateAction(classification));
     Intent intent = ExtrasUtils.getActionsIntents(classification).get(0);
@@ -493,7 +487,7 @@ public class TextClassifierImplTest {
   }
 
   @Test
-  public void testSuggetsConversationActions_deduplicate() {
+  public void testSuggestConversationActions_deduplicate() {
     ConversationActions.Message message =
         new ConversationActions.Message.Builder(ConversationActions.Message.PERSON_USER_OTHERS)
             .setText("a@android.com b@android.com")
