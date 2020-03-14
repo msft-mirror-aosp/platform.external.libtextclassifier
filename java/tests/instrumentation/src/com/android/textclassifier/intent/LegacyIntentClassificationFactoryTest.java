@@ -57,7 +57,6 @@ public class LegacyIntentClassificationFactoryTest {
         legacyIntentClassificationFactory.create(
             ApplicationProvider.getApplicationContext(),
             TEXT,
-            /* foreignText= */ false,
             /* referenceTime= */ null,
             classificationResult);
 
@@ -75,7 +74,6 @@ public class LegacyIntentClassificationFactoryTest {
         legacyIntentClassificationFactory.create(
             ApplicationProvider.getApplicationContext(),
             TEXT,
-            /* foreignText= */ false,
             /* referenceTime= */ null,
             classificationResult);
 
@@ -94,7 +92,6 @@ public class LegacyIntentClassificationFactoryTest {
         legacyIntentClassificationFactory.create(
             ApplicationProvider.getApplicationContext(),
             TEXT,
-            /* foreignText= */ false,
             /* referenceTime= */ null,
             classificationResult);
 
@@ -111,7 +108,6 @@ public class LegacyIntentClassificationFactoryTest {
         legacyIntentClassificationFactory.create(
             ApplicationProvider.getApplicationContext(),
             TEXT,
-            /* foreignText= */ false,
             /* referenceTime= */ null,
             classificationResult);
 
@@ -131,11 +127,7 @@ public class LegacyIntentClassificationFactoryTest {
 
     List<LabeledIntent> intents =
         legacyIntentClassificationFactory.create(
-            ApplicationProvider.getApplicationContext(),
-            TEXT,
-            /* foreignText= */ false,
-            referenceTime,
-            classificationResult);
+            ApplicationProvider.getApplicationContext(), TEXT, referenceTime, classificationResult);
 
     assertThat(intents).hasSize(2);
     assertThat(intents.get(0).intent.getAction()).isEqualTo(Intent.ACTION_VIEW);
@@ -154,11 +146,7 @@ public class LegacyIntentClassificationFactoryTest {
 
     List<LabeledIntent> intents =
         legacyIntentClassificationFactory.create(
-            ApplicationProvider.getApplicationContext(),
-            TEXT,
-            /* foreignText= */ false,
-            referenceTime,
-            classificationResult);
+            ApplicationProvider.getApplicationContext(), TEXT, referenceTime, classificationResult);
 
     assertThat(intents).hasSize(1);
     assertThat(intents.get(0).intent.getAction()).isEqualTo(Intent.ACTION_VIEW);
@@ -173,7 +161,6 @@ public class LegacyIntentClassificationFactoryTest {
         legacyIntentClassificationFactory.create(
             ApplicationProvider.getApplicationContext(),
             TEXT,
-            /* foreignText= */ false,
             /* referenceTime= */ null,
             classificationResult);
 
@@ -190,7 +177,6 @@ public class LegacyIntentClassificationFactoryTest {
         legacyIntentClassificationFactory.create(
             ApplicationProvider.getApplicationContext(),
             TEXT,
-            /* foreignText= */ false,
             /* referenceTime= */ null,
             classificationResult);
 
@@ -199,24 +185,6 @@ public class LegacyIntentClassificationFactoryTest {
     Intent intent = labeledIntent.intent;
     assertThat(intent.getAction()).isEqualTo(Intent.ACTION_DEFINE);
     assertThat(intent.getStringExtra(Intent.EXTRA_TEXT)).isEqualTo(TEXT);
-  }
-
-  @Test
-  public void create_translateAndDictionary() {
-    AnnotatorModel.ClassificationResult classificationResult =
-        createClassificationResult(TYPE_DICTIONARY);
-
-    List<LabeledIntent> intents =
-        legacyIntentClassificationFactory.create(
-            ApplicationProvider.getApplicationContext(),
-            TEXT,
-            /* foreignText= */ true,
-            /* referenceTime= */ null,
-            classificationResult);
-
-    assertThat(intents).hasSize(2);
-    assertThat(intents.get(0).intent.getAction()).isEqualTo(Intent.ACTION_DEFINE);
-    assertThat(intents.get(1).intent.getAction()).isEqualTo(Intent.ACTION_TRANSLATE);
   }
 
   private static ClassificationResult createClassificationResult(String collection) {

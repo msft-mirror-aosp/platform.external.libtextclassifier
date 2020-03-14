@@ -73,6 +73,16 @@ void Lexer::Emit(const Symbol& symbol, const RulesSet_::Nonterminals* nonterms,
       }
       break;
     }
+    case Symbol::Type::TYPE_TERM: {
+      // Emit <uppercase_token> if used by the rules.
+      if (nonterms->uppercase_token_nt() != 0 &&
+          unilib_.IsUpperText(
+              UTF8ToUnicodeText(symbol.lexeme, /*do_copy=*/false))) {
+        CheckedEmit(nonterms->uppercase_token_nt(), symbol.codepoint_span,
+                    symbol.match_offset, Match::kTokenType, matcher);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -137,7 +147,14 @@ void Lexer::ProcessToken(const StringPiece value, const int prev_token_end,
 void Lexer::Process(const std::vector<Token>& tokens,
                     const std::vector<Match*>& matches,
                     Matcher* matcher) const {
-  if (tokens.empty()) {
+  return Process(tokens.begin(), tokens.end(), matches, matcher);
+}
+
+void Lexer::Process(const std::vector<Token>::const_iterator& begin,
+                    const std::vector<Token>::const_iterator& end,
+                    const std::vector<Match*>& matches,
+                    Matcher* matcher) const {
+  if (begin == end) {
     return;
   }
 
@@ -173,7 +190,9 @@ void Lexer::Process(const std::vector<Token>& tokens,
     symbols.push_back(Symbol(match));
   }
 
-  for (const Token& token : tokens) {
+  for (auto token_it = begin; token_it != end; token_it++) {
+    const Token& token = *token_it;
+
     // Record match starts for token boundaries, so that we can snap pre-defined
     // matches to it.
     if (prev_token_end != token.start) {

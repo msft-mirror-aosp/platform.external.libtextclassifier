@@ -103,6 +103,11 @@ public final class LangIdModel implements AutoCloseable {
     return nativeGetVersionFromFd(fd);
   }
 
+  /** Retrieves the pointer to the native object. */
+  long getNativePointer() {
+    return modelPtr;
+  }
+
   // Visible for testing.
   float getLangIdNoiseThreshold() {
     return nativeGetLangIdNoiseThreshold(modelPtr);

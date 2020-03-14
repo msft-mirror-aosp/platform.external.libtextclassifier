@@ -103,18 +103,24 @@ namespace libtextclassifier3::grammar {
 class Matcher {
  public:
   Matcher(const UniLib& unilib, const RulesSet* rules,
-          const std::vector<RulesCallbackDelegate>& delegates)
+          const std::vector<const RulesSet_::Rules*> rules_shards,
+          CallbackDelegate* delegate)
       : state_(STATE_DEFAULT),
         unilib_(unilib),
         arena_(kBlocksize),
         rules_(rules),
-        callback_delegates_(delegates) {
-    TC3_CHECK(rules_ != nullptr && rules_->rules() != nullptr);
+        rules_shards_(rules_shards),
+        delegate_(delegate) {
+    TC3_CHECK(rules_ != nullptr);
     Reset();
   }
   Matcher(const UniLib& unilib, const RulesSet* rules,
           CallbackDelegate* delegate)
-      : Matcher(unilib, rules, {{rules->rules()->Get(0), delegate}}) {}
+      : Matcher(unilib, rules, {}, delegate) {
+    rules_shards_.reserve(rules->rules()->size());
+    rules_shards_.insert(rules_shards_.end(), rules->rules()->begin(),
+                         rules->rules()->end());
+  }
 
   // Resets the matcher.
   void Reset();
@@ -215,8 +221,11 @@ class Matcher {
   static constexpr int kChartHashTableBitmask = kChartHashTableNumBuckets - 1;
   std::array<Match*, kChartHashTableNumBuckets> chart_;
 
-  // The active rule shards and associated callback handlers.
-  const std::vector<RulesCallbackDelegate> callback_delegates_;
+  // The active rule shards.
+  std::vector<const RulesSet_::Rules*> rules_shards_;
+
+  // The callback handler.
+  CallbackDelegate* delegate_;
 };
 
 }  // namespace libtextclassifier3::grammar

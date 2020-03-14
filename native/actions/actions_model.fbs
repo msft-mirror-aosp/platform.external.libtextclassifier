@@ -14,6 +14,7 @@
 // limitations under the License.
 //
 
+include "actions/actions-entity-data.fbs";
 include "annotator/model.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
@@ -265,11 +266,13 @@ table ActionSuggestionSpec {
   // Score.
   score:float;
 
-  // Serialized entity information.
+  // Additional entity information.
   serialized_entity_data:string (shared);
 
   // Priority score used for internal conflict resolution.
   priority_score:float = 0;
+
+  entity_data:ActionsEntityData;
 }
 
 // Options to specify triggering behaviour per action class.
@@ -339,7 +342,7 @@ table AnnotationActionsSpec {
   // user.
   only_until_last_sent:bool = true;
 
-  // If true, annotator would populare serialized_entity_data in the results.
+  // If true, annotator would populate serialized_entity_data in the results.
   is_serialized_entity_data_enabled:bool = true;
 }
 

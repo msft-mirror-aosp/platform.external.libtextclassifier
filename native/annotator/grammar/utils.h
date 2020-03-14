@@ -14,23 +14,21 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.common.logging;
+// Common utility functions for grammar annotators.
 
-import static com.google.common.truth.Truth.assertThat;
+#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_
+#define LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
-import androidx.test.filters.SmallTest;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+#include "annotator/model_generated.h"
+#include "utils/tokenizer.h"
+#include "utils/utf8/unilib.h"
 
-@SmallTest
-@RunWith(AndroidJUnit4.class)
-public class TextClassificationSessionIdTest {
+namespace libtextclassifier3 {
 
-  @Test
-  public void getValue() {
-    TextClassificationSessionId sessionId = new TextClassificationSessionId();
+// Builds a tokenizer instance from options.
+Tokenizer BuildTokenizer(const UniLib* unilib,
+                         const GrammarTokenizerOptions* options);
 
-    assertThat(sessionId.getValue()).isNotEmpty();
-  }
-}
+}  // namespace libtextclassifier3
+
+#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_

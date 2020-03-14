@@ -128,20 +128,9 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
           grammar_rules_->actions()->Get(action_id);
       std::vector<ActionSuggestionAnnotation> annotations;
 
-      bool sets_entity_data = false;
       std::unique_ptr<ReflectiveFlatbuffer> entity_data =
           entity_data_builder != nullptr ? entity_data_builder->NewRoot()
                                          : nullptr;
-
-      // Set static entity data.
-      if (action_spec->action() != nullptr &&
-          action_spec->action()->serialized_entity_data() != nullptr) {
-        TC3_CHECK_NE(entity_data, nullptr);
-        sets_entity_data = true;
-        entity_data->MergeFromSerializedFlatbuffer(StringPiece(
-            action_spec->action()->serialized_entity_data()->data(),
-            action_spec->action()->serialized_entity_data()->size()));
-      }
 
       // Set information from capturing matches.
       if (action_spec->capturing_group() != nullptr) {
@@ -168,7 +157,6 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
           // Set entity data.
           if (group->entity_field() != nullptr) {
             TC3_CHECK_NE(entity_data, nullptr);
-            sets_entity_data = true;
             if (!entity_data->ParseAndSet(
                     group->entity_field(),
                     normalized_match_text.ToUTF8String())) {
@@ -179,7 +167,8 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
           }
 
           // Add smart reply suggestions.
-          SuggestTextRepliesFromCapturingMatch(group, normalized_match_text,
+          SuggestTextRepliesFromCapturingMatch(entity_data_builder, group,
+                                               normalized_match_text,
                                                smart_reply_action_type, result);
 
           // Add annotation.
@@ -197,18 +186,17 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
               }
               annotation.entity = annotation_match->annotation;
             }
-            annotations.push_back(annotation);
+            annotations.push_back(std::move(annotation));
           }
         }
       }
 
       if (action_spec->action() != nullptr) {
-        ActionSuggestion suggestion = SuggestionFromSpec(action_spec->action());
+        ActionSuggestion suggestion;
         suggestion.annotations = annotations;
-        if (sets_entity_data) {
-          suggestion.serialized_entity_data = entity_data->Serialize();
-        }
-        result->push_back(suggestion);
+        FillSuggestionFromSpec(action_spec->action(), entity_data.get(),
+                               &suggestion);
+        result->push_back(std::move(suggestion));
       }
     }
     return true;
@@ -251,24 +239,16 @@ bool GrammarActions::SuggestActions(
     return false;
   }
 
-  GrammarActionsCallbackDelegate callback_handler(unilib_, grammar_rules_);
-
   // Select locale matching rules.
-  std::vector<grammar::RulesCallbackDelegate> locale_rules;
-  for (int i = 0; i < rules_locales_.size(); i++) {
-    if (rules_locales_[i].empty() ||
-        Locale::IsAnyLocaleSupported(locales,
-                                     /*supported_locales=*/rules_locales_[i],
-                                     /*default_value=*/false)) {
-      locale_rules.push_back(
-          {grammar_rules_->rules()->rules()->Get(i), &callback_handler});
-    }
-  }
-
+  std::vector<const grammar::RulesSet_::Rules*> locale_rules =
+      SelectLocaleMatchingShards(grammar_rules_->rules(), rules_locales_,
+                                 locales);
   if (locale_rules.empty()) {
     // Nothing to do.
     return true;
   }
+
+  GrammarActionsCallbackDelegate callback_handler(unilib_, grammar_rules_);
 
   std::vector<AnnotationMatch> matches;
   if (auto annotation_nonterminals = grammar_rules_->annotation_nonterminal()) {
@@ -285,7 +265,7 @@ bool GrammarActions::SuggestActions(
         match.Init(entry->value(), annotation.span, annotation.span.first,
                    AnnotationMatch::kType);
         match.annotation = classification;
-        matches.push_back(match);
+        matches.push_back(std::move(match));
       }
     }
   }
@@ -295,7 +275,8 @@ bool GrammarActions::SuggestActions(
     annotation_matches[i] = &matches[i];
   }
 
-  grammar::Matcher matcher(*unilib_, grammar_rules_->rules(), locale_rules);
+  grammar::Matcher matcher(*unilib_, grammar_rules_->rules(), locale_rules,
+                           &callback_handler);
 
   // Run grammar on last message.
   lexer_.Process(tokenizer_->Tokenize(conversation.messages.back().text),

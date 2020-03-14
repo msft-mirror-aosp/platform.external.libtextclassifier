@@ -165,6 +165,8 @@ bool GenerateDate(const ExtractionRuleParameter* rule,
     date->begin = match->codepoint_span.first;
     date->end = match->codepoint_span.second;
     date->priority = rule ? rule->priority_delta() : 0;
+    date->annotator_priority_score =
+        rule ? rule->annotator_priority_score() : 0.0;
   }
   return is_valid;
 }
@@ -917,17 +919,14 @@ std::vector<Annotation> DateParser::Parse(
   // Select locale matching rules.
   // Only use a shard if locales match or the shard doesn't specify a locale
   // restriction.
-  std::vector<grammar::RulesCallbackDelegate> locale_rules;
-  for (int i = 0; i < rules_locales_.size(); i++) {
-    if (rules_locales_[i].empty() ||
-        Locale::IsAnyLocaleSupported(locales,
-                                     /*supported_locales=*/rules_locales_[i],
-                                     /*default_value=*/false)) {
-      locale_rules.push_back(
-          {datetime_rules_->rules()->rules()->Get(i), &extractor});
-    }
+  std::vector<const grammar::RulesSet_::Rules*> locale_rules =
+      SelectLocaleMatchingShards(datetime_rules_->rules(), rules_locales_,
+                                 locales);
+  if (locale_rules.empty()) {
+    return {};
   }
-  grammar::Matcher matcher(unilib_, datetime_rules_->rules(), locale_rules);
+  grammar::Matcher matcher(unilib_, datetime_rules_->rules(), locale_rules,
+                           &extractor);
   lexer_.Process(tokens, /*matches=*/{}, &matcher);
   return GetOutputAsAnnotationList(unilib_, extractor, codepoint_offsets,
                                    options);

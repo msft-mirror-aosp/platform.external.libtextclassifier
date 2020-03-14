@@ -248,11 +248,11 @@ void Matcher::AddTerminal(const CodepointSpan codepoint_span,
                           const int match_offset, StringPiece terminal) {
   TC3_CHECK_GE(codepoint_span.second, last_end_);
   last_end_ = codepoint_span.second;
-  for (const RulesCallbackDelegate& shard : callback_delegates_) {
+  for (const RulesSet_::Rules* shard : rules_shards_) {
     // Try case-sensitive matches.
     if (const RulesSet_::LhsSet* lhs_set =
             FindTerminalMatches(ByteIterator(terminal), rules_,
-                                shard.rules->terminal_rules(), &terminal)) {
+                                shard->terminal_rules(), &terminal)) {
       // `terminal` points now into the rules string pool, providing a
       // stable reference.
       ExecuteLhsSet(
@@ -262,13 +262,13 @@ void Matcher::AddTerminal(const CodepointSpan codepoint_span,
             match->terminal = terminal.data();
             match->rhs2 = nullptr;
           },
-          lhs_set, shard.delegate);
+          lhs_set, delegate_);
     }
 
     // Try case-insensitive matches.
     if (const RulesSet_::LhsSet* lhs_set = FindTerminalMatches(
             LowercasingByteIterator(unilib_, terminal), rules_,
-            shard.rules->lowercase_terminal_rules(), &terminal)) {
+            shard->lowercase_terminal_rules(), &terminal)) {
       // `terminal` points now into the rules string pool, providing a
       // stable reference.
       ExecuteLhsSet(
@@ -278,7 +278,7 @@ void Matcher::AddTerminal(const CodepointSpan codepoint_span,
             match->terminal = terminal.data();
             match->rhs2 = nullptr;
           },
-          lhs_set, shard.delegate);
+          lhs_set, delegate_);
     }
   }
   ProcessPendingSet();
@@ -358,9 +358,9 @@ void Matcher::ProcessPendingSet() {
     chart_[item->codepoint_span.second & kChartHashTableBitmask] = item;
 
     // Check unary rules that trigger.
-    for (const RulesCallbackDelegate& shard : callback_delegates_) {
+    for (const RulesSet_::Rules* shard : rules_shards_) {
       if (const RulesSet_::LhsSet* lhs_set =
-              FindUnaryRulesMatches(rules_, shard.rules, item->lhs)) {
+              FindUnaryRulesMatches(rules_, shard, item->lhs)) {
         ExecuteLhsSet(
             item->codepoint_span, item->match_offset,
             /*whitespace_gap=*/
@@ -369,7 +369,7 @@ void Matcher::ProcessPendingSet() {
               match->rhs1 = nullptr;
               match->rhs2 = item;
             },
-            lhs_set, shard.delegate);
+            lhs_set, delegate_);
       }
     }
 
@@ -385,9 +385,9 @@ void Matcher::ProcessPendingSet() {
     for (;
          prev != nullptr && (prev->codepoint_span.second == item->match_offset);
          prev = prev->next) {
-      for (const RulesCallbackDelegate& shard : callback_delegates_) {
-        if (const RulesSet_::LhsSet* lhs_set = FindBinaryRulesMatches(
-                rules_, shard.rules, {prev->lhs, item->lhs})) {
+      for (const RulesSet_::Rules* shard : rules_shards_) {
+        if (const RulesSet_::LhsSet* lhs_set =
+                FindBinaryRulesMatches(rules_, shard, {prev->lhs, item->lhs})) {
           ExecuteLhsSet(
               /*codepoint_span=*/
               {prev->codepoint_span.first, item->codepoint_span.second},
@@ -400,7 +400,7 @@ void Matcher::ProcessPendingSet() {
                 match->rhs1 = prev;
                 match->rhs2 = item;
               },
-              lhs_set, shard.delegate);
+              lhs_set, delegate_);
         }
       }
     }

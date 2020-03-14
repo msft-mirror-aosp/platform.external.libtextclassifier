@@ -206,19 +206,9 @@ bool RegexActions::SuggestActions(
         const ActionSuggestionSpec* action = rule_action->action();
         std::vector<ActionSuggestionAnnotation> annotations;
 
-        bool sets_entity_data = false;
         std::unique_ptr<ReflectiveFlatbuffer> entity_data =
             entity_data_builder != nullptr ? entity_data_builder->NewRoot()
                                            : nullptr;
-
-        // Set static entity data.
-        if (action != nullptr && action->serialized_entity_data() != nullptr) {
-          TC3_CHECK(entity_data != nullptr);
-          sets_entity_data = true;
-          entity_data->MergeFromSerializedFlatbuffer(
-              StringPiece(action->serialized_entity_data()->c_str(),
-                          action->serialized_entity_data()->size()));
-        }
 
         // Add entity data from rule capturing groups.
         if (rule_action->capturing_group() != nullptr) {
@@ -235,8 +225,7 @@ bool RegexActions::SuggestActions(
                 NormalizeMatchText(unilib_, group, group_match_text.value());
 
             if (group->entity_field() != nullptr) {
-              TC3_CHECK(entity_data != nullptr);
-              sets_entity_data = true;
+              TC3_CHECK_NE(entity_data, nullptr);
               if (!entity_data->ParseAndSet(
                       group->entity_field(),
                       normalized_group_match_text.ToUTF8String())) {
@@ -256,17 +245,15 @@ bool RegexActions::SuggestActions(
 
             // Create text reply.
             SuggestTextRepliesFromCapturingMatch(
-                group, normalized_group_match_text, smart_reply_action_type_,
-                actions);
+                entity_data_builder, group, normalized_group_match_text,
+                smart_reply_action_type_, actions);
           }
         }
 
         if (action != nullptr) {
-          ActionSuggestion suggestion = SuggestionFromSpec(action);
+          ActionSuggestion suggestion;
           suggestion.annotations = annotations;
-          if (sets_entity_data) {
-            suggestion.serialized_entity_data = entity_data->Serialize();
-          }
+          FillSuggestionFromSpec(action, entity_data.get(), &suggestion);
           actions->push_back(suggestion);
         }
       }

@@ -66,7 +66,7 @@ public final class TextClassifierEventLogger {
     StatsEvent statsEvent =
         StatsEvent.newBuilder()
             .setAtomId(TEXT_SELECTION_EVENT_ATOM_ID)
-            .writeString(sessionId == null ? null : sessionId.flattenToString())
+            .writeString(sessionId == null ? null : sessionId.getValue())
             .writeInt(event.getEventType())
             .writeString(getModelName(event))
             .writeInt(getWidgetType(event))
@@ -87,7 +87,7 @@ public final class TextClassifierEventLogger {
     StatsEvent statsEvent =
         StatsEvent.newBuilder()
             .setAtomId(TEXT_LINKIFY_EVENT_ATOM_ID)
-            .writeString(sessionId == null ? null : sessionId.flattenToString())
+            .writeString(sessionId == null ? null : sessionId.getValue())
             .writeInt(event.getEventType())
             .writeString(getModelName(event))
             .writeInt(getWidgetType(event))
@@ -114,7 +114,7 @@ public final class TextClassifierEventLogger {
             .writeString(
                 sessionId == null
                     ? event.getResultId() // TODO: Update ExtServices to set the session id.
-                    : sessionId.flattenToString())
+                    : sessionId.getValue())
             .writeInt(event.getEventType())
             .writeString(getItemAt(modelNames, 0, null))
             .writeInt(getWidgetType(event))
@@ -135,7 +135,7 @@ public final class TextClassifierEventLogger {
     StatsEvent statsEvent =
         StatsEvent.newBuilder()
             .setAtomId(LANGUAGE_DETECTION_EVENT_ATOM_ID)
-            .writeString(sessionId == null ? null : sessionId.flattenToString())
+            .writeString(sessionId == null ? null : sessionId.getValue())
             .writeInt(event.getEventType())
             .writeString(getModelName(event))
             .writeInt(getWidgetType(event))

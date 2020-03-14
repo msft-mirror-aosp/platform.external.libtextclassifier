@@ -259,6 +259,10 @@ class ReflectiveFlatbuffer {
   // representation.
   std::string ToTextProto() const;
 
+  bool HasExplicitlySetFields() const {
+    return !fields_.empty() || !children_.empty() || !repeated_fields_.empty();
+  }
+
  private:
   // Helper function for merging given repeated field from given flatbuffer
   // table. Appends the elements.

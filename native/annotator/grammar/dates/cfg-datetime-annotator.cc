@@ -16,7 +16,9 @@
 
 #include "annotator/grammar/dates/cfg-datetime-annotator.h"
 
+#include "annotator/datetime/utils.h"
 #include "annotator/grammar/dates/annotations/annotation-options.h"
+#include "annotator/grammar/utils.h"
 #include "utils/strings/split.h"
 #include "utils/tokenizer.h"
 #include "utils/utf8/unicodetext.h"
@@ -236,30 +238,6 @@ static void InterpretParseData(const DatetimeParsedData& datetime_parsed_data,
   }
 }
 
-Tokenizer BuildTokenizer(const UniLib* unilib,
-                         const GrammarTokenizerOptions* options) {
-  std::vector<const TokenizationCodepointRange*> codepoint_config;
-  if (options->tokenization_codepoint_config() != nullptr) {
-    codepoint_config.insert(codepoint_config.end(),
-                            options->tokenization_codepoint_config()->begin(),
-                            options->tokenization_codepoint_config()->end());
-  }
-  std::vector<const CodepointRange*> internal_codepoint_config;
-  if (options->internal_tokenizer_codepoint_ranges() != nullptr) {
-    internal_codepoint_config.insert(
-        internal_codepoint_config.end(),
-        options->internal_tokenizer_codepoint_ranges()->begin(),
-        options->internal_tokenizer_codepoint_ranges()->end());
-  }
-
-  const bool tokenize_on_script_change =
-      options->tokenization_codepoint_config() != nullptr &&
-      options->tokenize_on_script_change();
-  return Tokenizer(options->tokenization_type(), unilib, codepoint_config,
-                   internal_codepoint_config, tokenize_on_script_change,
-                   /*icu_preserve_whitespace_tokens=*/false);
-}
-
 }  // namespace
 
 CfgDatetimeAnnotator::CfgDatetimeAnnotator(
@@ -277,23 +255,49 @@ CfgDatetimeAnnotator::CfgDatetimeAnnotator(
 // Helper method to convert the Thing into DatetimeParseResult.
 // Thing constains the annotation instance i.e. type of the annotation and its
 // properties/values
-void CfgDatetimeAnnotator::FillDatetimeParseResult(
+void CfgDatetimeAnnotator::FillDatetimeParseResults(
     const AnnotationData& annotation_data, const DateAnnotationOptions& options,
-    DatetimeParseResult* datetime_parse_result) const {
+    std::vector<DatetimeParseResult>* results) const {
   DatetimeParsedData datetime_parsed_data;
   for (const auto& property : annotation_data.properties) {
-    FillDatetimeParsedData(property, &datetime_parsed_data);
+    // Property can contain further AnnotationData which indicate that input
+    // text contains multiple datetime instances & co-exist with each other
+    // e.g. 11 June 2019 to 15 June 2019 two dates but connected to each other
+    //      4-6 April contains 3 dates 4 April, 5 April, 6 April.
+    if (!property.annotation_data_values.empty()) {
+      for (const auto& nested_annotation_data :
+           property.annotation_data_values) {
+        FillDatetimeParseResults(nested_annotation_data, options, results);
+      }
+    } else {
+      FillDatetimeParsedData(property, &datetime_parsed_data);
+    }
   }
-  datetime_parsed_data.GetDatetimeComponents(
-      &datetime_parse_result->datetime_components);
-  InterpretParseData(datetime_parsed_data, options, calendar_lib_,
-                     &(datetime_parse_result->time_ms_utc),
-                     &(datetime_parse_result->granularity));
-  std::sort(datetime_parse_result->datetime_components.begin(),
-            datetime_parse_result->datetime_components.end(),
-            [](DatetimeComponent a, DatetimeComponent b) {
-              return a.component_type > b.component_type;
-            });
+  // If we found any annotation for AnnotationData add it to the result.
+  if (!datetime_parsed_data.IsEmpty()) {
+    std::vector<DatetimeParsedData> interpretations;
+    if (options.generate_alternative_interpretations_when_ambiguous) {
+      FillInterpretations(datetime_parsed_data,
+                          calendar_lib_.GetGranularity(datetime_parsed_data),
+                          &interpretations);
+    } else {
+      interpretations.emplace_back(datetime_parsed_data);
+    }
+    for (const DatetimeParsedData& interpretation : interpretations) {
+      DatetimeParseResult datetime_parse_result;
+      interpretation.GetDatetimeComponents(
+          &datetime_parse_result.datetime_components);
+      InterpretParseData(interpretation, options, calendar_lib_,
+                         &(datetime_parse_result.time_ms_utc),
+                         &(datetime_parse_result.granularity));
+      std::sort(datetime_parse_result.datetime_components.begin(),
+                datetime_parse_result.datetime_components.end(),
+                [](DatetimeComponent a, DatetimeComponent b) {
+                  return a.component_type > b.component_type;
+                });
+      results->emplace_back(datetime_parse_result);
+    }
+  }
 }
 
 // Helper methods to convert the Annotation proto to collection of
@@ -307,44 +311,45 @@ void CfgDatetimeAnnotator::FillDatetimeParseResultSpan(
     const DateAnnotationOptions& options,
     std::vector<DatetimeParseResultSpan>* results) const {
   for (const Annotation& annotation : annotation_list) {
-    // Annotation can be of two type 1) Datetime or 2) DatetimeRange
-    if (annotation.data.type == kDateTimeType) {
-      DatetimeParseResultSpan datetime_parse_result_span;
-      datetime_parse_result_span.span =
-          CodepointSpan{annotation.begin, annotation.end};
-      datetime_parse_result_span.target_classification_score =
-          annotator_target_classification_score_;
+    DatetimeParseResultSpan datetime_parse_result_span;
+    datetime_parse_result_span.span =
+        CodepointSpan{annotation.begin, annotation.end};
+    datetime_parse_result_span.target_classification_score =
+        annotator_target_classification_score_;
+    // CFG grammar has a confidence score for each extracted annotation which
+    // is an indication of how certain is the system about extracted annotation
+    // e.g.  given input: "22.33" the grammar may extract "hour.minute"  but
+    // because there is no other time component and can also be just a floating
+    // point number the confidence of this match should be less as compare to
+    // "22.33.23 GMT"
+    if (options.use_rule_priority_score) {
+      datetime_parse_result_span.priority_score =
+          annotation.annotator_priority_score;
+    } else {
       datetime_parse_result_span.priority_score = annotator_priority_score_;
+    }
 
-      // Though the datastructre allow multiple DatetimeParseResult per span
-      // but for annotator based on grammar there will just one.
-      DatetimeParseResult datetime_parse_result;
-      FillDatetimeParseResult(annotation.data, options, &datetime_parse_result);
+    std::vector<DatetimeParseResult> datetime_parse_results;
+    FillDatetimeParseResults(annotation.data, options, &datetime_parse_results);
+    for (auto& datetime_parse_result : datetime_parse_results) {
       datetime_parse_result_span.data.push_back(datetime_parse_result);
-      results->push_back(datetime_parse_result_span);
     }
-    // Handling of DatetimeRange is little convoluted as it contains at least
-    // two instance of Datetime
-    if (annotation.data.type == kDateTimeRangeType) {
-      TC3_LOG(ERROR) << "Grammar based Duration/Datetime Range not implemented";
-    }
+    results->emplace_back(datetime_parse_result_span);
   }
 }
 
 void CfgDatetimeAnnotator::Parse(
-    const std::string& input, const int64 reference_time_ms_utc,
-    const std::string& reference_timezone, const std::vector<Locale>& locales,
+    const std::string& input, const DateAnnotationOptions& annotation_options,
+    const std::vector<Locale>& locales,
     std::vector<DatetimeParseResultSpan>* results) const {
-  Parse(UTF8ToUnicodeText(input, /*do_copy=*/false), reference_time_ms_utc,
-        reference_timezone, locales, results);
+  Parse(UTF8ToUnicodeText(input, /*do_copy=*/false), annotation_options,
+        locales, results);
 }
 
 void CfgDatetimeAnnotator::Parse(
-    const UnicodeText& input, const int64 reference_time_ms_utc,
-    const std::string& reference_timezone, const std::vector<Locale>& locales,
+    const UnicodeText& input, const DateAnnotationOptions& annotation_options,
+    const std::vector<Locale>& locales,
     std::vector<DatetimeParseResultSpan>* results) const {
-  DateAnnotationOptions annotation_options;
-  annotation_options.reference_timezone = reference_timezone;
   FillDatetimeParseResultSpan(
       input,
       parser_.Parse(input.data(), tokenizer_.Tokenize(input), locales,

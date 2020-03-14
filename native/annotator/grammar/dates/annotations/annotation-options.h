@@ -76,6 +76,17 @@ struct DateAnnotationOptions {
   // comma-separated list of two-character language/country pairs.
   std::string locales;
 
+  // If enabled, the annotation/rule_match priority score is used to set the and
+  // priority score of the annotation.
+  // In case of false the annotation priority score are set from
+  // GrammarDatetimeModel's priority_score
+  bool use_rule_priority_score;
+
+  // If enabled, annotator will try to resolve the ambiguity by generating
+  // possible alternative interpretations of the input text
+  // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
+  bool generate_alternative_interpretations_when_ambiguous;
+
   // Default Constructor
   DateAnnotationOptions()
       : enable_special_day_offset(true),
@@ -83,7 +94,9 @@ struct DateAnnotationOptions {
         include_preposition(false),
         base_timestamp_millis(0),
         enable_date_range(false),
-        expand_date_series(false) {}
+        expand_date_series(false),
+        use_rule_priority_score(false),
+        generate_alternative_interpretations_when_ambiguous(false) {}
 };
 
 }  // namespace libtextclassifier3

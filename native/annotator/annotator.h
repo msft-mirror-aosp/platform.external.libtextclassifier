@@ -30,6 +30,7 @@
 #include "annotator/duration/duration.h"
 #include "annotator/feature-processor.h"
 #include "annotator/grammar/dates/cfg-datetime-annotator.h"
+#include "annotator/grammar/grammar-annotator.h"
 #include "annotator/installed_app/installed-app-engine.h"
 #include "annotator/knowledge/knowledge-engine.h"
 #include "annotator/model-executor.h"
@@ -138,6 +139,11 @@ class Annotator {
 
   // Initializes the installed app engine with the given config.
   bool InitializeInstalledAppEngine(const std::string& serialized_config);
+
+  // Initializes the person name engine with the given person name model in the
+  // provided buffer. The buffer needs to outlive the annotator.
+  bool InitializePersonNameEngineFromUnownedBuffer(const void* buffer,
+                                                   int size);
 
   // Initializes the person name engine with the given person name model from
   // the provided mmap.
@@ -408,6 +414,8 @@ class Annotator {
 
   std::unique_ptr<const DatetimeParser> datetime_parser_;
   std::unique_ptr<const dates::CfgDatetimeAnnotator> cfg_datetime_parser_;
+
+  std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
  private:
   struct CompiledRegexPattern {

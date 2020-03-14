@@ -776,11 +776,17 @@ bool ActionsSuggestions::ReadModelOutput(
       if (score < action_type->min_triggering_score()) {
         continue;
       }
-      ActionSuggestion suggestion =
-          SuggestionFromSpec(action_type->action(),
-                             /*default_type=*/action_type->name()->str());
+
+      // Create action from model output.
+      ActionSuggestion suggestion;
+      suggestion.type = action_type->name()->str();
+      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+          entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                          : nullptr;
+      FillSuggestionFromSpec(action_type->action(), entity_data.get(),
+                             &suggestion);
       suggestion.score = score;
-      response->actions.push_back(suggestion);
+      response->actions.push_back(std::move(suggestion));
     }
   }
 
@@ -967,7 +973,7 @@ void ActionsSuggestions::SuggestActionsFromAnnotations(
               .UTF8Substring(annotation.span.first, annotation.span.second)};
       action_annotation.entity = classification_result;
       action_annotation.name = classification_result.collection;
-      action_annotations.push_back(action_annotation);
+      action_annotations.push_back(std::move(action_annotation));
     }
 
     if (model_->annotation_actions_spec()->deduplicate_annotations()) {
@@ -996,23 +1002,14 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
       if (annotation.entity.score < mapping->min_annotation_score()) {
         continue;
       }
-      ActionSuggestion suggestion = SuggestionFromSpec(mapping->action());
-      if (mapping->use_annotation_score()) {
-        suggestion.score = annotation.entity.score;
-      }
+
+      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+          entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                          : nullptr;
 
       // Set annotation text as (additional) entity data field.
       if (mapping->entity_field() != nullptr) {
-        std::unique_ptr<ReflectiveFlatbuffer> entity_data =
-            entity_data_builder_->NewRoot();
-        TC3_CHECK(entity_data != nullptr);
-
-        // Merge existing static entity data.
-        if (!suggestion.serialized_entity_data.empty()) {
-          entity_data->MergeFromSerializedFlatbuffer(
-              StringPiece(suggestion.serialized_entity_data.c_str(),
-                          suggestion.serialized_entity_data.size()));
-        }
+        TC3_CHECK_NE(entity_data, nullptr);
 
         UnicodeText normalized_annotation_text =
             UTF8ToUnicodeText(annotation.span.text, /*do_copy=*/false);
@@ -1026,11 +1023,15 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
 
         entity_data->ParseAndSet(mapping->entity_field(),
                                  normalized_annotation_text.ToUTF8String());
-        suggestion.serialized_entity_data = entity_data->Serialize();
       }
 
+      ActionSuggestion suggestion;
+      FillSuggestionFromSpec(mapping->action(), entity_data.get(), &suggestion);
+      if (mapping->use_annotation_score()) {
+        suggestion.score = annotation.entity.score;
+      }
       suggestion.annotations = {annotation};
-      actions->push_back(suggestion);
+      actions->push_back(std::move(suggestion));
     }
   }
 }

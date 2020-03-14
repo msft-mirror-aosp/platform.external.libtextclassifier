@@ -58,7 +58,6 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
   public ImmutableList<LabeledIntent> create(
       Context context,
       String text,
-      boolean foreignText,
       @Nullable Instant referenceTime,
       AnnotatorModel.ClassificationResult classification) {
     final String type =
@@ -100,9 +99,6 @@ public final class LegacyClassificationIntentFactory implements ClassificationIn
       default:
         actions = new ArrayList<>();
         break;
-    }
-    if (foreignText) {
-      ClassificationIntentFactory.insertTranslateAction(actions, context, text);
     }
     return ImmutableList.copyOf(actions);
   }

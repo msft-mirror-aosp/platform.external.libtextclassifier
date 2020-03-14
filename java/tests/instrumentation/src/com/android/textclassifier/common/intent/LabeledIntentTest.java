@@ -23,8 +23,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Bundle;
-import android.view.textclassifier.TextClassifier;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.testing.FakeContextBuilder;
@@ -42,7 +40,6 @@ public final class LabeledIntentTest {
   private static final Intent INTENT =
       new Intent(Intent.ACTION_VIEW).setDataAndNormalize(Uri.parse("http://www.android.com"));
   private static final int REQUEST_CODE = 42;
-  private static final Bundle TEXT_LANGUAGES_BUNDLE = Bundle.EMPTY;
   private static final String APP_LABEL = "fake";
 
   private Context context;
@@ -63,8 +60,7 @@ public final class LabeledIntentTest {
         new LabeledIntent(
             TITLE_WITHOUT_ENTITY, TITLE_WITH_ENTITY, DESCRIPTION, null, INTENT, REQUEST_CODE);
 
-    LabeledIntent.Result result =
-        labeledIntent.resolve(context, /*titleChooser*/ null, TEXT_LANGUAGES_BUNDLE);
+    LabeledIntent.Result result = labeledIntent.resolve(context, /*titleChooser*/ null);
 
     assertThat(result).isNotNull();
     assertThat(result.remoteAction.getTitle().toString()).isEqualTo(TITLE_WITH_ENTITY);
@@ -72,7 +68,6 @@ public final class LabeledIntentTest {
     Intent intent = result.resolvedIntent;
     assertThat(intent.getAction()).isEqualTo(intent.getAction());
     assertThat(intent.getComponent()).isNotNull();
-    assertThat(intent.hasExtra(TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER)).isTrue();
   }
 
   @Test
@@ -80,8 +75,7 @@ public final class LabeledIntentTest {
     LabeledIntent labeledIntent =
         new LabeledIntent(TITLE_WITHOUT_ENTITY, null, DESCRIPTION, null, INTENT, REQUEST_CODE);
 
-    LabeledIntent.Result result =
-        labeledIntent.resolve(context, /*titleChooser*/ null, TEXT_LANGUAGES_BUNDLE);
+    LabeledIntent.Result result = labeledIntent.resolve(context, /*titleChooser*/ null);
 
     assertThat(result).isNotNull();
     assertThat(result.remoteAction.getTitle().toString()).isEqualTo(TITLE_WITHOUT_ENTITY);
@@ -97,8 +91,7 @@ public final class LabeledIntentTest {
         new LabeledIntent(TITLE_WITHOUT_ENTITY, null, DESCRIPTION, null, INTENT, REQUEST_CODE);
 
     LabeledIntent.Result result =
-        labeledIntent.resolve(
-            context, (labeledIntent1, resolveInfo) -> "chooser", TEXT_LANGUAGES_BUNDLE);
+        labeledIntent.resolve(context, (labeledIntent1, resolveInfo) -> "chooser");
 
     assertThat(result).isNotNull();
     assertThat(result.remoteAction.getTitle().toString()).isEqualTo("chooser");
@@ -114,8 +107,7 @@ public final class LabeledIntentTest {
         new LabeledIntent(TITLE_WITHOUT_ENTITY, null, DESCRIPTION, null, INTENT, REQUEST_CODE);
 
     LabeledIntent.Result result =
-        labeledIntent.resolve(
-            context, (labeledIntent1, resolveInfo) -> null, TEXT_LANGUAGES_BUNDLE);
+        labeledIntent.resolve(context, (labeledIntent1, resolveInfo) -> null);
 
     assertThat(result).isNotNull();
     assertThat(result.remoteAction.getTitle().toString()).isEqualTo(TITLE_WITHOUT_ENTITY);
@@ -140,7 +132,7 @@ public final class LabeledIntentTest {
         new LabeledIntent(
             TITLE_WITHOUT_ENTITY, null, DESCRIPTION, null, unresolvableIntent, REQUEST_CODE);
 
-    LabeledIntent.Result result = labeledIntent.resolve(context, null, null);
+    LabeledIntent.Result result = labeledIntent.resolve(context, null);
 
     assertThat(result).isNull();
   }
@@ -156,8 +148,7 @@ public final class LabeledIntentTest {
             INTENT,
             REQUEST_CODE);
 
-    LabeledIntent.Result result =
-        labeledIntent.resolve(context, /*titleChooser*/ null, TEXT_LANGUAGES_BUNDLE);
+    LabeledIntent.Result result = labeledIntent.resolve(context, /*titleChooser*/ null);
 
     assertThat(result).isNotNull();
     assertThat(result.remoteAction.getContentDescription().toString())

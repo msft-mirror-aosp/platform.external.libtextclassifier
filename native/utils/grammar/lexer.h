@@ -82,6 +82,9 @@ class Lexer {
   // alongside the tokens.
   void Process(const std::vector<Token>& tokens,
                const std::vector<Match*>& matches, Matcher* matcher) const;
+  void Process(const std::vector<Token>::const_iterator& begin,
+               const std::vector<Token>::const_iterator& end,
+               const std::vector<Match*>& matches, Matcher* matcher) const;
 
  private:
   // A lexical symbol with an identified meaning that represents raw tokens,

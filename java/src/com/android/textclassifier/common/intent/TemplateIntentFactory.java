@@ -20,6 +20,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.common.base.TcLog;
 import com.google.android.textclassifier.NamedVariant;
 import com.google.android.textclassifier.RemoteActionTemplate;
@@ -103,6 +104,11 @@ public final class TemplateIntentFactory {
       }
     }
     intent.putExtras(nameVariantsToBundle(remoteActionTemplate.extras));
+    // If the template does not have EXTRA_FROM_TEXT_CLASSIFIER, create one to indicate the result
+    // is from the text classifier, so that client can handle the intent differently.
+    if (!intent.hasExtra(TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER)) {
+      intent.putExtra(TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER, Bundle.EMPTY);
+    }
     return intent;
   }
 
@@ -144,7 +150,10 @@ public final class TemplateIntentFactory {
         case NamedVariant.TYPE_INT_ARRAY:
           bundle.putIntArray(namedVariant.getName(), namedVariant.getIntArray());
           break;
-
+        case NamedVariant.TYPE_NAMED_VARIANT_ARRAY:
+          bundle.putBundle(
+              namedVariant.getName(), nameVariantsToBundle(namedVariant.getNamedVariantArray()));
+          break;
         default:
           TcLog.w(
               TAG, "Unsupported type found in nameVariantsToBundle : " + namedVariant.getType());

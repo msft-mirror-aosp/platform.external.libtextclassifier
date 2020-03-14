@@ -131,6 +131,9 @@ table Nonterminals {
 
   // Id of the nonterminal indicating a word or token boundary.
   wordbreak_nt:int;
+
+  // Id of the nonterminal indicating an uppercase token.
+  uppercase_token_nt:int;
 }
 
 // Callback information.

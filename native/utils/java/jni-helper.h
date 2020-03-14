@@ -73,6 +73,7 @@ class JniHelper {
   // Misc methods.
   static StatusOr<ScopedLocalRef<jclass>> FindClass(JNIEnv* env,
                                                     const char* class_name);
+
   template <typename T = jobject>
   static StatusOr<ScopedLocalRef<T>> GetObjectArrayElement(JNIEnv* env,
                                                            jobjectArray array,
@@ -80,6 +81,9 @@ class JniHelper {
   static StatusOr<jmethodID> GetMethodID(JNIEnv* env, jclass clazz,
                                          const char* method_name,
                                          const char* return_type);
+
+  static StatusOr<ScopedLocalRef<jobject>> GetStaticObjectField(
+      JNIEnv* env, jclass class_name, jfieldID field_id);
 
   // New* methods.
   TC3_DEFINE_VARIADIC_SCOPED_LOCAL_REF_ENV_METHOD(NewObject, jobject, jclass,

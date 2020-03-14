@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Intent;
 import android.net.Uri;
+import android.view.textclassifier.TextClassifier;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.google.android.textclassifier.NamedVariant;
@@ -113,6 +114,7 @@ public class TemplateIntentFactoryTest {
     assertThat(intent.getStringArrayExtra(KEY_STRING_ARRAY)).isEqualTo(VALUE_STRING_ARRAY);
     assertThat(intent.getFloatArrayExtra(KEY_FLOAT_ARRAY)).isEqualTo(VALUE_FLOAT_ARRAY);
     assertThat(intent.getIntArrayExtra(KEY_INT_ARRAY)).isEqualTo(VALUE_INT_ARRAY);
+    assertThat(intent.hasExtra(TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER)).isTrue();
   }
 
   @Test

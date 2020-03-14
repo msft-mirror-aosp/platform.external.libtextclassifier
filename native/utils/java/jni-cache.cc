@@ -51,17 +51,25 @@ JniCache::JniCache(JavaVM* jvm)
 #define TC3_CHECK_JNI_PTR(PTR) TC3_CHECK((PTR) != nullptr)
 #define TC3_CHECK_JNI_RESULT(RESULT) TC3_CHECK(RESULT)
 
-#define TC3_GET_CLASS(FIELD, NAME)                                       \
-  result->FIELD##_class = MakeGlobalRef(env->FindClass(NAME), env, jvm); \
-  TC3_CHECK_JNI_PTR(result->FIELD##_class) << "Error finding class: " << NAME;
+#define TC3_GET_CLASS_OR_RETURN_NULL(FIELD, NAME)                 \
+  {                                                               \
+    TC3_ASSIGN_OR_RETURN_NULL(ScopedLocalRef<jclass> clazz,       \
+                              JniHelper::FindClass(env, NAME));   \
+    result->FIELD##_class = MakeGlobalRef(clazz.get(), env, jvm); \
+    if (result->FIELD##_class == nullptr) {                       \
+      TC3_LOG(ERROR) << "Error finding class: " << NAME;          \
+      return nullptr;                                             \
+    }                                                             \
+  }
 
-#define TC3_GET_OPTIONAL_CLASS(FIELD, NAME)                   \
-  {                                                           \
-    jclass clazz = env->FindClass(NAME);                      \
-    if (clazz != nullptr) {                                   \
-      result->FIELD##_class = MakeGlobalRef(clazz, env, jvm); \
-    }                                                         \
-    env->ExceptionClear();                                    \
+#define TC3_GET_OPTIONAL_CLASS(FIELD, NAME)                         \
+  {                                                                 \
+    StatusOr<ScopedLocalRef<jclass>> status_or_class =              \
+        JniHelper::FindClass(env, NAME);                            \
+    if (status_or_class.ok()) {                                     \
+      result->FIELD##_class = MakeGlobalRef(                        \
+          std::move(status_or_class).ValueOrDie().get(), env, jvm); \
+    }                                                               \
   }
 
 #define TC3_GET_METHOD(CLASS, FIELD, NAME, SIGNATURE)                 \
@@ -90,17 +98,23 @@ JniCache::JniCache(JavaVM* jvm)
   TC3_CHECK_JNI_RESULT(result->CLASS##_##FIELD)                             \
       << "Error finding method: " << NAME;
 
-#define TC3_GET_STATIC_OBJECT_FIELD(CLASS, FIELD, NAME, SIGNATURE)         \
-  const jfieldID CLASS##_##FIELD##_field =                                 \
-      env->GetStaticFieldID(result->CLASS##_class.get(), NAME, SIGNATURE); \
-  TC3_CHECK_JNI_RESULT(CLASS##_##FIELD##_field)                            \
-      << "Error finding field id: " << NAME;                               \
-  result->CLASS##_##FIELD =                                                \
-      MakeGlobalRef(env->GetStaticObjectField(result->CLASS##_class.get(), \
-                                              CLASS##_##FIELD##_field),    \
-                    env, jvm);                                             \
-  TC3_CHECK_JNI_RESULT(result->CLASS##_##FIELD)                            \
-      << "Error finding field: " << NAME;
+#define TC3_GET_STATIC_OBJECT_FIELD_OR_RETURN_NULL(CLASS, FIELD, NAME,       \
+                                                   SIGNATURE)                \
+  {                                                                          \
+    const jfieldID CLASS##_##FIELD##_field =                                 \
+        env->GetStaticFieldID(result->CLASS##_class.get(), NAME, SIGNATURE); \
+    TC3_CHECK_JNI_RESULT(CLASS##_##FIELD##_field)                            \
+        << "Error finding field id: " << NAME;                               \
+    TC3_ASSIGN_OR_RETURN_NULL(                                               \
+        ScopedLocalRef<jobject> static_object,                               \
+        JniHelper::GetStaticObjectField(env, result->CLASS##_class.get(),    \
+                                        CLASS##_##FIELD##_field));           \
+    result->CLASS##_##FIELD = MakeGlobalRef(static_object.get(), env, jvm);  \
+    if (result->CLASS##_##FIELD == nullptr) {                                \
+      TC3_LOG(ERROR) << "Error finding field: " << NAME;                     \
+      return nullptr;                                                        \
+    }                                                                        \
+  }
 
 #define TC3_GET_STATIC_INT_FIELD(CLASS, FIELD, NAME)                 \
   const jfieldID CLASS##_##FIELD##_field =                           \
@@ -123,23 +137,25 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   std::unique_ptr<JniCache> result(new JniCache(jvm));
 
   // String
-  TC3_GET_CLASS(string, "java/lang/String");
+  TC3_GET_CLASS_OR_RETURN_NULL(string, "java/lang/String");
   TC3_GET_METHOD(string, init_bytes_charset, "<init>",
                  "([BLjava/lang/String;)V");
   TC3_GET_METHOD(string, code_point_count, "codePointCount", "(II)I");
   TC3_GET_METHOD(string, length, "length", "()I");
-  result->string_utf8 = MakeGlobalRef(env->NewStringUTF("UTF-8"), env, jvm);
+  TC3_ASSIGN_OR_RETURN_NULL(ScopedLocalRef<jstring> result_string,
+                            JniHelper::NewStringUTF(env, "UTF-8"));
+  result->string_utf8 = MakeGlobalRef(result_string.get(), env, jvm);
   TC3_CHECK_JNI_PTR(result->string_utf8);
 
   // Pattern
-  TC3_GET_CLASS(pattern, "java/util/regex/Pattern");
+  TC3_GET_CLASS_OR_RETURN_NULL(pattern, "java/util/regex/Pattern");
   TC3_GET_STATIC_METHOD(pattern, compile, "compile",
                         "(Ljava/lang/String;)Ljava/util/regex/Pattern;");
   TC3_GET_METHOD(pattern, matcher, "matcher",
                  "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;");
 
   // Matcher
-  TC3_GET_CLASS(matcher, "java/util/regex/Matcher");
+  TC3_GET_CLASS_OR_RETURN_NULL(matcher, "java/util/regex/Matcher");
   TC3_GET_METHOD(matcher, matches, "matches", "()Z");
   TC3_GET_METHOD(matcher, find, "find", "()Z");
   TC3_GET_METHOD(matcher, reset, "reset", "()Ljava/util/regex/Matcher;");
@@ -149,26 +165,27 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   TC3_GET_METHOD(matcher, group_idx, "group", "(I)Ljava/lang/String;");
 
   // Locale
-  TC3_GET_CLASS(locale, "java/util/Locale");
-  TC3_GET_STATIC_OBJECT_FIELD(locale, us, "US", "Ljava/util/Locale;");
+  TC3_GET_CLASS_OR_RETURN_NULL(locale, "java/util/Locale");
+  TC3_GET_STATIC_OBJECT_FIELD_OR_RETURN_NULL(locale, us, "US",
+                                             "Ljava/util/Locale;");
   TC3_GET_METHOD(locale, init_string, "<init>", "(Ljava/lang/String;)V");
   TC3_GET_OPTIONAL_STATIC_METHOD(locale, for_language_tag, "forLanguageTag",
                                  "(Ljava/lang/String;)Ljava/util/Locale;");
 
   // BreakIterator
-  TC3_GET_CLASS(breakiterator, "java/text/BreakIterator");
+  TC3_GET_CLASS_OR_RETURN_NULL(breakiterator, "java/text/BreakIterator");
   TC3_GET_STATIC_METHOD(breakiterator, getwordinstance, "getWordInstance",
                         "(Ljava/util/Locale;)Ljava/text/BreakIterator;");
   TC3_GET_METHOD(breakiterator, settext, "setText", "(Ljava/lang/String;)V");
   TC3_GET_METHOD(breakiterator, next, "next", "()I");
 
   // Integer
-  TC3_GET_CLASS(integer, "java/lang/Integer");
+  TC3_GET_CLASS_OR_RETURN_NULL(integer, "java/lang/Integer");
   TC3_GET_STATIC_METHOD(integer, parse_int, "parseInt",
                         "(Ljava/lang/String;)I");
 
   // Calendar.
-  TC3_GET_CLASS(calendar, "java/util/Calendar");
+  TC3_GET_CLASS_OR_RETURN_NULL(calendar, "java/util/Calendar");
   TC3_GET_STATIC_METHOD(
       calendar, get_instance, "getInstance",
       "(Ljava/util/TimeZone;Ljava/util/Locale;)Ljava/util/Calendar;");
@@ -198,26 +215,26 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   TC3_GET_STATIC_INT_FIELD(calendar, saturday, "SATURDAY");
 
   // TimeZone.
-  TC3_GET_CLASS(timezone, "java/util/TimeZone");
+  TC3_GET_CLASS_OR_RETURN_NULL(timezone, "java/util/TimeZone");
   TC3_GET_STATIC_METHOD(timezone, get_timezone, "getTimeZone",
                         "(Ljava/lang/String;)Ljava/util/TimeZone;");
 
   // URLEncoder.
-  TC3_GET_CLASS(urlencoder, "java/net/URLEncoder");
+  TC3_GET_CLASS_OR_RETURN_NULL(urlencoder, "java/net/URLEncoder");
   TC3_GET_STATIC_METHOD(
       urlencoder, encode, "encode",
       "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 
 #ifdef __ANDROID__
   // Context.
-  TC3_GET_CLASS(context, "android/content/Context");
+  TC3_GET_CLASS_OR_RETURN_NULL(context, "android/content/Context");
   TC3_GET_METHOD(context, get_package_name, "getPackageName",
                  "()Ljava/lang/String;");
   TC3_GET_METHOD(context, get_system_service, "getSystemService",
                  "(Ljava/lang/String;)Ljava/lang/Object;");
 
   // Uri.
-  TC3_GET_CLASS(uri, "android/net/Uri");
+  TC3_GET_CLASS_OR_RETURN_NULL(uri, "android/net/Uri");
   TC3_GET_STATIC_METHOD(uri, parse, "parse",
                         "(Ljava/lang/String;)Landroid/net/Uri;");
   TC3_GET_METHOD(uri, get_scheme, "getScheme", "()Ljava/lang/String;");
@@ -229,11 +246,11 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
                           "getUserRestrictions", "()Landroid/os/Bundle;");
 
   // Bundle.
-  TC3_GET_CLASS(bundle, "android/os/Bundle");
+  TC3_GET_CLASS_OR_RETURN_NULL(bundle, "android/os/Bundle");
   TC3_GET_METHOD(bundle, get_boolean, "getBoolean", "(Ljava/lang/String;)Z");
 
   // String resources.
-  TC3_GET_CLASS(resources, "android/content/res/Resources");
+  TC3_GET_CLASS_OR_RETURN_NULL(resources, "android/content/res/Resources");
   TC3_GET_STATIC_METHOD(resources, get_system, "getSystem",
                         "()Landroid/content/res/Resources;");
   TC3_GET_METHOD(resources, get_identifier, "getIdentifier",
@@ -245,10 +262,11 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
 }
 
 #undef TC3_GET_STATIC_INT_FIELD
-#undef TC3_GET_STATIC_OBJECT_FIELD
+#undef TC3_GET_STATIC_OBJECT_FIELD_OR_RETURN_NULL
 #undef TC3_GET_STATIC_METHOD
 #undef TC3_GET_METHOD
-#undef TC3_GET_CLASS
+#undef TC3_GET_CLASS_OR_RETURN_NULL
+#undef TC3_GET_OPTIONAL_CLASS
 #undef TC3_CHECK_JNI_PTR
 
 JNIEnv* JniCache::GetEnv() const {

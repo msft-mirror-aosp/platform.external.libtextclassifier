@@ -572,6 +572,18 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
   return model->InitializePersonNameEngineFromFileDescriptor(fd, offset, size);
 }
 
+TC3_JNI_METHOD(void, TC3_ANNOTATOR_CLASS_NAME, nativeSetLangId)
+(JNIEnv* env, jobject thiz, jlong annotator_ptr, jlong lang_id_ptr) {
+  if (!annotator_ptr) {
+    return;
+  }
+  Annotator* model =
+      reinterpret_cast<AnnotatorJniContext*>(annotator_ptr)->model();
+  libtextclassifier3::mobile::lang_id::LangId* lang_id_model =
+      reinterpret_cast<libtextclassifier3::mobile::lang_id::LangId*>(lang_id_ptr);
+  model->SetLangId(lang_id_model);
+}
+
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeGetNativeModelPtr)
 (JNIEnv* env, jobject thiz, jlong ptr) {
   if (!ptr) {

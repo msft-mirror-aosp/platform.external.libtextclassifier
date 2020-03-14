@@ -105,6 +105,7 @@ class RemoteActionTemplatesHandler {
   jmethodID named_variant_from_string_array_ = nullptr;
   jmethodID named_variant_from_float_array_ = nullptr;
   jmethodID named_variant_from_int_array_ = nullptr;
+  jmethodID named_variant_from_named_variant_array_ = nullptr;
 };
 
 }  // namespace libtextclassifier3

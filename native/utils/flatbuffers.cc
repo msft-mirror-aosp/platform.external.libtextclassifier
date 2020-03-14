@@ -513,6 +513,12 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
           case reflection::Obj:
             AppendFromVector<ReflectiveFlatbuffer>(from, field);
             break;
+          case reflection::Double:
+            AppendFromVector<double>(from, field);
+            break;
+          case reflection::Float:
+            AppendFromVector<float>(from, field);
+            break;
           default:
             TC3_LOG(ERROR) << "Repeated unsupported type: "
                            << field->type()->element()

@@ -23,9 +23,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.textclassifier.TextClassifier;
 import androidx.annotation.DrawableRes;
 import androidx.core.app.RemoteActionCompat;
 import androidx.core.content.ContextCompat;
@@ -89,11 +87,9 @@ public final class LabeledIntent {
    *
    * @param context the context to resolve the result's intent and action
    * @param titleChooser for choosing an action title
-   * @param textLanguagesBundle containing language detection information
    */
   @Nullable
-  public Result resolve(
-      Context context, @Nullable TitleChooser titleChooser, @Nullable Bundle textLanguagesBundle) {
+  public Result resolve(Context context, @Nullable TitleChooser titleChooser) {
     final PackageManager pm = context.getPackageManager();
     final ResolveInfo resolveInfo = pm.resolveActivity(intent, 0);
 
@@ -113,9 +109,6 @@ public final class LabeledIntent {
       return null;
     }
     Intent resolvedIntent = new Intent(intent);
-    resolvedIntent.putExtra(
-        TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER,
-        createFromTextClassifierExtra(textLanguagesBundle));
     boolean shouldShowIcon = false;
     IconCompat icon = null;
     if (!"android".equals(packageName)) {
@@ -157,11 +150,6 @@ public final class LabeledIntent {
     return description;
   }
 
-  // TODO(b/149018167) Remove this once we have moved this to C++.
-  private static void putTextLanguagesExtra(Bundle container, Bundle extra) {
-    container.putBundle("text-languages", extra);
-  }
-
   @Nullable
   private static IconCompat createIconFromPackage(
       Context context, String packageName, @DrawableRes int iconRes) {
@@ -192,16 +180,6 @@ public final class LabeledIntent {
       return null;
     }
     return packageManager.getApplicationLabel(resolveInfo.activityInfo.applicationInfo).toString();
-  }
-
-  private static Bundle createFromTextClassifierExtra(@Nullable Bundle textLanguagesBundle) {
-    if (textLanguagesBundle == null) {
-      return Bundle.EMPTY;
-    } else {
-      Bundle bundle = new Bundle();
-      putTextLanguagesExtra(bundle, textLanguagesBundle);
-      return bundle;
-    }
   }
 
   private static boolean hasPermission(Context context, ActivityInfo info) {

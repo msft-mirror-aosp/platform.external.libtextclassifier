@@ -25,8 +25,6 @@ import com.google.android.textclassifier.RemoteActionTemplate;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import javax.annotation.Nullable;
 
 /**
@@ -52,7 +50,6 @@ public final class TemplateClassificationIntentFactory implements Classification
   public ImmutableList<LabeledIntent> create(
       Context context,
       String text,
-      boolean foreignText,
       @Nullable Instant referenceTime,
       @Nullable AnnotatorModel.ClassificationResult classification) {
     if (classification == null) {
@@ -64,13 +61,8 @@ public final class TemplateClassificationIntentFactory implements Classification
       TcLog.w(
           TAG,
           "RemoteActionTemplate is missing, fallback to" + " LegacyClassificationIntentFactory.");
-      return fallback.create(context, text, foreignText, referenceTime, classification);
+      return fallback.create(context, text, referenceTime, classification);
     }
-    final List<LabeledIntent> labeledIntents =
-        new ArrayList<>(templateIntentFactory.create(remoteActionTemplates));
-    if (foreignText) {
-      ClassificationIntentFactory.insertTranslateAction(labeledIntents, context, text.trim());
-    }
-    return ImmutableList.copyOf(labeledIntents);
+    return templateIntentFactory.create(remoteActionTemplates);
   }
 }

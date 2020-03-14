@@ -83,6 +83,10 @@ RemoteActionTemplatesHandler::Create(
                  "<init>", "(Ljava/lang/String;[F)V");
   TC3_GET_METHOD(named_variant_class_, named_variant_from_int_array_, "<init>",
                  "(Ljava/lang/String;[I)V");
+  TC3_GET_METHOD(
+      named_variant_class_, named_variant_from_named_variant_array_, "<init>",
+      "(Ljava/lang/String;[L" TC3_PACKAGE_PATH TC3_NAMED_VARIANT_CLASS_NAME_STR
+      ";)V");
   return handler;
 }
 
@@ -225,8 +229,16 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
                            AsIntArray(value.IntVectorValue()));
 
       return JniHelper::NewObject(env, named_variant_class_.get(),
-                                  named_variant_from_float_array_, name.get(),
+                                  named_variant_from_int_array_, name.get(),
                                   value_jint_array.get());
+    }
+
+    case Variant::TYPE_STRING_VARIANT_MAP_VALUE: {
+      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jobjectArray> value_jobect_array,
+                           AsNamedVariantArray(value.StringVariantMapValue()));
+      return JniHelper::NewObject(env, named_variant_class_.get(),
+                                  named_variant_from_named_variant_array_,
+                                  name.get(), value_jobect_array.get());
     }
 
     case Variant::TYPE_EMPTY:

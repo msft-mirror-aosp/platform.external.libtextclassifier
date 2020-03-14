@@ -32,6 +32,20 @@ public final class NamedVariant {
   public static final int TYPE_STRING_ARRAY = 7;
   public static final int TYPE_FLOAT_ARRAY = 8;
   public static final int TYPE_INT_ARRAY = 9;
+  public static final int TYPE_NAMED_VARIANT_ARRAY = 10;
+
+  private final String name;
+  private final int type;
+  private int intValue;
+  private long longValue;
+  private float floatValue;
+  private double doubleValue;
+  private boolean boolValue;
+  private String stringValue;
+  private String[] stringArrValue;
+  private float[] floatArrValue;
+  private int[] intArrValue;
+  private NamedVariant[] namedVariantArray;
 
   public NamedVariant(String name, int value) {
     this.name = name;
@@ -87,6 +101,12 @@ public final class NamedVariant {
     this.type = TYPE_INT_ARRAY;
   }
 
+  public NamedVariant(String name, NamedVariant[] value) {
+    this.name = name;
+    this.namedVariantArray = value;
+    this.type = TYPE_NAMED_VARIANT_ARRAY;
+  }
+
   public String getName() {
     return name;
   }
@@ -140,15 +160,8 @@ public final class NamedVariant {
     return intArrValue;
   }
 
-  private final String name;
-  private final int type;
-  private int intValue;
-  private long longValue;
-  private float floatValue;
-  private double doubleValue;
-  private boolean boolValue;
-  private String stringValue;
-  private String[] stringArrValue;
-  private float[] floatArrValue;
-  private int[] intArrValue;
+  public NamedVariant[] getNamedVariantArray() {
+    assert (type == TYPE_NAMED_VARIANT_ARRAY);
+    return namedVariantArray;
+  }
 }

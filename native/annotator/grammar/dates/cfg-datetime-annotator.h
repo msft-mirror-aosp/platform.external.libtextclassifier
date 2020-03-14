@@ -47,22 +47,22 @@ class CfgDatetimeAnnotator {
   // Parses the dates in 'input' and fills result. Makes sure that the results
   // do not overlap.
   // Method will return false if input does not contain any datetime span.
-  void Parse(const std::string& input, const int64 reference_time_ms_utc,
-             const std::string& reference_timezone,
+  void Parse(const std::string& input,
+             const DateAnnotationOptions& annotation_options,
              const std::vector<Locale>& locales,
              std::vector<DatetimeParseResultSpan>* results) const;
 
   // UnicodeText version of parse.
-  void Parse(const UnicodeText& input, int64 reference_time_ms_utc,
-             const std::string& reference_timezone,
+  void Parse(const UnicodeText& input,
+             const DateAnnotationOptions& annotation_options,
              const std::vector<Locale>& locales,
              std::vector<DatetimeParseResultSpan>* results) const;
 
  private:
-  void FillDatetimeParseResult(
+  void FillDatetimeParseResults(
       const AnnotationData& annotation_data,
       const DateAnnotationOptions& options,
-      DatetimeParseResult* datetime_parse_result) const;
+      std::vector<DatetimeParseResult>* results) const;
 
   void FillDatetimeParseResultSpan(
       const UnicodeText& unicode_text,
