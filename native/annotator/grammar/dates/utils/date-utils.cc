@@ -280,6 +280,7 @@ void IncrementOneDay(DateMatch* date) {
 void FillDateInstance(const DateMatch& date, Annotation* instance) {
   instance->begin = date.begin;
   instance->end = date.end;
+  instance->annotator_priority_score = date.annotator_priority_score;
   AnnotationData* thing = &instance->data;
   thing->type = kDateTimeType;
 
@@ -814,6 +815,8 @@ void MergeDateMatchImpl(const DateMatch& prev, DateMatch* next,
   }
 
   next->priority = std::max(next->priority, prev.priority);
+  next->annotator_priority_score =
+      std::max(next->annotator_priority_score, prev.annotator_priority_score);
   if (update_span) {
     next->begin = std::min(next->begin, prev.begin);
     next->end = std::max(next->end, prev.end);

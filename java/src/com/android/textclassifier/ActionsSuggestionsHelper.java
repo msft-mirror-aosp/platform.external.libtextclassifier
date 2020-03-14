@@ -29,9 +29,9 @@ import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.ConversationActions.Message;
 import com.android.textclassifier.ModelFileManager.ModelFile;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.intent.LabeledIntent;
+import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.android.textclassifier.common.statsd.ResultIdUtils;
-import com.android.textclassifier.intent.LabeledIntent;
-import com.android.textclassifier.intent.TemplateIntentFactory;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import com.google.common.base.Equivalence;
@@ -144,7 +144,7 @@ final class ActionsSuggestionsHelper {
     // intent for each action type.
     LabeledIntent.TitleChooser titleChooser =
         ActionsSuggestionsHelper.createTitleChooser(nativeSuggestion.getActionType());
-    return labeledIntents.get(0).resolve(context, titleChooser, null);
+    return labeledIntents.get(0).resolve(context, titleChooser);
   }
 
   /** Returns a {@link LabeledIntent.TitleChooser} for conversation actions use case. */

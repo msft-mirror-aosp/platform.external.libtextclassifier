@@ -38,10 +38,11 @@ import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
-import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.testing.FakeContextBuilder;
 import com.google.common.collect.ImmutableList;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -53,16 +54,10 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-/**
- * Testing {@link TextClassifierImplTest} APIs on local and system textclassifier.
- *
- * <p>Tests are skipped if such a textclassifier does not exist.
- */
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class TextClassifierImplTest {
 
-  // TODO: Implement TextClassifierService testing.
   private static final String TYPE_COPY = "copy";
   private static final LocaleList LOCALES = LocaleList.forLanguageTags("en-US");
   private static final String NO_TYPE = null;
@@ -71,7 +66,11 @@ public class TextClassifierImplTest {
 
   @Before
   public void setup() {
-    Context context = ApplicationProvider.getApplicationContext();
+    Context context =
+        new FakeContextBuilder()
+            .setAllIntentComponent(FakeContextBuilder.DEFAULT_COMPONENT)
+            .setAppLabel(FakeContextBuilder.DEFAULT_COMPONENT.getPackageName(), "Test app")
+            .build();
     classifier = new TextClassifierImpl(context, new TextClassifierSettings());
   }
 
@@ -202,8 +201,9 @@ public class TextClassifierImplTest {
     Bundle extras = classification.getExtras();
     List<Bundle> entities = ExtrasUtils.getEntities(extras);
     assertThat(entities).hasSize(1);
-    Bundle entity = entities.get(0);
-    assertThat(ExtrasUtils.getEntityType(entity)).isEqualTo(TextClassifier.TYPE_DATE);
+    assertThat(ExtrasUtils.getEntityType(entities.get(0))).isEqualTo(TextClassifier.TYPE_DATE);
+    ArrayList<Intent> actionsIntents = ExtrasUtils.getActionsIntents(classification);
+    actionsIntents.forEach(TextClassifierImplTest::assertNoPackageInfoInExtras);
   }
 
   @Test
@@ -221,39 +221,34 @@ public class TextClassifierImplTest {
     assertThat(classification, isTextClassification(classifiedText, TextClassifier.TYPE_DATE_TIME));
   }
 
+  // TODO(tonymak): Enable it once we drop the v8 image to Android. I have already run this test
+  // after pushing a test model to a device manually.
+  @Ignore
   @Test
   public void testClassifyText_foreignText() {
     LocaleList originalLocales = LocaleList.getDefault();
     LocaleList.setDefault(LocaleList.forLanguageTags("en"));
     String japaneseText = "これは日本語のテキストです";
-
-    Context context =
-        new FakeContextBuilder()
-            .setIntentComponent(Intent.ACTION_TRANSLATE, FakeContextBuilder.DEFAULT_COMPONENT)
-            .build();
-    TextClassifierImpl textClassifier =
-        new TextClassifierImpl(context, new TextClassifierSettings());
     TextClassification.Request request =
         new TextClassification.Request.Builder(japaneseText, 0, japaneseText.length())
             .setDefaultLocales(LOCALES)
             .build();
 
-    TextClassification classification = textClassifier.classifyText(request);
+    TextClassification classification = classifier.classifyText(request);
     RemoteAction translateAction = classification.getActions().get(0);
     assertEquals(1, classification.getActions().size());
-    assertEquals(
-        context.getString(com.android.textclassifier.R.string.tcs_translate),
-        translateAction.getTitle().toString());
+    assertEquals("Translate", translateAction.getTitle().toString());
 
     assertEquals(translateAction, ExtrasUtils.findTranslateAction(classification));
     Intent intent = ExtrasUtils.getActionsIntents(classification).get(0);
+    assertNoPackageInfoInExtras(intent);
     assertEquals(Intent.ACTION_TRANSLATE, intent.getAction());
     Bundle foreignLanguageInfo = ExtrasUtils.getForeignLanguageExtra(classification);
     assertEquals("ja", ExtrasUtils.getEntityType(foreignLanguageInfo));
     assertTrue(ExtrasUtils.getScore(foreignLanguageInfo) >= 0);
     assertTrue(ExtrasUtils.getScore(foreignLanguageInfo) <= 1);
     assertTrue(intent.hasExtra(TextClassifier.EXTRA_FROM_TEXT_CLASSIFIER));
-    assertEquals("ja", ExtrasUtils.getTopLanguage(intent).getLanguage());
+    assertEquals("ja", ExtrasUtils.getTopLanguage(intent).first);
 
     LocaleList.setDefault(originalLocales);
   }
@@ -459,6 +454,7 @@ public class TextClassifierImplTest {
     Intent actionIntent = ExtrasUtils.getActionIntent(conversationAction.getExtras());
     assertThat(actionIntent.getAction()).isEqualTo(Intent.ACTION_VIEW);
     assertThat(actionIntent.getData()).isEqualTo(Uri.parse("https://www.android.com"));
+    assertNoPackageInfoInExtras(actionIntent);
   }
 
   @Ignore // Doesn't work without a language-based model.
@@ -491,7 +487,7 @@ public class TextClassifierImplTest {
   }
 
   @Test
-  public void testSuggetsConversationActions_deduplicate() {
+  public void testSuggestConversationActions_deduplicate() {
     ConversationActions.Message message =
         new ConversationActions.Message.Builder(ConversationActions.Message.PERSON_USER_OTHERS)
             .setText("a@android.com b@android.com")
@@ -504,6 +500,11 @@ public class TextClassifierImplTest {
     ConversationActions conversationActions = classifier.suggestConversationActions(request);
 
     assertThat(conversationActions.getConversationActions()).isEmpty();
+  }
+
+  private static void assertNoPackageInfoInExtras(Intent intent) {
+    assertThat(intent.getComponent()).isNull();
+    assertThat(intent.getPackage()).isNull();
   }
 
   private static Matcher<TextSelection> isTextSelection(

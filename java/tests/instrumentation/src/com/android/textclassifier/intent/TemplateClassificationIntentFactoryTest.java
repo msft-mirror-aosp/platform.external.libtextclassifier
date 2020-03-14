@@ -29,6 +29,8 @@ import android.view.textclassifier.TextClassifier;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.common.intent.LabeledIntent;
+import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import java.util.List;
@@ -59,7 +61,7 @@ public class TemplateClassificationIntentFactoryTest {
   }
 
   @Test
-  public void create_foreignText() {
+  public void create() {
     AnnotatorModel.ClassificationResult classificationResult =
         new AnnotatorModel.ClassificationResult(
             TextClassifier.TYPE_ADDRESS,
@@ -84,54 +86,7 @@ public class TemplateClassificationIntentFactoryTest {
 
     List<LabeledIntent> intents =
         templateClassificationIntentFactory.create(
-            ApplicationProvider.getApplicationContext(),
-            TEXT,
-            /* foreignText */ true,
-            null,
-            classificationResult);
-
-    assertThat(intents).hasSize(2);
-    LabeledIntent labeledIntent = intents.get(0);
-    assertThat(labeledIntent.titleWithoutEntity).isEqualTo(TITLE_WITHOUT_ENTITY);
-    Intent intent = labeledIntent.intent;
-    assertThat(intent.getAction()).isEqualTo(ACTION);
-
-    labeledIntent = intents.get(1);
-    intent = labeledIntent.intent;
-    assertThat(intent.getAction()).isEqualTo(Intent.ACTION_TRANSLATE);
-  }
-
-  @Test
-  public void create_notForeignText() {
-    AnnotatorModel.ClassificationResult classificationResult =
-        new AnnotatorModel.ClassificationResult(
-            TextClassifier.TYPE_ADDRESS,
-            1.0f,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            createRemoteActionTemplates(),
-            0L,
-            0L,
-            0d);
-
-    List<LabeledIntent> intents =
-        templateClassificationIntentFactory.create(
-            ApplicationProvider.getApplicationContext(),
-            TEXT,
-            /* foreignText */ false,
-            null,
-            classificationResult);
+            ApplicationProvider.getApplicationContext(), TEXT, null, classificationResult);
 
     assertThat(intents).hasSize(1);
     LabeledIntent labeledIntent = intents.get(0);
@@ -165,17 +120,12 @@ public class TemplateClassificationIntentFactoryTest {
             0d);
 
     templateClassificationIntentFactory.create(
-        ApplicationProvider.getApplicationContext(),
-        TEXT,
-        /* foreignText */ false,
-        null,
-        classificationResult);
+        ApplicationProvider.getApplicationContext(), TEXT, null, classificationResult);
 
     verify(fallback)
         .create(
             same(ApplicationProvider.getApplicationContext()),
             eq(TEXT),
-            eq(false),
             eq(null),
             same(classificationResult));
   }
@@ -205,19 +155,11 @@ public class TemplateClassificationIntentFactoryTest {
             0d);
 
     templateClassificationIntentFactory.create(
-        ApplicationProvider.getApplicationContext(),
-        TEXT,
-        /* foreignText */ false,
-        null,
-        classificationResult);
+        ApplicationProvider.getApplicationContext(), TEXT, null, classificationResult);
 
     verify(fallback, never())
         .create(
-            any(Context.class),
-            eq(TEXT),
-            eq(false),
-            eq(null),
-            any(AnnotatorModel.ClassificationResult.class));
+            any(Context.class), eq(TEXT), eq(null), any(AnnotatorModel.ClassificationResult.class));
   }
 
   private static RemoteActionTemplate[] createRemoteActionTemplates() {

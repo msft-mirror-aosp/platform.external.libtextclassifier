@@ -20,7 +20,6 @@
 #include <memory>
 #include <string>
 
-#include "actions/lua-utils.h"
 #include "actions/types.h"
 #include "utils/lua-utils.h"
 
@@ -40,15 +39,14 @@ class ActionsSuggestionsLuaRanker : public LuaEnvironment {
  private:
   explicit ActionsSuggestionsLuaRanker(
       const Conversation& conversation, const std::string& ranker_code,
-      const reflection::Schema* entity_data_schema,
+      const reflection::Schema* actions_entity_data_schema,
       const reflection::Schema* annotations_entity_data_schema,
       ActionsSuggestionsResponse* response)
       : conversation_(conversation),
         ranker_code_(ranker_code),
-        response_(response),
-        actions_iterator_(entity_data_schema, annotations_entity_data_schema,
-                          this),
-        conversation_iterator_(annotations_entity_data_schema, this) {}
+        actions_entity_data_schema_(actions_entity_data_schema),
+        annotations_entity_data_schema_(annotations_entity_data_schema),
+        response_(response) {}
 
   bool Initialize();
 
@@ -57,9 +55,9 @@ class ActionsSuggestionsLuaRanker : public LuaEnvironment {
 
   const Conversation& conversation_;
   const std::string& ranker_code_;
+  const reflection::Schema* actions_entity_data_schema_;
+  const reflection::Schema* annotations_entity_data_schema_;
   ActionsSuggestionsResponse* response_;
-  const ActionsIterator actions_iterator_;
-  const ConversationIterator conversation_iterator_;
 };
 
 }  // namespace libtextclassifier3

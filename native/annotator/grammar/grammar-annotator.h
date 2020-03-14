@@ -21,8 +21,11 @@
 
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
+#include "utils/flatbuffers.h"
 #include "utils/grammar/lexer.h"
 #include "utils/i18n/locale.h"
+#include "utils/tokenizer.h"
+#include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
 
 namespace libtextclassifier3 {
@@ -36,17 +39,32 @@ class GrammarAnnotator {
     kAssertionMatch = 3,
   };
 
-  GrammarAnnotator(const UniLib* unilib, const GrammarModel* model);
+  GrammarAnnotator(const UniLib* unilib, const GrammarModel* model,
+                   const ReflectiveFlatbufferBuilder* entity_data_builder);
 
-  // Annotates a given tokenized text.
-  bool Annotate(const std::vector<Locale>& locales,
-                const std::vector<Token>& tokens,
+  // Annotates a given text.
+  // Returns true if the text was successfully annotated.
+  bool Annotate(const std::vector<Locale>& locales, const UnicodeText& text,
                 std::vector<AnnotatedSpan>* result) const;
+
+  // Classifies a span in a text.
+  // Returns true if the span was classified by a grammar rule.
+  bool ClassifyText(const std::vector<Locale>& locales, const UnicodeText& text,
+                    const CodepointSpan& selection,
+                    ClassificationResult* classification_result) const;
+
+  // Suggests text selections in a text.
+  // Returns true if a span was suggested by a grammar rule.
+  bool SuggestSelection(const std::vector<Locale>& locales,
+                        const UnicodeText& text, const CodepointSpan& selection,
+                        AnnotatedSpan* result) const;
 
  private:
   const UniLib* unilib_;
   const GrammarModel* model_;
   const grammar::Lexer lexer_;
+  const Tokenizer tokenizer_;
+  const ReflectiveFlatbufferBuilder* entity_data_builder_;
 
   // Pre-parsed locales of the rules.
   const std::vector<std::vector<Locale>> rules_locales_;

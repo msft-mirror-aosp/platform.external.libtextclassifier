@@ -61,6 +61,24 @@ class UniLib : public UniLibBase {
     return result;
   }
 
+  bool IsLowerText(const UnicodeText& text) const {
+    for (const char32 codepoint : text) {
+      if (!IsLower(codepoint)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool IsUpperText(const UnicodeText& text) const {
+    for (const char32 codepoint : text) {
+      if (!IsUpper(codepoint)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool IsDigits(const UnicodeText& text) const {
     for (const char32 codepoint : text) {
       if (!IsDigit(codepoint)) {
