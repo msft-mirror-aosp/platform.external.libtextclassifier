@@ -210,15 +210,20 @@ namespace libtextclassifier3.dates.TimeValueParameter_;
 enum TimeValueValidation : int {
   // Allow extra spaces between sub-components in time-value.
   ALLOW_EXTRA_SPACE = 1,
+  // 1 << 0
 
   // Disallow colon- or dot-context with digits for time-value.
   DISALLOW_COLON_DOT_CONTEXT = 2,
+  // 1 << 1
 }
 
 namespace libtextclassifier3.dates;
 table TimeValueParameter {
   validation:uint = 0;
+  // Bitwise-OR
+
   flag:uint = 0;
+  // Bitwise-OR
 }
 
 namespace libtextclassifier3.dates.TimeZoneOffsetParameter_;
@@ -273,6 +278,12 @@ table ExtractionRuleParameter {
 
   priority_delta:int;
   id:string (shared);
+
+  // The score reflects the confidence score of the date/time match, which is
+  // set while creating grammar rules.
+  // e.g. given we have the rule which detect "22.33" as a HH.MM then because
+  // of ambiguity the confidence of this match maybe relatively less.
+  annotator_priority_score:float;
 }
 
 // Internal structure used to describe an hour-mapping segment.

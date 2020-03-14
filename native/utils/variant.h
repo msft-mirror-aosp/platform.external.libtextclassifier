@@ -19,6 +19,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
@@ -41,6 +42,10 @@ class Variant {
     TYPE_DOUBLE_VALUE = 8,
     TYPE_BOOL_VALUE = 9,
     TYPE_STRING_VALUE = 10,
+    TYPE_STRING_VECTOR_VALUE = 11,
+    TYPE_FLOAT_VECTOR_VALUE = 12,
+    TYPE_INT_VECTOR_VALUE = 13,
+    TYPE_STRING_VARIANT_MAP_VALUE = 14,
   };
 
   Variant() : type_(TYPE_EMPTY) {}
@@ -68,6 +73,15 @@ class Variant {
       : type_(TYPE_STRING_VALUE), string_value_(value) {}
   explicit Variant(const bool value)
       : type_(TYPE_BOOL_VALUE), bool_value_(value) {}
+  explicit Variant(const std::vector<std::string>& value)
+      : type_(TYPE_STRING_VECTOR_VALUE), string_vector_value_(value) {}
+  explicit Variant(const std::vector<float>& value)
+      : type_(TYPE_FLOAT_VECTOR_VALUE), float_vector_value_(value) {}
+  explicit Variant(const std::vector<int>& value)
+      : type_(TYPE_INT_VECTOR_VALUE), int_vector_value_(value) {}
+  explicit Variant(const std::map<std::string, Variant>& value)
+      : type_(TYPE_STRING_VARIANT_MAP_VALUE),
+        string_variant_map_value_(value) {}
 
   Variant& operator=(const Variant&) = default;
 
@@ -121,6 +135,26 @@ class Variant {
     return string_value_;
   }
 
+  const std::vector<std::string>& StringVectorValue() const {
+    TC3_CHECK(HasStringVector());
+    return string_vector_value_;
+  }
+
+  const std::vector<float>& FloatVectorValue() const {
+    TC3_CHECK(HasFloatVector());
+    return float_vector_value_;
+  }
+
+  const std::vector<int>& IntVectorValue() const {
+    TC3_CHECK(HasIntVector());
+    return int_vector_value_;
+  }
+
+  const std::map<std::string, Variant>& StringVariantMapValue() const {
+    TC3_CHECK(HasStringVariantMap());
+    return string_variant_map_value_;
+  }
+
   // Converts the value of this variant to its string representation, regardless
   // of the type of the actual value.
   std::string ToString() const;
@@ -145,6 +179,16 @@ class Variant {
 
   bool HasString() const { return type_ == TYPE_STRING_VALUE; }
 
+  bool HasStringVector() const { return type_ == TYPE_STRING_VECTOR_VALUE; }
+
+  bool HasFloatVector() const { return type_ == TYPE_FLOAT_VECTOR_VALUE; }
+
+  bool HasIntVector() const { return type_ == TYPE_INT_VECTOR_VALUE; }
+
+  bool HasStringVariantMap() const {
+    return type_ == TYPE_STRING_VARIANT_MAP_VALUE;
+  }
+
   Type GetType() const { return type_; }
 
   bool HasValue() const { return type_ != TYPE_EMPTY; }
@@ -163,6 +207,10 @@ class Variant {
     bool bool_value_;
   };
   std::string string_value_;
+  std::vector<std::string> string_vector_value_;
+  std::vector<float> float_vector_value_;
+  std::vector<int> int_vector_value_;
+  std::map<std::string, Variant> string_variant_map_value_;
 };
 
 // Pretty-printing function for Variant.

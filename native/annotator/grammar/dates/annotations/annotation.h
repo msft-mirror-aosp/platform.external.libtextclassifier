@@ -59,6 +59,10 @@ struct Annotation {
   int32 begin;
   int32 end;
 
+  // Annotation priority score which can be used to resolve conflict between
+  // annotators.
+  float annotator_priority_score;
+
   // Represents the details of the annotation instance, including the type of
   // the annotation instance and its properties.
   AnnotationData data;

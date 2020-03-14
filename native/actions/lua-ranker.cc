@@ -15,6 +15,7 @@
  */
 
 #include "actions/lua-ranker.h"
+
 #include "utils/base/logging.h"
 #include "utils/lua-utils.h"
 
@@ -51,13 +52,13 @@ bool ActionsSuggestionsLuaRanker::Initialize() {
            LoadDefaultLibraries();
 
            // Expose generated actions.
-           actions_iterator_.NewIterator("actions", &response_->actions,
-                                         state_);
+           PushActions(&response_->actions, actions_entity_data_schema_,
+                       annotations_entity_data_schema_);
            lua_setglobal(state_, "actions");
 
            // Expose conversation message stream.
-           conversation_iterator_.NewIterator("messages",
-                                              &conversation_.messages, state_);
+           PushConversation(&conversation_.messages,
+                            annotations_entity_data_schema_);
            lua_setglobal(state_, "messages");
            return LUA_OK;
          }) == LUA_OK;
@@ -73,9 +74,8 @@ int ActionsSuggestionsLuaRanker::ReadActionsRanking() {
   }
   std::vector<ActionSuggestion> ranked_actions;
   lua_pushnil(state_);
-  while (lua_next(state_, /*idx=*/-2)) {
-    const int action_id =
-        static_cast<int>(lua_tointeger(state_, /*idx=*/-1)) - 1;
+  while (Next(/*index=*/-2)) {
+    const int action_id = Read<int>(/*index=*/-1) - 1;
     lua_pop(state_, 1);
     if (action_id < 0 || action_id >= response_->actions.size()) {
       TC3_LOG(ERROR) << "Invalid action index: " << action_id;
