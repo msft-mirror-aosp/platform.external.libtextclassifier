@@ -18,42 +18,53 @@
 
 #include "utils/base/logging.h"
 #include "utils/normalization.h"
+#include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3 {
 
-ActionSuggestion SuggestionFromSpec(
-    const ActionSuggestionSpec* action, const std::string& default_type,
-    const std::string& default_response_text,
-    const std::string& default_serialized_entity_data,
-    const float default_score, const float default_priority_score) {
-  ActionSuggestion suggestion;
-  suggestion.score = action != nullptr ? action->score() : default_score;
-  suggestion.priority_score =
-      action != nullptr ? action->priority_score() : default_priority_score;
-  suggestion.type = action != nullptr && action->type() != nullptr
-                        ? action->type()->str()
-                        : default_type;
-  suggestion.response_text =
-      action != nullptr && action->response_text() != nullptr
-          ? action->response_text()->str()
-          : default_response_text;
-  suggestion.serialized_entity_data =
-      action != nullptr && action->serialized_entity_data() != nullptr
-          ? action->serialized_entity_data()->str()
-          : default_serialized_entity_data;
-  return suggestion;
+void FillSuggestionFromSpec(const ActionSuggestionSpec* action,
+                            ReflectiveFlatbuffer* entity_data,
+                            ActionSuggestion* suggestion) {
+  if (action != nullptr) {
+    suggestion->score = action->score();
+    suggestion->priority_score = action->priority_score();
+    if (action->type() != nullptr) {
+      suggestion->type = action->type()->str();
+    }
+    if (action->response_text() != nullptr) {
+      suggestion->response_text = action->response_text()->str();
+    }
+    if (action->serialized_entity_data() != nullptr) {
+      TC3_CHECK_NE(entity_data, nullptr);
+      entity_data->MergeFromSerializedFlatbuffer(
+          StringPiece(action->serialized_entity_data()->data(),
+                      action->serialized_entity_data()->size()));
+    }
+    if (action->entity_data() != nullptr) {
+      TC3_CHECK_NE(entity_data, nullptr);
+      entity_data->MergeFrom(
+          reinterpret_cast<const flatbuffers::Table*>(action->entity_data()));
+    }
+  }
+  if (entity_data != nullptr && entity_data->HasExplicitlySetFields()) {
+    suggestion->serialized_entity_data = entity_data->Serialize();
+  }
 }
 
 void SuggestTextRepliesFromCapturingMatch(
+    const ReflectiveFlatbufferBuilder* entity_data_builder,
     const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
     const UnicodeText& match_text, const std::string& smart_reply_action_type,
     std::vector<ActionSuggestion>* actions) {
   if (group->text_reply() != nullptr) {
-    actions->push_back(
-        SuggestionFromSpec(group->text_reply(),
-                           /*default_type=*/smart_reply_action_type,
-                           /*default_response_text=*/
-                           match_text.ToUTF8String()));
+    ActionSuggestion suggestion;
+    suggestion.response_text = match_text.ToUTF8String();
+    suggestion.type = smart_reply_action_type;
+    std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+        entity_data_builder != nullptr ? entity_data_builder->NewRoot()
+                                       : nullptr;
+    FillSuggestionFromSpec(group->text_reply(), entity_data.get(), &suggestion);
+    actions->push_back(suggestion);
   }
 }
 

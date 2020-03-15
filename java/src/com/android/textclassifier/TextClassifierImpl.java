@@ -16,6 +16,8 @@
 
 package com.android.textclassifier;
 
+import static java.util.stream.Collectors.toCollection;
+
 import android.app.PendingIntent;
 import android.app.RemoteAction;
 import android.content.Context;
@@ -39,9 +41,10 @@ import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.WorkerThread;
-import androidx.collection.ArraySet;
 import androidx.core.util.Pair;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.intent.LabeledIntent;
+import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.android.textclassifier.common.statsd.GenerateLinksLogger;
 import com.android.textclassifier.common.statsd.ResultIdUtils;
 import com.android.textclassifier.common.statsd.SelectionEventConverter;
@@ -49,10 +52,8 @@ import com.android.textclassifier.common.statsd.TextClassificationSessionIdConve
 import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
 import com.android.textclassifier.intent.ClassificationIntentFactory;
-import com.android.textclassifier.intent.LabeledIntent;
 import com.android.textclassifier.intent.LegacyClassificationIntentFactory;
 import com.android.textclassifier.intent.TemplateClassificationIntentFactory;
-import com.android.textclassifier.intent.TemplateIntentFactory;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
@@ -68,15 +69,13 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import javax.annotation.Nullable;
 
 /**
- * Default implementation of the {@link TextClassifier} interface.
+ * A text classifier that is running locally.
  *
  * <p>This class uses machine learning to recognize entities in text. Unless otherwise stated,
  * methods of this class are blocking operations and should most likely not be called on the UI
@@ -93,7 +92,7 @@ final class TextClassifierImpl {
   private static final File ANNOTATOR_UPDATED_MODEL_FILE =
       new File("/data/misc/textclassifier/textclassifier.model");
 
-  // LangID
+  // LangIdModel
   private static final String LANG_ID_FACTORY_MODEL_FILENAME_REGEX = "lang_id.model";
   private static final File UPDATED_LANG_ID_MODEL_FILE =
       new File("/data/misc/textclassifier/lang_id.model");
@@ -268,7 +267,9 @@ final class TextClassifierImpl {
                         refTime.toInstant().toEpochMilli(),
                         refTime.getZone().getId(),
                         localesString,
-                        String.join(",", detectLanguageTags)),
+                        String.join(",", detectLanguageTags),
+                        AnnotatorModel.AnnotationUsecase.SMART.getValue(),
+                        LocaleList.getDefault().toLanguageTags()),
                     context,
                     getResourceLocalesString());
         if (results.length > 0) {
@@ -471,8 +472,9 @@ final class TextClassifierImpl {
       RemoteAction remoteAction = null;
       Bundle extras = new Bundle();
       if (labeledIntentResult != null) {
-        remoteAction = labeledIntentResult.remoteAction;
-        ExtrasUtils.putActionIntent(extras, labeledIntentResult.resolvedIntent);
+        remoteAction = labeledIntentResult.remoteAction.toRemoteAction();
+        ExtrasUtils.putActionIntent(
+            extras, stripPackageInfoFromIntent(labeledIntentResult.resolvedIntent));
       }
       ExtrasUtils.putSerializedEntityData(extras, nativeSuggestion.getSerializedEntityData());
       ExtrasUtils.putEntitiesExtras(
@@ -528,6 +530,10 @@ final class TextClassifierImpl {
             // Do not call close() here, and let the GC to clean it up when no one else
             // is using it.
             annotatorImpl = new AnnotatorModel(pfd.getFd());
+            Optional<LangIdModel> langIdModel = getLangIdImpl();
+            if (langIdModel.isPresent()) {
+              annotatorImpl.setLangIdModel(langIdModel.get());
+            }
             annotatorModelInUse = bestModel;
           }
         } finally {
@@ -633,34 +639,23 @@ final class TextClassifierImpl {
         highestScoringResult = classifications[i];
       }
     }
-    final Pair<Bundle, Bundle> languagesBundles =
-        langId
-            .map(model -> generateLanguageBundles(model, text, start, end))
-            .orElse(Pair.create(null, null));
-    final Bundle textLanguagesBundle = languagesBundles.first;
-    final Bundle foreignLanguageBundle = languagesBundles.second;
 
     boolean isPrimaryAction = true;
-    final List<LabeledIntent> labeledIntents =
+    final ImmutableList<LabeledIntent> labeledIntents =
         classificationIntentFactory.create(
-            context,
-            classifiedText,
-            foreignLanguageBundle != null,
-            referenceTime,
-            highestScoringResult);
+            context, classifiedText, referenceTime, highestScoringResult);
     final LabeledIntent.TitleChooser titleChooser =
         (labeledIntent, resolveInfo) -> labeledIntent.titleWithoutEntity;
 
     ArrayList<Intent> actionIntents = new ArrayList<>();
     for (LabeledIntent labeledIntent : labeledIntents) {
-      final LabeledIntent.Result result =
-          labeledIntent.resolve(context, titleChooser, textLanguagesBundle);
+      final LabeledIntent.Result result = labeledIntent.resolve(context, titleChooser);
       if (result == null) {
         continue;
       }
 
       final Intent intent = result.resolvedIntent;
-      final RemoteAction action = result.remoteAction;
+      final RemoteAction action = result.remoteAction.toRemoteAction();
       if (isPrimaryAction) {
         // For O backwards compatibility, the first RemoteAction is also written to the
         // legacy API fields.
@@ -676,9 +671,19 @@ final class TextClassifierImpl {
       actionIntents.add(intent);
     }
     Bundle extras = new Bundle();
-    ExtrasUtils.putForeignLanguageExtra(extras, foreignLanguageBundle);
+    langId.ifPresent(
+        model -> {
+          maybeCreateExtrasForTranslate(actionIntents, model)
+              .ifPresent(
+                  foreignLanguageExtra ->
+                      ExtrasUtils.putForeignLanguageExtra(extras, foreignLanguageExtra));
+        });
     if (actionIntents.stream().anyMatch(Objects::nonNull)) {
-      ExtrasUtils.putActionsIntents(extras, actionIntents);
+      ArrayList<Intent> strippedIntents =
+          actionIntents.stream()
+              .map(TextClassifierImpl::stripPackageInfoFromIntent)
+              .collect(toCollection(ArrayList::new));
+      ExtrasUtils.putActionsIntents(extras, strippedIntents);
     }
     ExtrasUtils.putEntities(extras, classifications);
     builder.setExtras(extras);
@@ -696,67 +701,23 @@ final class TextClassifierImpl {
     };
   }
 
-  /**
-   * Returns a bundle pair with language detection information for extras.
-   *
-   * <p>Pair.first = textLanguagesBundle - A bundle containing information about all detected
-   * languages in the text. May be null if language detection fails or is disabled. This is
-   * typically expected to be added to a textClassifier generated remote action intent. See {@link
-   * ExtrasUtils#putTextLanguagesExtra(Bundle, Bundle)}. See {@link
-   * ExtrasUtils#getTopLanguage(Intent)}.
-   *
-   * <p>Pair.second = foreignLanguageBundle - A bundle with the language and confidence score if the
-   * system finds the text to be in a foreign language. Otherwise is null. See {@link
-   * TextClassification.Builder#setForeignLanguageExtra(Bundle)}.
-   *
-   * @param context the context of the text to detect languages for
-   * @param start the start index of the text
-   * @param end the end index of the text
-   */
-  // TODO: Revisit this algorithm.
-  // TODO: Consider making this public API.
-  private Pair<Bundle, Bundle> generateLanguageBundles(
-      LangIdModel langId, String context, int start, int end) {
-    if (!settings.isTranslateInClassificationEnabled()) {
-      return null;
+  private static Optional<Bundle> maybeCreateExtrasForTranslate(
+      List<Intent> intents, LangIdModel langId) {
+    Optional<Intent> translateIntent =
+        intents.stream()
+            .filter(Objects::nonNull)
+            .filter(intent -> Intent.ACTION_TRANSLATE.equals(intent.getAction()))
+            .findFirst();
+    if (!translateIntent.isPresent()) {
+      return Optional.empty();
     }
-    try {
-      final float threshold = getLangIdThreshold(langId);
-      if (threshold < 0 || threshold > 1) {
-        TcLog.w(TAG, "[detectForeignLanguage] unexpected threshold is found: " + threshold);
-        return Pair.create(null, null);
-      }
-
-      final EntityConfidence languageScores = detectLanguages(langId, context, start, end);
-      if (languageScores.getEntities().isEmpty()) {
-        return Pair.create(null, null);
-      }
-
-      final Bundle textLanguagesBundle = new Bundle();
-      ExtrasUtils.putTopLanguageScores(textLanguagesBundle, languageScores);
-
-      final String language = languageScores.getEntities().get(0);
-      final float score = languageScores.getConfidenceScore(language);
-      if (score < threshold) {
-        return Pair.create(textLanguagesBundle, null);
-      }
-
-      TcLog.v(TAG, String.format(Locale.US, "Language detected: <%s:%.2f>", language, score));
-      final Locale detected = new Locale(language);
-      final LocaleList deviceLocales = LocaleList.getDefault();
-      final int size = deviceLocales.size();
-      for (int i = 0; i < size; i++) {
-        if (deviceLocales.get(i).getLanguage().equals(detected.getLanguage())) {
-          return Pair.create(textLanguagesBundle, null);
-        }
-      }
-      final Bundle foreignLanguageBundle =
-          ExtrasUtils.createForeignLanguageExtra(language, score, langId.getVersion());
-      return Pair.create(textLanguagesBundle, foreignLanguageBundle);
-    } catch (Throwable t) {
-      TcLog.e(TAG, "Error generating language bundles.", t);
+    Pair<String, Float> topLanguageWithScore = ExtrasUtils.getTopLanguage(translateIntent.get());
+    if (topLanguageWithScore == null) {
+      return Optional.empty();
     }
-    return Pair.create(null, null);
+    return Optional.of(
+        ExtrasUtils.createForeignLanguageExtra(
+            topLanguageWithScore.first, topLanguageWithScore.second, langId.getVersion()));
   }
 
   private ImmutableList<String> detectLanguageTags(
@@ -772,81 +733,11 @@ final class TextClassifierImpl {
   }
 
   /**
-   * Detect the language of a piece of text by taking surrounding text into consideration.
-   *
-   * @param text text providing context for the text for which its language is to be detected
-   * @param start the start index of the text to detect its language
-   * @param end the end index of the text to detect its language
-   */
-  // TODO: Revisit this algorithm.
-  private EntityConfidence detectLanguages(
-      LangIdModel langIdModel, String text, int start, int end) {
-    Preconditions.checkArgument(start >= 0);
-    Preconditions.checkArgument(end <= text.length());
-    Preconditions.checkArgument(start <= end);
-
-    final float[] langIdContextSettings = settings.getLangIdContextSettings();
-    // The minimum size of text to prefer for detection.
-    final int minimumTextSize = (int) langIdContextSettings[0];
-    // For reducing the score when text is less than the preferred size.
-    final float penalizeRatio = langIdContextSettings[1];
-    // Original detection score to surrounding text detection score ratios.
-    final float subjectTextScoreRatio = langIdContextSettings[2];
-    final float moreTextScoreRatio = 1f - subjectTextScoreRatio;
-    TcLog.v(
-        TAG,
-        String.format(
-            Locale.US,
-            "LangIdContextSettings: "
-                + "minimumTextSize=%d, penalizeRatio=%.2f, "
-                + "subjectTextScoreRatio=%.2f, moreTextScoreRatio=%.2f",
-            minimumTextSize,
-            penalizeRatio,
-            subjectTextScoreRatio,
-            moreTextScoreRatio));
-
-    if (end - start < minimumTextSize && penalizeRatio <= 0) {
-      return EntityConfidence.EMPTY;
-    }
-
-    final String subject = text.substring(start, end);
-    final EntityConfidence scores = detectLanguages(langIdModel, subject, /* threshold= */ 0f);
-
-    if (subject.length() >= minimumTextSize
-        || subject.length() == text.length()
-        || subjectTextScoreRatio * penalizeRatio >= 1) {
-      return scores;
-    }
-
-    final EntityConfidence moreTextScores;
-    if (moreTextScoreRatio >= 0) {
-      // Attempt to grow the detection text to be at least minimumTextSize long.
-      final String moreText = StringUtils.getSubString(text, start, end, minimumTextSize);
-      moreTextScores = detectLanguages(langIdModel, moreText, /* threshold= */ 0f);
-    } else {
-      moreTextScores = EntityConfidence.EMPTY;
-    }
-
-    // Combine the original detection scores with the those returned after including more text.
-    final Map<String, Float> newScores = new ArrayMap<>();
-    final Set<String> languages = new ArraySet<>();
-    languages.addAll(scores.getEntities());
-    languages.addAll(moreTextScores.getEntities());
-    for (String language : languages) {
-      final float score =
-          (subjectTextScoreRatio * scores.getConfidenceScore(language)
-                  + moreTextScoreRatio * moreTextScores.getConfidenceScore(language))
-              * penalizeRatio;
-      newScores.put(language, score);
-    }
-    return new EntityConfidence(newScores);
-  }
-
-  /**
    * Detects languages for the specified text. Only returns languages with score that is higher than
    * or equal to the specified threshold.
    */
-  private EntityConfidence detectLanguages(LangIdModel langId, CharSequence text, float threshold) {
+  private static EntityConfidence detectLanguages(
+      LangIdModel langId, CharSequence text, float threshold) {
     final LangIdModel.LanguageResult[] langResults = langId.detectLanguages(text.toString());
     final Map<String, Float> languagesMap = new ArrayMap<>();
     for (LangIdModel.LanguageResult langResult : langResults) {
@@ -926,5 +817,16 @@ final class TextClassifierImpl {
       final Context context, final Intent intent, int requestCode) {
     return PendingIntent.getActivity(
         context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+  }
+
+  @Nullable
+  private static Intent stripPackageInfoFromIntent(@Nullable Intent intent) {
+    if (intent == null) {
+      return null;
+    }
+    Intent strippedIntent = new Intent(intent);
+    strippedIntent.setPackage(null);
+    strippedIntent.setComponent(null);
+    return strippedIntent;
   }
 }

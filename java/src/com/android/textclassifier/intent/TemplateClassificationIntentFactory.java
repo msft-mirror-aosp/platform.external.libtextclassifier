@@ -18,12 +18,13 @@ package com.android.textclassifier.intent;
 
 import android.content.Context;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.intent.LabeledIntent;
+import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
 import javax.annotation.Nullable;
 
 /**
@@ -46,14 +47,13 @@ public final class TemplateClassificationIntentFactory implements Classification
    * Returns a list of {@link LabeledIntent} that are constructed from the classification result.
    */
   @Override
-  public List<LabeledIntent> create(
+  public ImmutableList<LabeledIntent> create(
       Context context,
       String text,
-      boolean foreignText,
       @Nullable Instant referenceTime,
       @Nullable AnnotatorModel.ClassificationResult classification) {
     if (classification == null) {
-      return Collections.emptyList();
+      return ImmutableList.of();
     }
     RemoteActionTemplate[] remoteActionTemplates = classification.getRemoteActionTemplates();
     if (remoteActionTemplates == null) {
@@ -61,12 +61,8 @@ public final class TemplateClassificationIntentFactory implements Classification
       TcLog.w(
           TAG,
           "RemoteActionTemplate is missing, fallback to" + " LegacyClassificationIntentFactory.");
-      return fallback.create(context, text, foreignText, referenceTime, classification);
+      return fallback.create(context, text, referenceTime, classification);
     }
-    final List<LabeledIntent> labeledIntents = templateIntentFactory.create(remoteActionTemplates);
-    if (foreignText) {
-      ClassificationIntentFactory.insertTranslateAction(labeledIntents, context, text.trim());
-    }
-    return labeledIntents;
+    return templateIntentFactory.create(remoteActionTemplates);
   }
 }

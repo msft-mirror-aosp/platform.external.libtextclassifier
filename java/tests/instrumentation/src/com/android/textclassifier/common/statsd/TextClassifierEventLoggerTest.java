@@ -89,7 +89,7 @@ public class TextClassifierEventLoggerTest {
 
     AtomsProto.TextSelectionEvent event =
         AtomsProto.TextSelectionEvent.newBuilder()
-            .setSessionId(sessionId.flattenToString())
+            .setSessionId(sessionId.getValue())
             .setEventType(EventType.SELECTION_STARTED)
             .setModelName(MODEL_NAME)
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)
@@ -121,7 +121,7 @@ public class TextClassifierEventLoggerTest {
 
     AtomsProto.TextLinkifyEvent event =
         AtomsProto.TextLinkifyEvent.newBuilder()
-            .setSessionId(sessionId.flattenToString())
+            .setSessionId(sessionId.getValue())
             .setEventType(EventType.SELECTION_STARTED)
             .setModelName(MODEL_NAME)
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)
@@ -155,7 +155,7 @@ public class TextClassifierEventLoggerTest {
 
     AtomsProto.ConversationActionsEvent event =
         AtomsProto.ConversationActionsEvent.newBuilder()
-            .setSessionId(sessionId.flattenToString())
+            .setSessionId(sessionId.getValue())
             .setEventType(EventType.SELECTION_STARTED)
             .setModelName("en_v1")
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)
@@ -188,7 +188,7 @@ public class TextClassifierEventLoggerTest {
     textClassifierEventLogger.writeEvent(sessionId, languageDetectionEvent);
     AtomsProto.LanguageDetectionEvent event =
         AtomsProto.LanguageDetectionEvent.newBuilder()
-            .setSessionId(sessionId.flattenToString())
+            .setSessionId(sessionId.getValue())
             .setEventType(EventType.SELECTION_STARTED)
             .setModelName(MODEL_NAME)
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)

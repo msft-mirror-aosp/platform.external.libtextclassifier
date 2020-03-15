@@ -86,10 +86,6 @@ class DatetimeParser {
                      bool anchor_start_end,
                      std::vector<DatetimeParseResultSpan>* result) const;
 
-  void FillInterpretations(
-      const DatetimeParsedData& parse,
-      std::vector<DatetimeParsedData>* interpretations) const;
-
   // Converts the current match in 'matcher' into DatetimeParseResult.
   bool ExtractDatetime(const CompiledRule& rule,
                        const UniLib::RegexMatcher& matcher,

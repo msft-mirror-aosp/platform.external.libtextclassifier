@@ -35,6 +35,25 @@ std::vector<std::vector<Locale>> ParseRulesLocales(const RulesSet* rules) {
   return locales;
 }
 
+std::vector<const grammar::RulesSet_::Rules*> SelectLocaleMatchingShards(
+    const RulesSet* rules,
+    const std::vector<std::vector<Locale>>& shard_locales,
+    const std::vector<Locale>& locales) {
+  std::vector<const grammar::RulesSet_::Rules*> shards;
+  if (rules->rules() == nullptr) {
+    return shards;
+  }
+  for (int i = 0; i < shard_locales.size(); i++) {
+    if (shard_locales[i].empty() ||
+        Locale::IsAnyLocaleSupported(locales,
+                                     /*supported_locales=*/shard_locales[i],
+                                     /*default_value=*/false)) {
+      shards.push_back(rules->rules()->Get(i));
+    }
+  }
+  return shards;
+}
+
 std::vector<RuleMatch> DeduplicateMatches(
     const std::vector<RuleMatch>& matches) {
   std::vector<RuleMatch> sorted_candidates = matches;

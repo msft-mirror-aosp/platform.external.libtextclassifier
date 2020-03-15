@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-#include "utils/tflite/encoder_common.h"
+#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_DATETIME_UTILS_H_
+#define LIBTEXTCLASSIFIER_ANNOTATOR_DATETIME_UTILS_H_
 
-#include "gtest/gtest.h"
-#include "tensorflow/lite/model.h"
+#include <vector>
+
+#include "annotator/types.h"
+#include "utils/base/integral_types.h"
 
 namespace libtextclassifier3 {
-namespace {
 
-TEST(EncoderUtilsTest, CreateIntArray) {
-  TfLiteIntArray* a = CreateIntArray({1, 2, 3});
-  EXPECT_EQ(a->data[0], 1);
-  EXPECT_EQ(a->data[1], 2);
-  EXPECT_EQ(a->data[2], 3);
-  TfLiteIntArrayFree(a);
-}
+// Generate alternative interpretations when datetime is ambiguous e.g. '9:45'
+// has hour:9 and minute:45 will be resolve to 9:45 AM & 9:45 PM.
+void FillInterpretations(const DatetimeParsedData& parse,
+                         const DatetimeGranularity& granularity,
+                         std::vector<DatetimeParsedData>* interpretations);
 
-}  // namespace
 }  // namespace libtextclassifier3
+
+#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_DATETIME_UTILS_H_

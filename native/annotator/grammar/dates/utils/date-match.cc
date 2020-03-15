@@ -125,6 +125,7 @@ std::string DateMatch::DebugString() const {
   }
 
   SStringAppendF(&res, 0, "prio=%d ", priority);
+  SStringAppendF(&res, 0, "conf-score=%lf ", annotator_priority_score);
 
   if (IsHourAmbiguous()) {
     std::vector<int8> values;

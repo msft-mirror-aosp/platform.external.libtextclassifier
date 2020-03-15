@@ -49,13 +49,6 @@ class CallbackDelegate {
                        Matcher* matcher) const;
 };
 
-// A rules shard and callback delegate for handling matches from any rules of
-// that shard.
-struct RulesCallbackDelegate {
-  const RulesSet_::Rules* rules;
-  CallbackDelegate* delegate;
-};
-
 }  // namespace libtextclassifier3::grammar
 
 #endif  // LIBTEXTCLASSIFIER_UTILS_GRAMMAR_CALLBACK_DELEGATE_H_

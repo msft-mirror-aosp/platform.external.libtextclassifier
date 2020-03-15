@@ -49,8 +49,13 @@ namespace libtextclassifier3;
 enum AndroidSimpleIntentGeneratorExtraType : int {
   INVALID_EXTRA_TYPE = 0,
   STRING = 1,
+  // Use string_ field.
+
   BOOL = 2,
+  // Use bool_ field.
+
   VARIABLE_AS_LONG = 3,
+  // Use int32_ field for the variable index.
 }
 
 // Enumerates the possible condition types for the simple intent generator.

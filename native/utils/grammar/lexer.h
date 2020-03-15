@@ -57,9 +57,8 @@
 // This makes it appear to the Matcher as if the tokens are adjacent -- so
 // whitespace is simply ignored.
 //
-// A minor optimization:  We don't bother to output <token> unless
-// the grammar includes a nonterminal with that name. Similarly, we don't
-// output <digits> unless the grammar uses them.
+// A minor optimization:  We don't bother to output nonterminals if the grammar
+// rules don't reference them.
 
 #ifndef LIBTEXTCLASSIFIER_UTILS_GRAMMAR_LEXER_H_
 #define LIBTEXTCLASSIFIER_UTILS_GRAMMAR_LEXER_H_
@@ -78,30 +77,80 @@ class Lexer {
  public:
   explicit Lexer(const UniLib& unilib) : unilib_(unilib) {}
 
-  void Process(const std::vector<Token>& tokens, Matcher* matcher) const;
+  // Processes a tokenized text. Classifies the tokens and feeds them to the
+  // matcher. Predefined existing matches `matches` will be fed to the matcher
+  // alongside the tokens.
+  void Process(const std::vector<Token>& tokens,
+               const std::vector<Match*>& matches, Matcher* matcher) const;
+  void Process(const std::vector<Token>::const_iterator& begin,
+               const std::vector<Token>::const_iterator& end,
+               const std::vector<Match*>& matches, Matcher* matcher) const;
 
  private:
-  enum TokenType {
-    TOKEN_TYPE_TERM,
-    TOKEN_TYPE_WHITESPACE,
-    TOKEN_TYPE_DIGITS,
-    TOKEN_TYPE_PUNCTUATION
+  // A lexical symbol with an identified meaning that represents raw tokens,
+  // token categories or predefined text matches.
+  // It is the unit fed to the grammar matcher.
+  struct Symbol {
+    // The type of the lexical symbol.
+    enum class Type {
+      // A raw token.
+      TYPE_TERM,
+
+      // A symbol representing a string of digits.
+      TYPE_DIGITS,
+
+      // Punctuation characters.
+      TYPE_PUNCTUATION,
+
+      // A predefined match.
+      TYPE_MATCH
+    };
+
+    explicit Symbol() = default;
+
+    // Constructs a symbol of a given type with an anchor in the text.
+    Symbol(const Type type, const CodepointSpan codepoint_span,
+           const int match_offset, StringPiece lexeme)
+        : type(type),
+          codepoint_span(codepoint_span),
+          match_offset(match_offset),
+          lexeme(lexeme) {}
+
+    // Constructs a symbol from a pre-defined match.
+    explicit Symbol(Match* match)
+        : type(Type::TYPE_MATCH),
+          codepoint_span(match->codepoint_span),
+          match_offset(match->match_offset),
+          match(match) {}
+
+    // The type of the symbole.
+    Type type;
+
+    // The span in the text as codepoint offsets.
+    CodepointSpan codepoint_span;
+
+    // The match start offset (including preceding whitespace) as codepoint
+    // offset.
+    int match_offset;
+
+    // The symbol text value.
+    StringPiece lexeme;
+
+    // The predefined match.
+    Match* match;
   };
 
-  // Processes a single token: the token is split, classified and passed to the
-  // matcher. Returns the end of the last part emitted.
-  int ProcessToken(const StringPiece value, const int prev_token_end,
-                   const CodepointSpan codepoint_span,
-                   const RulesSet_::Nonterminals* nonterms,
-                   Matcher* matcher) const;
+  // Processes a single token: the token is split and classified into symbols.
+  void ProcessToken(const StringPiece value, const int prev_token_end,
+                    const CodepointSpan codepoint_span,
+                    std::vector<Symbol>* symbols) const;
 
   // Emits a token to the matcher.
-  void Emit(const StringPiece value, const CodepointSpan codepoint_span,
-            int match_offset, const TokenType type,
-            const RulesSet_::Nonterminals* nonterms, Matcher* matcher) const;
+  void Emit(const Symbol& symbol, const RulesSet_::Nonterminals* nonterms,
+            Matcher* matcher) const;
 
   // Gets the type of a character.
-  TokenType GetTokenType(const UnicodeText::const_iterator& it) const;
+  Symbol::Type GetSymbolType(const UnicodeText::const_iterator& it) const;
 
  private:
   const UniLib& unilib_;
