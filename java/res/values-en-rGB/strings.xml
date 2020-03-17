@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Email</string>
-  <string name="tcs_email_desc">Email selected address</string>
-  <string name="tcs_dial">Call</string>
-  <string name="tcs_dial_desc">Call selected phone number</string>
-  <string name="tcs_map">Map</string>
-  <string name="tcs_map_desc">Locate selected address</string>
-  <string name="tcs_browse">Open</string>
-  <string name="tcs_browse_desc">Open selected URL</string>
-  <string name="tcs_sms">Message</string>
-  <string name="tcs_sms_desc">Message selected phone number</string>
-  <string name="tcs_add_contact">Add</string>
-  <string name="tcs_add_contact_desc">Add to contacts</string>
-  <string name="tcs_view_calendar">View</string>
-  <string name="tcs_view_calendar_desc">View selected time in calendar</string>
-  <string name="tcs_add_calendar_event">Schedule</string>
-  <string name="tcs_add_calendar_event_desc">Schedule event for selected time</string>
-  <string name="tcs_view_flight">Track</string>
-  <string name="tcs_view_flight_desc">Track selected flight</string>
-  <string name="tcs_translate">Translate</string>
-  <string name="tcs_translate_desc">Translate selected text</string>
-  <string name="tcs_define">Define</string>
-  <string name="tcs_define_desc">Define selected text</string>
 </resources>

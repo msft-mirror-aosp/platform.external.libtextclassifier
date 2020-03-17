@@ -365,7 +365,9 @@ bool ParseDigitalTimeValue(const std::vector<UnicodeText::const_iterator>& text,
         isdigit(*text[begin_pos - 2])) {
       return false;
     }
-    if (end_pos < text.size() - 1 &&
+    // Last valid codepoint is at text.size() - 2 as we added the end position
+    // of text for easier span extraction.
+    if (end_pos < text.size() - 2 &&
         (*text[end_pos] == ':' || *text[end_pos] == '.') &&
         isdigit(*text[end_pos + 1])) {
       return false;

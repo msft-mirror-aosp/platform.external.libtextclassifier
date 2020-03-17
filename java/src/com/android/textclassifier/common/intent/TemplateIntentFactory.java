@@ -32,8 +32,9 @@ public final class TemplateIntentFactory {
   private static final String TAG = "TemplateIntentFactory";
 
   /** Constructs and returns a list of {@link LabeledIntent} based on the given templates. */
-  public ImmutableList<LabeledIntent> create(RemoteActionTemplate[] remoteActionTemplates) {
-    if (remoteActionTemplates.length == 0) {
+  public ImmutableList<LabeledIntent> create(
+      @Nullable RemoteActionTemplate[] remoteActionTemplates) {
+    if (remoteActionTemplates == null || remoteActionTemplates.length == 0) {
       return ImmutableList.of();
     }
     final ImmutableList.Builder<LabeledIntent> labeledIntents = ImmutableList.builder();
