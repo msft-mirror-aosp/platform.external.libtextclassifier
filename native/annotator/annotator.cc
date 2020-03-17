@@ -146,6 +146,13 @@ DateAnnotationOptions ToDateAnnotationOptions(
             extra_requested_date->str());
       }
     }
+    if (fb_annotation_options->ignored_tokens() != nullptr) {
+      for (const auto& ignored_token :
+           *fb_annotation_options->ignored_tokens()) {
+        result_annotation_options.ignored_tokens.push_back(
+            ignored_token->str());
+      }
+    }
   }
   return result_annotation_options;
 }
@@ -2349,7 +2356,14 @@ bool Annotator::ParseAndFillInMoneyAmount(
   std::unique_ptr<EntityDataT> data =
       LoadAndVerifyMutableFlatbuffer<libtextclassifier3::EntityData>(
           *serialized_entity_data);
-  if (data == nullptr || data->money->unnormalized_amount.empty()) {
+  if (data == nullptr) {
+    TC3_LOG(ERROR)
+        << "Data field is null when trying to parse Money Entity Data";
+    return false;
+  }
+  if (data->money->unnormalized_amount.empty()) {
+    TC3_LOG(ERROR) << "Data unnormalized_amount is empty when trying to parse "
+                      "Money Entity Data";
     return false;
   }
 
@@ -2376,7 +2390,9 @@ bool Annotator::ParseAndFillInMoneyAmount(
   if (!unilib_->ParseInt32(RemoveMoneySeparators(money_separators_, amount,
                                                  it_decimal_separator),
                            &data->money->amount_whole_part)) {
-    TC3_LOG(ERROR) << "Could not parse the money whole part as int32.";
+    TC3_LOG(ERROR) << "Could not parse the money whole part as int32 from the "
+                      "amount: "
+                   << data->money->unnormalized_amount;
     return false;
   }
   if (it_decimal_separator == amount.end()) {
@@ -2388,7 +2404,9 @@ bool Annotator::ParseAndFillInMoneyAmount(
                 amount, amount_codepoints_size - separator_back_index,
                 amount_codepoints_size, /*do_copy=*/false),
             &data->money->amount_decimal_part)) {
-      TC3_LOG(ERROR) << "Could not parse the money decimal part as int32.";
+      TC3_LOG(ERROR) << "Could not parse the money decimal part as int32 from "
+                        "the amount: "
+                     << data->money->unnormalized_amount;
       return false;
     }
   }
