@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Poslat e-mail</string>
-  <string name="tcs_email_desc">Napsat na vybranou e-mailovou adresu</string>
-  <string name="tcs_dial">Zavolat</string>
-  <string name="tcs_dial_desc">Zavolat na vybrané telefonní číslo</string>
-  <string name="tcs_map">Mapa</string>
-  <string name="tcs_map_desc">Vyhledat vybranou adresu</string>
-  <string name="tcs_browse">Otevřít</string>
-  <string name="tcs_browse_desc">Otevřít vybranou adresu URL</string>
-  <string name="tcs_sms">Napsat zprávu</string>
-  <string name="tcs_sms_desc">Napsat SMS na vybrané telefonní číslo</string>
-  <string name="tcs_add_contact">Přidat</string>
-  <string name="tcs_add_contact_desc">Přidat do kontaktů</string>
-  <string name="tcs_view_calendar">Zobrazit</string>
-  <string name="tcs_view_calendar_desc">Zobrazit vybraný čas v kalendáři</string>
-  <string name="tcs_add_calendar_event">Naplánovat</string>
-  <string name="tcs_add_calendar_event_desc">Naplánovat událost na vybraný čas</string>
-  <string name="tcs_view_flight">Sledovat</string>
-  <string name="tcs_view_flight_desc">Sledovat vybraný let</string>
-  <string name="tcs_translate">Přeložit</string>
-  <string name="tcs_translate_desc">Přeložit vybraný text</string>
-  <string name="tcs_define">Definovat</string>
-  <string name="tcs_define_desc">Definovat vybraný text</string>
 </resources>

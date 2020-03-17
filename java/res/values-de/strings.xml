@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">E-Mail senden</string>
-  <string name="tcs_email_desc">E-Mail an ausgewählte Adresse senden</string>
-  <string name="tcs_dial">Anrufen</string>
-  <string name="tcs_dial_desc">Ausgewählte Telefonnummer anrufen</string>
-  <string name="tcs_map">Karte öffnen</string>
-  <string name="tcs_map_desc">Ausgewählte Adresse finden</string>
-  <string name="tcs_browse">Öffnen</string>
-  <string name="tcs_browse_desc">Ausgewählte URL öffnen</string>
-  <string name="tcs_sms">SMS senden</string>
-  <string name="tcs_sms_desc">SMS an ausgewählte Telefonnummer senden</string>
-  <string name="tcs_add_contact">Hinzufügen</string>
-  <string name="tcs_add_contact_desc">Zu Kontakten hinzufügen</string>
-  <string name="tcs_view_calendar">Aufrufen</string>
-  <string name="tcs_view_calendar_desc">Ausgewählte Zeit im Kalender anzeigen</string>
-  <string name="tcs_add_calendar_event">Termin planen</string>
-  <string name="tcs_add_calendar_event_desc">Termin für die ausgewählte Zeit planen</string>
-  <string name="tcs_view_flight">Verfolgen</string>
-  <string name="tcs_view_flight_desc">Ausgewählten Flug verfolgen</string>
-  <string name="tcs_translate">Übersetzen</string>
-  <string name="tcs_translate_desc">Ausgewählten Text übersetzen</string>
-  <string name="tcs_define">Definieren</string>
-  <string name="tcs_define_desc">Ausgewählten Text definieren</string>
 </resources>

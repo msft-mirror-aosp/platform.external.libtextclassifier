@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">E-pasts</string>
-  <string name="tcs_email_desc">Nosūtīt e-pasta ziņojumu uz atlasīto adresi</string>
-  <string name="tcs_dial">Zvans</string>
-  <string name="tcs_dial_desc">Zvanīt uz atlasīto tālruņa numuru</string>
-  <string name="tcs_map">Karte</string>
-  <string name="tcs_map_desc">Atrast atlasīto adresi</string>
-  <string name="tcs_browse">Atvērt</string>
-  <string name="tcs_browse_desc">Atvērt atlasīto URL</string>
-  <string name="tcs_sms">Īsziņa</string>
-  <string name="tcs_sms_desc">Nosūtīt īsziņu uz atlasīto tālruņa numuru</string>
-  <string name="tcs_add_contact">Pievienot</string>
-  <string name="tcs_add_contact_desc">Pievienot kontaktpersonām</string>
-  <string name="tcs_view_calendar">Skatīt</string>
-  <string name="tcs_view_calendar_desc">Skatīt atlasīto laiku kalendārā</string>
-  <string name="tcs_add_calendar_event">Grafiks</string>
-  <string name="tcs_add_calendar_event_desc">Ieplānot pasākumu konkrētā laikā</string>
-  <string name="tcs_view_flight">Izsekot</string>
-  <string name="tcs_view_flight_desc">Izsekot atlasīto lidojumu</string>
-  <string name="tcs_translate">Tulkot</string>
-  <string name="tcs_translate_desc">Tulkot atlasīto tekstu</string>
-  <string name="tcs_define">Definēt</string>
-  <string name="tcs_define_desc">Definēt atlasīto tekstu</string>
 </resources>

@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">ईमेल करा</string>
-  <string name="tcs_email_desc">निवडलेल्या ॲड्रेसवर ईमेल करा</string>
-  <string name="tcs_dial">कॉल करा</string>
-  <string name="tcs_dial_desc">निवडलेल्या फोन नंबरवर कॉल करा</string>
-  <string name="tcs_map">नकाशा उघडा</string>
-  <string name="tcs_map_desc">निवडलेला पत्ता शोधा</string>
-  <string name="tcs_browse">उघडा</string>
-  <string name="tcs_browse_desc">निवडलेली URL उघडा</string>
-  <string name="tcs_sms">मेसेज करा</string>
-  <string name="tcs_sms_desc">निवडलेल्या फोन नंबरवर एसएमएस करा</string>
-  <string name="tcs_add_contact">जोडा</string>
-  <string name="tcs_add_contact_desc">संपर्कांमध्ये जोडा</string>
-  <string name="tcs_view_calendar">पाहा</string>
-  <string name="tcs_view_calendar_desc">निवडलेली वेळ कॅलेंडरमध्ये पाहा</string>
-  <string name="tcs_add_calendar_event">शेड्युल करा</string>
-  <string name="tcs_add_calendar_event_desc">निवडलेल्या वेळेसाठी इव्हेंट शेड्युल करा</string>
-  <string name="tcs_view_flight">ट्रॅक करा</string>
-  <string name="tcs_view_flight_desc">निवडलेले विमान ट्रॅक करा</string>
-  <string name="tcs_translate">भाषांतर करा</string>
-  <string name="tcs_translate_desc">निवडलेल्या मजकुराचे भाषांतर करा</string>
-  <string name="tcs_define">व्याख्या सांगा</string>
-  <string name="tcs_define_desc">निवडलेल्या मजकुराची व्याख्या सांगा</string>
 </resources>

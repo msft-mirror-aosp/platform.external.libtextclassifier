@@ -51,9 +51,6 @@ import com.android.textclassifier.common.statsd.SelectionEventConverter;
 import com.android.textclassifier.common.statsd.TextClassificationSessionIdConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
-import com.android.textclassifier.intent.ClassificationIntentFactory;
-import com.android.textclassifier.intent.LegacyClassificationIntentFactory;
-import com.android.textclassifier.intent.TemplateClassificationIntentFactory;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
@@ -63,7 +60,6 @@ import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -135,7 +131,6 @@ final class TextClassifierImpl {
   private final ModelFileManager annotatorModelFileManager;
   private final ModelFileManager langIdModelFileManager;
   private final ModelFileManager actionsModelFileManager;
-  private final ClassificationIntentFactory classificationIntentFactory;
   private final TemplateIntentFactory templateIntentFactory;
 
   TextClassifierImpl(Context context, TextClassifierSettings settings, TextClassifier fallback) {
@@ -169,11 +164,6 @@ final class TextClassifierImpl {
                 ActionsSuggestionsModel::getLocales));
 
     templateIntentFactory = new TemplateIntentFactory();
-    classificationIntentFactory =
-        this.settings.isTemplateIntentFactoryEnabled()
-            ? new TemplateClassificationIntentFactory(
-                templateIntentFactory, new LegacyClassificationIntentFactory())
-            : new LegacyClassificationIntentFactory();
   }
 
   TextClassifierImpl(Context context, TextClassifierSettings settings) {
@@ -274,12 +264,7 @@ final class TextClassifierImpl {
                     getResourceLocalesString());
         if (results.length > 0) {
           return createClassificationResult(
-              results,
-              string,
-              request.getStartIndex(),
-              request.getEndIndex(),
-              refTime.toInstant(),
-              langId);
+              results, string, request.getStartIndex(), request.getEndIndex(), langId);
         }
       }
     } catch (Throwable t) {
@@ -624,7 +609,6 @@ final class TextClassifierImpl {
       String text,
       int start,
       int end,
-      @Nullable Instant referenceTime,
       Optional<LangIdModel> langId) {
     final String classifiedText = text.substring(start, end);
     final TextClassification.Builder builder =
@@ -642,8 +626,9 @@ final class TextClassifierImpl {
 
     boolean isPrimaryAction = true;
     final ImmutableList<LabeledIntent> labeledIntents =
-        classificationIntentFactory.create(
-            context, classifiedText, referenceTime, highestScoringResult);
+        highestScoringResult == null
+            ? ImmutableList.of()
+            : templateIntentFactory.create(highestScoringResult.getRemoteActionTemplates());
     final LabeledIntent.TitleChooser titleChooser =
         (labeledIntent, resolveInfo) -> labeledIntent.titleWithoutEntity;
 
