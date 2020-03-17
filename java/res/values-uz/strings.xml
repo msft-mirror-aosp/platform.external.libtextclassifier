@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Email</string>
-  <string name="tcs_email_desc">Belgilangan e-pochta manziliga xat yuborish</string>
-  <string name="tcs_dial">Chaqiruv</string>
-  <string name="tcs_dial_desc">Belgilangan raqamga telefon qilish</string>
-  <string name="tcs_map">Xarita</string>
-  <string name="tcs_map_desc">Belgilangan manzilni xaritadan topish</string>
-  <string name="tcs_browse">Ochish</string>
-  <string name="tcs_browse_desc">Belgilangan URL manzilini ochish</string>
-  <string name="tcs_sms">SMS yozish</string>
-  <string name="tcs_sms_desc">Belgilangan telefon raqamiga SMS yuborish</string>
-  <string name="tcs_add_contact">Saqlab olish</string>
-  <string name="tcs_add_contact_desc">Kontaktlarga saqlash</string>
-  <string name="tcs_view_calendar">Ochish</string>
-  <string name="tcs_view_calendar_desc">Belgilangan vaqtni taqvimda ochish</string>
-  <string name="tcs_add_calendar_event">Rejalashtirish</string>
-  <string name="tcs_add_calendar_event_desc">Belgilangan vaqt uchun tadbir rejalashtirish</string>
-  <string name="tcs_view_flight">Kuzatish</string>
-  <string name="tcs_view_flight_desc">Belgilangan parvozni kuzatish</string>
-  <string name="tcs_translate">Tarjima qilish</string>
-  <string name="tcs_translate_desc">Belgilangan matnni tarjima qilish</string>
-  <string name="tcs_define">Izohini olish</string>
-  <string name="tcs_define_desc">Belgilangan matnning izohini aniqlash</string>
 </resources>

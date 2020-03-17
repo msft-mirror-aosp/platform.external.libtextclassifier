@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Email</string>
-  <string name="tcs_email_desc">Mengirimkan email ke alamat yang dipilih</string>
-  <string name="tcs_dial">Panggil</string>
-  <string name="tcs_dial_desc">Panggil nomor telepon yang dipilih</string>
-  <string name="tcs_map">Peta</string>
-  <string name="tcs_map_desc">Cari alamat yang dipilih</string>
-  <string name="tcs_browse">Buka</string>
-  <string name="tcs_browse_desc">Buka URL yang dipilih</string>
-  <string name="tcs_sms">SMS</string>
-  <string name="tcs_sms_desc">Kirim SMS ke nomor telepon yang dipilih</string>
-  <string name="tcs_add_contact">Tambahkan</string>
-  <string name="tcs_add_contact_desc">Tambahkan ke kontak</string>
-  <string name="tcs_view_calendar">Lihat</string>
-  <string name="tcs_view_calendar_desc">Melihat waktu yang dipilih di kalender</string>
-  <string name="tcs_add_calendar_event">Jadwalkan</string>
-  <string name="tcs_add_calendar_event_desc">Menjadwalkan acara untuk waktu yang dipilih</string>
-  <string name="tcs_view_flight">Pantau</string>
-  <string name="tcs_view_flight_desc">Pantau penerbangan yang dipilih</string>
-  <string name="tcs_translate">Terjemahkan</string>
-  <string name="tcs_translate_desc">Terjemahkan teks yang dipilih</string>
-  <string name="tcs_define">Definisikan</string>
-  <string name="tcs_define_desc">Definisikan teks yang dipilih</string>
 </resources>
