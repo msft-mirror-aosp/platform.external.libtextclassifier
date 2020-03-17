@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Invia email</string>
-  <string name="tcs_email_desc">Invia un\'email all\'indirizzo selezionato</string>
-  <string name="tcs_dial">Chiama</string>
-  <string name="tcs_dial_desc">Chiama il numero di telefono selezionato</string>
-  <string name="tcs_map">Mappa</string>
-  <string name="tcs_map_desc">Localizza l\'indirizzo selezionato</string>
-  <string name="tcs_browse">Apri</string>
-  <string name="tcs_browse_desc">Apri l\'URL selezionato</string>
-  <string name="tcs_sms">Invia messaggio</string>
-  <string name="tcs_sms_desc">Invia un SMS al numero di telefono selezionato</string>
-  <string name="tcs_add_contact">Aggiungi</string>
-  <string name="tcs_add_contact_desc">Aggiungi ai contatti</string>
-  <string name="tcs_view_calendar">Visualizza</string>
-  <string name="tcs_view_calendar_desc">Visualizza la data selezionata nel calendario</string>
-  <string name="tcs_add_calendar_event">Pianifica</string>
-  <string name="tcs_add_calendar_event_desc">Pianifica l\'evento nella data selezionata</string>
-  <string name="tcs_view_flight">Monitora</string>
-  <string name="tcs_view_flight_desc">Monitora il volo selezionato</string>
-  <string name="tcs_translate">Traduci</string>
-  <string name="tcs_translate_desc">Traduci il testo selezionato</string>
-  <string name="tcs_define">Definisci</string>
-  <string name="tcs_define_desc">Definisci il testo selezionato</string>
 </resources>
