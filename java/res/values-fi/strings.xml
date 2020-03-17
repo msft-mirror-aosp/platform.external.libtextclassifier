@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Sähköposti</string>
-  <string name="tcs_email_desc">Lähetä sähköposti valittuun osoitteeseen</string>
-  <string name="tcs_dial">Soita</string>
-  <string name="tcs_dial_desc">Soita valittuun puhelinnumeroon</string>
-  <string name="tcs_map">Kartta</string>
-  <string name="tcs_map_desc">Etsi valittu osoite kartalta</string>
-  <string name="tcs_browse">Avaa</string>
-  <string name="tcs_browse_desc">Avaa valittu URL-osoite</string>
-  <string name="tcs_sms">Viesti</string>
-  <string name="tcs_sms_desc">Lähetä viesti valittuun puhelinnumeroon</string>
-  <string name="tcs_add_contact">Lisää</string>
-  <string name="tcs_add_contact_desc">Lisää yhteystietoihin</string>
-  <string name="tcs_view_calendar">Näytä</string>
-  <string name="tcs_view_calendar_desc">Näytä valittu aika kalenterissa</string>
-  <string name="tcs_add_calendar_event">Aikatauluta</string>
-  <string name="tcs_add_calendar_event_desc">Ajoita tapahtuma valitulle ajalle</string>
-  <string name="tcs_view_flight">Seuraa</string>
-  <string name="tcs_view_flight_desc">Seuraa valittua lentoa</string>
-  <string name="tcs_translate">Käännä</string>
-  <string name="tcs_translate_desc">Käännä valittu teksti.</string>
-  <string name="tcs_define">Määrittele</string>
-  <string name="tcs_define_desc">Määrittele valittu teksti</string>
 </resources>
