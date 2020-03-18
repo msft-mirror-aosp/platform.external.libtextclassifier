@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">ელფოსტის გაგზავნა</string>
-  <string name="tcs_email_desc">არჩეულ მისამართზე ელფოსტის გაგზავნა</string>
-  <string name="tcs_dial">ზარი</string>
-  <string name="tcs_dial_desc">არჩეულ ტელეფონის ნომერზე დარეკვა</string>
-  <string name="tcs_map">რუკის გახსნა</string>
-  <string name="tcs_map_desc">არჩეული მისამართის მდებარეობის დადგენა</string>
-  <string name="tcs_browse">გახსნა</string>
-  <string name="tcs_browse_desc">არჩეული URL-ის გახსნა</string>
-  <string name="tcs_sms">შეტყობინება</string>
-  <string name="tcs_sms_desc">არჩეული ტელეფონის ნომრისთვის შეტყობინების გაგზავნა</string>
-  <string name="tcs_add_contact">დამატება</string>
-  <string name="tcs_add_contact_desc">დამატება</string>
-  <string name="tcs_view_calendar">ნახვა</string>
-  <string name="tcs_view_calendar_desc">არჩეული დროის კალენდარში ნახვა</string>
-  <string name="tcs_add_calendar_event">დაგეგმვა</string>
-  <string name="tcs_add_calendar_event_desc">მოვლენის არჩეული დროისთვის დაგეგმვა</string>
-  <string name="tcs_view_flight">მიდევნება</string>
-  <string name="tcs_view_flight_desc">არჩეული ფრენისთვის თვალის მიდევნება</string>
-  <string name="tcs_translate">თარგმნა</string>
-  <string name="tcs_translate_desc">არჩეული ტექსტის თარგმნა</string>
-  <string name="tcs_define">განსაზღვრა</string>
-  <string name="tcs_define_desc">არჩეული ტექსტის განსაზღვრა</string>
 </resources>
