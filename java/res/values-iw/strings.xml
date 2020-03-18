@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">התכתבות באימייל</string>
-  <string name="tcs_email_desc">שליחת אימייל לכתובת שנבחרה</string>
-  <string name="tcs_dial">ביצוע שיחה</string>
-  <string name="tcs_dial_desc">התקשרות למספר הטלפון שנבחר</string>
-  <string name="tcs_map">צפייה במפה</string>
-  <string name="tcs_map_desc">איתור הכתובת שנבחרה</string>
-  <string name="tcs_browse">פתיחה</string>
-  <string name="tcs_browse_desc">פתיחה של כתובת האתר שנבחרה</string>
-  <string name="tcs_sms">התכתבות בהודעות</string>
-  <string name="tcs_sms_desc">שליחת הודעה למספר הטלפון שנבחר</string>
-  <string name="tcs_add_contact">הוספה</string>
-  <string name="tcs_add_contact_desc">הוספה לאנשי הקשר</string>
-  <string name="tcs_view_calendar">צפייה</string>
-  <string name="tcs_view_calendar_desc">הצגת התאריך שנבחר ביומן</string>
-  <string name="tcs_add_calendar_event">קביעת מועד</string>
-  <string name="tcs_add_calendar_event_desc">קביעת מועד לאירוע בתאריך שנבחר</string>
-  <string name="tcs_view_flight">מעקב</string>
-  <string name="tcs_view_flight_desc">מעקב אחרי הטיסה שנבחרה</string>
-  <string name="tcs_translate">תרגום</string>
-  <string name="tcs_translate_desc">תרגום הטקסט שנבחר</string>
-  <string name="tcs_define">מציאת הפירוש</string>
-  <string name="tcs_define_desc">פירוש הטקסט שנבחר</string>
 </resources>

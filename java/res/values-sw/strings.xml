@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Barua pepe</string>
-  <string name="tcs_email_desc">Tuma barua pepe kwa anwani uliyochagua</string>
-  <string name="tcs_dial">Simu</string>
-  <string name="tcs_dial_desc">Piga simu kwa nambari uliyochagua</string>
-  <string name="tcs_map">Ramani</string>
-  <string name="tcs_map_desc">Fungua anwani uliyochagua</string>
-  <string name="tcs_browse">Fungua</string>
-  <string name="tcs_browse_desc">Fungua URL uliyochagua</string>
-  <string name="tcs_sms">Ujumbe</string>
-  <string name="tcs_sms_desc">Tuma SMS kwa nambari ya simu uliyochagua</string>
-  <string name="tcs_add_contact">Ongeza</string>
-  <string name="tcs_add_contact_desc">Ongeza kwenye anwani</string>
-  <string name="tcs_view_calendar">Angalia</string>
-  <string name="tcs_view_calendar_desc">Angalia wakati uliochagua katika kalenda</string>
-  <string name="tcs_add_calendar_event">Ratibu</string>
-  <string name="tcs_add_calendar_event_desc">Ratibu tukio la wakati uliochagua</string>
-  <string name="tcs_view_flight">Fuatilia</string>
-  <string name="tcs_view_flight_desc">Fuatilia ndege uliyochagua</string>
-  <string name="tcs_translate">Tafsiri</string>
-  <string name="tcs_translate_desc">Tafsiri maandishi yaliyochaguliwa</string>
-  <string name="tcs_define">Fafanua</string>
-  <string name="tcs_define_desc">Fafanua maandishi yaliyochaguliwa</string>
 </resources>
