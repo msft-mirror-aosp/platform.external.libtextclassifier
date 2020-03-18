@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">E-post</string>
-  <string name="tcs_email_desc">Saada valitud aadressile meil</string>
-  <string name="tcs_dial">Helista</string>
-  <string name="tcs_dial_desc">Helista valitud telefoninumbrile</string>
-  <string name="tcs_map">Kaart</string>
-  <string name="tcs_map_desc">Leia valitud aadress</string>
-  <string name="tcs_browse">Ava</string>
-  <string name="tcs_browse_desc">Ava valitud URL</string>
-  <string name="tcs_sms">Saada sõnum</string>
-  <string name="tcs_sms_desc">Saada valitud telefoninumbrile sõnum</string>
-  <string name="tcs_add_contact">Lisa</string>
-  <string name="tcs_add_contact_desc">Lisa kontaktide hulka</string>
-  <string name="tcs_view_calendar">Kuva</string>
-  <string name="tcs_view_calendar_desc">Kuva valitud aeg kalendris</string>
-  <string name="tcs_add_calendar_event">Lisa ajakavasse</string>
-  <string name="tcs_add_calendar_event_desc">Ajasta üritus valitud ajale</string>
-  <string name="tcs_view_flight">Jälgi</string>
-  <string name="tcs_view_flight_desc">Jälgi valitud lendu</string>
-  <string name="tcs_translate">Tõlgi</string>
-  <string name="tcs_translate_desc">Tõlgi valitud tekst</string>
-  <string name="tcs_define">Defineeri</string>
-  <string name="tcs_define_desc">Defineeri valitud tekst</string>
 </resources>

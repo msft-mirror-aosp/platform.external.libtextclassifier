@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Кат жөнөтүү</string>
-  <string name="tcs_email_desc">Тандалган дарекке электрондук кат жөнөтүү</string>
-  <string name="tcs_dial">Чалуу</string>
-  <string name="tcs_dial_desc">Тандалган телефон номерине чалуу</string>
-  <string name="tcs_map">Картадан кароо</string>
-  <string name="tcs_map_desc">Тандалган даректи картада табуу</string>
-  <string name="tcs_browse">Ачуу</string>
-  <string name="tcs_browse_desc">Тандалган URL\'ди ачуу</string>
-  <string name="tcs_sms">Билдирүү жазуу</string>
-  <string name="tcs_sms_desc">Тандалган телефон номерине билдирүү жөнөтүү</string>
-  <string name="tcs_add_contact">Кошуу</string>
-  <string name="tcs_add_contact_desc">Байланыштарга кошуу</string>
-  <string name="tcs_view_calendar">Көрүү</string>
-  <string name="tcs_view_calendar_desc">Тандалган убакытты жылнаамада көрүү</string>
-  <string name="tcs_add_calendar_event">Графикке киргизүү</string>
-  <string name="tcs_add_calendar_event_desc">Иш-чараны тандалган убакытка графикке киргизүү</string>
-  <string name="tcs_view_flight">Көз салуу</string>
-  <string name="tcs_view_flight_desc">Тандалган аба каттамына көз салуу</string>
-  <string name="tcs_translate">Которуу</string>
-  <string name="tcs_translate_desc">Тандалган текстти которуу</string>
-  <string name="tcs_define">Аныктоо</string>
-  <string name="tcs_define_desc">Тандалган текстти аныктоо</string>
 </resources>

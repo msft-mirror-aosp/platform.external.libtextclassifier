@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">Senda tölvupóst</string>
-  <string name="tcs_email_desc">Senda á valið netfang</string>
-  <string name="tcs_dial">Símtal</string>
-  <string name="tcs_dial_desc">Hringja í valið símanúmer</string>
-  <string name="tcs_map">Kort</string>
-  <string name="tcs_map_desc">Finna valið heimilisfang</string>
-  <string name="tcs_browse">Opna</string>
-  <string name="tcs_browse_desc">Opna valda vefslóð</string>
-  <string name="tcs_sms">Senda skilaboð</string>
-  <string name="tcs_sms_desc">Senda skilaboð í valið símanúmer</string>
-  <string name="tcs_add_contact">Bæta við</string>
-  <string name="tcs_add_contact_desc">Bæta við tengiliði</string>
-  <string name="tcs_view_calendar">Skoða</string>
-  <string name="tcs_view_calendar_desc">Skoða valinn tíma í dagatali</string>
-  <string name="tcs_add_calendar_event">Setja á dagskrá</string>
-  <string name="tcs_add_calendar_event_desc">Skipuleggja viðburð á völdum tíma</string>
-  <string name="tcs_view_flight">Rekja</string>
-  <string name="tcs_view_flight_desc">Fylgjast með völdu flugi</string>
-  <string name="tcs_translate">Þýða</string>
-  <string name="tcs_translate_desc">Þýða valinn texta</string>
-  <string name="tcs_define">Skilgreina</string>
-  <string name="tcs_define_desc">Skilgreina valinn texta</string>
 </resources>
