@@ -416,6 +416,17 @@ table AnnotationOptions {
   // possible alternative interpretations of the input text
   // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
   generate_alternative_interpretations_when_ambiguous:bool;
+
+  // List of tokens which grammar will ignore during the match e.g. if
+  // “@” is in the allowed span list and input is “12 March @ 12PM” then “@”
+  // will be ignored and 12 March @ 12PM will be translate to
+  // {Day:12 Month: March Hour: 12 MERIDIAN: PM}.
+  // This can also be achieved by adding additional rules e.g.
+  // <Digit_Day> <Month> <Time>
+  // <Digit_Day> <Month> @ <Time>
+  // Though this is doable in the grammar but requires multiple rules, this
+  // list enables the rule to represent multiple rules.
+  ignored_tokens:[string];
 }
 
 namespace libtextclassifier3;

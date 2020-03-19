@@ -1,25 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
-  <string name="tcs_email">ইমেল করুন</string>
-  <string name="tcs_email_desc">বেছে নেওয়া আইডিতে ইমেল পাঠান</string>
-  <string name="tcs_dial">কল খুলুন</string>
-  <string name="tcs_dial_desc">বেছে নেওয়া ফোন নম্বরে কল করুন</string>
-  <string name="tcs_map">ম্যাপ খুলুন</string>
-  <string name="tcs_map_desc">বেছে নেওয়া ঠিকানাটি ম্যাপে দেখুন</string>
-  <string name="tcs_browse">খুলুন</string>
-  <string name="tcs_browse_desc">বেছে নেওয়া ইউআরএল-এ যান</string>
-  <string name="tcs_sms">মেসেজ করুন</string>
-  <string name="tcs_sms_desc">বেছে নেওয়া ফোন নম্বরে মেসেজ পাঠান</string>
-  <string name="tcs_add_contact">যোগ করুন</string>
-  <string name="tcs_add_contact_desc">পরিচিতিতে যোগ করুন</string>
-  <string name="tcs_view_calendar">দেখুন</string>
-  <string name="tcs_view_calendar_desc">বেছে নেওয়া দিনটি ক্যালেন্ডারে দেখুন</string>
-  <string name="tcs_add_calendar_event">সময়সূচি সেট করুন</string>
-  <string name="tcs_add_calendar_event_desc">বেছে নেওয়া সময়ে ইভেন্ট সেট করুন</string>
-  <string name="tcs_view_flight">ট্র্যাক করুন</string>
-  <string name="tcs_view_flight_desc">বেছে নেওয়া ফ্লাইট ট্র্যাক করুন</string>
-  <string name="tcs_translate">অনুবাদ করুন</string>
-  <string name="tcs_translate_desc">বেছে নেওয়া টেক্সট অনুবাদ করুন</string>
-  <string name="tcs_define">ব্যাখ্যা দিন</string>
-  <string name="tcs_define_desc">বেছে নেওয়া টেক্সটের ব্যাখ্যা দিন</string>
 </resources>
