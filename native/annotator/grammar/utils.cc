@@ -20,6 +20,8 @@ namespace libtextclassifier3 {
 
 Tokenizer BuildTokenizer(const UniLib* unilib,
                          const GrammarTokenizerOptions* options) {
+  TC3_CHECK(options != nullptr);
+
   std::vector<const TokenizationCodepointRange*> codepoint_config;
   if (options->tokenization_codepoint_config() != nullptr) {
     codepoint_config.insert(codepoint_config.end(),
