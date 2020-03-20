@@ -21,6 +21,7 @@
 
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
+#include "utils/base/status.h"
 #include "utils/optional.h"
 #include "utils/utf8/unilib.h"
 
@@ -46,6 +47,14 @@ class KnowledgeEngine {
              const Optional<LocationContext>& location_context,
              std::vector<AnnotatedSpan>* result) const {
     return true;
+  }
+
+  Status ChunkMultipleSpans(
+      const std::vector<std::string>& text_fragments,
+      AnnotationUsecase annotation_usecase,
+      const Optional<LocationContext>& location_context,
+      std::vector<std::vector<AnnotatedSpan>>* results) const {
+    return Status::OK;
   }
 
   bool LookUpEntity(const std::string& id,

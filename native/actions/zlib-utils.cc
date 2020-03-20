@@ -54,7 +54,7 @@ bool CompressActionsModel(ActionsModelT* model) {
       }
       if (!rule->output_pattern.empty()) {
         rule->compressed_output_pattern.reset(new CompressedBufferT);
-        zlib_compressor->Compress(rule->pattern,
+        zlib_compressor->Compress(rule->output_pattern,
                                   rule->compressed_output_pattern.get());
         rule->output_pattern.clear();
       }
