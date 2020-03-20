@@ -511,7 +511,7 @@ bool IsBlacklistedDate(const UniLib& unilib,
 // Checks if two date matches are adjacent and mergeable.
 bool AreDateMatchesAdjacentAndMergeable(
     const UniLib& unilib, const std::vector<UnicodeText::const_iterator>& text,
-    const std::vector<std::string>& ignored_tokens, const DateMatch& prev,
+    const std::vector<std::string>& ignored_spans, const DateMatch& prev,
     const DateMatch& next) {
   // Check the context between the two matches.
   if (next.begin <= prev.end) {
@@ -531,8 +531,8 @@ bool AreDateMatchesAdjacentAndMergeable(
   }
   const std::string span_text = span.ToUTF8String();
   bool matched = false;
-  for (const std::string& ignored_token : ignored_tokens) {
-    if (span_text == ignored_token) {
+  for (const std::string& ignored_span : ignored_spans) {
+    if (span_text == ignored_span) {
       matched = true;
       break;
     }
@@ -548,7 +548,7 @@ bool AreDateMatchesAdjacentAndMergeable(
 // be merged
 void MergeDateRangeAndDate(const UniLib& unilib,
                            const std::vector<UnicodeText::const_iterator>& text,
-                           const std::vector<std::string>& ignored_tokens,
+                           const std::vector<std::string>& ignored_spans,
                            const std::vector<DateMatch>& dates,
                            std::vector<DateRangeMatch>* date_ranges) {
   // For each range, check the date before or after the it to see if they could
@@ -569,7 +569,7 @@ void MergeDateRangeAndDate(const UniLib& unilib,
       // be merged with the date.
       if (date_range->end <= date.begin) {
         DateMatch merged_date = date;
-        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_tokens,
+        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_spans,
                                                date_range->to, date)) {
           MergeDateMatch(date_range->to, &merged_date, /*update_span=*/true);
           date_range->to = merged_date;
@@ -584,7 +584,7 @@ void MergeDateRangeAndDate(const UniLib& unilib,
           if (next_date < dates.size()) {
             DateMatch next_match = dates[next_date];
             if (AreDateMatchesAdjacentAndMergeable(
-                    unilib, text, ignored_tokens, date_range->to, next_match)) {
+                    unilib, text, ignored_spans, date_range->to, next_match)) {
               MergeDateMatch(date_range->to, &next_match, /*update_span=*/true);
               date_range->to = next_match;
               date_range->end = date_range->to.end;
@@ -612,7 +612,7 @@ void MergeDateRangeAndDate(const UniLib& unilib,
           merged_date.end = date.year_match->match_offset;
         }
         // Check and merge the range and the date before the range.
-        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_tokens,
+        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_spans,
                                                merged_date, date_range->from)) {
           MergeDateMatch(merged_date, &date_range->from, /*update_span=*/true);
           date_range->begin = date_range->from.begin;
@@ -623,7 +623,7 @@ void MergeDateRangeAndDate(const UniLib& unilib,
             DateMatch prev_match = dates[next_date - 1];
             if (prev_match.end <= date_range->from.begin) {
               if (AreDateMatchesAdjacentAndMergeable(unilib, text,
-                                                     ignored_tokens, prev_match,
+                                                     ignored_spans, prev_match,
                                                      date_range->from)) {
                 MergeDateMatch(prev_match, &date_range->from,
                                /*update_span=*/true);
@@ -682,7 +682,7 @@ void FillDateInstances(const UniLib& unilib,
   int i = 0;
   for (int j = 1; j < date_matches->size(); j++) {
     if (options.merge_adjacent_components &&
-        AreDateMatchesAdjacentAndMergeable(unilib, text, options.ignored_tokens,
+        AreDateMatchesAdjacentAndMergeable(unilib, text, options.ignored_spans,
                                            date_matches->at(i),
                                            date_matches->at(j))) {
       MergeDateMatch(date_matches->at(i), &date_matches->at(j), true);
@@ -750,7 +750,7 @@ bool IsDateRangeTooLong(DateRangeMatch date_range_match) {
 //  - Does not expand a date range without time
 void ExpandDateRangeAndMergeWithTime(
     const UniLib& unilib, const std::vector<UnicodeText::const_iterator>& text,
-    const std::vector<std::string>& ignored_tokens,
+    const std::vector<std::string>& ignored_spans,
     std::vector<DateMatch>* times, std::vector<DateRangeMatch>* date_ranges) {
   auto next_time = times->begin();
   auto next_range = date_ranges->begin();
@@ -770,7 +770,7 @@ void ExpandDateRangeAndMergeWithTime(
 
       // The range is before the time
       if (range.end <= time.begin) {
-        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_tokens,
+        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_spans,
                                                range.to, time) &&
             !IsDateRangeTooLong(range)) {
           std::vector<DateMatch> expanded_dates;
@@ -802,7 +802,7 @@ void ExpandDateRangeAndMergeWithTime(
         break;
       } else if (range.end > time.end && range.begin > time.begin) {
         // The range is after the time
-        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_tokens,
+        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_spans,
                                                time, range.from) &&
             !IsDateRangeTooLong(range)) {
           std::vector<DateMatch> expanded_dates;
@@ -874,12 +874,12 @@ std::vector<Annotation> GetOutputAsAnnotationList(
     }
 
     if (!date_matches.empty()) {
-      MergeDateRangeAndDate(unilib, text, options.ignored_tokens, date_matches,
+      MergeDateRangeAndDate(unilib, text, options.ignored_spans, date_matches,
                             &date_range_matches);
       RemoveOverlappedDateByRange(date_range_matches, &date_matches);
 
       if (options.expand_date_series) {
-        ExpandDateRangeAndMergeWithTime(unilib, text, options.ignored_tokens,
+        ExpandDateRangeAndMergeWithTime(unilib, text, options.ignored_spans,
                                         &date_matches, &date_range_matches);
       }
     }
