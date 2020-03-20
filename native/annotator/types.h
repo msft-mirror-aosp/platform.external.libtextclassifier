@@ -537,6 +537,13 @@ struct AnnotatedSpan {
   AnnotatedSpan(CodepointSpan arg_span,
                 std::vector<ClassificationResult> arg_classification)
       : span(arg_span), classification(std::move(arg_classification)) {}
+
+  AnnotatedSpan(CodepointSpan arg_span,
+                std::vector<ClassificationResult> arg_classification,
+                Source arg_source)
+      : span(arg_span),
+        classification(std::move(arg_classification)),
+        source(arg_source) {}
 };
 
 // Pretty-printing function for AnnotatedSpan.
