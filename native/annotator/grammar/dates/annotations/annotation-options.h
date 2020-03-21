@@ -87,9 +87,9 @@ struct DateAnnotationOptions {
   // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
   bool generate_alternative_interpretations_when_ambiguous;
 
-  // List the ignored tokens in the date string e.g. 12 March @12PM, here '@'
+  // List the ignored span in the date string e.g. 12 March @12PM, here '@'
   // can be ignored tokens.
-  std::vector<std::string> ignored_tokens;
+  std::vector<std::string> ignored_spans;
 
   // Default Constructor
   DateAnnotationOptions()

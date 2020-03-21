@@ -417,7 +417,7 @@ table AnnotationOptions {
   // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
   generate_alternative_interpretations_when_ambiguous:bool;
 
-  // List of tokens which grammar will ignore during the match e.g. if
+  // List of spans which grammar will ignore during the match e.g. if
   // “@” is in the allowed span list and input is “12 March @ 12PM” then “@”
   // will be ignored and 12 March @ 12PM will be translate to
   // {Day:12 Month: March Hour: 12 MERIDIAN: PM}.
@@ -426,7 +426,7 @@ table AnnotationOptions {
   // <Digit_Day> <Month> @ <Time>
   // Though this is doable in the grammar but requires multiple rules, this
   // list enables the rule to represent multiple rules.
-  ignored_tokens:[string];
+  ignored_spans:[string];
 }
 
 namespace libtextclassifier3;
@@ -518,6 +518,12 @@ table MoneyParsingOptions {
   separators:[int];
 }
 
+namespace libtextclassifier3.ModelTriggeringOptions_;
+table CollectionToPriorityEntry {
+  key:string (key, shared);
+  value:float;
+}
+
 // Options controlling the output of the Tensorflow Lite models.
 namespace libtextclassifier3;
 table ModelTriggeringOptions {
@@ -544,6 +550,11 @@ table ModelTriggeringOptions {
 
   // If true, will prioritize the longest annotation during conflict resolution.
   prioritize_longest_annotation:bool = false;
+
+  // Apply a factor to the priority score for entities that are added to this
+  // map. Key: collection type e.g. "address", "phone"..., Value: float number.
+  // NOTE: The entries here need to be sorted since we use LookupByKey.
+  collection_to_priority:[ModelTriggeringOptions_.CollectionToPriorityEntry];
 }
 
 // Options controlling the output of the classifier.
