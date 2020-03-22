@@ -146,11 +146,9 @@ DateAnnotationOptions ToDateAnnotationOptions(
             extra_requested_date->str());
       }
     }
-    if (fb_annotation_options->ignored_tokens() != nullptr) {
-      for (const auto& ignored_token :
-           *fb_annotation_options->ignored_tokens()) {
-        result_annotation_options.ignored_tokens.push_back(
-            ignored_token->str());
+    if (fb_annotation_options->ignored_spans() != nullptr) {
+      for (const auto& ignored_span : *fb_annotation_options->ignored_spans()) {
+        result_annotation_options.ignored_spans.push_back(ignored_span->str());
       }
     }
   }
@@ -456,7 +454,9 @@ void Annotator::ValidateAndInitialize() {
                         "datetime parser.";
       return;
     }
-  } else if (model_->datetime_model()) {
+  }
+
+  if (model_->datetime_model()) {
     datetime_parser_ = DatetimeParser::Instance(
         model_->datetime_model(), *unilib_, *calendarlib_, decompressor.get());
     if (!datetime_parser_) {
@@ -1529,7 +1529,19 @@ bool Annotator::ModelClassifyText(
     }
   }
 
-  *classification_results = {{top_collection, 1.0, scores[best_score_index]}};
+  *classification_results = {{top_collection, /*arg_score=*/1.0,
+                              /*arg_priority_score=*/scores[best_score_index]}};
+
+  // For some entities, we might want to clamp the priority score, for better
+  // conflict resolution between entities.
+  if (model_->triggering_options() != nullptr &&
+      model_->triggering_options()->collection_to_priority() != nullptr) {
+    if (auto entry =
+            model_->triggering_options()->collection_to_priority()->LookupByKey(
+                top_collection.c_str())) {
+      (*classification_results)[0].priority_score *= entry->value();
+    }
+  }
   return true;
 }
 
@@ -1628,7 +1640,7 @@ bool Annotator::DatetimeClassifyText(
     const ClassificationOptions& options,
     std::vector<ClassificationResult>* classification_results) const {
   if (!datetime_parser_ && !cfg_datetime_parser_) {
-    return false;
+    return true;
   }
 
   const std::string selection_text =
@@ -1636,6 +1648,7 @@ bool Annotator::DatetimeClassifyText(
           .UTF8Substring(selection_indices.first, selection_indices.second);
 
   std::vector<DatetimeParseResultSpan> datetime_spans;
+
   if (cfg_datetime_parser_) {
     if (!(model_->grammar_datetime_model()->enabled_modes() &
           ModeFlag_CLASSIFICATION)) {
@@ -1649,7 +1662,9 @@ bool Annotator::DatetimeClassifyText(
             model_->grammar_datetime_model()->annotation_options(),
             options.reference_timezone, options.reference_time_ms_utc),
         parsed_locales, &datetime_spans);
-  } else if (datetime_parser_) {
+  }
+
+  if (datetime_parser_) {
     if (!datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
                                  options.reference_timezone, options.locales,
                                  ModeFlag_CLASSIFICATION,
@@ -1659,6 +1674,7 @@ bool Annotator::DatetimeClassifyText(
       return false;
     }
   }
+
   for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {
     // Only consider the result valid if the selection and extracted datetime
     // spans exactly match.
@@ -2741,15 +2757,15 @@ bool Annotator::DatetimeChunk(const UnicodeText& context_unicode,
             model_->grammar_datetime_model()->annotation_options(),
             reference_timezone, reference_time_ms_utc),
         parsed_locales, &datetime_spans);
-  } else if (datetime_parser_) {
+  }
+
+  if (datetime_parser_) {
     if (!datetime_parser_->Parse(context_unicode, reference_time_ms_utc,
                                  reference_timezone, locales, mode,
                                  annotation_usecase,
                                  /*anchor_start_end=*/false, &datetime_spans)) {
       return false;
     }
-  } else {
-    return true;
   }
 
   for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {

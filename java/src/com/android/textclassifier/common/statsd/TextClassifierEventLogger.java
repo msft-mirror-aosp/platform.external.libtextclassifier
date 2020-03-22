@@ -16,6 +16,9 @@
 
 package com.android.textclassifier.common.statsd;
 
+import static com.google.common.base.Charsets.UTF_8;
+import static com.google.common.base.Strings.nullToEmpty;
+
 import android.util.StatsEvent;
 import android.util.StatsLog;
 import android.view.textclassifier.TextClassifier;
@@ -25,6 +28,7 @@ import com.android.textclassifier.common.logging.TextClassificationSessionId;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.hash.Hashing;
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -106,14 +110,15 @@ public final class TextClassifierEventLogger {
   private static void logConversationActionsEvent(
       @Nullable TextClassificationSessionId sessionId,
       TextClassifierEvent.ConversationActionsEvent event) {
-    ImmutableList<String> modelNames = ResultIdUtils.getModelNames(event.getResultId());
-
+    String resultId = nullToEmpty(event.getResultId());
+    ImmutableList<String> modelNames = ResultIdUtils.getModelNames(resultId);
     StatsEvent statsEvent =
         StatsEvent.newBuilder()
             .setAtomId(CONVERSATION_ACTIONS_EVENT_ATOM_ID)
+            // TODO: Update ExtServices to set the session id.
             .writeString(
                 sessionId == null
-                    ? event.getResultId() // TODO: Update ExtServices to set the session id.
+                    ? Hashing.goodFastHash(64).hashString(resultId, UTF_8).toString()
                     : sessionId.getValue())
             .writeInt(event.getEventType())
             .writeString(getItemAt(modelNames, 0, null))
