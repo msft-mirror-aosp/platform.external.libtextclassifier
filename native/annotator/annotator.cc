@@ -137,8 +137,6 @@ DateAnnotationOptions ToDateAnnotationOptions(
         fb_annotation_options->enable_date_range();
     result_annotation_options.include_preposition =
         fb_annotation_options->include_preposition();
-    result_annotation_options.expand_date_series =
-        fb_annotation_options->expand_date_series();
     if (fb_annotation_options->extra_requested_dates() != nullptr) {
       for (const auto& extra_requested_date :
            *fb_annotation_options->extra_requested_dates()) {
@@ -1065,6 +1063,12 @@ bool DoSourcesConflict(AnnotationUsecase annotation_usecase,
         return false;
       }
 
+      // A PERSONNAME entity does not conflict with anything.
+      if ((source_mask &
+           (1 << static_cast<int>(AnnotatedSpan::Source::PERSON_NAME)))) {
+        return false;
+      }
+
       // Entities from other sources can conflict.
       return true;
   }
@@ -1761,6 +1765,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
       person_name_engine_->ClassifyText(context, selection_indices,
                                         &person_name_result)) {
     candidates.push_back({selection_indices, {person_name_result}});
+    candidates.back().source = AnnotatedSpan::Source::PERSON_NAME;
   }
 
   // Try the installed app engine.

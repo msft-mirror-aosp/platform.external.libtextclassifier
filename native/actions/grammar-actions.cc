@@ -154,16 +154,12 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
           UnicodeText normalized_match_text =
               NormalizeMatchText(unilib_, group, match_text);
 
-          // Set entity data.
-          if (group->entity_field() != nullptr) {
-            TC3_CHECK_NE(entity_data, nullptr);
-            if (!entity_data->ParseAndSet(
-                    group->entity_field(),
-                    normalized_match_text.ToUTF8String())) {
-              TC3_LOG(ERROR)
-                  << "Could not set entity data from rule capturing match.";
-              return false;
-            }
+          if (!MergeEntityDataFromCapturingMatch(
+                  group, normalized_match_text.ToUTF8String(),
+                  entity_data.get())) {
+            TC3_LOG(ERROR)
+                << "Could not merge entity data from a capturing match.";
+            return false;
           }
 
           // Add smart reply suggestions.

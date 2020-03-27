@@ -224,15 +224,12 @@ bool RegexActions::SuggestActions(
             UnicodeText normalized_group_match_text =
                 NormalizeMatchText(unilib_, group, group_match_text.value());
 
-            if (group->entity_field() != nullptr) {
-              TC3_CHECK_NE(entity_data, nullptr);
-              if (!entity_data->ParseAndSet(
-                      group->entity_field(),
-                      normalized_group_match_text.ToUTF8String())) {
-                TC3_LOG(ERROR)
-                    << "Could not set entity data from rule capturing group.";
-                return false;
-              }
+            if (!MergeEntityDataFromCapturingMatch(
+                    group, normalized_group_match_text.ToUTF8String(),
+                    entity_data.get())) {
+              TC3_LOG(ERROR)
+                  << "Could not merge entity data from a capturing match.";
+              return false;
             }
 
             // Create a text annotation for the group span.
