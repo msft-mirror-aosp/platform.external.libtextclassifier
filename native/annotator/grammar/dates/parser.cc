@@ -234,7 +234,7 @@ bool NormalizeDate(DateMatch* date) {
 
 // Copies the field from one DateMatch to another whose field is null. for
 // example: if the from is "May 1, 8pm", and the to is "9pm", "May 1" will be
-// copied to "to". Now we only copy fields for date range requirement.
+// copied to "to". Now we only copy fields for date range requirement.fv
 void CopyFieldsForDateMatch(const DateMatch& from, DateMatch* to) {
   if (from.time_span_match != nullptr && to->time_span_match == nullptr) {
     to->time_span_match = from.time_span_match;
@@ -743,101 +743,6 @@ bool IsDateRangeTooLong(DateRangeMatch date_range_match) {
   return number_of_days > kMaximumExpansion;
 }
 
-// Expands a date range and merges it with a time.
-// e.g. April 4-6, 2:00pm will be expanded into April 4 at 2pm, April 5 at 2pm
-// and April 6 at 2:00pm
-//  - Only supports a range of days with a time
-//  - Does not expand a date range without time
-void ExpandDateRangeAndMergeWithTime(
-    const UniLib& unilib, const std::vector<UnicodeText::const_iterator>& text,
-    const std::vector<std::string>& ignored_spans,
-    std::vector<DateMatch>* times, std::vector<DateRangeMatch>* date_ranges) {
-  auto next_time = times->begin();
-  auto next_range = date_ranges->begin();
-  while (next_range != date_ranges->end() && next_time != times->end()) {
-    const DateRangeMatch& range = *next_range;
-    if (range.from.HasHour() || !IsPrecedent(range.from, range.to)) {
-      ++next_range;
-      continue;
-    }
-
-    while (next_time != times->end()) {
-      const DateMatch& time = *next_time;
-      if (!time.IsStandaloneTime()) {
-        ++next_time;
-        continue;
-      }
-
-      // The range is before the time
-      if (range.end <= time.begin) {
-        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_spans,
-                                               range.to, time) &&
-            !IsDateRangeTooLong(range)) {
-          std::vector<DateMatch> expanded_dates;
-          ExpandDateRange(range, &expanded_dates);
-
-          // Merge the expaneded date and with time
-          std::vector<DateMatch> merged_times;
-          for (const auto& expanded_date : expanded_dates) {
-            DateMatch merged_time = time;
-            MergeDateMatch(expanded_date, &merged_time, true);
-            merged_times.push_back(merged_time);
-          }
-          // Insert the expanded time before next_time and move next_time point
-          // to previous time.
-          next_time = times->insert(next_time, merged_times.begin(),
-                                    merged_times.end());
-          next_time += merged_times.size();
-
-          // Remove merged time. now next_time point to the time after the
-          // merged time.
-          next_time = times->erase(next_time);
-          // Remove merged range, now next_range point to the range after the
-          // merged range.
-          next_range = date_ranges->erase(next_range);
-        } else {
-          // range is behind time, check next range.
-          ++next_range;
-        }
-        break;
-      } else if (range.end > time.end && range.begin > time.begin) {
-        // The range is after the time
-        if (AreDateMatchesAdjacentAndMergeable(unilib, text, ignored_spans,
-                                               time, range.from) &&
-            !IsDateRangeTooLong(range)) {
-          std::vector<DateMatch> expanded_dates;
-          ExpandDateRange(range, &expanded_dates);
-
-          // Merge the expaneded dates with time
-          for (auto& expanded_date : expanded_dates) {
-            MergeDateMatch(time, &expanded_date, true);
-          }
-          // Insert expanded time before next_time and move next_time point to
-          // previous time.
-          next_time = times->insert(next_time, expanded_dates.begin(),
-                                    expanded_dates.end());
-          next_time += expanded_dates.size();
-
-          // Remove merged time. Now next_time point to the time after the
-          // merged time.
-          next_time = times->erase(next_time);
-          // Remove merged range. Now next_range point to the range after the
-          // merged range.
-          next_range = date_ranges->erase(next_range);
-          break;
-        } else {
-          // Since the range is after the time, we need to check the next time
-          // first
-          ++next_time;
-        }
-      } else {
-        // Range fully overlaps with time In this case, we move to the next time
-        ++next_time;
-      }
-    }
-  }
-}
-
 // Fills `DateTimes` proto from matched `DateMatch` and `DateRangeMatch`
 // instances.
 std::vector<Annotation> GetOutputAsAnnotationList(
@@ -877,25 +782,12 @@ std::vector<Annotation> GetOutputAsAnnotationList(
       MergeDateRangeAndDate(unilib, text, options.ignored_spans, date_matches,
                             &date_range_matches);
       RemoveOverlappedDateByRange(date_range_matches, &date_matches);
-
-      if (options.expand_date_series) {
-        ExpandDateRangeAndMergeWithTime(unilib, text, options.ignored_spans,
-                                        &date_matches, &date_range_matches);
-      }
     }
     FillDateRangeInstances(date_range_matches, &date_annotations);
   }
 
   if (!date_matches.empty()) {
     FillDateInstances(unilib, text, options, &date_matches, &date_annotations);
-
-    int64 timestamp_ms = options.base_timestamp_millis;
-    if (timestamp_ms > 0) {
-      // The timestamp in options is milliseconds, the time_t is seconds from
-      // 00:00 Jan 1 1970 UTC.
-      time_t base_timestamp = timestamp_ms / 1000;
-      NormalizeDateTimes(base_timestamp, &date_annotations);
-    }
   }
   return date_annotations;
 }

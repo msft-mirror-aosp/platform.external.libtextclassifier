@@ -102,4 +102,23 @@ bool FillAnnotationFromCapturingMatch(
   return true;
 }
 
+bool MergeEntityDataFromCapturingMatch(
+    const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
+    StringPiece match_text, ReflectiveFlatbuffer* buffer) {
+  if (group->entity_field() != nullptr) {
+    if (!buffer->ParseAndSet(group->entity_field(), match_text.ToString())) {
+      TC3_LOG(ERROR) << "Could not set entity data from rule capturing group.";
+      return false;
+    }
+  }
+  if (group->entity_data() != nullptr) {
+    if (!buffer->MergeFrom(reinterpret_cast<const flatbuffers::Table*>(
+            group->entity_data()))) {
+      TC3_LOG(ERROR) << "Could not set entity data for capturing match.";
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace libtextclassifier3
