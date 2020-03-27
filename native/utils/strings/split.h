@@ -26,6 +26,9 @@ namespace libtextclassifier3 {
 namespace strings {
 
 std::vector<StringPiece> Split(const StringPiece &text, char delim);
+// Delete overload that takes r-value string, to avoid common pitfalls like:
+//   Split(GetSomeTransientString())
+std::vector<StringPiece> Split(const std::string &&text, char delim) = delete;
 
 }  // namespace strings
 }  // namespace libtextclassifier3

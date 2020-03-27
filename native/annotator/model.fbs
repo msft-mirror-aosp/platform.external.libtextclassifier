@@ -396,16 +396,6 @@ table AnnotationOptions {
   // instance: "Monday" and "6pm".
   enable_date_range:bool = true;
 
-  // If enabled, expand a date series. Must have date_range enabled to be
-  // used. The date range cannot exceed 30 days.
-  // input: April 4-6, 6:30pm
-  // If the flag is true, the extracted annotation will contain 3 instance
-  // which are April 4 at 6:30pm, April 5 at 6:30pm and April 6 at 6:30pm
-  // all have the same begin and end annotation
-  // If the flag is false, the extracted annotation contains one time
-  // range instance and one date instance
-  expand_date_series:bool = true;
-
   // If enabled, the rule priority score is used to set the priority score of
   // the annotation.
   // In case of false the annotation priority score is set from
@@ -834,7 +824,7 @@ table FeatureProcessorOptions {
 
 namespace libtextclassifier3;
 table NumberAnnotatorOptions {
-  // If true, number annotations will be produced.
+  // If true, number and percentage annotations will be produced.
   enabled:bool = false;
 
   // Score to assign to the annotated numbers and percentages in the annotator.
@@ -843,32 +833,34 @@ table NumberAnnotatorOptions {
   // Number priority score used for conflict resolution with the other models.
   priority_score:float = 0;
 
-  // The modes in which to enable number annotations.
+  // The modes in which to enable number and percentage annotations.
   enabled_modes:ModeFlag = ALL;
 
   // The annotation usecases for which to produce number annotations.
   // This is a flag field for values of AnnotationUsecase.
   enabled_annotation_usecases:uint = 4294967295;
 
-  // A list of codepoints that can form a prefix of a valid number.
+  // [Deprecated] A list of codepoints that can form a prefix of a valid number.
   allowed_prefix_codepoints:[int];
 
-  // A list of codepoints that can form a suffix of a valid number.
+  // [Deprecated] A list of codepoints that can form a suffix of a valid number.
   allowed_suffix_codepoints:[int];
 
-  // List of codepoints that will be stripped from beginning of predicted spans.
+  // [Deprecated] List of codepoints that will be stripped from beginning of
+  // predicted spans.
   ignored_prefix_span_boundary_codepoints:[int];
 
-  // List of codepoints that will be stripped from end of predicted spans.
+  // [Deprecated] List of codepoints that will be stripped from end of predicted
+  // spans.
   ignored_suffix_span_boundary_codepoints:[int];
 
-  // If true, percent annotations will be produced.
+  // [Deprecated] If true, percent annotations will be produced.
   enable_percentage:bool = false;
 
   // Zero separated and ordered list of suffixes that mark a percent.
   percentage_pieces_string:string (shared);
 
-  // List of suffixes offsets in the percent_pieces_string string.
+  // [Deprecated] List of suffixes offsets in the percent_pieces_string string.
   percentage_pieces_offsets:[int];
 
   // Priority score for the percentage annotation.
@@ -881,6 +873,10 @@ table NumberAnnotatorOptions {
   // The maximum number of digits an annotated number can have. Requirement:
   // the value should be less or equal to 20.
   max_number_of_digits:int = 20;
+
+  // The annotation usecases for which to produce percentage annotations.
+  // This is a flag field for values of AnnotationUsecase.
+  percentage_annotation_usecases:uint = 2;
 }
 
 // DurationAnnotator is so far tailored for English and Japanese only.
