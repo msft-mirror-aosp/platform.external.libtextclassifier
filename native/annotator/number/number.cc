@@ -23,6 +23,7 @@
 #include "annotator/collections.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
+#include "utils/strings/split.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
@@ -149,9 +150,8 @@ bool NumberAnnotator::TokensAreValidNumberSuffix(
       UTF8ToUnicodeText(tokens[suffix_start_index].value, /*do_copy=*/false)
           .begin();
 
-  if (GetPercentSuffixLength(UTF8ToUnicodeText(tokens[suffix_start_index].value,
-                                               /*do_copy=*/false),
-                             0) > 0 &&
+  if (percent_suffixes_.find(tokens[suffix_start_index].value) !=
+          percent_suffixes_.end() &&
       TokensAreValidEnding(tokens, suffix_start_index + 1)) {
     return true;
   }
@@ -173,6 +173,25 @@ bool NumberAnnotator::TokensAreValidNumberSuffix(
   }
 
   return false;
+}
+
+int NumberAnnotator::FindPercentSuffixEndCodepoint(
+    const std::vector<Token>& tokens,
+    const int suffix_token_start_index) const {
+  if (suffix_token_start_index >= tokens.size()) {
+    return -1;
+  }
+
+  if (percent_suffixes_.find(tokens[suffix_token_start_index].value) !=
+          percent_suffixes_.end() &&
+      TokensAreValidEnding(tokens, suffix_token_start_index + 1)) {
+    return tokens[suffix_token_start_index].end;
+  }
+  if (tokens[suffix_token_start_index].is_whitespace) {
+    return FindPercentSuffixEndCodepoint(tokens, suffix_token_start_index + 1);
+  }
+
+  return -1;
 }
 
 bool NumberAnnotator::TryParseNumber(const UnicodeText& token_text,
@@ -198,8 +217,7 @@ bool NumberAnnotator::TryParseNumber(const UnicodeText& token_text,
 bool NumberAnnotator::FindAll(const UnicodeText& context,
                               AnnotationUsecase annotation_usecase,
                               std::vector<AnnotatedSpan>* result) const {
-  if (!options_->enabled() || ((1 << annotation_usecase) &
-                               options_->enabled_annotation_usecases()) == 0) {
+  if (!options_->enabled()) {
     return true;
   }
 
@@ -230,80 +248,67 @@ bool NumberAnnotator::FindAll(const UnicodeText& context,
     }
 
     const bool has_decimal = !(parsed_int_value == parsed_double_value);
+    const int new_start_codepoint = is_negative ? token.start - 1 : token.start;
 
-    ClassificationResult classification{Collections::Number(),
-                                        options_->score()};
-    classification.numeric_value = parsed_int_value;
-    classification.numeric_double_value = parsed_double_value;
-    classification.priority_score =
-        has_decimal ? options_->float_number_priority_score()
-                    : options_->priority_score();
+    if (((1 << annotation_usecase) & options_->enabled_annotation_usecases()) !=
+        0) {
+      result->push_back(CreateAnnotatedSpan(
+          new_start_codepoint, token.end, parsed_int_value, parsed_double_value,
+          Collections::Number(), options_->score(),
+          /*priority_score=*/
+          has_decimal ? options_->float_number_priority_score()
+                      : options_->priority_score()));
+    }
 
-    AnnotatedSpan annotated_span;
-    annotated_span.span = {is_negative ? token.start - 1 : token.start,
-                           token.end};
-    annotated_span.classification.push_back(classification);
-    result->push_back(annotated_span);
-  }
-
-  if (options_->enable_percentage()) {
-    FindPercentages(context, result);
+    const int percent_end_codepoint =
+        FindPercentSuffixEndCodepoint(tokens, i + 1);
+    if (percent_end_codepoint != -1 &&
+        ((1 << annotation_usecase) &
+         options_->percentage_annotation_usecases()) != 0) {
+      result->push_back(CreateAnnotatedSpan(
+          new_start_codepoint, percent_end_codepoint, parsed_int_value,
+          parsed_double_value, Collections::Percentage(), options_->score(),
+          options_->percentage_priority_score()));
+    }
   }
 
   return true;
 }
 
-std::vector<uint32> NumberAnnotator::FlatbuffersIntVectorToStdVector(
-    const flatbuffers::Vector<int32_t>* ints) {
-  if (ints == nullptr) {
-    return {};
-  }
-  return {ints->begin(), ints->end()};
+AnnotatedSpan NumberAnnotator::CreateAnnotatedSpan(
+    const int start, const int end, const int int_value,
+    const double double_value, const std::string collection, const float score,
+    const float priority_score) const {
+  ClassificationResult classification{collection, score};
+  classification.numeric_value = int_value;
+  classification.numeric_double_value = double_value;
+  classification.priority_score = priority_score;
+
+  AnnotatedSpan annotated_span;
+  annotated_span.span = {start, end};
+  annotated_span.classification.push_back(classification);
+  return annotated_span;
 }
 
-int NumberAnnotator::GetPercentSuffixLength(const UnicodeText& context,
-                                            int index_codepoints) const {
-  if (index_codepoints >= context.size_codepoints()) {
-    return -1;
+std::unordered_set<std::string>
+NumberAnnotator::FromFlatbufferStringToUnordredSet(
+    const flatbuffers::String* flatbuffer_percent_strings) {
+  std::unordered_set<std::string> strings_set;
+  if (flatbuffer_percent_strings == nullptr) {
+    return strings_set;
   }
-  auto context_it = context.begin();
-  std::advance(context_it, index_codepoints);
-  const StringPiece suffix_context(
-      context_it.utf8_data(),
-      std::distance(context_it.utf8_data(), context.end().utf8_data()));
-  StringSet::Match match;
-  percentage_suffixes_trie_.LongestPrefixMatch(suffix_context, &match);
 
-  if (match.match_length == -1) {
-    return match.match_length;
-  } else {
-    return UTF8ToUnicodeText(context_it.utf8_data(), match.match_length,
-                             /*do_copy=*/false)
-        .size_codepoints();
+  const std::string percent_strings = flatbuffer_percent_strings->str();
+  for (StringPiece suffix : strings::Split(percent_strings, '\0')) {
+    std::string percent_suffix = suffix.ToString();
+    percent_suffix.erase(
+        std::remove_if(percent_suffix.begin(), percent_suffix.end(),
+                       [](unsigned char x) { return std::isspace(x); }),
+        percent_suffix.end());
+    strings_set.insert(percent_suffix);
   }
-}
 
-void NumberAnnotator::FindPercentages(
-    const UnicodeText& context, std::vector<AnnotatedSpan>* result) const {
-  const int initial_result_size = result->size();
-  for (int i = 0; i < initial_result_size; ++i) {
-    AnnotatedSpan annotated_span = (*result)[i];
-    if (annotated_span.classification.empty() ||
-        annotated_span.classification[0].collection != Collections::Number()) {
-      continue;
-    }
-
-    const int match_length =
-        GetPercentSuffixLength(context, annotated_span.span.second);
-    if (match_length > 0) {
-      annotated_span.span = {annotated_span.span.first,
-                             annotated_span.span.second + match_length};
-      annotated_span.classification[0].collection = Collections::Percentage();
-      annotated_span.classification[0].priority_score =
-          options_->percentage_priority_score();
-      result->push_back(annotated_span);
-    }
-  }
+  return strings_set;
 }
 
 }  // namespace libtextclassifier3
