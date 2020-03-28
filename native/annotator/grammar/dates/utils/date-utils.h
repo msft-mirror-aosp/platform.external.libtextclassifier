@@ -62,12 +62,6 @@ void FillDateInstance(const DateMatch& date, Annotation* instance);
 // from matched rule.
 void FillDateRangeInstance(const DateRangeMatch& range, Annotation* instance);
 
-// Normalize DateTimes based on timestamp.
-// Currently it does two things:
-//   -- Convert relative date to absolute date
-//   -- Normalize year if year is two digit
-void NormalizeDateTimes(time_t timestamp, std::vector<Annotation>* dates);
-
 // Merge the fields in DateMatch prev to next if there is no overlapped field.
 // If update_span is true, the span of next is also updated.
 // e.g.: prev is 11am, next is: May 1, then the merged next is May 1, 11am
