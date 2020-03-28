@@ -59,16 +59,6 @@ struct DateAnnotationOptions {
   //     instance: "Monday" and "6pm".
   bool enable_date_range;
 
-  // If enabled, expand a date series. Must have date_range enabled to be used.
-  // The date range cannot exceed 30 days.
-  //   input: April 4-6, 6:30pm
-  //     If the flag is true, the extracted annotation will contaly 3 instance
-  //     which are April 4 at 6:30pm, April 5 at 6:30pm and April 6 at 6:30pm
-  //     all have the same begin and end annotation
-  //     If the flag is false, the extracted annotation contains one time range
-  //     instance and one date instance
-  bool expand_date_series;
-
   // Timezone in which the input text was written
   std::string reference_timezone;
   // Localization params.
@@ -98,7 +88,6 @@ struct DateAnnotationOptions {
         include_preposition(false),
         base_timestamp_millis(0),
         enable_date_range(false),
-        expand_date_series(false),
         use_rule_priority_score(false),
         generate_alternative_interpretations_when_ambiguous(false) {}
 };
