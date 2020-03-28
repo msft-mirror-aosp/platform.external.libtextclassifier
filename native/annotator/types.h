@@ -521,7 +521,7 @@ logging::LoggingStringStream& operator<<(
 
 // Represents a result of Annotate call.
 struct AnnotatedSpan {
-  enum class Source { OTHER, KNOWLEDGE, DURATION, DATETIME };
+  enum class Source { OTHER, KNOWLEDGE, DURATION, DATETIME, PERSON_NAME };
 
   // Unicode codepoint indices in the input string.
   CodepointSpan span = {kInvalidIndex, kInvalidIndex};

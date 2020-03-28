@@ -398,6 +398,9 @@ table RuleCapturingGroup {
   // If set to true, an existing annotator annotation will be used to
   // create the actions suggestions text annotation.
   use_annotation_match:bool;
+
+  // If set, merge in fixed entity data for a match.
+  entity_data:ActionsEntityData;
 }
 
 // The actions to produce upon triggering.
