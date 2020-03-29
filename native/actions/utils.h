@@ -56,6 +56,12 @@ bool FillAnnotationFromCapturingMatch(
     const int message_index, StringPiece match_text,
     ActionSuggestionAnnotation* annotation);
 
+// Merges entity data from a capturing match.
+// Parses and sets values from the text and merges fixed data.
+bool MergeEntityDataFromCapturingMatch(
+    const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
+    StringPiece match_text, ReflectiveFlatbuffer* buffer);
+
 }  // namespace libtextclassifier3
 
 #endif  // LIBTEXTCLASSIFIER_ACTIONS_UTILS_H_

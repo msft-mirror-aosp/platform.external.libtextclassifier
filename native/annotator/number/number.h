@@ -46,17 +46,8 @@ class NumberAnnotator {
                              /*internal_tokenizer_codepoint_ranges=*/{},
                              /*split_on_script_change=*/false,
                              /*icu_preserve_whitespace_tokens=*/true)),
-        percentage_pieces_string_(
-            (options->percentage_pieces_string() == nullptr)
-                ? StringPiece()
-                : StringPiece(options->percentage_pieces_string()->data(),
-                              options->percentage_pieces_string()->size())),
-        percentage_pieces_offsets_(FlatbuffersIntVectorToStdVector(
-            options->percentage_pieces_offsets())),
-        percentage_suffixes_trie_(
-            SortedStringsTable(/*num_pieces=*/percentage_pieces_offsets_.size(),
-                               /*offsets=*/percentage_pieces_offsets_.data(),
-                               /*pieces=*/percentage_pieces_string_)),
+        percent_suffixes_(FromFlatbufferStringToUnordredSet(
+            options_->percentage_pieces_string())),
         max_number_of_digits_(options->max_number_of_digits()) {}
 
   // Classifies given text, and if it is a number, it passes the result in
@@ -71,12 +62,10 @@ class NumberAnnotator {
                std::vector<AnnotatedSpan>* result) const;
 
  private:
-  static std::vector<uint32> FlatbuffersIntVectorToStdVector(
-      const flatbuffers::Vector<int32_t>* ints);
-
-  // Get the length of the percent suffix at the specified index in the context.
-  int GetPercentSuffixLength(const UnicodeText& context,
-                             int index_codepoints) const;
+  // Converts a Flatbuffer string containing zero-separated percent suffixes
+  // to an unordered set.
+  static std::unordered_set<std::string> FromFlatbufferStringToUnordredSet(
+      const flatbuffers::String* flatbuffer_percent_strings);
 
   // Checks if the annotated numbers from the context represent percentages.
   // If yes, replaces the collection type and the annotation boundary in the
@@ -87,38 +76,46 @@ class NumberAnnotator {
   // Checks if the tokens from in the interval [start_index-2, start_index] are
   // valid characters that can preced a number context.
   bool TokensAreValidStart(const std::vector<Token>& tokens,
-                           const int start_index) const;
+                           int start_index) const;
 
   // Checks if the tokens in the interval (..., prefix_end_index] are a valid
   // number prefix.
   bool TokensAreValidNumberPrefix(const std::vector<Token>& tokens,
-                                  const int prefix_end_index) const;
+                                  int prefix_end_index) const;
 
   // Checks if the tokens from in the interval [ending_index, ending_index+2]
   // are valid characters that can follow a number context.
   bool TokensAreValidEnding(const std::vector<Token>& tokens,
-                            const int ending_index) const;
+                            int ending_index) const;
 
   // Checks if the tokens in the interval [suffix_start_index, ...) are a valid
   // number suffix.
   bool TokensAreValidNumberSuffix(const std::vector<Token>& tokens,
-                                  const int suffix_start_index) const;
+                                  int suffix_start_index) const;
+
+  // Checks if the tokens in the interval [suffix_start_index, ...) are a valid
+  // percent suffix. If false, returns -1, else returns the end codepoint.
+  int FindPercentSuffixEndCodepoint(const std::vector<Token>& tokens,
+                                    int suffix_token_start_index) const;
 
   // Checks if the given text represents a number (either int or double).
-  bool TryParseNumber(const UnicodeText& token_text, const bool is_negative,
+  bool TryParseNumber(const UnicodeText& token_text, bool is_negative,
                       int64* parsed_int_value,
                       double* parsed_double_value) const;
 
   // Checks if a word contains only CJT characters.
   bool IsCJTterm(UnicodeText::const_iterator token_begin_it,
-                 const int token_length) const;
+                 int token_length) const;
+
+  AnnotatedSpan CreateAnnotatedSpan(int start, int end, int int_value,
+                                    double double_value,
+                                    const std::string collection, float score,
+                                    float priority_score) const;
 
   const NumberAnnotatorOptions* options_;
   const UniLib* unilib_;
   const Tokenizer tokenizer_;
-  const StringPiece percentage_pieces_string_;
-  const std::vector<uint32> percentage_pieces_offsets_;
-  const SortedStringsTable percentage_suffixes_trie_;
+  const std::unordered_set<std::string> percent_suffixes_;
   const int max_number_of_digits_;
 };
 
