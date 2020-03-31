@@ -85,7 +85,12 @@ class Ir {
 
   explicit Ir(const std::unordered_set<CallbackId>& filters = {},
               const int num_shards = 1)
-      : num_nonterminals_(0), filters_(filters), shards_(num_shards) {}
+      : num_nonterminals_(0), filters_(filters), shards_(num_shards) {
+    // The default callbacks that will create their own typed match objects.
+    filters_.insert(static_cast<CallbackId>(DefaultCallback::kSetType));
+    filters_.insert(static_cast<CallbackId>(DefaultCallback::kAssertion));
+    filters_.insert(static_cast<CallbackId>(DefaultCallback::kMapping));
+  }
 
   // Adds a new non-terminal.
   Nonterm AddNonterminal(const std::string& name = "") {
