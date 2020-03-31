@@ -20,22 +20,42 @@
 
 namespace libtextclassifier3::grammar {
 
-void CallbackDelegate::HandleCapturingMatch(const Match* match,
-                                            const uint64 match_id,
-                                            Matcher* matcher) const {
+void CallbackDelegate::MatchFound(const Match* match,
+                                  const CallbackId callback_id,
+                                  const int64 callback_param,
+                                  Matcher* matcher) {
+  switch (static_cast<DefaultCallback>(callback_id)) {
+    case DefaultCallback::kSetType: {
+      HandleTypedMatch(match, /*type=*/callback_param, matcher);
+      break;
+    }
+    case DefaultCallback::kAssertion: {
+      HandleAssertion(match, /*negative=*/(callback_param != 0), matcher);
+      break;
+    }
+    case DefaultCallback::kMapping: {
+      HandleMapping(match, /*value=*/callback_param, matcher);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void CallbackDelegate::HandleTypedMatch(const Match* match, const int16 type,
+                                        Matcher* matcher) const {
   // Allocate match on matcher arena and initialize.
   // Will be deallocated by the arena.
-  CapturingMatch* capturing_match =
-      matcher->AllocateAndInitMatch<CapturingMatch>(*match);
-  capturing_match->type = Match::kCapturingMatch;
-  capturing_match->id = static_cast<uint16>(match_id);
+  Match* typed_match = matcher->AllocateAndInitMatch<Match>(*match);
+  typed_match->type = type;
 
   // Queue the match.
-  matcher->AddMatch(capturing_match);
+  matcher->AddMatch(typed_match);
 }
 
 void CallbackDelegate::HandleAssertion(const grammar::Match* match,
-                                       bool negative, Matcher* matcher) const {
+                                       const bool negative,
+                                       Matcher* matcher) const {
   // Allocate match on matcher arena and initialize.
   // Will be deallocated by the arena.
   AssertionMatch* assertion_match =
@@ -45,6 +65,19 @@ void CallbackDelegate::HandleAssertion(const grammar::Match* match,
 
   // Queue the match.
   matcher->AddMatch(assertion_match);
+}
+
+void CallbackDelegate::HandleMapping(const Match* match, int64 value,
+                                     Matcher* matcher) const {
+  // Allocate match on matcher arena and initialize.
+  // Will be deallocated by the arena.
+  MappingMatch* mapping_match =
+      matcher->AllocateAndInitMatch<MappingMatch>(*match);
+  mapping_match->type = Match::kMappingMatch;
+  mapping_match->id = value;
+
+  // Queue the match.
+  matcher->AddMatch(mapping_match);
 }
 
 }  // namespace libtextclassifier3::grammar

@@ -52,16 +52,8 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
         HandleRuleMatch(match, /*rule_id=*/value);
         return;
       }
-      case GrammarActions::Callback::kCapturingMatch: {
-        HandleCapturingMatch(match, /*match_id=*/value, matcher);
-        return;
-      }
-      case GrammarActions::Callback::kAssertionMatch: {
-        HandleAssertion(match, /*negative=*/(value != 0), matcher);
-        return;
-      }
       default:
-        TC3_LOG(ERROR) << "Unhandled match type: " << type;
+        grammar::CallbackDelegate::MatchFound(match, type, value, matcher);
     }
   }
 
@@ -119,8 +111,12 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
     }
 
     // Gather active capturing matches.
-    const std::unordered_map<uint16, const grammar::CapturingMatch*>
-        capturing_matches = GatherCapturingMatches(candidate.match);
+    std::unordered_map<uint16, const grammar::Match*> capturing_matches;
+    for (const grammar::MappingMatch* match :
+         grammar::SelectAllOfType<grammar::MappingMatch>(
+             candidate.match, grammar::Match::kMappingMatch)) {
+      capturing_matches[match->id] = match;
+    }
 
     // Instantiate actions from the rule match.
     for (const uint16 action_id : *rule_match->action_id()) {
@@ -142,7 +138,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
             continue;
           }
 
-          const grammar::CapturingMatch* capturing_match = it->second;
+          const grammar::Match* capturing_match = it->second;
           StringPiece match_text = StringPiece(
               message_codepoint_offsets[capturing_match->codepoint_span.first]
                   .utf8_data(),

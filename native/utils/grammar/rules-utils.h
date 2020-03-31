@@ -53,11 +53,6 @@ std::vector<RuleMatch> DeduplicateMatches(
 // Checks that all assertions of a match tree are fulfilled.
 bool VerifyAssertions(const Match* match);
 
-// Gathers active capturing matches in a match.
-// Returns a map from the id (CapturingMatch::id) to the capturing match.
-std::unordered_map<uint16, const CapturingMatch*> GatherCapturingMatches(
-    const Match* match);
-
 }  // namespace libtextclassifier3::grammar
 
 #endif  // LIBTEXTCLASSIFIER_UTILS_GRAMMAR_RULES_UTILS_H_
