@@ -35,11 +35,7 @@ namespace libtextclassifier3 {
 // Grammar backed actions suggestions.
 class GrammarActions {
  public:
-  enum class Callback : grammar::CallbackId {
-    kActionRuleMatch = 1,
-    kCapturingMatch = 2,
-    kAssertionMatch = 3,
-  };
+  enum class Callback : grammar::CallbackId { kActionRuleMatch = 1 };
 
   GrammarActions(const UniLib* unilib,
                  const RulesModel_::GrammarRules* grammar_rules,
