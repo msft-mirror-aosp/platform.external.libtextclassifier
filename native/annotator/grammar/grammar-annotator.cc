@@ -64,16 +64,8 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
         HandleRuleMatch(match, /*rule_id=*/value);
         return;
       }
-      case GrammarAnnotator::Callback::kCapturingMatch: {
-        HandleCapturingMatch(match, /*match_id=*/value, matcher);
-        return;
-      }
-      case GrammarAnnotator::Callback::kAssertionMatch: {
-        HandleAssertion(match, /*negative=*/(value != 0), matcher);
-        return;
-      }
       default:
-        TC3_LOG(ERROR) << "Unhandled match type: " << type;
+        grammar::CallbackDelegate::MatchFound(match, type, value, matcher);
     }
   }
 
@@ -150,8 +142,13 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
     // Set information from capturing matches.
     CodepointSpan span{kInvalidIndex, kInvalidIndex};
-    const std::unordered_map<uint16, const grammar::CapturingMatch*>
-        capturing_matches = GatherCapturingMatches(match);
+    // Gather active capturing matches.
+    std::unordered_map<uint16, const grammar::Match*> capturing_matches;
+    for (const grammar::MappingMatch* match :
+         grammar::SelectAllOfType<grammar::MappingMatch>(
+             match, grammar::Match::kMappingMatch)) {
+      capturing_matches[match->id] = match;
+    }
 
     // Compute span boundaries.
     for (int i = 0; i < classification->capturing_group()->size(); i++) {
@@ -293,8 +290,13 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
     // Populate entity data from the capturing matches.
     if (interpretation->capturing_group() != nullptr) {
-      const std::unordered_map<uint16, const grammar::CapturingMatch*>
-          capturing_matches = GatherCapturingMatches(match);
+      // Gather active capturing matches.
+      std::unordered_map<uint16, const grammar::Match*> capturing_matches;
+      for (const grammar::MappingMatch* match :
+           grammar::SelectAllOfType<grammar::MappingMatch>(
+               match, grammar::Match::kMappingMatch)) {
+        capturing_matches[match->id] = match;
+      }
       for (int i = 0; i < interpretation->capturing_group()->size(); i++) {
         auto it = capturing_matches.find(i);
         if (it == capturing_matches.end()) {
@@ -312,7 +314,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
         // Set entity field from captured text.
         if (group->entity_field_path() != nullptr) {
-          const grammar::CapturingMatch* capturing_match = it->second;
+          const grammar::Match* capturing_match = it->second;
           StringPiece group_text = StringPiece(
               text[capturing_match->codepoint_span.first].utf8_data(),
               text[capturing_match->codepoint_span.second].utf8_data() -
