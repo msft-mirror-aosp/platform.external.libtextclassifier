@@ -120,31 +120,4 @@ bool VerifyAssertions(const Match* match) {
   return result;
 }
 
-std::unordered_map<uint16, const CapturingMatch*> GatherCapturingMatches(
-    const Match* match) {
-  // Gather active capturing matches.
-  std::unordered_map<uint16, const CapturingMatch*> capturing_matches;
-  grammar::Traverse(match, [&capturing_matches](const grammar::Match* node) {
-    switch (node->type) {
-      case Match::kCapturingMatch: {
-        const CapturingMatch* capturing_match =
-            static_cast<const CapturingMatch*>(node);
-        capturing_matches[capturing_match->id] = capturing_match;
-        return true;
-      }
-
-      // Don't traverse assertion nodes.
-      case Match::kAssertionMatch: {
-        return false;
-      }
-
-      default: {
-        // Expand node.
-        return true;
-      }
-    }
-  });
-  return capturing_matches;
-}
-
 }  // namespace libtextclassifier3::grammar

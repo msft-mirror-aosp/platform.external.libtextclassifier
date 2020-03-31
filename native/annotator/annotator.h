@@ -41,6 +41,8 @@
 #include "annotator/translate/translate.h"
 #include "annotator/types.h"
 #include "annotator/zlib-utils.h"
+#include "utils/base/status.h"
+#include "utils/base/statusor.h"
 #include "utils/flatbuffers.h"
 #include "utils/i18n/locale.h"
 #include "utils/memory/mmap.h"
@@ -178,6 +180,20 @@ class Annotator {
   std::vector<ClassificationResult> ClassifyText(
       const std::string& context, CodepointSpan selection_indices,
       const ClassificationOptions& options = ClassificationOptions()) const;
+
+  // Annotates the given structed input request. Models which handle the full
+  // context request will receive all the metadata they require. While models
+  // that don't use the extra context are called using only a string.
+  // For each fragment the annotations are sorted by their position in
+  // the fragment and exclude spans classified as 'other'.
+  //
+  // The number of vectors of annotated spans will match the number
+  // of input fragments. The order of annotation span vectors will match the
+  // order of input fragments. If annotation is not possible for any of the
+  // annotators, no annotation is returned.
+  StatusOr<std::vector<std::vector<AnnotatedSpan>>> AnnotateStructuredInput(
+      const std::vector<InputFragment>& string_fragments,
+      const AnnotationOptions& options = AnnotationOptions()) const;
 
   // Annotates given input text. The annotations are sorted by their position
   // in the context string and exclude spans classified as 'other'.
@@ -428,6 +444,15 @@ class Annotator {
   void RemoveNotEnabledEntityTypes(
       const EnabledEntityTypes& is_entity_type_enabled,
       std::vector<AnnotatedSpan>* annotated_spans) const;
+
+  // Runs only annotators that do not support structured input. Does conflict
+  // resolution, removal of disallowed entities and sorting on both new
+  // generated candidates and passed in entities.
+  // Returns Status::Error if the annotation failed, in which case the vector of
+  // candidates should be ignored.
+  Status AnnotateSingleInput(const std::string& context,
+                             const AnnotationOptions& options,
+                             std::vector<AnnotatedSpan>* candidates) const;
 
   // Parses the money amount into whole and decimal part and fills in the
   // entity data information.
