@@ -35,8 +35,6 @@ class GrammarAnnotator {
  public:
   enum class Callback : grammar::CallbackId {
     kRuleMatch = 1,
-    kCapturingMatch = 2,
-    kAssertionMatch = 3,
   };
 
   GrammarAnnotator(const UniLib* unilib, const GrammarModel* model,
