@@ -546,6 +546,14 @@ struct AnnotatedSpan {
         source(arg_source) {}
 };
 
+struct InputFragment {
+  std::string text;
+
+  // If present will override the AnnotationOptions reference time and timezone
+  // when annotating this specific string fragment.
+  Optional<DatetimeOptions> datetime_options;
+};
+
 // Pretty-printing function for AnnotatedSpan.
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
                                          const AnnotatedSpan& span);

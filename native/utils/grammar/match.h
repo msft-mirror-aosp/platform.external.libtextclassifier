@@ -34,8 +34,8 @@ struct Match {
   static const int16 kTokenType = -1;
   static const int16 kDigitsType = -2;
   static const int16 kBreakType = -3;
-  static const int16 kCapturingMatch = -4;
-  static const int16 kAssertionMatch = -5;
+  static const int16 kAssertionMatch = -4;
+  static const int16 kMappingMatch = -5;
 
   void Init(const Nonterm arg_lhs, const CodepointSpan arg_codepoint_span,
             const int arg_match_offset, const int arg_type = kUnknownType) {
@@ -92,12 +92,10 @@ struct Match {
   const Match* rhs2 = nullptr;
 };
 
-// Match type to keep track of capturing parts of rules.
-struct CapturingMatch : public Match {
-  // The id of the capturing match.
-  // This id allows to individual rules to access sub-matches in a similar way
-  // as e.g. capturing group ids in regular expressions allow.
-  uint16 id;
+// Match type to keep track of associated values.
+struct MappingMatch : public Match {
+  // The associated id or value.
+  int64 id;
 };
 
 // Match type to keep track of assertions.
@@ -135,9 +133,23 @@ inline std::vector<const Match*> SelectLeaves(const Match* root) {
 
 // Retrieves the first child node of a given type.
 template <typename T>
-const T* SelectFirstOfType(const Match* match, const int64 type) {
+const T* SelectFirstOfType(const Match* root, const int16 type) {
   return static_cast<const T*>(SelectFirst(
-      match, [type](const Match* node) { return (node->type == type); }));
+      root, [type](const Match* node) { return node->type == type; }));
+}
+
+// Retrieves all nodes of a given type.
+template <typename T>
+const std::vector<const T*> SelectAllOfType(const Match* root,
+                                            const int16 type) {
+  std::vector<const T*> result;
+  Traverse(root, [&result, type](const Match* node) {
+    if (node->type == type) {
+      result.push_back(static_cast<const T*>(node));
+    }
+    return true;
+  });
+  return result;
 }
 
 }  // namespace libtextclassifier3::grammar
