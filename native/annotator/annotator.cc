@@ -29,6 +29,8 @@
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
+#include "utils/base/status.h"
+#include "utils/base/statusor.h"
 #include "utils/checksum.h"
 #include "utils/i18n/locale.h"
 #include "utils/math/softmax.h"
@@ -2042,18 +2044,18 @@ void Annotator::AddContactMetadataToKnowledgeClassificationResults(
   }
 }
 
-std::vector<AnnotatedSpan> Annotator::Annotate(
-    const std::string& context, const AnnotationOptions& options) const {
-  std::vector<AnnotatedSpan> candidates;
-
+Status Annotator::AnnotateSingleInput(
+    const std::string& context, const AnnotationOptions& options,
+    std::vector<AnnotatedSpan>* candidates) const {
   if (!(model_->enabled_modes() & ModeFlag_ANNOTATION)) {
-    return {};
+    return Status(StatusCode::UNAVAILABLE, "Model annotation was not enabled.");
   }
 
   const UnicodeText context_unicode =
       UTF8ToUnicodeText(context, /*do_copy=*/false);
   if (!context_unicode.is_valid()) {
-    return {};
+    return Status(StatusCode::INVALID_ARGUMENT,
+                  "Context string isn't valid UTF8.");
   }
 
   std::vector<Locale> detected_text_language_tags;
@@ -2066,7 +2068,9 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
   if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
                                     model_triggering_locales_,
                                     /*default_value=*/true)) {
-    return {};
+    return Status(
+        StatusCode::UNAVAILABLE,
+        "The detected language tags are not in the supported locales.");
   }
 
   InterpreterManager interpreter_manager(selection_executor_.get(),
@@ -2075,17 +2079,15 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
   // Annotate with the selection model.
   std::vector<Token> tokens;
   if (!ModelAnnotate(context, detected_text_language_tags, &interpreter_manager,
-                     &tokens, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run ModelAnnotate.";
-    return {};
+                     &tokens, candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run ModelAnnotate.");
   }
 
   // Annotate with the regular expression models.
   if (!RegexChunk(UTF8ToUnicodeText(context, /*do_copy=*/false),
-                  annotation_regex_patterns_, &candidates,
+                  annotation_regex_patterns_, candidates,
                   options.is_serialized_entity_data_enabled)) {
-    TC3_LOG(ERROR) << "Couldn't run RegexChunk.";
-    return {};
+    return Status(StatusCode::INTERNAL, "Couldn't run RegexChunk.");
   }
 
   // Annotate with the datetime model.
@@ -2096,110 +2098,88 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
                      options.reference_time_ms_utc, options.reference_timezone,
                      options.locales, ModeFlag_ANNOTATION,
                      options.annotation_usecase,
-                     options.is_serialized_entity_data_enabled, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run DatetimeChunk.";
-    return {};
+                     options.is_serialized_entity_data_enabled, candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run DatetimeChunk.");
   }
-
-  // Annotate with the knowledge engine into a temporary vector.
-  std::vector<AnnotatedSpan> knowledge_candidates;
-  if (knowledge_engine_ &&
-      !knowledge_engine_->Chunk(context, options.annotation_usecase,
-                                options.location_context,
-                                &knowledge_candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run knowledge engine Chunk.";
-    return {};
-  }
-
-  AddContactMetadataToKnowledgeClassificationResults(&knowledge_candidates);
-
-  // Move the knowledge candidates to the full candidate list, and erase
-  // knowledge_candidates.
-  candidates.insert(candidates.end(),
-                    std::make_move_iterator(knowledge_candidates.begin()),
-                    std::make_move_iterator(knowledge_candidates.end()));
-  knowledge_candidates.clear();
 
   // Annotate with the contact engine.
   if (contact_engine_ &&
-      !contact_engine_->Chunk(context_unicode, tokens, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run contact engine Chunk.";
-    return {};
+      !contact_engine_->Chunk(context_unicode, tokens, candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run contact engine Chunk.");
   }
 
   // Annotate with the installed app engine.
   if (installed_app_engine_ &&
-      !installed_app_engine_->Chunk(context_unicode, tokens, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run installed app engine Chunk.";
-    return {};
+      !installed_app_engine_->Chunk(context_unicode, tokens, candidates)) {
+    return Status(StatusCode::INTERNAL,
+                  "Couldn't run installed app engine Chunk.");
   }
 
   // Annotate with the number annotator.
   if (number_annotator_ != nullptr &&
       !number_annotator_->FindAll(context_unicode, options.annotation_usecase,
-                                  &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run number annotator FindAll.";
-    return {};
+                                  candidates)) {
+    return Status(StatusCode::INTERNAL,
+                  "Couldn't run number annotator FindAll.");
   }
 
   // Annotate with the duration annotator.
   if (is_entity_type_enabled(Collections::Duration()) &&
       duration_annotator_ != nullptr &&
       !duration_annotator_->FindAll(context_unicode, tokens,
-                                    options.annotation_usecase, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run duration annotator FindAll.";
-    return {};
+                                    options.annotation_usecase, candidates)) {
+    return Status(StatusCode::INTERNAL,
+                  "Couldn't run duration annotator FindAll.");
   }
 
   // Annotate with the person name engine.
   if (is_entity_type_enabled(Collections::PersonName()) &&
       person_name_engine_ &&
-      !person_name_engine_->Chunk(context_unicode, tokens, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run person name engine Chunk.";
-    return {};
+      !person_name_engine_->Chunk(context_unicode, tokens, candidates)) {
+    return Status(StatusCode::INTERNAL,
+                  "Couldn't run person name engine Chunk.");
   }
 
   // Annotate with the grammar annotators.
   if (grammar_annotator_ != nullptr &&
       !grammar_annotator_->Annotate(detected_text_language_tags,
-                                    context_unicode, &candidates)) {
-    TC3_LOG(ERROR) << "Couldn't run grammar annotators.";
-    return {};
+                                    context_unicode, candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run grammar annotators.");
   }
 
   // Sort candidates according to their position in the input, so that the next
   // code can assume that any connected component of overlapping spans forms a
   // contiguous block.
-  std::sort(candidates.begin(), candidates.end(),
+  std::sort(candidates->begin(), candidates->end(),
             [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
               return a.span.first < b.span.first;
             });
 
   std::vector<int> candidate_indices;
-  if (!ResolveConflicts(candidates, context, tokens,
+  if (!ResolveConflicts(*candidates, context, tokens,
                         detected_text_language_tags, options.annotation_usecase,
                         &interpreter_manager, &candidate_indices)) {
-    TC3_LOG(ERROR) << "Couldn't resolve conflicts.";
-    return {};
+    return Status(StatusCode::INTERNAL, "Couldn't resolve conflicts.");
   }
 
   std::vector<AnnotatedSpan> result;
   result.reserve(candidate_indices.size());
   AnnotatedSpan aggregated_span;
   for (const int i : candidate_indices) {
-    if (candidates[i].span != aggregated_span.span) {
+    if ((*candidates)[i].span != aggregated_span.span) {
       if (!aggregated_span.classification.empty()) {
         result.push_back(std::move(aggregated_span));
       }
       aggregated_span =
-          AnnotatedSpan(candidates[i].span, /*arg_classification=*/{});
+          AnnotatedSpan((*candidates)[i].span, /*arg_classification=*/{});
     }
-    if (candidates[i].classification.empty() ||
-        ClassifiedAsOther(candidates[i].classification) ||
-        FilteredForAnnotation(candidates[i])) {
+    if ((*candidates)[i].classification.empty() ||
+        ClassifiedAsOther((*candidates)[i].classification) ||
+        FilteredForAnnotation((*candidates)[i])) {
       continue;
     }
-    for (ClassificationResult& classification : candidates[i].classification) {
+    for (ClassificationResult& classification :
+         (*candidates)[i].classification) {
       aggregated_span.classification.push_back(std::move(classification));
     }
   }
@@ -2217,8 +2197,80 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
   for (AnnotatedSpan& annotated_span : result) {
     SortClassificationResults(&annotated_span.classification);
   }
+  *candidates = result;
+  return Status::OK;
+}
 
-  return result;
+StatusOr<std::vector<std::vector<AnnotatedSpan>>>
+Annotator::AnnotateStructuredInput(
+    const std::vector<InputFragment>& string_fragments,
+    const AnnotationOptions& options) const {
+  std::vector<std::vector<AnnotatedSpan>> annotation_candidates(
+      string_fragments.size());
+
+  std::vector<std::string> text_to_annotate;
+  text_to_annotate.reserve(string_fragments.size());
+  for (const auto& string_fragment : string_fragments) {
+    text_to_annotate.push_back(string_fragment.text);
+  }
+
+  // KnowledgeEngine is special, because it supports annotation of multiple
+  // fragments at once.
+  if (knowledge_engine_ &&
+      !knowledge_engine_
+           ->ChunkMultipleSpans(text_to_annotate, options.annotation_usecase,
+                                options.location_context,
+                                &annotation_candidates)
+           .ok()) {
+    return Status(StatusCode::INTERNAL, "Couldn't run knowledge engine Chunk.");
+  }
+  // The annotator engines shouldn't change the number of annotation vectors.
+  if (annotation_candidates.size() != text_to_annotate.size()) {
+    TC3_LOG(ERROR) << "Received " << text_to_annotate.size()
+                   << " texts to annotate but generated a different number of  "
+                      "lists of annotations:"
+                   << annotation_candidates.size();
+    return Status(StatusCode::INTERNAL,
+                  "Number of annotation candidates differs from "
+                  "number of texts to annotate.");
+  }
+
+  // Other annotators run on each fragment independently.
+  for (int i = 0; i < text_to_annotate.size(); ++i) {
+    AnnotationOptions annotation_options = options;
+    if (string_fragments[i].datetime_options.has_value()) {
+      DatetimeOptions reference_datetime =
+          string_fragments[i].datetime_options.value();
+      annotation_options.reference_time_ms_utc =
+          reference_datetime.reference_time_ms_utc;
+      annotation_options.reference_timezone =
+          reference_datetime.reference_timezone;
+    }
+
+    AddContactMetadataToKnowledgeClassificationResults(
+        &annotation_candidates[i]);
+
+    Status annotation_status = AnnotateSingleInput(
+        text_to_annotate[i], annotation_options, &annotation_candidates[i]);
+    if (!annotation_status.ok()) {
+      return annotation_status;
+    }
+  }
+  return annotation_candidates;
+}
+
+std::vector<AnnotatedSpan> Annotator::Annotate(
+    const std::string& context, const AnnotationOptions& options) const {
+  std::vector<InputFragment> string_fragments;
+  string_fragments.push_back({.text = context});
+  StatusOr<std::vector<std::vector<AnnotatedSpan>>> annotations =
+      AnnotateStructuredInput(string_fragments, options);
+  if (!annotations.ok()) {
+    TC3_LOG(ERROR) << "Returned error when calling AnnotateStructuredInput: "
+                   << annotations.status().error_message();
+    return {};
+  }
+  return annotations.ValueOrDie()[0];
 }
 
 CodepointSpan Annotator::ComputeSelectionBoundaries(

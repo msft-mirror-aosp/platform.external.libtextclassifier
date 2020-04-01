@@ -32,6 +32,11 @@ typedef uint32 Nonterm;
 const Nonterm kUnassignedNonterm = 0;
 
 typedef int32 CallbackId;  // `kNoCallback` is reserved for "no callback"
+enum class DefaultCallback : CallbackId {
+  kSetType = -1,
+  kAssertion = -2,
+  kMapping = -3
+};
 
 // Special CallbackId indicating that there's no callback associated with a
 // rule.
@@ -52,7 +57,7 @@ static uint32 hash_int32(uint32 a) {
 struct BinaryRuleHasher {
   inline uint64 operator()(const TwoNonterms& x) const {
     // the hash_int32 maps a int to a random int, then treat two ints as a
-    // rational number, then use cantor pairing function to caculate the
+    // rational number, then use cantor pairing function to calculate the
     // order of rational number.
     uint32 t1 = hash_int32(x.first);
     uint32 t2 = hash_int32(x.second);

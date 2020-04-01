@@ -35,18 +35,20 @@ class CallbackDelegate {
   // This is called by the matcher whenever it finds a match for a rule to
   // which a  callback is attached.
   virtual void MatchFound(const Match* match, const CallbackId callback_id,
-                          const int64 callback_param, Matcher* matcher) {}
+                          const int64 callback_param, Matcher* matcher);
 
  protected:
-  // Handles capturing matches.
-  // This associates sub-matches with rule defined ids so that individual parts
-  // of an action rule match can later be retrieved easily.
-  void HandleCapturingMatch(const Match* match, uint64 match_id,
-                            Matcher* matcher) const;
+  // Handles typed matches.
+  // This associates sub-matches with specified types for later retrieval.
+  void HandleTypedMatch(const Match* match, int16 type, Matcher* matcher) const;
 
   // Handles assertion matches.
   void HandleAssertion(const Match* match, bool negative,
                        Matcher* matcher) const;
+
+  // Handles mappings.
+  // This associates sub-matches with values for later retrieval.
+  void HandleMapping(const Match* match, int64 value, Matcher* matcher) const;
 };
 
 }  // namespace libtextclassifier3::grammar
