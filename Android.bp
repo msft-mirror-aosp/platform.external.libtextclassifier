@@ -119,6 +119,7 @@ cc_defaults {
     ],
 
     header_libs: [
+        "jni_headers",
         "tensorflow_headers",
         "flatbuffer_headers",
     ],
