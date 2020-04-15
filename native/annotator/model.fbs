@@ -395,6 +395,7 @@ table AnnotationOptions {
   // If the flag is false, The extracted annotation contains two date
   // instance: "Monday" and "6pm".
   enable_date_range:bool = true;
+  reserved_6:int16 (deprecated);
 
   // If enabled, the rule priority score is used to set the priority score of
   // the annotation.

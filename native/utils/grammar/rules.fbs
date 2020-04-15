@@ -15,6 +15,7 @@
 //
 
 include "utils/i18n/language-tag.fbs";
+include "utils/zlib/buffer.fbs";
 
 // The terminal rules map as sorted strings table.
 // The sorted terminal strings table is represented as offsets into the
@@ -162,6 +163,18 @@ table DebugInformation {
   nonterminal_names:[DebugInformation_.NonterminalNamesEntry];
 }
 
+// Regex annotators.
+namespace libtextclassifier3.grammar.RulesSet_;
+table RegexAnnotator {
+  // The pattern to run.
+  pattern:string (shared);
+
+  compressed_pattern:CompressedBuffer;
+
+  // The nonterminal to trigger.
+  nonterminal:uint;
+}
+
 // Context free grammar rules representation.
 // Rules are represented in (mostly) Chomsky Normal Form, where all rules are
 // of the following form, either:
@@ -184,5 +197,9 @@ table RulesSet {
   nonterminals:RulesSet_.Nonterminals;
   callback:[RulesSet_.CallbackEntry];
   debug_information:RulesSet_.DebugInformation;
+  regex_annotator:[RulesSet_.RegexAnnotator];
+
+  // If true, will compile the regexes only on first use.
+  lazy_regex_compilation:bool;
 }
 

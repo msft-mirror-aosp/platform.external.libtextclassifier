@@ -235,6 +235,24 @@ StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
       JniHelper::CallBooleanMethod(env, joptions,
                                    is_serialized_entity_data_enabled_method));
 
+  // .hasLocationPermission()
+  TC3_ASSIGN_OR_RETURN(jmethodID has_location_permission_method,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "hasLocationPermission", "()Z"));
+  TC3_ASSIGN_OR_RETURN(bool has_location_permission,
+                       JniHelper::CallBooleanMethod(
+                           env, joptions, has_location_permission_method));
+
+  // .hasPersonalizationPermission()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID has_personalization_permission_method,
+      JniHelper::GetMethodID(env, options_class.get(),
+                             "hasPersonalizationPermission", "()Z"));
+  TC3_ASSIGN_OR_RETURN(
+      bool has_personalization_permission,
+      JniHelper::CallBooleanMethod(env, joptions,
+                                   has_personalization_permission_method));
+
   TC3_ASSIGN_OR_RETURN(
       AnnotationOptions annotation_options,
       FromJavaOptionsInternal<AnnotationOptions>(
@@ -244,6 +262,10 @@ StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
                        EntityTypesFromJObject(env, entity_types.get()));
   annotation_options.is_serialized_entity_data_enabled =
       is_serialized_entity_data_enabled;
+  annotation_options.permissions.has_location_permission =
+      has_location_permission;
+  annotation_options.permissions.has_personalization_permission =
+      has_personalization_permission;
   return annotation_options;
 }
 
