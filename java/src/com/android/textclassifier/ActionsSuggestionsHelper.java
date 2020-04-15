@@ -107,21 +107,16 @@ final class ActionsSuggestionsHelper {
   public static String createResultId(
       Context context,
       List<ConversationActions.Message> messages,
-      ModelFile actionsModel,
-      Optional<ModelFile> annotatorModel) {
+      Optional<ModelFile> actionsModel,
+      Optional<ModelFile> annotatorModel,
+      Optional<ModelFile> langIdModel) {
     int hash =
         Objects.hash(
             messages.stream().mapToInt(ActionsSuggestionsHelper::hashMessage),
             context.getPackageName(),
             System.currentTimeMillis());
-    List<ResultIdUtils.ModelInfo> modelInfos = new ArrayList<>();
-    modelInfos.add(createModelInfo(actionsModel));
-    annotatorModel.ifPresent(model -> modelInfos.add(createModelInfo(model)));
-    return ResultIdUtils.createId(modelInfos, hash);
-  }
-
-  private static ResultIdUtils.ModelInfo createModelInfo(ModelFile modelFile) {
-    return new ResultIdUtils.ModelInfo(modelFile.getVersion(), modelFile.getSupportedLocales());
+    return ResultIdUtils.createId(
+        hash, ModelFile.toModelInfos(actionsModel, annotatorModel, langIdModel));
   }
 
   /** Generated labeled intent from an action suggestion and return the resolved result. */
