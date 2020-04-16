@@ -16,6 +16,10 @@
 
 #include "annotator/types.h"
 
+#include <vector>
+
+#include "utils/optional.h"
+
 namespace libtextclassifier3 {
 
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
@@ -117,7 +121,10 @@ std::string RelativeQualifierToString(
 logging::LoggingStringStream& operator<<(logging::LoggingStringStream& stream,
                                          const DatetimeParseResultSpan& value) {
   stream << "DatetimeParseResultSpan({" << value.span.first << ", "
-         << value.span.second << "}, {";
+         << value.span.second << "}, "
+         << "/*target_classification_score=*/ "
+         << value.target_classification_score << "/*priority_score=*/"
+         << value.priority_score << " {";
   for (const DatetimeParseResult& data : value.data) {
     stream << "{/*time_ms_utc=*/ " << data.time_ms_utc << " /* "
            << FormatMillis(data.time_ms_utc) << " */, /*granularity=*/ "
@@ -228,6 +235,14 @@ void DatetimeParsedData::SetRelativeCount(
   GetOrCreateDatetimeComponent(field_type).relative_count = relative_count;
 }
 
+void DatetimeParsedData::AddDatetimeComponents(
+    const std::vector<DatetimeComponent>& datetime_components) {
+  for (const DatetimeComponent& datetime_component : datetime_components) {
+    date_time_components_.insert(
+        {datetime_component.component_type, datetime_component});
+  }
+}
+
 bool DatetimeParsedData::HasFieldType(
     const DatetimeComponent::ComponentType& field_type) const {
   if (date_time_components_.find(field_type) == date_time_components_.end()) {
@@ -293,11 +308,26 @@ void DatetimeParsedData::GetDatetimeComponents(
   }
 }
 
-DatetimeGranularity DatetimeParsedData::GetFinestGranularity() const {
+DatetimeComponent& DatetimeParsedData::GetOrCreateDatetimeComponent(
+    const DatetimeComponent::ComponentType& component_type) {
+  auto result =
+      date_time_components_
+          .insert(
+              {component_type,
+               DatetimeComponent(
+                   component_type,
+                   DatetimeComponent::RelativeQualifier::UNSPECIFIED, 0, 0)})
+          .first;
+  return result->second;
+}
+
+namespace {
+DatetimeGranularity GetFinestGranularityFromComponentTypes(
+    const std::vector<DatetimeComponent::ComponentType>&
+        datetime_component_types) {
   DatetimeGranularity granularity = DatetimeGranularity::GRANULARITY_UNKNOWN;
-  for (auto it = date_time_components_.begin();
-       it != date_time_components_.end(); it++) {
-    switch (it->first) {
+  for (const auto& component_type : datetime_component_types) {
+    switch (component_type) {
       case DatetimeComponent::ComponentType::YEAR:
         if (granularity < DatetimeGranularity::GRANULARITY_YEAR) {
           granularity = DatetimeGranularity::GRANULARITY_YEAR;
@@ -350,18 +380,40 @@ DatetimeGranularity DatetimeParsedData::GetFinestGranularity() const {
   }
   return granularity;
 }
+}  // namespace
 
-DatetimeComponent& DatetimeParsedData::GetOrCreateDatetimeComponent(
+DatetimeGranularity DatetimeParsedData::GetFinestGranularity() const {
+  std::vector<DatetimeComponent::ComponentType> component_types;
+  std::transform(date_time_components_.begin(), date_time_components_.end(),
+                 std::back_inserter(component_types),
+                 [](const std::map<DatetimeComponent::ComponentType,
+                                   DatetimeComponent>::value_type& pair) {
+                   return pair.first;
+                 });
+  return GetFinestGranularityFromComponentTypes(component_types);
+}
+
+Optional<DatetimeComponent> GetDatetimeComponent(
+    const std::vector<DatetimeComponent>& datetime_components,
     const DatetimeComponent::ComponentType& component_type) {
-  auto result =
-      date_time_components_
-          .insert(
-              {component_type,
-               DatetimeComponent(
-                   component_type,
-                   DatetimeComponent::RelativeQualifier::UNSPECIFIED, 0, 0)})
-          .first;
-  return result->second;
+  for (auto datetime_component : datetime_components) {
+    if (datetime_component.component_type == component_type) {
+      return Optional<DatetimeComponent>(datetime_component);
+    }
+  }
+  return Optional<DatetimeComponent>();
+}
+
+// Returns the granularity of the DatetimeComponents.
+DatetimeGranularity GetFinestGranularity(
+    const std::vector<DatetimeComponent>& datetime_component) {
+  std::vector<DatetimeComponent::ComponentType> component_types;
+  std::transform(datetime_component.begin(), datetime_component.end(),
+                 std::back_inserter(component_types),
+                 [](const DatetimeComponent& component) {
+                   return component.component_type;
+                 });
+  return GetFinestGranularityFromComponentTypes(component_types);
 }
 
 }  // namespace libtextclassifier3
