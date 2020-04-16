@@ -63,14 +63,16 @@ class Rules {
   // Represents one item in a right-hand side, a single terminal or nonterminal.
   struct RhsElement {
     RhsElement() {}
-    explicit RhsElement(const std::string& terminal)
-        : is_terminal(true), terminal(terminal) {}
-    explicit RhsElement(const int nonterminal)
-        : is_terminal(false), nonterminal(nonterminal) {}
-
+    explicit RhsElement(const std::string& terminal, const bool is_optional)
+        : is_terminal(true), terminal(terminal), is_optional(is_optional) {}
+    explicit RhsElement(const int nonterminal, const bool is_optional)
+        : is_terminal(false),
+          nonterminal(nonterminal),
+          is_optional(is_optional) {}
     bool is_terminal;
     std::string terminal;
     int nonterminal;
+    bool is_optional;
   };
 
   // Represents the right-hand side, and possibly callback, of one rule.
@@ -100,11 +102,39 @@ class Rules {
   // optional. The `rhs` must contain at least one non-optional component.
   void Add(StringPiece lhs, const std::vector<std::string>& rhs,
            const CallbackId callback = kNoCallback,
-           const int64 callback_param = 0, const int8 max_whitespace_gap = -1,
-           const bool case_sensitive = false, const int shard = 0);
+           const int64 callback_param = 0, int8 max_whitespace_gap = -1,
+           bool case_sensitive = false, int shard = 0);
+
+  // Adds a rule `lhs ::= rhs` with the given callback id and parameter.
+  // The `rhs` must contain at least one non-optional component.
+  void Add(int lhs, const std::vector<RhsElement>& rhs,
+           CallbackId callback = kNoCallback, int64 callback_param = 0,
+           int8 max_whitespace_gap = -1, bool case_sensitive = false,
+           int shard = 0);
+
+  // Adds a rule `lhs ::= rhs` with exclusion.
+  // The rule only matches, if `excluded_nonterminal` doesn't match the same
+  // span.
+  void AddWithExclusion(StringPiece lhs, const std::vector<std::string>& rhs,
+                        StringPiece excluded_nonterminal,
+                        int8 max_whitespace_gap = -1,
+                        bool case_sensitive = false, int shard = 0);
+
+  // Adds an assertion callback.
+  void AddAssertion(StringPiece lhs, const std::vector<std::string>& rhs,
+                    bool negative = true, int8 max_whitespace_gap = -1,
+                    bool case_sensitive = false, int shard = 0);
+
+  // Adds a mapping callback.
+  void AddValueMapping(StringPiece lhs, const std::vector<std::string>& rhs,
+                       int64 value, int8 max_whitespace_gap = -1,
+                       bool case_sensitive = false, int shard = 0);
 
   // Creates a nonterminal with the given name, if one doesn't already exist.
   int AddNonterminal(StringPiece nonterminal_name);
+
+  // Creates a new nonterminal.
+  int AddNewNonterminal();
 
   // Defines a new filter id.
   void DefineFilter(const CallbackId filter_id) { filters_.insert(filter_id); }
@@ -117,12 +147,10 @@ class Rules {
   Ir Finalize(const std::set<std::string>& predefined_nonterminals = {}) const;
 
  private:
-  // Expands optional components in rules.
   void ExpandOptionals(
-      const int lhs, const std::vector<RhsElement>& rhs,
-      const CallbackId callback, const int64 callback_param,
-      const int8 max_whitespace_gap, const bool case_sensitive, const int shard,
-      std::vector<int>::const_iterator optional_element_indices,
+      int lhs, const std::vector<RhsElement>& rhs, CallbackId callback,
+      int64 callback_param, int8 max_whitespace_gap, bool case_sensitive,
+      int shard, std::vector<int>::const_iterator optional_element_indices,
       std::vector<int>::const_iterator optional_element_indices_end,
       std::vector<bool>* omit_these);
 
