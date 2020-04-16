@@ -100,14 +100,14 @@ bool CalendarLibTempl<TCalendar>::InterpretParseData(
   *granularity = GetGranularity(parse_data);
 
   // Apply each of the parsed fields in order of increasing granularity.
-  static const int64 kMillisInHour = 1000 * 60 * 60;
+  static const int64 kMillisInMinute = 1000 * 60;
   if (parse_data.HasFieldType(DatetimeComponent::ComponentType::ZONE_OFFSET)) {
     int zone_offset;
     parse_data.GetFieldValue(DatetimeComponent::ComponentType::ZONE_OFFSET,
                              &zone_offset);
-    TC3_CALENDAR_CHECK(calendar->SetZoneOffset(zone_offset * kMillisInHour))
+    TC3_CALENDAR_CHECK(calendar->SetZoneOffset(zone_offset * kMillisInMinute))
   }
-
+  static const int64 kMillisInHour = 1000 * 60 * 60;
   if (parse_data.HasFieldType(DatetimeComponent::ComponentType::DST_OFFSET)) {
     int dst_offset;
     if (parse_data.GetFieldValue(DatetimeComponent::ComponentType::DST_OFFSET,

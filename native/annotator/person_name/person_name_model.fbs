@@ -26,7 +26,7 @@ table PersonName {
   person_name:string (shared);
 }
 
-// Next ID: 5
+// Next ID: 6
 namespace libtextclassifier3;
 table PersonNameModel {
   // Decides if the person name annotator is enabled.
@@ -44,6 +44,14 @@ table PersonNameModel {
   // the heuristic to find the longest person name match.
   // required
   end_of_person_name_indicators:[int];
+
+  // Decides if only capitalized names should be annotated. In general, a
+  // capitalized name starts with an uppercase character and continues with
+  // lower case characters. In order to capture names such as O'Conell and
+  // McFee, this heursistic considers names as capitalized if they start with an
+  // upper case character and have at least one lower case character.
+  // required
+  annotate_capitalized_names_only:bool;
 }
 
 root_type libtextclassifier3.PersonNameModel;

@@ -178,9 +178,6 @@ class ActionsSuggestions {
                        const std::vector<int>& user_ids,
                        const std::vector<float>& time_diffs,
                        const int num_suggestions,
-                       const float confidence_threshold,
-                       const float diversification_distance,
-                       const float empirical_probability_factor,
                        tflite::Interpreter* interpreter) const;
   bool ReadModelOutput(tflite::Interpreter* interpreter,
                        const ActionSuggestionOptions& options,

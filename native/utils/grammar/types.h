@@ -35,7 +35,8 @@ typedef int32 CallbackId;  // `kNoCallback` is reserved for "no callback"
 enum class DefaultCallback : CallbackId {
   kSetType = -1,
   kAssertion = -2,
-  kMapping = -3
+  kMapping = -3,
+  kExclusion = -4,
 };
 
 // Special CallbackId indicating that there's no callback associated with a

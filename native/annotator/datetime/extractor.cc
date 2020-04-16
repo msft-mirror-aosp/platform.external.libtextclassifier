@@ -341,7 +341,7 @@ bool DatetimeExtractor::ParseWrittenNumber(const UnicodeText& input,
   int running_value = -1;
   // Simple math to make sure we handle written numerical modifiers correctly
   // so that :="fifty one  thousand and one" maps to 51001 and not 50 1 1000 1.
-  for (const std::pair<int, int> position_number_pair : found_numbers) {
+  for (const std::pair<int, int>& position_number_pair : found_numbers) {
     if (running_value >= 0) {
       if (running_value > position_number_pair.second) {
         sum += running_value;
