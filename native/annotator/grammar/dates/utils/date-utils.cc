@@ -22,6 +22,8 @@
 #include "annotator/grammar/dates/annotations/annotation-util.h"
 #include "annotator/grammar/dates/dates_generated.h"
 #include "annotator/grammar/dates/utils/annotation-keys.h"
+#include "annotator/grammar/dates/utils/date-match.h"
+#include "annotator/types.h"
 #include "utils/base/macros.h"
 
 namespace libtextclassifier3 {
@@ -244,119 +246,29 @@ bool IsPrecedent(const DateMatch& a, const DateMatch& b) {
   return false;
 }
 
-void IncrementOneDay(DateMatch* date) {
-  if (date->HasDayOfWeek()) {
-    IncrementDayOfWeek(&date->day_of_week);
-  }
-  if (date->HasYear() && date->HasMonth()) {
-    if (date->day < GetLastDayOfMonth(date->year, date->month)) {
-      date->day++;
-      return;
-    } else if (date->month < MONSPERYEAR) {
-      date->month++;
-      date->day = 1;
-      return;
-    } else {
-      date->year++;
-      date->month = 1;
-      date->day = 1;
-      return;
-    }
-  } else if (!date->HasYear() && date->HasMonth()) {
-    if (date->day < GetLastDayOfMonth(0, date->month)) {
-      date->day++;
-      return;
-    } else if (date->month < MONSPERYEAR) {
-      date->month++;
-      date->day = 1;
-      return;
-    }
-  } else {
-    date->day++;
-    return;
-  }
+void FillDateInstance(const DateMatch& date,
+                      DatetimeParseResultSpan* instance) {
+  instance->span.first = date.begin;
+  instance->span.second = date.end;
+  instance->priority_score = date.GetAnnotatorPriorityScore();
+  DatetimeParseResult datetime_parse_result;
+  date.FillDatetimeComponents(&datetime_parse_result.datetime_components);
+  instance->data.emplace_back(datetime_parse_result);
 }
 
-void FillDateInstance(const DateMatch& date, Annotation* instance) {
-  instance->begin = date.begin;
-  instance->end = date.end;
-  instance->annotator_priority_score = date.annotator_priority_score;
-  AnnotationData* thing = &instance->data;
-  thing->type = kDateTimeType;
+void FillDateRangeInstance(const DateRangeMatch& range,
+                           DatetimeParseResultSpan* instance) {
+  instance->span.first = range.begin;
+  instance->span.second = range.end;
+  instance->priority_score = range.GetAnnotatorPriorityScore();
 
-  // Add most common date time fields. Refer kDateTime to see the format.
-  auto has_value = [](int n) { return n >= 0; };
-  int sec_frac = -1;
-  if (date.HasFractionSecond()) {
-    sec_frac = static_cast<int>(date.fraction_second * 1000);
-  }
-  int datetime[] = {date.year,   date.month,  date.day, date.hour,
-                    date.minute, date.second, sec_frac, date.day_of_week};
-  if (std::any_of(datetime, datetime + TC3_ARRAYSIZE(datetime), has_value)) {
-    AddRepeatedIntProperty(kDateTime, datetime, TC3_ARRAYSIZE(datetime),
-                           instance);
-  }
+  // Filling from DatetimeParseResult.
+  instance->data.emplace_back();
+  range.from.FillDatetimeComponents(&instance->data.back().datetime_components);
 
-  // Refer comments of kDateTimeSupplementary to see the format.
-  int datetime_sup[] = {date.bc_ad, date.time_span_code, date.time_zone_code,
-                        date.time_zone_offset};
-  if (std::any_of(datetime_sup, datetime_sup + TC3_ARRAYSIZE(datetime_sup),
-                  has_value)) {
-    AddRepeatedIntProperty(kDateTimeSupplementary, datetime_sup,
-                           TC3_ARRAYSIZE(datetime_sup), instance);
-  }
-
-  if (date.HasRelativeDate()) {
-    const RelativeMatch* r_match = date.relative_match;
-    // Refer comments of kDateTimeRelative to see the format.
-    int is_future = -1;
-    if (r_match->existing & RelativeMatch::HAS_IS_FUTURE) {
-      is_future = r_match->is_future_date;
-    }
-    int rdate[] = {is_future,       r_match->year,   r_match->month,
-                   r_match->day,    r_match->week,   r_match->hour,
-                   r_match->minute, r_match->second, r_match->day_of_week};
-    int idx = AddRepeatedIntProperty(kDateTimeRelative, rdate,
-                                     TC3_ARRAYSIZE(rdate), instance);
-
-    if (r_match->existing & RelativeMatch::HAS_DAY_OF_WEEK) {
-      if (r_match->IsStandaloneRelativeDayOfWeek() &&
-          date.day_of_week == DayOfWeek_DOW_NONE) {
-        Property* prop = FindOrCreateDefaultDateTime(&instance->data);
-        prop->int_values[7] = r_match->day_of_week;
-      }
-      // Check if the relative date has day of week with week period.
-      // "Tuesday 6 weeks ago".
-      if (r_match->existing & RelativeMatch::HAS_WEEK) {
-        instance->data.properties[idx].int_values.push_back(
-            RelativeParameter_::Interpretation_SOME);
-      } else {
-        const NonterminalValue* nonterminal = r_match->day_of_week_nonterminal;
-        TC3_CHECK(nonterminal != nullptr);
-        TC3_CHECK(nonterminal->relative_parameter());
-        const RelativeParameter* rp = nonterminal->relative_parameter();
-        if (rp->day_of_week_interpretation()) {
-          for (const int interpretation : *rp->day_of_week_interpretation()) {
-            instance->data.properties[idx].int_values.push_back(interpretation);
-          }
-        }
-      }
-    }
-  }
-}
-
-void FillDateRangeInstance(const DateRangeMatch& range, Annotation* instance) {
-  instance->begin = range.begin;
-  instance->end = range.end;
-  instance->data.type = kDateTimeRangeType;
-
-  Annotation from_date;
-  FillDateInstance(range.from, &from_date);
-  AddAnnotationDataProperty(kDateTimeRangeFrom, from_date.data, instance);
-
-  Annotation to_date;
-  FillDateInstance(range.to, &to_date);
-  AddAnnotationDataProperty(kDateTimeRangeTo, to_date.data, instance);
+  // Filling to DatetimeParseResult.
+  instance->data.emplace_back();
+  range.to.FillDatetimeComponents(&instance->data.back().datetime_components);
 }
 
 namespace {
