@@ -267,6 +267,16 @@ struct DatetimeComponent {
         relative_count(arg_relative_count) {}
 };
 
+// Utility method to calculate Returns the finest granularity of
+// DatetimeComponents.
+DatetimeGranularity GetFinestGranularity(
+    const std::vector<DatetimeComponent>& datetime_component);
+
+// Return the 'DatetimeComponent' from collection filter by component type.
+Optional<DatetimeComponent> GetDatetimeComponent(
+    const std::vector<DatetimeComponent>& datetime_components,
+    const DatetimeComponent::ComponentType& component_type);
+
 struct DatetimeParseResult {
   // The absolute time in milliseconds since the epoch in UTC.
   int64 time_ms_utc;
@@ -491,6 +501,20 @@ struct ClassificationOptions : public BaseOptions, public DatetimeOptions {
   }
 };
 
+struct Permissions {
+  // If true the user location can be used to provide better annotations.
+  bool has_location_permission = true;
+  // If true, annotators can use personal data to provide personalized
+  // annotations.
+  bool has_personalization_permission = true;
+
+  bool operator==(const Permissions& other) const {
+    return this->has_location_permission == other.has_location_permission &&
+           this->has_personalization_permission ==
+               other.has_personalization_permission;
+  }
+};
+
 struct AnnotationOptions : public BaseOptions, public DatetimeOptions {
   // List of entity types that should be used for annotation.
   std::unordered_set<std::string> entity_types;
@@ -498,9 +522,13 @@ struct AnnotationOptions : public BaseOptions, public DatetimeOptions {
   // If true, serialized_entity_data in the results is populated."
   bool is_serialized_entity_data_enabled = false;
 
+  // Defines the permissions for the annotators.
+  Permissions permissions;
+
   bool operator==(const AnnotationOptions& other) const {
     return this->is_serialized_entity_data_enabled ==
                other.is_serialized_entity_data_enabled &&
+           this->permissions == other.permissions &&
            this->entity_types == other.entity_types &&
            BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
   }
@@ -597,6 +625,10 @@ class DatetimeParsedData {
   void SetRelativeValue(
       const DatetimeComponent::ComponentType& field_type,
       const DatetimeComponent::RelativeQualifier& relative_value);
+
+  // Add collection of 'DatetimeComponent' to 'DatetimeParsedData'.
+  void AddDatetimeComponents(
+      const std::vector<DatetimeComponent>& datetime_components);
 
   // Function to set the relative count of DateTimeComponent, if the field is
   // not present the function will create the field and set the count.

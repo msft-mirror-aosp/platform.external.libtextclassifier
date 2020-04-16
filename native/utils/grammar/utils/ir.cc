@@ -20,101 +20,9 @@
 #include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3::grammar {
-
-const size_t kMaxHashTableSize = 100;
-
-Nonterm Ir::AddToSet(const Lhs& lhs, LhsSet* lhs_set) {
-  const int lhs_set_size = lhs_set->size();
-  Nonterm shareable_nonterm = lhs.nonterminal;
-  for (int i = 0; i < lhs_set_size; i++) {
-    Lhs* candidate = &lhs_set->at(i);
-
-    // Exact match, just reuse rule.
-    if (lhs == *candidate) {
-      return candidate->nonterminal;
-    }
-
-    // Cannot reuse unshareable ids.
-    if (nonshareable_.find(candidate->nonterminal) != nonshareable_.end() ||
-        nonshareable_.find(lhs.nonterminal) != nonshareable_.end()) {
-      continue;
-    }
-
-    // Cannot reuse id if the preconditions are different.
-    if (!(lhs.preconditions == candidate->preconditions)) {
-      continue;
-    }
-
-    // If either callback is a filter, we can't share as we must always run
-    // both filters.
-    if ((lhs.callback.id != kNoCallback &&
-         filters_.find(lhs.callback.id) != filters_.end()) ||
-        (candidate->callback.id != kNoCallback &&
-         filters_.find(candidate->callback.id) != filters_.end())) {
-      continue;
-    }
-
-    // If the nonterminal is already defined, it must match for sharing.
-    if (lhs.nonterminal != kUnassignedNonterm &&
-        lhs.nonterminal != candidate->nonterminal) {
-      continue;
-    }
-
-    // Check whether the callbacks match.
-    if (lhs.callback == candidate->callback) {
-      return candidate->nonterminal;
-    }
-
-    // We can reuse if one of the output callbacks is not used.
-    if (lhs.callback.id == kNoCallback) {
-      return candidate->nonterminal;
-    } else if (candidate->callback.id == kNoCallback) {
-      // Old entry has no output callback, which is redundant now.
-      candidate->callback = lhs.callback;
-      return candidate->nonterminal;
-    }
-
-    // We can share the nonterminal, but we need to
-    // add a new output callback. Defer this as we might find a shareable
-    // nonterminal first.
-    shareable_nonterm = candidate->nonterminal;
-  }
-
-  // We didn't find a redundant entry, so create a new one.
-  shareable_nonterm = DefineNonterminal(shareable_nonterm);
-  lhs_set->push_back(Lhs{shareable_nonterm, lhs.callback, lhs.preconditions});
-  return shareable_nonterm;
-}
-
-Nonterm Ir::Add(const Lhs& lhs, const std::string& terminal,
-                const bool case_sensitive, const int shard) {
-  TC3_CHECK_LT(shard, shards_.size());
-  if (case_sensitive) {
-    return AddRule(lhs, terminal, &shards_[shard].terminal_rules);
-  } else {
-    return AddRule(lhs, terminal, &shards_[shard].lowercase_terminal_rules);
-  }
-}
-
-Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
-                const int shard) {
-  TC3_CHECK(!rhs.empty()) << "Rhs cannot be empty.";
-
-  // Add a new unary rule.
-  if (rhs.size() == 1) {
-    return Add(lhs, rhs.front(), shard);
-  }
-
-  // Add a chain of (rhs.size() - 1) binary rules.
-  Nonterm prev = rhs.front();
-  for (int i = 1; i < rhs.size() - 1; i++) {
-    prev = Add(kUnassignedNonterm, prev, rhs[i], shard);
-  }
-  return Add(lhs, prev, rhs.back(), shard);
-}
-
-// Utilities for baking rules in the IR to the inference format.
 namespace {
+
+constexpr size_t kMaxHashTableSize = 100;
 
 bool IsSameLhs(const Ir::Lhs& lhs, const RulesSet_::Lhs& other) {
   return (lhs.nonterminal == other.nonterminal() &&
@@ -216,7 +124,7 @@ int AddLhsSet(const Ir::LhsSet& lhs_set, RulesSetT* rules_set) {
 void SerializeUnaryRulesShard(
     const std::unordered_map<Nonterm, Ir::LhsSet>& unary_rules,
     RulesSetT* rules_set, RulesSet_::RulesT* rules) {
-  for (const auto it : unary_rules) {
+  for (const auto& it : unary_rules) {
     rules->unary_rules.push_back(RulesSet_::Rules_::UnaryRulesEntry(
         it.first, AddLhsSet(it.second, rules_set)));
   }
@@ -239,7 +147,7 @@ void SerializeBinaryRulesShard(
 
   // Serialize the table.
   BinaryRuleHasher hash;
-  for (const auto it : binary_rules) {
+  for (const auto& it : binary_rules) {
     const TwoNonterms key = it.first;
     uint32 bucket_index = hash(key) % num_buckets;
 
@@ -251,6 +159,94 @@ void SerializeBinaryRulesShard(
 }
 
 }  // namespace
+
+Nonterm Ir::AddToSet(const Lhs& lhs, LhsSet* lhs_set) {
+  const int lhs_set_size = lhs_set->size();
+  Nonterm shareable_nonterm = lhs.nonterminal;
+  for (int i = 0; i < lhs_set_size; i++) {
+    Lhs* candidate = &lhs_set->at(i);
+
+    // Exact match, just reuse rule.
+    if (lhs == *candidate) {
+      return candidate->nonterminal;
+    }
+
+    // Cannot reuse unshareable ids.
+    if (nonshareable_.find(candidate->nonterminal) != nonshareable_.end() ||
+        nonshareable_.find(lhs.nonterminal) != nonshareable_.end()) {
+      continue;
+    }
+
+    // Cannot reuse id if the preconditions are different.
+    if (!(lhs.preconditions == candidate->preconditions)) {
+      continue;
+    }
+
+    // If either callback is a filter, we can't share as we must always run
+    // both filters.
+    if ((lhs.callback.id != kNoCallback &&
+         filters_.find(lhs.callback.id) != filters_.end()) ||
+        (candidate->callback.id != kNoCallback &&
+         filters_.find(candidate->callback.id) != filters_.end())) {
+      continue;
+    }
+
+    // If the nonterminal is already defined, it must match for sharing.
+    if (lhs.nonterminal != kUnassignedNonterm &&
+        lhs.nonterminal != candidate->nonterminal) {
+      continue;
+    }
+
+    // Check whether the callbacks match.
+    if (lhs.callback == candidate->callback) {
+      return candidate->nonterminal;
+    }
+
+    // We can reuse if one of the output callbacks is not used.
+    if (lhs.callback.id == kNoCallback) {
+      return candidate->nonterminal;
+    } else if (candidate->callback.id == kNoCallback) {
+      // Old entry has no output callback, which is redundant now.
+      candidate->callback = lhs.callback;
+      return candidate->nonterminal;
+    }
+
+    // We can share the nonterminal, but we need to
+    // add a new output callback. Defer this as we might find a shareable
+    // nonterminal first.
+    shareable_nonterm = candidate->nonterminal;
+  }
+
+  // We didn't find a redundant entry, so create a new one.
+  shareable_nonterm = DefineNonterminal(shareable_nonterm);
+  lhs_set->push_back(Lhs{shareable_nonterm, lhs.callback, lhs.preconditions});
+  return shareable_nonterm;
+}
+
+Nonterm Ir::Add(const Lhs& lhs, const std::string& terminal,
+                const bool case_sensitive, const int shard) {
+  TC3_CHECK_LT(shard, shards_.size());
+  if (case_sensitive) {
+    return AddRule(lhs, terminal, &shards_[shard].terminal_rules);
+  } else {
+    return AddRule(lhs, terminal, &shards_[shard].lowercase_terminal_rules);
+  }
+}
+
+Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
+                const int shard) {
+  // Add a new unary rule.
+  if (rhs.size() == 1) {
+    return Add(lhs, rhs.front(), shard);
+  }
+
+  // Add a chain of (rhs.size() - 1) binary rules.
+  Nonterm prev = rhs.front();
+  for (int i = 1; i < rhs.size() - 1; i++) {
+    prev = Add(kUnassignedNonterm, prev, rhs[i], shard);
+  }
+  return Add(lhs, prev, rhs.back(), shard);
+}
 
 // Serializes the terminal rules table.
 void Ir::SerializeTerminalRules(
@@ -422,7 +418,7 @@ void Ir::Serialize(const bool include_debug_information,
   if (include_debug_information) {
     output->debug_information.reset(new RulesSet_::DebugInformationT);
     // Keep original non-terminal names.
-    for (auto it : nonterminal_names_) {
+    for (const auto& it : nonterminal_names_) {
       output->debug_information->nonterminal_names.emplace_back(
           new RulesSet_::DebugInformation_::NonterminalNamesEntryT);
       output->debug_information->nonterminal_names.back()->key = it.first;
