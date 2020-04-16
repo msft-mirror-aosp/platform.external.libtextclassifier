@@ -19,10 +19,58 @@
 #include <algorithm>
 
 #include "annotator/grammar/dates/utils/date-utils.h"
+#include "annotator/types.h"
 #include "utils/strings/append.h"
+
+static const int kAM = 0;
+static const int kPM = 1;
 
 namespace libtextclassifier3 {
 namespace dates {
+
+namespace {
+static int GetMeridiemValue(const TimespanCode& timespan_code) {
+  switch (timespan_code) {
+    case TimespanCode_AM:
+    case TimespanCode_MIDNIGHT:
+      // MIDNIGHT [3] -> AM
+      return kAM;
+    case TimespanCode_TONIGHT:
+      // TONIGHT [11] -> PM
+    case TimespanCode_NOON:
+      // NOON [2] -> PM
+    case TimespanCode_PM:
+      return kPM;
+    case TimespanCode_TIMESPAN_CODE_NONE:
+    default:
+      TC3_LOG(WARNING) << "Failed to extract time span code.";
+  }
+  return NO_VAL;
+}
+
+static int GetRelativeCount(const RelativeParameter* relative_parameter) {
+  for (const int interpretation :
+       *relative_parameter->day_of_week_interpretation()) {
+    switch (interpretation) {
+      case RelativeParameter_::Interpretation_NEAREST_LAST:
+      case RelativeParameter_::Interpretation_PREVIOUS:
+        return -1;
+      case RelativeParameter_::Interpretation_SECOND_LAST:
+        return -2;
+      case RelativeParameter_::Interpretation_SECOND_NEXT:
+        return 2;
+      case RelativeParameter_::Interpretation_COMING:
+      case RelativeParameter_::Interpretation_SOME:
+      case RelativeParameter_::Interpretation_NEAREST:
+      case RelativeParameter_::Interpretation_NEAREST_NEXT:
+        return 1;
+      case RelativeParameter_::Interpretation_CURRENT:
+        return 0;
+    }
+  }
+  return 0;
+}
+}  // namespace
 
 using strings::JoinStrings;
 using strings::SStringAppendF;
@@ -165,6 +213,148 @@ void DateMatch::GetPossibleHourValues(std::vector<int8>* values) const {
   }
 }
 
+DatetimeComponent::RelativeQualifier DateMatch::GetRelativeQualifier() const {
+  if (HasRelativeDate()) {
+    if (relative_match->existing & RelativeMatch::HAS_IS_FUTURE) {
+      if (!relative_match->is_future_date) {
+        return DatetimeComponent::RelativeQualifier::PAST;
+      }
+    }
+    return DatetimeComponent::RelativeQualifier::FUTURE;
+  }
+  return DatetimeComponent::RelativeQualifier::UNSPECIFIED;
+}
+
+Optional<DatetimeComponent> CreateDatetimeComponent(
+    const DatetimeComponent::ComponentType& component_type,
+    const DatetimeComponent::RelativeQualifier& relative_qualifier,
+    const int absolute_value, const int relative_value) {
+  if (absolute_value == NO_VAL && relative_value == NO_VAL) {
+    return Optional<DatetimeComponent>();
+  }
+  return Optional<DatetimeComponent>(
+      DatetimeComponent(component_type,
+                        (relative_value != NO_VAL)
+                            ? relative_qualifier
+                            : DatetimeComponent::RelativeQualifier::UNSPECIFIED,
+                        (absolute_value != NO_VAL) ? absolute_value : 0,
+                        (relative_value != NO_VAL) ? relative_value : 0));
+}
+
+Optional<DatetimeComponent> CreateDayOfWeekComponent(
+    const RelativeMatch* relative_match,
+    const DatetimeComponent::RelativeQualifier& relative_qualifier,
+    const DayOfWeek& absolute_day_of_week) {
+  DatetimeComponent::RelativeQualifier updated_relative_qualifier =
+      relative_qualifier;
+  int absolute_value = absolute_day_of_week;
+  int relative_value = NO_VAL;
+  if (relative_match) {
+    relative_value = relative_match->day_of_week;
+    if (relative_match->existing & RelativeMatch::HAS_DAY_OF_WEEK) {
+      if (relative_match->IsStandaloneRelativeDayOfWeek() &&
+          absolute_day_of_week == DayOfWeek_DOW_NONE) {
+        absolute_value = relative_match->day_of_week;
+      }
+      // Check if the relative date has day of week with week period.
+      if (relative_match->existing & RelativeMatch::HAS_WEEK) {
+        relative_value = 1;
+      } else {
+        const NonterminalValue* nonterminal =
+            relative_match->day_of_week_nonterminal;
+        TC3_CHECK(nonterminal != nullptr);
+        TC3_CHECK(nonterminal->relative_parameter());
+        const RelativeParameter* rp = nonterminal->relative_parameter();
+        if (rp->day_of_week_interpretation()) {
+          relative_value = GetRelativeCount(rp);
+          if (relative_value < 0) {
+            relative_value = abs(relative_value);
+            updated_relative_qualifier =
+                DatetimeComponent::RelativeQualifier::PAST;
+          } else if (relative_value > 0) {
+            updated_relative_qualifier =
+                DatetimeComponent::RelativeQualifier::FUTURE;
+          }
+        }
+      }
+    }
+  }
+  return CreateDatetimeComponent(DatetimeComponent::ComponentType::DAY_OF_WEEK,
+                                 updated_relative_qualifier, absolute_value,
+                                 relative_value);
+}
+
+// Resolve the  year’s ambiguity.
+// If the year in the date has 4 digits i.e. DD/MM/YYYY then there is no
+// ambiguity, the year value is YYYY but certain format i.e. MM/DD/YY is
+// ambiguous e.g. in {April/23/15} year value can be 15 or 1915 or 2015.
+// Following heuristic is used to resolve the ambiguity.
+// - For YYYY there is nothing to resolve.
+// - For all YY years
+//    - Value less than 50 will be resolved to 20YY
+//    - Value greater or equal 50 will be resolved to 19YY
+static int InterpretYear(int parsed_year) {
+  if (parsed_year == NO_VAL) {
+    return parsed_year;
+  }
+  if (parsed_year < 100) {
+    if (parsed_year < 50) {
+      return parsed_year + 2000;
+    }
+    return parsed_year + 1900;
+  }
+  return parsed_year;
+}
+
+Optional<DatetimeComponent> DateMatch::GetDatetimeComponent(
+    const DatetimeComponent::ComponentType& component_type) const {
+  switch (component_type) {
+    case DatetimeComponent::ComponentType::YEAR:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), InterpretYear(year),
+          (relative_match != nullptr) ? relative_match->year : NO_VAL);
+    case DatetimeComponent::ComponentType::MONTH:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), month,
+          (relative_match != nullptr) ? relative_match->month : NO_VAL);
+    case DatetimeComponent::ComponentType::DAY_OF_MONTH:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), day,
+          (relative_match != nullptr) ? relative_match->day : NO_VAL);
+    case DatetimeComponent::ComponentType::HOUR:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), hour,
+          (relative_match != nullptr) ? relative_match->hour : NO_VAL);
+    case DatetimeComponent::ComponentType::MINUTE:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), minute,
+          (relative_match != nullptr) ? relative_match->minute : NO_VAL);
+    case DatetimeComponent::ComponentType::SECOND:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), second,
+          (relative_match != nullptr) ? relative_match->second : NO_VAL);
+    case DatetimeComponent::ComponentType::DAY_OF_WEEK:
+      return CreateDayOfWeekComponent(relative_match, GetRelativeQualifier(),
+                                      day_of_week);
+    case DatetimeComponent::ComponentType::MERIDIEM:
+      return CreateDatetimeComponent(component_type, GetRelativeQualifier(),
+                                     GetMeridiemValue(time_span_code), NO_VAL);
+    case DatetimeComponent::ComponentType::ZONE_OFFSET:
+      if (HasTimeZoneOffset()) {
+        return Optional<DatetimeComponent>(DatetimeComponent(
+            component_type, DatetimeComponent::RelativeQualifier::UNSPECIFIED,
+            time_zone_offset, /*arg_relative_count=*/0));
+      }
+      return Optional<DatetimeComponent>();
+    case DatetimeComponent::ComponentType::WEEK:
+      return CreateDatetimeComponent(
+          component_type, GetRelativeQualifier(), NO_VAL,
+          HasRelativeDate() ? relative_match->week : NO_VAL);
+    default:
+      return Optional<DatetimeComponent>();
+  }
+}
+
 bool DateMatch::IsValid() const {
   if (!HasYear() && HasBcAd()) {
     return false;
@@ -192,6 +382,31 @@ bool DateMatch::IsValid() const {
     return false;
   }
   return (HasDateFields() || HasTimeFields() || HasRelativeDate());
+}
+
+void DateMatch::FillDatetimeComponents(
+    std::vector<DatetimeComponent>* datetime_component) const {
+  static const std::vector<DatetimeComponent::ComponentType>*
+      kDatetimeComponents = new std::vector<DatetimeComponent::ComponentType>{
+          DatetimeComponent::ComponentType::ZONE_OFFSET,
+          DatetimeComponent::ComponentType::MERIDIEM,
+          DatetimeComponent::ComponentType::SECOND,
+          DatetimeComponent::ComponentType::MINUTE,
+          DatetimeComponent::ComponentType::HOUR,
+          DatetimeComponent::ComponentType::DAY_OF_MONTH,
+          DatetimeComponent::ComponentType::DAY_OF_WEEK,
+          DatetimeComponent::ComponentType::WEEK,
+          DatetimeComponent::ComponentType::MONTH,
+          DatetimeComponent::ComponentType::YEAR};
+
+  for (const DatetimeComponent::ComponentType& component_type :
+       *kDatetimeComponents) {
+    Optional<DatetimeComponent> date_time =
+        GetDatetimeComponent(component_type);
+    if (date_time.has_value()) {
+      datetime_component->emplace_back(date_time.value());
+    }
+  }
 }
 
 std::string DateRangeMatch::DebugString() const {

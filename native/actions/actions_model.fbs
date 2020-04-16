@@ -51,13 +51,13 @@ table TensorflowLiteModelSpec {
   input_num_suggestions:int = 4;
 
   // float, the output diversification distance parameter.
-  input_diversification_distance:int = -1;
+  reserved_7:int (deprecated);
 
   // float, the empirical probability factor parameter.
-  input_empirical_probability_factor:int = -1;
+  reserved_8:int (deprecated);
 
   // float, the confidence threshold.
-  input_confidence_threshold:int = -1;
+  reserved_9:int (deprecated);
 
   // Input port for hashed and embedded tokens, a (num messages, max tokens,
   // embedding size) float tensor specifying the embeddings of each token of
@@ -247,11 +247,11 @@ table TriggeringPreconditions {
   // as a flag value (i.e. as overlay).
   low_confidence_rules:RulesModel;
 
-  // Smart reply thresholds.
-  diversification_distance_threshold:float = 0;
+  reserved_11:float (deprecated);
+  reserved_12:float (deprecated);
+  reserved_13:float (deprecated);
 
-  confidence_threshold:float = 0;
-  empirical_probability_factor:float = 0;
+  // Smart reply thresholds.
   min_reply_score_threshold:float = 0;
 }
 
