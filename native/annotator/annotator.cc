@@ -885,7 +885,8 @@ CodepointSpan Annotator::SuggestSelection(
   }
   if (knowledge_engine_ != nullptr &&
       !knowledge_engine_->Chunk(context, options.annotation_usecase,
-                                options.location_context, &candidates)) {
+                                options.location_context, Permissions(),
+                                &candidates)) {
     TC3_LOG(ERROR) << "Knowledge suggest selection failed.";
     return original_click_indices;
   }
@@ -1746,7 +1747,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   if (knowledge_engine_ &&
       knowledge_engine_->ClassifyText(
           context, selection_indices, options.annotation_usecase,
-          options.location_context, &knowledge_result)) {
+          options.location_context, Permissions(), &knowledge_result)) {
     candidates.push_back({selection_indices, {knowledge_result}});
     candidates.back().source = AnnotatedSpan::Source::KNOWLEDGE;
   }
@@ -2219,7 +2220,7 @@ Annotator::AnnotateStructuredInput(
   if (knowledge_engine_ &&
       !knowledge_engine_
            ->ChunkMultipleSpans(text_to_annotate, options.annotation_usecase,
-                                options.location_context,
+                                options.location_context, options.permissions,
                                 &annotation_candidates)
            .ok()) {
     return Status(StatusCode::INTERNAL, "Couldn't run knowledge engine Chunk.");

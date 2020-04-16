@@ -64,17 +64,35 @@ bool IsRhsAssigned(const Rules::Rule& rule,
       return false;
     }
   }
+
+  // Check that all parts of an exclusion are defined.
+  if (rule.callback == static_cast<CallbackId>(DefaultCallback::kExclusion)) {
+    if (GetAssignedIdForNonterminal(rule.callback_param, nonterminals) ==
+        kUnassignedNonterm) {
+      return false;
+    }
+  }
+
   return true;
 }
 
 // Lowers a single high-level rule down into the intermediate representation.
 void LowerRule(const int lhs_index, const Rules::Rule& rule,
                std::unordered_map<int, Nonterm>* nonterminals, Ir* ir) {
+  const CallbackId callback = rule.callback;
+  int64 callback_param = rule.callback_param;
+
+  // Resolve id of excluded nonterminal in exclusion rules.
+  if (callback == static_cast<CallbackId>(DefaultCallback::kExclusion)) {
+    callback_param = GetAssignedIdForNonterminal(callback_param, *nonterminals);
+    TC3_CHECK_NE(callback_param, kUnassignedNonterm);
+  }
+
   // Special case for terminal rules.
   if (rule.rhs.size() == 1 && rule.rhs.front().is_terminal) {
     (*nonterminals)[lhs_index] =
         ir->Add(Ir::Lhs{GetAssignedIdForNonterminal(lhs_index, *nonterminals),
-                        /*callback=*/{rule.callback, rule.callback_param},
+                        /*callback=*/{callback, callback_param},
                         /*preconditions=*/{rule.max_whitespace_gap}},
                 rule.rhs.front().terminal, rule.case_sensitive, rule.shard);
     return;
@@ -96,11 +114,10 @@ void LowerRule(const int lhs_index, const Rules::Rule& rule,
   }
   (*nonterminals)[lhs_index] =
       ir->Add(Ir::Lhs{GetAssignedIdForNonterminal(lhs_index, *nonterminals),
-                      /*callback=*/{rule.callback, rule.callback_param},
+                      /*callback=*/{callback, callback_param},
                       /*preconditions=*/{rule.max_whitespace_gap}},
               rhs_nonterms, rule.shard);
 }
-
 // Check whether this component is a non-terminal.
 bool IsNonterminal(StringPiece rhs_component) {
   return rhs_component[0] == '<' &&
@@ -128,6 +145,12 @@ int Rules::AddNonterminal(StringPiece nonterminal_name) {
   const int index = nonterminals_.size();
   nonterminals_.push_back(NontermInfo{nonterminal_name.ToString()});
   nonterminal_names_.insert(it, {key, index});
+  return index;
+}
+
+int Rules::AddNewNonterminal() {
+  const int index = nonterminals_.size();
+  nonterminals_.push_back(NontermInfo{});
   return index;
 }
 
@@ -176,41 +199,80 @@ void Rules::ExpandOptionals(
                   optional_element_indices_end, omit_these);
 }
 
+void Rules::Add(const int lhs, const std::vector<RhsElement>& rhs,
+                const CallbackId callback, const int64 callback_param,
+                const int8 max_whitespace_gap, const bool case_sensitive,
+                const int shard) {
+  std::vector<int> optional_element_indices;
+  TC3_CHECK_LT(optional_element_indices.size(), rhs.size())
+      << "Rhs must contain at least one non-optional element.";
+  for (int i = 0; i < rhs.size(); i++) {
+    if (rhs[i].is_optional) {
+      optional_element_indices.push_back(i);
+    }
+  }
+  std::vector<bool> omit_these(rhs.size(), false);
+  ExpandOptionals(lhs, rhs, callback, callback_param, max_whitespace_gap,
+                  case_sensitive, shard, optional_element_indices.begin(),
+                  optional_element_indices.end(), &omit_these);
+}
+
 void Rules::Add(StringPiece lhs, const std::vector<std::string>& rhs,
                 const CallbackId callback, const int64 callback_param,
                 const int8 max_whitespace_gap, const bool case_sensitive,
                 const int shard) {
   TC3_CHECK(!rhs.empty()) << "Rhs cannot be empty (Lhs=" << lhs << ")";
   TC3_CHECK(!IsPredefinedNonterminal(lhs.ToString()));
-
   std::vector<RhsElement> rhs_elements;
-  std::vector<int> optional_element_indices;
+  rhs_elements.reserve(rhs.size());
   for (StringPiece rhs_component : rhs) {
     // Check whether this component is optional.
+    bool is_optional = false;
     if (rhs_component[rhs_component.size() - 1] == '?') {
-      optional_element_indices.push_back(rhs_elements.size());
       rhs_component.RemoveSuffix(1);
+      is_optional = true;
     }
-
     // Check whether this component is a non-terminal.
     if (IsNonterminal(rhs_component)) {
-      rhs_elements.push_back(RhsElement(AddNonterminal(rhs_component)));
+      rhs_elements.push_back(
+          RhsElement(AddNonterminal(rhs_component), is_optional));
     } else {
       // A terminal.
       // Sanity check for common typos -- '<' or '>' in a terminal.
       ValidateTerminal(rhs_component);
-      rhs_elements.push_back(RhsElement(rhs_component.ToString()));
+      rhs_elements.push_back(RhsElement(rhs_component.ToString(), is_optional));
     }
   }
+  Add(AddNonterminal(lhs), rhs_elements, callback, callback_param,
+      max_whitespace_gap, case_sensitive, shard);
+}
 
-  TC3_CHECK_LT(optional_element_indices.size(), rhs_elements.size())
-      << "Rhs must contain at least one non-optional element.";
+void Rules::AddWithExclusion(StringPiece lhs,
+                             const std::vector<std::string>& rhs,
+                             StringPiece excluded_nonterminal,
+                             const int8 max_whitespace_gap,
+                             const bool case_sensitive, const int shard) {
+  Add(lhs, rhs,
+      /*callback=*/static_cast<CallbackId>(DefaultCallback::kExclusion),
+      /*callback_param=*/AddNonterminal(excluded_nonterminal),
+      max_whitespace_gap, case_sensitive, shard);
+}
 
-  std::vector<bool> omit_these(rhs_elements.size(), false);
-  ExpandOptionals(AddNonterminal(lhs), rhs_elements, callback, callback_param,
-                  max_whitespace_gap, case_sensitive, shard,
-                  optional_element_indices.begin(),
-                  optional_element_indices.end(), &omit_these);
+void Rules::AddAssertion(StringPiece lhs, const std::vector<std::string>& rhs,
+                         const bool negative, const int8 max_whitespace_gap,
+                         const bool case_sensitive, const int shard) {
+  Add(lhs, rhs,
+      /*callback=*/static_cast<CallbackId>(DefaultCallback::kAssertion),
+      /*callback_param=*/negative, max_whitespace_gap, case_sensitive, shard);
+}
+
+void Rules::AddValueMapping(StringPiece lhs,
+                            const std::vector<std::string>& rhs,
+                            const int64 value, const int8 max_whitespace_gap,
+                            const bool case_sensitive, const int shard) {
+  Add(lhs, rhs,
+      /*callback=*/static_cast<CallbackId>(DefaultCallback::kMapping),
+      /*callback_param=*/value, max_whitespace_gap, case_sensitive, shard);
 }
 
 Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
@@ -221,7 +283,7 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   std::set<std::pair<int, int>> scheduled_rules;
 
   // Define all used predefined nonterminals.
-  for (const auto it : nonterminal_names_) {
+  for (const auto& it : nonterminal_names_) {
     if (IsPredefinedNonterminal(it.first) ||
         predefined_nonterminals.find(it.first) !=
             predefined_nonterminals.end()) {

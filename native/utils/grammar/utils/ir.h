@@ -83,14 +83,22 @@ class Ir {
   };
   using LhsSet = std::vector<Lhs>;
 
+  // A rules shard.
+  struct RulesShard {
+    // Terminal rules.
+    std::unordered_map<std::string, LhsSet> terminal_rules;
+    std::unordered_map<std::string, LhsSet> lowercase_terminal_rules;
+
+    // Unary rules.
+    std::unordered_map<Nonterm, LhsSet> unary_rules;
+
+    // Binary rules.
+    std::unordered_map<TwoNonterms, LhsSet, BinaryRuleHasher> binary_rules;
+  };
+
   explicit Ir(const std::unordered_set<CallbackId>& filters = {},
               const int num_shards = 1)
-      : num_nonterminals_(0), filters_(filters), shards_(num_shards) {
-    // The default callbacks that will create their own typed match objects.
-    filters_.insert(static_cast<CallbackId>(DefaultCallback::kSetType));
-    filters_.insert(static_cast<CallbackId>(DefaultCallback::kAssertion));
-    filters_.insert(static_cast<CallbackId>(DefaultCallback::kMapping));
-  }
+      : num_nonterminals_(0), filters_(filters), shards_(num_shards) {}
 
   // Adds a new non-terminal.
   Nonterm AddNonterminal(const std::string& name = "") {
@@ -117,7 +125,7 @@ class Ir {
 
   // Gets the non-terminal for a given name, if it was previously defined.
   Nonterm GetNonterminalForName(const std::string& name) const {
-    const auto& it = nonterminal_ids_.find(name);
+    const auto it = nonterminal_ids_.find(name);
     if (it == nonterminal_ids_.end()) {
       return kUnassignedNonterm;
     }
@@ -172,20 +180,9 @@ class Ir {
   std::string SerializeAsFlatbuffer(
       const bool include_debug_information = false) const;
 
+  const std::vector<RulesShard>& shards() const { return shards_; }
+
  private:
-  // A rules shard.
-  struct RulesShard {
-    // Terminal rules.
-    std::unordered_map<std::string, LhsSet> terminal_rules;
-    std::unordered_map<std::string, LhsSet> lowercase_terminal_rules;
-
-    // Unary rules.
-    std::unordered_map<Nonterm, LhsSet> unary_rules;
-
-    // Binary rules.
-    std::unordered_map<TwoNonterms, LhsSet, BinaryRuleHasher> binary_rules;
-  };
-
   template <typename R, typename H>
   Nonterm AddRule(const Lhs& lhs, const R& rhs,
                   std::unordered_map<R, LhsSet, H>* rules) {

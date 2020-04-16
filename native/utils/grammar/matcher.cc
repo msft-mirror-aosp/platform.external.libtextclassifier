@@ -240,13 +240,37 @@ void Matcher::Reset() {
   state_ = STATE_DEFAULT;
   arena_.Reset();
   pending_items_ = nullptr;
+  pending_exclusion_items_ = nullptr;
   std::fill(chart_.begin(), chart_.end(), nullptr);
   last_end_ = std::numeric_limits<int>().lowest();
+}
+
+void Matcher::Finish() {
+  // Check any pending items.
+  ProcessPendingExclusionMatches();
+}
+
+void Matcher::QueueForProcessing(Match* item) {
+  // Push element to the front.
+  item->next = pending_items_;
+  pending_items_ = item;
+}
+
+void Matcher::QueueForPostCheck(ExclusionMatch* item) {
+  // Push element to the front.
+  item->next = pending_exclusion_items_;
+  pending_exclusion_items_ = item;
 }
 
 void Matcher::AddTerminal(const CodepointSpan codepoint_span,
                           const int match_offset, StringPiece terminal) {
   TC3_CHECK_GE(codepoint_span.second, last_end_);
+
+  // Finish any pending post-checks.
+  if (codepoint_span.second > last_end_) {
+    ProcessPendingExclusionMatches();
+  }
+
   last_end_ = codepoint_span.second;
   for (const RulesSet_::Rules* shard : rules_shards_) {
     // Try case-sensitive matches.
@@ -286,6 +310,12 @@ void Matcher::AddTerminal(const CodepointSpan codepoint_span,
 
 void Matcher::AddMatch(Match* match) {
   TC3_CHECK_GE(match->codepoint_span.second, last_end_);
+
+  // Finish any pending post-checks.
+  if (match->codepoint_span.second > last_end_) {
+    ProcessPendingExclusionMatches();
+  }
+
   last_end_ = match->codepoint_span.second;
   QueueForProcessing(match);
   ProcessPendingSet();
@@ -311,6 +341,48 @@ void Matcher::ExecuteLhsSet(const CodepointSpan codepoint_span,
     // Check that the allowed whitespace gap limit is followed.
     if (max_whitespace_gap >= 0 && whitespace_gap > max_whitespace_gap) {
       continue;
+    }
+
+    // Handle default callbacks.
+    switch (static_cast<DefaultCallback>(callback_id)) {
+      case DefaultCallback::kSetType: {
+        Match* typed_match = AllocateAndInitMatch<Match>(lhs, codepoint_span,
+                                                         match_offset_bytes);
+        initializer(typed_match);
+        typed_match->type = callback_param;
+        QueueForProcessing(typed_match);
+        continue;
+      }
+      case DefaultCallback::kAssertion: {
+        AssertionMatch* assertion_match = AllocateAndInitMatch<AssertionMatch>(
+            lhs, codepoint_span, match_offset_bytes);
+        initializer(assertion_match);
+        assertion_match->type = Match::kAssertionMatch;
+        assertion_match->negative = (callback_param != 0);
+        QueueForProcessing(assertion_match);
+        continue;
+      }
+      case DefaultCallback::kMapping: {
+        MappingMatch* mapping_match = AllocateAndInitMatch<MappingMatch>(
+            lhs, codepoint_span, match_offset_bytes);
+        initializer(mapping_match);
+        mapping_match->type = Match::kMappingMatch;
+        mapping_match->id = callback_param;
+        QueueForProcessing(mapping_match);
+        continue;
+      }
+      case DefaultCallback::kExclusion: {
+        // We can only check the exclusion once all matches up to this position
+        // have been processed. Schedule and post check later.
+        ExclusionMatch* exclusion_match = AllocateAndInitMatch<ExclusionMatch>(
+            lhs, codepoint_span, match_offset_bytes);
+        initializer(exclusion_match);
+        exclusion_match->exclusion_nonterm = callback_param;
+        QueueForPostCheck(exclusion_match);
+        continue;
+      }
+      default:
+        break;
     }
 
     if (callback_id != kNoCallback && rules_->callback() != nullptr) {
@@ -406,6 +478,35 @@ void Matcher::ProcessPendingSet() {
     }
   }
   state_ = STATE_DEFAULT;
+}
+
+void Matcher::ProcessPendingExclusionMatches() {
+  while (pending_exclusion_items_) {
+    ExclusionMatch* item = pending_exclusion_items_;
+    pending_exclusion_items_ = static_cast<ExclusionMatch*>(item->next);
+
+    // Check that the exclusion condition is fulfilled.
+    if (!ContainsMatch(item->exclusion_nonterm, item->codepoint_span)) {
+      AddMatch(item);
+    }
+  }
+}
+
+bool Matcher::ContainsMatch(const Nonterm nonterm,
+                            const CodepointSpan& span) const {
+  // Lookup by end.
+  Match* match = chart_[span.second & kChartHashTableBitmask];
+  // The chain of items is in decreasing `end` order.
+  while (match != nullptr && match->codepoint_span.second > span.second) {
+    match = match->next;
+  }
+  while (match != nullptr && match->codepoint_span.second == span.second) {
+    if (match->lhs == nonterm && match->codepoint_span.first == span.first) {
+      return true;
+    }
+    match = match->next;
+  }
+  return false;
 }
 
 }  // namespace libtextclassifier3::grammar
