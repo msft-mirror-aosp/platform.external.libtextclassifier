@@ -75,14 +75,15 @@ namespace libtextclassifier3::grammar {
 
 class Lexer {
  public:
-  explicit Lexer(const UniLib& unilib) : unilib_(unilib) {}
+  explicit Lexer(const UniLib& unilib, const RulesSet* rules);
 
   // Processes a tokenized text. Classifies the tokens and feeds them to the
   // matcher. Predefined existing matches `matches` will be fed to the matcher
   // alongside the tokens.
-  void Process(const std::vector<Token>& tokens,
+  void Process(const UnicodeText& text, const std::vector<Token>& tokens,
                const std::vector<Match*>& matches, Matcher* matcher) const;
-  void Process(const std::vector<Token>::const_iterator& begin,
+  void Process(const UnicodeText& text,
+               const std::vector<Token>::const_iterator& begin,
                const std::vector<Token>::const_iterator& end,
                const std::vector<Match*>& matches, Matcher* matcher) const;
 
@@ -153,7 +154,18 @@ class Lexer {
   Symbol::Type GetSymbolType(const UnicodeText::const_iterator& it) const;
 
  private:
+  struct RegexAnnotator {
+    std::unique_ptr<UniLib::RegexPattern> pattern;
+    Nonterm nonterm;
+  };
+
+  // Uncompress and build the defined regex annotators.
+  std::vector<RegexAnnotator> BuildRegexAnnotator(const UniLib& unilib,
+                                                  const RulesSet* rules) const;
+
   const UniLib& unilib_;
+  const RulesSet* rules_;
+  std::vector<RegexAnnotator> regex_annotators_;
 };
 
 }  // namespace libtextclassifier3::grammar

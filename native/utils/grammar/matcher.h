@@ -91,6 +91,7 @@
 #include <functional>
 #include <vector>
 
+#include "annotator/types.h"
 #include "utils/base/arena.h"
 #include "utils/grammar/callback-delegate.h"
 #include "utils/grammar/match.h"
@@ -124,6 +125,9 @@ class Matcher {
 
   // Resets the matcher.
   void Reset();
+
+  // Finish the matching.
+  void Finish();
 
   // Tells the matcher that the given terminal was found occupying position
   // range [begin, end) in the input.
@@ -165,10 +169,6 @@ class Matcher {
   // Returns the current number of bytes allocated for all match objects.
   size_t ArenaSize() const { return arena_.status().bytes_allocated(); }
 
-  const RulesSet_::Nonterminals* nonterminals() const {
-    return rules_->nonterminals();
-  }
-
  private:
   static constexpr int kBlocksize = 16 << 10;
 
@@ -190,15 +190,25 @@ class Matcher {
                      CallbackDelegate* delegate);
 
   // Queues a newly created match item.
-  void QueueForProcessing(Match* item) {
-    // Push element to front.
-    item->next = pending_items_;
-    pending_items_ = item;
-  }
+  void QueueForProcessing(Match* item);
+
+  // Queues a match item for later post checking of the exclusion condition.
+  // For exclusions we need to check that the `item->excluded_nonterminal`
+  // doesn't match the same span. As we cannot know which matches have already
+  // been added, we queue the item for later post checking - once all matches
+  // up to `item->codepoint_span.second` have been added.
+  void QueueForPostCheck(ExclusionMatch* item);
 
   // Adds pending items to the chart, possibly generating new matches as a
   // result.
   void ProcessPendingSet();
+
+  // Returns whether the chart contains a match for a given nonterminal.
+  bool ContainsMatch(const Nonterm nonterm, const CodepointSpan& span) const;
+
+  // Checks all pending exclusion matches that their exclusion condition is
+  // fulfilled.
+  void ProcessPendingExclusionMatches();
 
   UniLib unilib_;
 
@@ -214,6 +224,9 @@ class Matcher {
 
   // The set of items pending to be added to the chart as a singly-linked list.
   Match* pending_items_;
+
+  // The set of items pending to be post-checked as a singly-linked list.
+  ExclusionMatch* pending_exclusion_items_;
 
   // The chart data structure: a hashtable containing all matches, indexed by
   // their end positions.

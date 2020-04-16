@@ -355,7 +355,7 @@ GrammarAnnotator::GrammarAnnotator(
     const ReflectiveFlatbufferBuilder* entity_data_builder)
     : unilib_(unilib),
       model_(model),
-      lexer_(*unilib),
+      lexer_(*unilib, model->rules()),
       tokenizer_(BuildTokenizer(unilib, model->tokenizer_options())),
       entity_data_builder_(entity_data_builder),
       rules_locales_(grammar::ParseRulesLocales(model->rules())) {}
@@ -382,7 +382,7 @@ bool GrammarAnnotator::Annotate(const std::vector<Locale>& locales,
       /*mode=*/ModeFlag_ANNOTATION);
   grammar::Matcher matcher(*unilib_, model_->rules(), locale_rules,
                            &callback_handler);
-  lexer_.Process(tokenizer_.Tokenize(text), /*matches=*/{}, &matcher);
+  lexer_.Process(text, tokenizer_.Tokenize(text), /*matches=*/{}, &matcher);
 
   // Populate results.
   return callback_handler.GetAnnotations(UnicodeCodepointOffsets(text), result);
@@ -412,7 +412,7 @@ bool GrammarAnnotator::SuggestSelection(const std::vector<Locale>& locales,
       /*mode=*/ModeFlag_SELECTION);
   grammar::Matcher matcher(*unilib_, model_->rules(), locale_rules,
                            &callback_handler);
-  lexer_.Process(tokenizer_.Tokenize(text), /*matches=*/{}, &matcher);
+  lexer_.Process(text, tokenizer_.Tokenize(text), /*matches=*/{}, &matcher);
 
   // Populate the result.
   return callback_handler.GetTextSelection(UnicodeCodepointOffsets(text),
@@ -448,7 +448,7 @@ bool GrammarAnnotator::ClassifyText(
   if (model_->context_left_num_tokens() == -1 &&
       model_->context_right_num_tokens() == -1) {
     // Use all tokens.
-    lexer_.Process(tokens, /*matches=*/{}, &matcher);
+    lexer_.Process(text, tokens, /*matches=*/{}, &matcher);
   } else {
     TokenSpan context_span = CodepointSpanToTokenSpan(
         tokens, selection, /*snap_boundaries_to_containing_tokens=*/true);
@@ -465,7 +465,7 @@ bool GrammarAnnotator::ClassifyText(
                                  context_span.second +
                                      model_->context_right_num_tokens()));
     }
-    lexer_.Process(begin, end,
+    lexer_.Process(text, begin, end,
                    /*matches=*/{}, &matcher);
   }
 
