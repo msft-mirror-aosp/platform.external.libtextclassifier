@@ -40,34 +40,22 @@ public final class ResultIdUtils {
 
   /** Creates a string id that may be used to identify a TextClassifier result. */
   public static String createId(
-      Context context,
-      String text,
-      int start,
-      int end,
-      int modelVersion,
-      List<Locale> modelLocales) {
+      Context context, String text, int start, int end, List<Optional<ModelInfo>> modelInfos) {
     Preconditions.checkNotNull(text);
     Preconditions.checkNotNull(context);
-    Preconditions.checkNotNull(modelLocales);
+    Preconditions.checkNotNull(modelInfos);
     final int hash = Objects.hash(text, start, end, context.getPackageName());
-    return createId(ImmutableList.of(new ModelInfo(modelVersion, modelLocales)), hash);
+    return createId(hash, modelInfos);
   }
 
   /** Creates a string id that may be used to identify a TextClassifier result. */
-  public static String createId(List<ModelInfo> modelInfos, int hash) {
+  public static String createId(int hash, List<Optional<ModelInfo>> modelInfos) {
     Preconditions.checkNotNull(modelInfos);
     final StringJoiner modelJoiner = new StringJoiner(SEPARATOR_MODEL_NAME);
-    for (ModelInfo modelInfo : modelInfos) {
-      modelJoiner.add(modelInfo.toModelName());
+    for (Optional<ModelInfo> modelInfo : modelInfos) {
+      modelJoiner.add(modelInfo.map(ModelInfo::toModelName).orElse(""));
     }
     return String.format(Locale.US, "%s|%s|%d", CLASSIFIER_ID, modelJoiner, hash);
-  }
-
-  /** Returns the first model name encoded in the signature. */
-  static String getModelName(@Nullable String signature) {
-    return Optional.ofNullable(signature)
-        .flatMap(s -> getModelNames(s).stream().findFirst())
-        .orElse("");
   }
 
   /** Returns all the model names encoded in the signature. */
@@ -95,7 +83,7 @@ public final class ResultIdUtils {
     }
 
     /** Returns a string representation of the model info. */
-    private String toModelName() {
+    public String toModelName() {
       final StringJoiner localesJoiner = new StringJoiner(SEPARATOR_LOCALES);
       for (Locale locale : locales) {
         localesJoiner.add(locale.toLanguageTag());

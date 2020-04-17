@@ -24,12 +24,14 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.ModelFileManager.ModelFile;
+import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.After;
@@ -313,6 +315,37 @@ public class ModelFileManagerTest {
         new ModelFileManager.ModelFile(new File("/path/b"), 1, Collections.emptyList(), "", false);
 
     assertThat(modelA.isPreferredTo(modelB)).isTrue();
+  }
+
+  @Test
+  public void modelFile_toModelInfo() {
+    ModelFileManager.ModelFile modelFile =
+        new ModelFileManager.ModelFile(
+            new File("/path/a"), 2, ImmutableList.of(Locale.JAPANESE), "ja", false);
+
+    ModelInfo modelInfo = modelFile.toModelInfo();
+
+    assertThat(modelInfo.toModelName()).isEqualTo("ja_v2");
+  }
+
+  @Test
+  public void modelFile_toModelInfos() {
+    ModelFile englishModelFile =
+        new ModelFile(new File("/path/a"), 1, ImmutableList.of(Locale.ENGLISH), "en", false);
+    ModelFile japaneseModelFile =
+        new ModelFile(new File("/path/a"), 2, ImmutableList.of(Locale.JAPANESE), "ja", false);
+
+    ImmutableList<Optional<ModelInfo>> modelInfos =
+        ModelFileManager.ModelFile.toModelInfos(
+            Optional.of(englishModelFile), Optional.of(japaneseModelFile));
+
+    assertThat(
+            modelInfos.stream()
+                .map(modelFile -> modelFile.map(ModelInfo::toModelName))
+                .map(Optional::get)
+                .collect(Collectors.toList()))
+        .containsExactly("en_v1", "ja_v2")
+        .inOrder();
   }
 
   @Test
