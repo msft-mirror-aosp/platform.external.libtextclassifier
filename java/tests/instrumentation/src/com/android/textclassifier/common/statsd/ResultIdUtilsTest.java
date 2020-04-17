@@ -23,9 +23,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.google.common.collect.ImmutableList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -37,14 +36,18 @@ public class ResultIdUtilsTest {
 
   @Test
   public void createId_customHash() {
-    List<ModelInfo> modelInfos =
+    ImmutableList<Optional<ModelInfo>> modelInfos =
         ImmutableList.of(
-            new ModelInfo(/* version= */ 1, ImmutableList.of(Locale.ENGLISH, Locale.FRENCH)),
-            new ModelInfo(/* version= */ 2, ImmutableList.of(Locale.CHINESE)));
+            Optional.empty(),
+            Optional.of(
+                new ModelInfo(/* version= */ 1, ImmutableList.of(Locale.ENGLISH, Locale.FRENCH))),
+            Optional.empty(),
+            Optional.of(new ModelInfo(/* version= */ 2, ImmutableList.of(Locale.CHINESE))),
+            Optional.empty());
 
-    String resultId = ResultIdUtils.createId(modelInfos, HASH);
+    String resultId = ResultIdUtils.createId(HASH, modelInfos);
 
-    assertThat(resultId).isEqualTo("androidtc|en,fr_v1;zh_v2|12345");
+    assertThat(resultId).isEqualTo("androidtc|;en,fr_v1;;zh_v2;|12345");
   }
 
   @Test
@@ -55,20 +58,10 @@ public class ResultIdUtilsTest {
             "text",
             1,
             2,
-            MODEL_VERSION,
-            Collections.singletonList(Locale.ENGLISH));
+            ImmutableList.of(
+                Optional.of(new ModelInfo(MODEL_VERSION, ImmutableList.of(Locale.ENGLISH)))));
 
     assertThat(resultId).matches("androidtc\\|en_v703\\|-?\\d+");
-  }
-
-  @Test
-  public void getModelName() {
-    assertThat(ResultIdUtils.getModelName("androidtc|en_v703|12344")).isEqualTo("en_v703");
-  }
-
-  @Test
-  public void getModelName_multipleModels() {
-    assertThat(ResultIdUtils.getModelName("androidtc|en_v703;zh_v101|12344")).isEqualTo("en_v703");
   }
 
   @Test
@@ -78,8 +71,8 @@ public class ResultIdUtilsTest {
 
   @Test
   public void getModelNames() {
-    assertThat(ResultIdUtils.getModelNames("androidtc|en_v703;zh_v101|12344"))
-        .containsExactly("en_v703", "zh_v101")
+    assertThat(ResultIdUtils.getModelNames("androidtc|;en_v703;;zh_v101;|12344"))
+        .containsExactly("", "en_v703", "", "zh_v101", "")
         .inOrder();
   }
 
@@ -87,5 +80,12 @@ public class ResultIdUtilsTest {
   public void getModelNames_invalid() {
     assertThat(ResultIdUtils.getModelNames("a|b")).isEmpty();
     assertThat(ResultIdUtils.getModelNames("a|b|c|d")).isEmpty();
+  }
+
+  @Test
+  public void modelInfo_toModelName() {
+    ModelInfo modelInfo = new ModelInfo(700, ImmutableList.of(Locale.ENGLISH));
+
+    assertThat(modelInfo.toModelName()).isEqualTo("en_v700");
   }
 }

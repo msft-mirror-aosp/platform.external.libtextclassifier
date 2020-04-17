@@ -42,11 +42,13 @@ import android.view.textclassifier.TextSelection;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.WorkerThread;
 import androidx.core.util.Pair;
+import com.android.textclassifier.ModelFileManager.ModelFile;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.intent.LabeledIntent;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.android.textclassifier.common.statsd.GenerateLinksLogger;
 import com.android.textclassifier.common.statsd.ResultIdUtils;
+import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.android.textclassifier.common.statsd.SelectionEventConverter;
 import com.android.textclassifier.common.statsd.TextClassificationSessionIdConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
@@ -216,9 +218,9 @@ final class TextClassifierImpl {
           for (int i = 0; i < size; i++) {
             tsBuilder.setEntityType(results[i].getCollection(), results[i].getScore());
           }
-          return tsBuilder
-              .setId(createId(string, request.getStartIndex(), request.getEndIndex()))
-              .build();
+          final String resultId =
+              createAnnotatorId(string, request.getStartIndex(), request.getEndIndex());
+          return tsBuilder.setId(resultId).build();
         } else {
           // We can not trust the result. Log the issue and ignore the result.
           TcLog.d(TAG, "Got bad indices for input text. Ignoring result.");
@@ -335,8 +337,19 @@ final class TextClassifierImpl {
           request.getCallingPackageName() == null
               ? context.getPackageName() // local (in process) TC.
               : request.getCallingPackageName();
+      Optional<ModelInfo> annotatorModelInfo;
+      Optional<ModelInfo> langIdModelInfo;
+      synchronized (lock) {
+        annotatorModelInfo = Optional.ofNullable(annotatorModelInUse).map(ModelFile::toModelInfo);
+        langIdModelInfo = Optional.ofNullable(langIdModelInUse).map(ModelFile::toModelInfo);
+      }
       generateLinksLogger.logGenerateLinks(
-          request.getText(), links, callingPackageName, endTimeMs - startTimeMs);
+          request.getText(),
+          links,
+          callingPackageName,
+          endTimeMs - startTimeMs,
+          annotatorModelInfo,
+          langIdModelInfo);
       return links;
     } catch (Throwable t) {
       // Avoid throwing from this method. Log the error.
@@ -482,8 +495,9 @@ final class TextClassifierImpl {
           ActionsSuggestionsHelper.createResultId(
               context,
               request.getConversation(),
-              actionModelInUse,
-              Optional.ofNullable(annotatorModelInUse));
+              Optional.ofNullable(actionModelInUse),
+              Optional.ofNullable(annotatorModelInUse),
+              Optional.ofNullable(langIdModelInUse));
       return new ConversationActions(conversationActions, resultId);
     }
   }
@@ -588,15 +602,15 @@ final class TextClassifierImpl {
     }
   }
 
-  private String createId(String text, int start, int end) {
+  private String createAnnotatorId(String text, int start, int end) {
     synchronized (lock) {
       return ResultIdUtils.createId(
           context,
           text,
           start,
           end,
-          annotatorModelInUse.getVersion(),
-          annotatorModelInUse.getSupportedLocales());
+          ModelFile.toModelInfos(
+              Optional.ofNullable(annotatorModelInUse), Optional.ofNullable(langIdModelInUse)));
     }
   }
 
@@ -672,7 +686,8 @@ final class TextClassifierImpl {
     }
     ExtrasUtils.putEntities(extras, classifications);
     builder.setExtras(extras);
-    return builder.setId(createId(text, start, end)).build();
+    String resultId = createAnnotatorId(text, start, end);
+    return builder.setId(resultId).build();
   }
 
   private static OnClickListener createIntentOnClickListener(final PendingIntent intent) {
