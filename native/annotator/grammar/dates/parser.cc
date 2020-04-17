@@ -674,11 +674,10 @@ void RemoveOverlappedDateByRange(const std::vector<DateRangeMatch>& ranges,
 }
 
 // Converts candidate dates and date ranges.
-void FillDateInstances(const UniLib& unilib,
-                       const std::vector<UnicodeText::const_iterator>& text,
-                       const DateAnnotationOptions& options,
-                       std::vector<DateMatch>* date_matches,
-                       std::vector<Annotation>* datetimes) {
+void FillDateInstances(
+    const UniLib& unilib, const std::vector<UnicodeText::const_iterator>& text,
+    const DateAnnotationOptions& options, std::vector<DateMatch>* date_matches,
+    std::vector<DatetimeParseResultSpan>* datetime_parse_result_spans) {
   int i = 0;
   for (int j = 1; j < date_matches->size(); j++) {
     if (options.merge_adjacent_components &&
@@ -688,68 +687,37 @@ void FillDateInstances(const UniLib& unilib,
       MergeDateMatch(date_matches->at(i), &date_matches->at(j), true);
     } else {
       if (!IsBlacklistedDate(unilib, text, date_matches->at(i))) {
-        Annotation annotation;
-        FillDateInstance(date_matches->at(i), &annotation);
-        datetimes->push_back(annotation);
+        DatetimeParseResultSpan datetime_parse_result_span;
+        FillDateInstance(date_matches->at(i), &datetime_parse_result_span);
+        datetime_parse_result_spans->push_back(datetime_parse_result_span);
       }
     }
     i = j;
   }
   if (!IsBlacklistedDate(unilib, text, date_matches->at(i))) {
-    Annotation annotation;
-    FillDateInstance(date_matches->at(i), &annotation);
-    datetimes->push_back(annotation);
+    DatetimeParseResultSpan datetime_parse_result_span;
+    FillDateInstance(date_matches->at(i), &datetime_parse_result_span);
+    datetime_parse_result_spans->push_back(datetime_parse_result_span);
   }
 }
 
 void FillDateRangeInstances(
     const std::vector<DateRangeMatch>& date_range_matches,
-    std::vector<Annotation>* datetimes) {
+    std::vector<DatetimeParseResultSpan>* datetime_parse_result_spans) {
   for (const DateRangeMatch& date_range_match : date_range_matches) {
-    Annotation annotation;
-    FillDateRangeInstance(date_range_match, &annotation);
-    datetimes->push_back(annotation);
+    DatetimeParseResultSpan datetime_parse_result_span;
+    FillDateRangeInstance(date_range_match, &datetime_parse_result_span);
+    datetime_parse_result_spans->push_back(datetime_parse_result_span);
   }
 }
 
-bool ExpandDateRange(const DateRangeMatch& range,
-                     std::vector<DateMatch>* date_series) {
-  if (!range.from.HasDay() || !range.to.HasDay()) {
-    return false;
-  }
-  DateMatch date = range.from;
-  for (; IsPrecedent(date, range.to); IncrementOneDay(&date)) {
-    date.end = range.to.end;
-    date_series->push_back(date);
-  }
-  date = range.to;
-  date.begin = range.from.begin;
-  date_series->push_back(date);
-  return true;
-}
-
-// Maximum number of days allowed for a date range to be expanded
-static constexpr int kMaximumExpansion = 30;
-
-// Check if the date range spans more than kMaximumExpansion of days.
-// Assumes both from and to field has day and month
-bool IsDateRangeTooLong(DateRangeMatch date_range_match) {
-  int number_of_days = 1;
-  for (int month = date_range_match.from.month;
-       month < date_range_match.to.month; ++month) {
-    number_of_days += GetLastDayOfMonth(0, month);
-  }
-  number_of_days += date_range_match.to.day - date_range_match.from.day;
-  return number_of_days > kMaximumExpansion;
-}
-
-// Fills `DateTimes` proto from matched `DateMatch` and `DateRangeMatch`
+// Fills `DatetimeParseResultSpan`  from `DateMatch` and `DateRangeMatch`
 // instances.
-std::vector<Annotation> GetOutputAsAnnotationList(
+std::vector<DatetimeParseResultSpan> GetOutputAsAnnotationList(
     const UniLib& unilib, const DateExtractor& extractor,
     const std::vector<UnicodeText::const_iterator>& text,
     const DateAnnotationOptions& options) {
-  std::vector<Annotation> date_annotations;
+  std::vector<DatetimeParseResultSpan> datetime_parse_result_spans;
   std::vector<DateMatch> date_matches =
       BuildDateMatches(text, extractor.output());
 
@@ -783,18 +751,19 @@ std::vector<Annotation> GetOutputAsAnnotationList(
                             &date_range_matches);
       RemoveOverlappedDateByRange(date_range_matches, &date_matches);
     }
-    FillDateRangeInstances(date_range_matches, &date_annotations);
+    FillDateRangeInstances(date_range_matches, &datetime_parse_result_spans);
   }
 
   if (!date_matches.empty()) {
-    FillDateInstances(unilib, text, options, &date_matches, &date_annotations);
+    FillDateInstances(unilib, text, options, &date_matches,
+                      &datetime_parse_result_spans);
   }
-  return date_annotations;
+  return datetime_parse_result_spans;
 }
 
 }  // namespace
 
-std::vector<Annotation> DateParser::Parse(
+std::vector<DatetimeParseResultSpan> DateParser::Parse(
     StringPiece text, const std::vector<Token>& tokens,
     const std::vector<Locale>& locales,
     const DateAnnotationOptions& options) const {
@@ -817,7 +786,7 @@ std::vector<Annotation> DateParser::Parse(
   }
   grammar::Matcher matcher(unilib_, datetime_rules_->rules(), locale_rules,
                            &extractor);
-  lexer_.Process(tokens, /*matches=*/{}, &matcher);
+  lexer_.Process(text_unicode, tokens, /*matches=*/{}, &matcher);
   return GetOutputAsAnnotationList(unilib_, extractor, codepoint_offsets,
                                    options);
 }

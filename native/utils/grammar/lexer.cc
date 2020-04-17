@@ -18,6 +18,10 @@
 
 #include <unordered_map>
 
+#include "annotator/types.h"
+#include "utils/zlib/zlib.h"
+#include "utils/zlib/zlib_regex.h"
+
 namespace libtextclassifier3::grammar {
 namespace {
 
@@ -47,6 +51,31 @@ void CheckedEmit(const Nonterm nonterm, const CodepointSpan codepoint_span,
 }
 
 }  // namespace
+
+Lexer::Lexer(const UniLib& unilib, const RulesSet* rules)
+    : unilib_(unilib),
+      rules_(rules),
+      regex_annotators_(BuildRegexAnnotator(unilib, rules)) {}
+
+std::vector<Lexer::RegexAnnotator> Lexer::BuildRegexAnnotator(
+    const UniLib& unilib, const RulesSet* rules) const {
+  std::vector<Lexer::RegexAnnotator> result;
+  if (rules->regex_annotator() != nullptr) {
+    std::unique_ptr<ZlibDecompressor> decompressor =
+        ZlibDecompressor::Instance();
+    result.reserve(rules->regex_annotator()->size());
+    for (const RulesSet_::RegexAnnotator* regex_annotator :
+         *rules->regex_annotator()) {
+      result.push_back(
+          {UncompressMakeRegexPattern(unilib_, regex_annotator->pattern(),
+                                      regex_annotator->compressed_pattern(),
+                                      rules->lazy_regex_compilation(),
+                                      decompressor.get()),
+           regex_annotator->nonterminal()});
+    }
+  }
+  return result;
+}
 
 void Lexer::Emit(const Symbol& symbol, const RulesSet_::Nonterminals* nonterms,
                  Matcher* matcher) const {
@@ -144,13 +173,14 @@ void Lexer::ProcessToken(const StringPiece value, const int prev_token_end,
   }
 }
 
-void Lexer::Process(const std::vector<Token>& tokens,
+void Lexer::Process(const UnicodeText& text, const std::vector<Token>& tokens,
                     const std::vector<Match*>& matches,
                     Matcher* matcher) const {
-  return Process(tokens.begin(), tokens.end(), matches, matcher);
+  return Process(text, tokens.begin(), tokens.end(), matches, matcher);
 }
 
-void Lexer::Process(const std::vector<Token>::const_iterator& begin,
+void Lexer::Process(const UnicodeText& text,
+                    const std::vector<Token>::const_iterator& begin,
                     const std::vector<Token>::const_iterator& end,
                     const std::vector<Match*>& matches,
                     Matcher* matcher) const {
@@ -158,7 +188,7 @@ void Lexer::Process(const std::vector<Token>::const_iterator& begin,
     return;
   }
 
-  const RulesSet_::Nonterminals* nonterminals = matcher->nonterminals();
+  const RulesSet_::Nonterminals* nonterminals = rules_->nonterminals();
 
   // Initialize processing of new text.
   CodepointIndex prev_token_end = 0;
@@ -229,6 +259,32 @@ void Lexer::Process(const std::vector<Token>::const_iterator& begin,
     symbols.push_back(Symbol(match));
   }
 
+  // Add regex annotator matches for the range covered by the tokens.
+  for (const RegexAnnotator& regex_annotator : regex_annotators_) {
+    std::unique_ptr<UniLib::RegexMatcher> regex_matcher =
+        regex_annotator.pattern->Matcher(UnicodeText::Substring(
+            text, begin->start, prev_token_end, /*do_copy=*/false));
+    int status = UniLib::RegexMatcher::kNoError;
+    while (regex_matcher->Find(&status) &&
+           status == UniLib::RegexMatcher::kNoError) {
+      const CodepointSpan span = {
+          regex_matcher->Start(0, &status) + begin->start,
+          regex_matcher->End(0, &status) + begin->start};
+      auto match_start_it = token_match_start.find(span.first);
+
+      // Decrease match offset to incldue preceding whitespace if the match is
+      // aligning with token boundaries.
+      const int match_offset =
+          (match_start_it != token_match_start.end() ? match_start_it->second
+                                                     : span.first);
+      if (Match* match =
+              CheckedAddMatch(regex_annotator.nonterm, span, match_offset,
+                              Match::kUnknownType, matcher)) {
+        symbols.push_back(Symbol(match));
+      }
+    }
+  }
+
   std::sort(symbols.begin(), symbols.end(),
             [](const Symbol& a, const Symbol& b) {
               // Sort by increasing (end, start) position to guarantee the
@@ -242,6 +298,9 @@ void Lexer::Process(const std::vector<Token>::const_iterator& begin,
   for (const Symbol& symbol : symbols) {
     Emit(symbol, nonterminals, matcher);
   }
+
+  // Finish the matching.
+  matcher->Finish();
 }
 
 }  // namespace libtextclassifier3::grammar

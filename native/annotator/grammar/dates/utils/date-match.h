@@ -498,6 +498,17 @@ struct DateMatch {
   }
 
   bool IsValid() const;
+
+  // Overall relative qualifier of the DateMatch e.g. 2 year ago is 'PAST' and
+  // next week is 'FUTURE'.
+  DatetimeComponent::RelativeQualifier GetRelativeQualifier() const;
+
+  // Getter method to get the 'DatetimeComponent' of given 'ComponentType'.
+  Optional<DatetimeComponent> GetDatetimeComponent(
+      const DatetimeComponent::ComponentType& component_type) const;
+
+  void FillDatetimeComponents(
+      std::vector<DatetimeComponent>* datetime_component) const;
 };
 
 // Represent a matched date range which includes the from and to matched date.
