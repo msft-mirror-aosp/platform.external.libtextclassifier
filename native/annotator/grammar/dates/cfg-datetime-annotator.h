@@ -59,16 +59,10 @@ class CfgDatetimeAnnotator {
              std::vector<DatetimeParseResultSpan>* results) const;
 
  private:
-  void FillDatetimeParseResults(
-      const AnnotationData& annotation_data,
-      const DateAnnotationOptions& options,
+  void ProcessDatetimeParseResult(
+      const DateAnnotationOptions& annotation_options,
+      const DatetimeParseResult& datetime_parse_result,
       std::vector<DatetimeParseResult>* results) const;
-
-  void FillDatetimeParseResultSpan(
-      const UnicodeText& unicode_text,
-      const std::vector<Annotation>& annotation_list,
-      const DateAnnotationOptions& options,
-      std::vector<DatetimeParseResultSpan>* results) const;
 
   const CalendarLib& calendar_lib_;
   const Tokenizer tokenizer_;

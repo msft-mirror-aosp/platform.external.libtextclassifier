@@ -36,6 +36,7 @@ struct Match {
   static const int16 kBreakType = -3;
   static const int16 kAssertionMatch = -4;
   static const int16 kMappingMatch = -5;
+  static const int16 kExclusionMatch = -6;
 
   void Init(const Nonterm arg_lhs, const CodepointSpan arg_codepoint_span,
             const int arg_match_offset, const int arg_type = kUnknownType) {
@@ -103,6 +104,14 @@ struct AssertionMatch : public Match {
   // If true, the assertion is negative and will be valid if the input doesn't
   // match.
   bool negative;
+};
+
+// Match type to define exclusions.
+struct ExclusionMatch : public Match {
+  // The nonterminal that denotes matches to exclude from a successful match.
+  // So the match is only valid if there is no match of `exclusion_nonterm`
+  // spanning the same text range.
+  Nonterm exclusion_nonterm;
 };
 
 // Utility functions for parse tree traversal.
