@@ -560,6 +560,8 @@ public final class AnnotatorModel implements AutoCloseable {
     private final String detectedTextLanguageTags;
     private final String[] entityTypes;
     private final int annotationUsecase;
+    private final boolean hasLocationPermission;
+    private final boolean hasPersonalizationPermission;
     private final boolean isSerializedEntityDataEnabled;
     private final double userLocationLat;
     private final double userLocationLng;
@@ -572,6 +574,8 @@ public final class AnnotatorModel implements AutoCloseable {
         String detectedTextLanguageTags,
         Collection<String> entityTypes,
         int annotationUsecase,
+        boolean hasLocationPermission,
+        boolean hasPersonalizationPermission,
         boolean isSerializedEntityDataEnabled,
         double userLocationLat,
         double userLocationLng,
@@ -586,6 +590,34 @@ public final class AnnotatorModel implements AutoCloseable {
       this.userLocationLat = userLocationLat;
       this.userLocationLng = userLocationLng;
       this.userLocationAccuracyMeters = userLocationAccuracyMeters;
+      this.hasLocationPermission = hasLocationPermission;
+      this.hasPersonalizationPermission = hasPersonalizationPermission;
+    }
+
+    public AnnotationOptions(
+        long referenceTimeMsUtc,
+        String referenceTimezone,
+        String locales,
+        String detectedTextLanguageTags,
+        Collection<String> entityTypes,
+        int annotationUsecase,
+        boolean isSerializedEntityDataEnabled,
+        double userLocationLat,
+        double userLocationLng,
+        float userLocationAccuracyMeters) {
+      this(
+          referenceTimeMsUtc,
+          referenceTimezone,
+          locales,
+          detectedTextLanguageTags,
+          entityTypes,
+          annotationUsecase,
+          /* hasLocationPermission */ true,
+          /* hasPersonalizationPermission */ true,
+          isSerializedEntityDataEnabled,
+          userLocationLat,
+          userLocationLng,
+          userLocationAccuracyMeters);
     }
 
     public AnnotationOptions(
@@ -663,6 +695,14 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public float getUserLocationAccuracyMeters() {
       return userLocationAccuracyMeters;
+    }
+
+    public boolean hasLocationPermission() {
+      return hasLocationPermission;
+    }
+
+    public boolean hasPersonalizationPermission() {
+      return hasPersonalizationPermission;
     }
   }
 

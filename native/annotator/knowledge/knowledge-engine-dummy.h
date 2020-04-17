@@ -39,12 +39,14 @@ class KnowledgeEngine {
   bool ClassifyText(const std::string& text, CodepointSpan selection_indices,
                     AnnotationUsecase annotation_usecase,
                     const Optional<LocationContext>& location_context,
+                    const Permissions& permissions,
                     ClassificationResult* classification_result) const {
     return false;
   }
 
   bool Chunk(const std::string& text, AnnotationUsecase annotation_usecase,
              const Optional<LocationContext>& location_context,
+             const Permissions& permissions,
              std::vector<AnnotatedSpan>* result) const {
     return true;
   }
@@ -53,6 +55,7 @@ class KnowledgeEngine {
       const std::vector<std::string>& text_fragments,
       AnnotationUsecase annotation_usecase,
       const Optional<LocationContext>& location_context,
+      const Permissions& permissions,
       std::vector<std::vector<AnnotatedSpan>>* results) const {
     return Status::OK;
   }

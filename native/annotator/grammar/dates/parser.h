@@ -37,16 +37,16 @@ class DateParser {
  public:
   DateParser(const UniLib& unilib, const DatetimeRules* datetime_rules)
       : unilib_(unilib),
-        lexer_(unilib),
+        lexer_(unilib, datetime_rules->rules()),
         datetime_rules_(datetime_rules),
         rules_locales_(ParseRulesLocales(datetime_rules->rules())) {}
 
   // Parses the dates in the input. Makes sure that the results do not
   // overlap.
-  std::vector<Annotation> Parse(StringPiece text,
-                                const std::vector<Token>& tokens,
-                                const std::vector<Locale>& locales,
-                                const DateAnnotationOptions& options) const;
+  std::vector<DatetimeParseResultSpan> Parse(
+      StringPiece text, const std::vector<Token>& tokens,
+      const std::vector<Locale>& locales,
+      const DateAnnotationOptions& options) const;
 
  private:
   const UniLib& unilib_;

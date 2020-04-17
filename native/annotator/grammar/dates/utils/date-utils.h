@@ -45,22 +45,23 @@ bool NormalizeHourByTimeSpan(const TimeSpanSpec* ts_spec, DateMatch* date);
 bool IsRefinement(const DateMatch& a, const DateMatch& b);
 bool IsRefinement(const DateRangeMatch& a, const DateRangeMatch& b);
 
-// Increment the date by one day. Will consider special cases such as leap year.
-// However, the input date must be valid otherwise will return a valid date that
-// is not following the input date
-void IncrementOneDay(DateMatch* date);
-
 // Returns true iff "a" occurs strictly before "b"
 bool IsPrecedent(const DateMatch& a, const DateMatch& b);
 
-// Fill DateInstance proto based on DateMatch object which is created from
+// Fill DatetimeParseResult based on DateMatch object which is created from
 // matched rule. The matched string is extracted from tokenizer which provides
 // an interface to access the clean text based on the matched range.
-void FillDateInstance(const DateMatch& date, Annotation* instance);
+void FillDateInstance(const DateMatch& date, DatetimeParseResult* instance);
 
-// Fill DateRangeInstance proto based on DateRangeMatch object which is created
+// Fill DatetimeParseResultSpan based on DateMatch object which is created from
+// matched rule. The matched string is extracted from tokenizer which provides
+// an interface to access the clean text based on the matched range.
+void FillDateInstance(const DateMatch& date, DatetimeParseResultSpan* instance);
+
+// Fill DatetimeParseResultSpan based on DateRangeMatch object which i screated
 // from matched rule.
-void FillDateRangeInstance(const DateRangeMatch& range, Annotation* instance);
+void FillDateRangeInstance(const DateRangeMatch& range,
+                           DatetimeParseResultSpan* instance);
 
 // Merge the fields in DateMatch prev to next if there is no overlapped field.
 // If update_span is true, the span of next is also updated.
@@ -75,7 +76,6 @@ void MergeDateMatch(const DateMatch& prev, DateMatch* next, bool update_span);
 // It's impossible to get DateMatch which only has DOW and not in relative
 // match according to current rules.
 bool IsDateMatchMergeable(const DateMatch& prev, const DateMatch& next);
-
 }  // namespace dates
 }  // namespace libtextclassifier3
 

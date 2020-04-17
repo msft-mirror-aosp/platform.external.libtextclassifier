@@ -211,7 +211,7 @@ GrammarActions::GrammarActions(
     : unilib_(unilib),
       grammar_rules_(grammar_rules),
       tokenizer_(CreateTokenizer(grammar_rules->tokenizer_options(), unilib)),
-      lexer_(*unilib),
+      lexer_(*unilib, grammar_rules->rules()),
       entity_data_builder_(entity_data_builder),
       smart_reply_action_type_(smart_reply_action_type),
       rules_locales_(ParseRulesLocales(grammar_rules->rules())) {}
@@ -270,8 +270,11 @@ bool GrammarActions::SuggestActions(
   grammar::Matcher matcher(*unilib_, grammar_rules_->rules(), locale_rules,
                            &callback_handler);
 
+  const UnicodeText text =
+      UTF8ToUnicodeText(conversation.messages.back().text, /*do_copy=*/false);
+
   // Run grammar on last message.
-  lexer_.Process(tokenizer_->Tokenize(conversation.messages.back().text),
+  lexer_.Process(text, tokenizer_->Tokenize(text),
                  /*matches=*/annotation_matches, &matcher);
 
   // Populate results.

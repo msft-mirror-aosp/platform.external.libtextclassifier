@@ -263,7 +263,7 @@ RemoteActionTemplatesHandler::AsNamedVariantArray(
       JniHelper::NewObjectArray(jni_cache_->GetEnv(), values.size(),
                                 named_variant_class_.get(), nullptr));
   int element_index = 0;
-  for (auto key_value_pair : values) {
+  for (const auto& key_value_pair : values) {
     if (!key_value_pair.second.HasValue()) {
       element_index++;
       continue;
