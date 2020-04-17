@@ -29,9 +29,12 @@ import com.android.internal.os.StatsdConfigProto.StatsdConfig;
 import com.android.os.AtomsProto;
 import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.TextLinkifyEvent;
+import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
@@ -45,6 +48,11 @@ public class GenerateLinksLoggerTest {
   private static final int LATENCY_MS = 123;
   /** A statsd config ID, which is arbitrary. */
   private static final long CONFIG_ID = 689777;
+
+  private static final ModelInfo ANNOTATOR_MODEL =
+      new ModelInfo(1, ImmutableList.of(Locale.ENGLISH));
+  private static final ModelInfo LANGID_MODEL =
+      new ModelInfo(2, ImmutableList.of(Locale.forLanguageTag("*")));
 
   @Before
   public void setup() throws Exception {
@@ -77,7 +85,13 @@ public class GenerateLinksLoggerTest {
 
     GenerateLinksLogger generateLinksLogger =
         new GenerateLinksLogger(/* sampleRate= */ 1, () -> uuid);
-    generateLinksLogger.logGenerateLinks(testText, links, PACKAGE_NAME, LATENCY_MS);
+    generateLinksLogger.logGenerateLinks(
+        testText,
+        links,
+        PACKAGE_NAME,
+        LATENCY_MS,
+        Optional.of(ANNOTATOR_MODEL),
+        Optional.of(LANGID_MODEL));
     ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
 
     ImmutableList<TextLinkifyEvent> loggedEvents =
@@ -89,7 +103,7 @@ public class GenerateLinksLoggerTest {
         AtomsProto.TextLinkifyEvent.newBuilder()
             .setSessionId(uuid)
             .setEventIndex(0)
-            .setModelName("")
+            .setModelName("en_v1")
             .setWidgetType(WidgetType.WIDGET_TYPE_UNKNOWN)
             .setEventType(EventType.LINKS_GENERATED)
             .setPackageName(PACKAGE_NAME)
@@ -98,12 +112,13 @@ public class GenerateLinksLoggerTest {
             .setTextLength(testText.length())
             .setLinkedTextLength(phoneText.length())
             .setLatencyMillis(LATENCY_MS)
+            .setLangidModelName("und_v2")
             .build();
     TextLinkifyEvent phoneEvent =
         AtomsProto.TextLinkifyEvent.newBuilder()
             .setSessionId(uuid)
             .setEventIndex(0)
-            .setModelName("")
+            .setModelName("en_v1")
             .setWidgetType(WidgetType.WIDGET_TYPE_UNKNOWN)
             .setEventType(EventType.LINKS_GENERATED)
             .setPackageName(PACKAGE_NAME)
@@ -112,6 +127,7 @@ public class GenerateLinksLoggerTest {
             .setTextLength(testText.length())
             .setLinkedTextLength(phoneText.length())
             .setLatencyMillis(LATENCY_MS)
+            .setLangidModelName("und_v2")
             .build();
     assertThat(loggedEvents).containsExactly(summaryEvent, phoneEvent).inOrder();
   }
@@ -134,7 +150,13 @@ public class GenerateLinksLoggerTest {
 
     GenerateLinksLogger generateLinksLogger =
         new GenerateLinksLogger(/* sampleRate= */ 1, () -> uuid);
-    generateLinksLogger.logGenerateLinks(testText, links, PACKAGE_NAME, LATENCY_MS);
+    generateLinksLogger.logGenerateLinks(
+        testText,
+        links,
+        PACKAGE_NAME,
+        LATENCY_MS,
+        Optional.of(ANNOTATOR_MODEL),
+        Optional.of(LANGID_MODEL));
     ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
 
     ImmutableList<TextLinkifyEvent> loggedEvents =

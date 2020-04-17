@@ -23,11 +23,13 @@ import android.view.textclassifier.TextLinks;
 import androidx.collection.ArrayMap;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
+import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -66,7 +68,12 @@ public final class GenerateLinksLogger {
 
   /** Logs statistics about a call to generateLinks. */
   public void logGenerateLinks(
-      CharSequence text, TextLinks links, String callingPackageName, long latencyMs) {
+      CharSequence text,
+      TextLinks links,
+      String callingPackageName,
+      long latencyMs,
+      Optional<ModelInfo> annotatorModel,
+      Optional<ModelInfo> langIdModel) {
     Preconditions.checkNotNull(text);
     Preconditions.checkNotNull(links);
     Preconditions.checkNotNull(callingPackageName);
@@ -92,7 +99,8 @@ public final class GenerateLinksLogger {
     }
 
     final String callId = randomUuidSupplier.get();
-    writeStats(callId, callingPackageName, null, totalStats, text, latencyMs);
+    writeStats(
+        callId, callingPackageName, null, totalStats, text, latencyMs, annotatorModel, langIdModel);
     // Sort the entity types to ensure the logging order is deterministic.
     ImmutableList<String> sortedEntityTypes =
         ImmutableList.sortedCopyOf(perEntityTypeStats.keySet());
@@ -103,7 +111,9 @@ public final class GenerateLinksLogger {
           entityType,
           perEntityTypeStats.get(entityType),
           text,
-          latencyMs);
+          latencyMs,
+          annotatorModel,
+          langIdModel);
     }
   }
 
@@ -127,13 +137,17 @@ public final class GenerateLinksLogger {
       @Nullable String entityType,
       LinkifyStats stats,
       CharSequence text,
-      long latencyMs) {
+      long latencyMs,
+      Optional<ModelInfo> annotatorModel,
+      Optional<ModelInfo> langIdModel) {
+    String annotatorModelName = annotatorModel.map(ModelInfo::toModelName).orElse(null);
+    String langIdModelName = langIdModel.map(ModelInfo::toModelName).orElse(null);
     StatsEvent statsEvent =
         StatsEvent.newBuilder()
             .setAtomId(TextClassifierEventLogger.TEXT_LINKIFY_EVENT_ATOM_ID)
             .writeString(callId)
             .writeInt(TextClassifierEvent.TYPE_LINKS_GENERATED)
-            .writeString(/* modelName */ null)
+            .writeString(annotatorModelName)
             .writeInt(TextClassifierEventLogger.WidgetType.WIDGET_TYPE_UNKNOWN)
             .writeInt(/* eventIndex */ 0)
             .writeString(entityType)
@@ -142,6 +156,7 @@ public final class GenerateLinksLogger {
             .writeInt(text.length())
             .writeLong(latencyMs)
             .writeString(callingPackageName)
+            .writeString(langIdModelName)
             .usePooledBuffer()
             .build();
     StatsLog.write(statsEvent);
@@ -151,14 +166,16 @@ public final class GenerateLinksLogger {
           LOG_TAG,
           String.format(
               Locale.US,
-              "%s:%s %d links (%d/%d chars) %dms %s",
+              "%s:%s %d links (%d/%d chars) %dms %s annotator=%s langid=%s",
               callId,
               entityType,
               stats.numLinks,
               stats.numLinksTextLength,
               text.length(),
               latencyMs,
-              callingPackageName));
+              callingPackageName,
+              annotatorModelName,
+              langIdModelName));
     }
   }
 
