@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Locale;
+import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -176,8 +177,9 @@ public class SelectionEventConverterTest {
 
   private static String createResultId() {
     return ResultIdUtils.createId(
-        ImmutableList.of(new ModelInfo(/* version= */ 702, ImmutableList.of(Locale.ENGLISH))),
-        /*hash=*/ 12345);
+        /*hash=*/ 12345,
+        ImmutableList.of(
+            Optional.of(new ModelInfo(/* version= */ 702, ImmutableList.of(Locale.ENGLISH)))));
   }
 
   private static class TestTextClassifier implements TextClassifier {
