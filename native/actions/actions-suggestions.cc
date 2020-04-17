@@ -408,15 +408,6 @@ bool ActionsSuggestions::InitializeTriggeringPreconditions() {
   preconditions_.suppress_on_low_confidence_input = ValueOrDefault(
       overlay, TriggeringPreconditions::VT_SUPPRESS_ON_LOW_CONFIDENCE_INPUT,
       defaults->suppress_on_low_confidence_input());
-  preconditions_.diversification_distance_threshold = ValueOrDefault(
-      overlay, TriggeringPreconditions::VT_DIVERSIFICATION_DISTANCE_THRESHOLD,
-      defaults->diversification_distance_threshold());
-  preconditions_.confidence_threshold =
-      ValueOrDefault(overlay, TriggeringPreconditions::VT_CONFIDENCE_THRESHOLD,
-                     defaults->confidence_threshold());
-  preconditions_.empirical_probability_factor = ValueOrDefault(
-      overlay, TriggeringPreconditions::VT_EMPIRICAL_PROBABILITY_FACTOR,
-      defaults->empirical_probability_factor());
   preconditions_.min_reply_score_threshold = ValueOrDefault(
       overlay, TriggeringPreconditions::VT_MIN_REPLY_SCORE_THRESHOLD,
       defaults->min_reply_score_threshold());
@@ -603,8 +594,6 @@ bool ActionsSuggestions::AllocateInput(const int conversation_length,
 bool ActionsSuggestions::SetupModelInput(
     const std::vector<std::string>& context, const std::vector<int>& user_ids,
     const std::vector<float>& time_diffs, const int num_suggestions,
-    const float confidence_threshold, const float diversification_distance,
-    const float empirical_probability_factor,
     tflite::Interpreter* interpreter) const {
   // Compute token embeddings.
   std::vector<std::vector<Token>> tokens;
@@ -664,21 +653,6 @@ bool ActionsSuggestions::SetupModelInput(
     model_executor_->SetInput<float>(
         model_->tflite_model_spec()->input_time_diffs(), time_diffs,
         interpreter);
-  }
-  if (model_->tflite_model_spec()->input_diversification_distance() >= 0) {
-    model_executor_->SetInput<float>(
-        model_->tflite_model_spec()->input_diversification_distance(),
-        diversification_distance, interpreter);
-  }
-  if (model_->tflite_model_spec()->input_confidence_threshold() >= 0) {
-    model_executor_->SetInput<float>(
-        model_->tflite_model_spec()->input_confidence_threshold(),
-        confidence_threshold, interpreter);
-  }
-  if (model_->tflite_model_spec()->input_empirical_probability_factor() >= 0) {
-    model_executor_->SetInput<float>(
-        model_->tflite_model_spec()->input_empirical_probability_factor(),
-        confidence_threshold, interpreter);
   }
   if (model_->tflite_model_spec()->input_num_tokens() >= 0) {
     std::vector<int> num_tokens_per_message(tokens.size());
@@ -842,9 +816,6 @@ bool ActionsSuggestions::SuggestActionsFromModel(
 
   if (!SetupModelInput(context, user_ids, time_diffs,
                        /*num_suggestions=*/model_->num_smart_replies(),
-                       preconditions_.confidence_threshold,
-                       preconditions_.diversification_distance_threshold,
-                       preconditions_.empirical_probability_factor,
                        interpreter->get())) {
     TC3_LOG(ERROR) << "Failed to setup input for TensorFlow Lite model.";
     return false;
