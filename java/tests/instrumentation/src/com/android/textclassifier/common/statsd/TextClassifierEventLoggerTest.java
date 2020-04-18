@@ -76,7 +76,7 @@ public class TextClassifierEventLoggerTest {
         new TextClassifierEvent.TextSelectionEvent.Builder(
                 TextClassifierEvent.TYPE_SELECTION_STARTED)
             .setEventContext(createTextClassificationContext())
-            .setModelName(MODEL_NAME)
+            .setResultId("androidtc|en_v705;und_v1|12345")
             .setEventIndex(1)
             .setEntityTypes(TextClassifier.TYPE_ADDRESS)
             .setRelativeWordStartIndex(2)
@@ -91,7 +91,7 @@ public class TextClassifierEventLoggerTest {
         AtomsProto.TextSelectionEvent.newBuilder()
             .setSessionId(sessionId.getValue())
             .setEventType(EventType.SELECTION_STARTED)
-            .setModelName(MODEL_NAME)
+            .setModelName("en_v705")
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)
             .setEventIndex(1)
             .setEntityType(TextClassifier.TYPE_ADDRESS)
@@ -100,6 +100,7 @@ public class TextClassifierEventLoggerTest {
             .setRelativeSuggestedWordStartIndex(1)
             .setRelativeSuggestedWordEndIndex(4)
             .setPackageName(PKG_NAME)
+            .setLangidModelName("und_v1")
             .build();
     ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
     assertThat(atoms).hasSize(1);
@@ -112,7 +113,7 @@ public class TextClassifierEventLoggerTest {
     TextClassifierEvent.TextLinkifyEvent textLinkifyEvent =
         new TextClassifierEvent.TextLinkifyEvent.Builder(TextClassifierEvent.TYPE_SELECTION_STARTED)
             .setEventContext(createTextClassificationContext())
-            .setModelName(MODEL_NAME)
+            .setResultId("androidtc|en_v705;und_v1|12345")
             .setEventIndex(1)
             .setEntityTypes(TextClassifier.TYPE_ADDRESS)
             .build();
@@ -123,7 +124,7 @@ public class TextClassifierEventLoggerTest {
         AtomsProto.TextLinkifyEvent.newBuilder()
             .setSessionId(sessionId.getValue())
             .setEventType(EventType.SELECTION_STARTED)
-            .setModelName(MODEL_NAME)
+            .setModelName("en_v705")
             .setWidgetType(WidgetType.WIDGET_TYPE_WEBVIEW)
             .setEventIndex(1)
             .setEntityType(TextClassifier.TYPE_ADDRESS)
@@ -132,6 +133,7 @@ public class TextClassifierEventLoggerTest {
             .setTextLength(0)
             .setLatencyMillis(0)
             .setPackageName(PKG_NAME)
+            .setLangidModelName("und_v1")
             .build();
     ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
     assertThat(atoms).hasSize(1);
@@ -145,7 +147,7 @@ public class TextClassifierEventLoggerTest {
         new TextClassifierEvent.ConversationActionsEvent.Builder(
                 TextClassifierEvent.TYPE_SELECTION_STARTED)
             .setEventContext(createTextClassificationContext())
-            .setResultId("android_tc|en_v1;zh_v2|12345")
+            .setResultId("android_tc|en_v1;zh_v2;und_v3|12345")
             .setEventIndex(1)
             .setEntityTypes("first", "second", "third", "fourth")
             .setScores(0.5f)
@@ -165,6 +167,7 @@ public class TextClassifierEventLoggerTest {
             .setScore(0.5f)
             .setPackageName(PKG_NAME)
             .setAnnotatorModelName("zh_v2")
+            .setLangidModelName("und_v3")
             .build();
     ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
     assertThat(atoms).hasSize(1);
