@@ -91,6 +91,9 @@ class Rules {
 
     // Rules that have this non-terminal as the lhs.
     std::vector<int> rules;
+
+    // Regex rules that have this non-terminal as the lhs.
+    std::vector<int> regex_rules;
   };
 
   // Adds a rule `lhs ::= rhs` with the given callback id and parameter.
@@ -130,6 +133,10 @@ class Rules {
                        int64 value, int8 max_whitespace_gap = -1,
                        bool case_sensitive = false, int shard = 0);
 
+  // Adds a regex rule.
+  void AddRegex(StringPiece lhs, const std::string& regex_pattern);
+  void AddRegex(int lhs, const std::string& regex_pattern);
+
   // Creates a nonterminal with the given name, if one doesn't already exist.
   int AddNonterminal(StringPiece nonterminal_name);
 
@@ -162,6 +169,7 @@ class Rules {
 
   // Rules.
   std::vector<Rule> rules_;
+  std::vector<std::string> regex_rules_;
 
   // Ids of callbacks that should be treated as filters.
   std::unordered_set<CallbackId> filters_;

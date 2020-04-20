@@ -134,27 +134,25 @@ class Ir {
 
   // Adds a terminal rule <lhs> ::= terminal.
   Nonterm Add(const Lhs& lhs, const std::string& terminal,
-              const bool case_sensitive = false, const int shard = 0);
+              bool case_sensitive = false, int shard = 0);
   Nonterm Add(const Nonterm lhs, const std::string& terminal,
-              const bool case_sensitive = false, const int shard = 0) {
+              bool case_sensitive = false, int shard = 0) {
     return Add(Lhs{lhs}, terminal, case_sensitive, shard);
   }
 
   // Adds a unary rule <lhs> ::= <rhs>.
-  Nonterm Add(const Lhs& lhs, const Nonterm rhs, const int shard = 0) {
+  Nonterm Add(const Lhs& lhs, Nonterm rhs, int shard = 0) {
     return AddRule(lhs, rhs, &shards_[shard].unary_rules);
   }
-  Nonterm Add(const Nonterm lhs, const Nonterm rhs, const int shard = 0) {
+  Nonterm Add(Nonterm lhs, Nonterm rhs, int shard = 0) {
     return Add(Lhs{lhs}, rhs, shard);
   }
 
   // Adds a binary rule <lhs> ::= <rhs_1> <rhs_2>.
-  Nonterm Add(const Lhs& lhs, const Nonterm rhs_1, const Nonterm rhs_2,
-              const int shard = 0) {
+  Nonterm Add(const Lhs& lhs, Nonterm rhs_1, Nonterm rhs_2, int shard = 0) {
     return AddRule(lhs, {rhs_1, rhs_2}, &shards_[shard].binary_rules);
   }
-  Nonterm Add(const Nonterm lhs, const Nonterm rhs_1, const Nonterm rhs_2,
-              const int shard = 0) {
+  Nonterm Add(Nonterm lhs, Nonterm rhs_1, Nonterm rhs_2, int shard = 0) {
     return Add(Lhs{lhs}, rhs_1, rhs_2, shard);
   }
 
@@ -166,19 +164,20 @@ class Ir {
   //     <temp_2> ::= <temp_1> <RHS_3>
   //     ...
   //     <LHS> ::= <temp_(k-1)> <RHS_k>
-  Nonterm Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
-              const int shard = 0);
-  Nonterm Add(const Nonterm lhs, const std::vector<Nonterm>& rhs,
-              const int shard = 0) {
+  Nonterm Add(const Lhs& lhs, const std::vector<Nonterm>& rhs, int shard = 0);
+  Nonterm Add(Nonterm lhs, const std::vector<Nonterm>& rhs, int shard = 0) {
     return Add(Lhs{lhs}, rhs, shard);
   }
 
+  // Adds a regex rule <lhs> ::= <regex_pattern>.
+  Nonterm AddRegex(Nonterm lhs, const std::string& regex_pattern);
+
   // Serializes a rule set in the intermediate representation into the
   // memory mappable inference format.
-  void Serialize(const bool include_debug_information, RulesSetT* output) const;
+  void Serialize(bool include_debug_information, RulesSetT* output) const;
 
   std::string SerializeAsFlatbuffer(
-      const bool include_debug_information = false) const;
+      bool include_debug_information = false) const;
 
   const std::vector<RulesShard>& shards() const { return shards_; }
 
@@ -217,6 +216,9 @@ class Ir {
 
   // The sharded rules.
   std::vector<RulesShard> shards_;
+
+  // The regex rules.
+  std::vector<std::pair<std::string, Nonterm>> regex_rules_;
 
   // Debug information.
   std::unordered_map<Nonterm, std::string> nonterminal_names_;
