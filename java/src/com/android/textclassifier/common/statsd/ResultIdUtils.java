@@ -58,6 +58,11 @@ public final class ResultIdUtils {
     return String.format(Locale.US, "%s|%s|%d", CLASSIFIER_ID, modelJoiner, hash);
   }
 
+  /** Returns if the result id was generated from the default text classifier. */
+  public static boolean isFromDefaultTextClassifier(String resultId) {
+    return resultId.startsWith(CLASSIFIER_ID + '|');
+  }
+
   /** Returns all the model names encoded in the signature. */
   static ImmutableList<String> getModelNames(@Nullable String signature) {
     if (TextUtils.isEmpty(signature)) {
