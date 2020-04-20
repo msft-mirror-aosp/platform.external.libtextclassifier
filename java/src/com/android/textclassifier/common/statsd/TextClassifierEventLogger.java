@@ -72,7 +72,7 @@ public final class TextClassifierEventLogger {
         StatsEvent.newBuilder()
             .setAtomId(TEXT_SELECTION_EVENT_ATOM_ID)
             .writeString(sessionId == null ? null : sessionId.getValue())
-            .writeInt(event.getEventType())
+            .writeInt(getEventType(event))
             .writeString(getItemAt(modelNames, /* index= */ 0, /* defaultValue= */ null))
             .writeInt(getWidgetType(event))
             .writeInt(event.getEventIndex())
@@ -86,6 +86,17 @@ public final class TextClassifierEventLogger {
             .usePooledBuffer()
             .build();
     StatsLog.write(statsEvent);
+  }
+
+  private static int getEventType(TextClassifierEvent.TextSelectionEvent event) {
+    if (event.getEventType() == TextClassifierEvent.TYPE_AUTO_SELECTION) {
+      if (ResultIdUtils.isFromDefaultTextClassifier(event.getResultId())) {
+        return event.getRelativeWordEndIndex() - event.getRelativeWordStartIndex() > 1
+            ? TextClassifierEvent.TYPE_SMART_SELECTION_MULTI
+            : TextClassifierEvent.TYPE_SMART_SELECTION_SINGLE;
+      }
+    }
+    return event.getEventType();
   }
 
   private static void logTextLinkifyEvent(
