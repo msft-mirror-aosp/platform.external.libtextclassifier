@@ -88,4 +88,14 @@ public class ResultIdUtilsTest {
 
     assertThat(modelInfo.toModelName()).isEqualTo("en_v700");
   }
+
+  @Test
+  public void isFromDefaultTextClassifier_true() {
+    assertThat(ResultIdUtils.isFromDefaultTextClassifier("androidtc|en_v703|12344")).isTrue();
+  }
+
+  @Test
+  public void isFromDefaultTextClassifier_false() {
+    assertThat(ResultIdUtils.isFromDefaultTextClassifier("aiai|en_v703|12344")).isFalse();
+  }
 }
