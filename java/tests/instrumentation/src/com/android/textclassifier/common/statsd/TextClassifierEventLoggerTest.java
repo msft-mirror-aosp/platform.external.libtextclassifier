@@ -108,6 +108,60 @@ public class TextClassifierEventLoggerTest {
   }
 
   @Test
+  public void writeEvent_textSelectionEvent_autoToSingle() throws Exception {
+    TextClassificationSessionId sessionId = new TextClassificationSessionId();
+    TextClassifierEvent.TextSelectionEvent textSelectionEvent =
+        new TextClassifierEvent.TextSelectionEvent.Builder(TextClassifierEvent.TYPE_AUTO_SELECTION)
+            .setResultId("androidtc|en_v705;und_v1|12345")
+            .setRelativeWordStartIndex(2)
+            .setRelativeWordEndIndex(3)
+            .build();
+
+    textClassifierEventLogger.writeEvent(sessionId, textSelectionEvent);
+
+    ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
+    assertThat(atoms).hasSize(1);
+    assertThat(atoms.get(0).getTextSelectionEvent().getEventType())
+        .isEqualTo(EventType.SMART_SELECTION_SINGLE);
+  }
+
+  @Test
+  public void writeEvent_textSelectionEvent_autoToMulti() throws Exception {
+    TextClassificationSessionId sessionId = new TextClassificationSessionId();
+    TextClassifierEvent.TextSelectionEvent textSelectionEvent =
+        new TextClassifierEvent.TextSelectionEvent.Builder(TextClassifierEvent.TYPE_AUTO_SELECTION)
+            .setResultId("androidtc|en_v705;und_v1|12345")
+            .setRelativeWordStartIndex(2)
+            .setRelativeWordEndIndex(4)
+            .build();
+
+    textClassifierEventLogger.writeEvent(sessionId, textSelectionEvent);
+
+    ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
+    assertThat(atoms).hasSize(1);
+    assertThat(atoms.get(0).getTextSelectionEvent().getEventType())
+        .isEqualTo(EventType.SMART_SELECTION_MULTI);
+  }
+
+  @Test
+  public void writeEvent_textSelectionEvent_keepAuto() throws Exception {
+    TextClassificationSessionId sessionId = new TextClassificationSessionId();
+    TextClassifierEvent.TextSelectionEvent textSelectionEvent =
+        new TextClassifierEvent.TextSelectionEvent.Builder(TextClassifierEvent.TYPE_AUTO_SELECTION)
+            .setResultId("aiai|en_v705;und_v1|12345")
+            .setRelativeWordStartIndex(2)
+            .setRelativeWordEndIndex(4)
+            .build();
+
+    textClassifierEventLogger.writeEvent(sessionId, textSelectionEvent);
+
+    ImmutableList<Atom> atoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
+    assertThat(atoms).hasSize(1);
+    assertThat(atoms.get(0).getTextSelectionEvent().getEventType())
+        .isEqualTo(EventType.AUTO_SELECTION);
+  }
+
+  @Test
   public void writeEvent_textLinkifyEvent() throws Exception {
     TextClassificationSessionId sessionId = new TextClassificationSessionId();
     TextClassifierEvent.TextLinkifyEvent textLinkifyEvent =

@@ -18,6 +18,7 @@
 
 #include "utils/strings/append.h"
 #include "utils/strings/stringpiece.h"
+#include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3::grammar {
 namespace {
@@ -248,6 +249,12 @@ Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
   return Add(lhs, prev, rhs.back(), shard);
 }
 
+Nonterm Ir::AddRegex(Nonterm lhs, const std::string& regex_pattern) {
+  lhs = DefineNonterminal(lhs);
+  regex_rules_.emplace_back(regex_pattern, lhs);
+  return lhs;
+}
+
 // Serializes the terminal rules table.
 void Ir::SerializeTerminalRules(
     RulesSetT* rules_set,
@@ -428,6 +435,17 @@ void Ir::Serialize(const bool include_debug_information,
     std::sort(output->debug_information->nonterminal_names.begin(),
               output->debug_information->nonterminal_names.end(),
               [](const auto& a, const auto& b) { return a->key < b->key; });
+  }
+
+  // Add regex rules.
+  std::unique_ptr<ZlibCompressor> compressor = ZlibCompressor::Instance();
+  for (auto [pattern, lhs] : regex_rules_) {
+    output->regex_annotator.emplace_back(new RulesSet_::RegexAnnotatorT);
+    output->regex_annotator.back()->compressed_pattern.reset(
+        new CompressedBufferT);
+    compressor->Compress(
+        pattern, output->regex_annotator.back()->compressed_pattern.get());
+    output->regex_annotator.back()->nonterminal = lhs;
   }
 
   // Serialize the unary and binary rules.
