@@ -275,6 +275,15 @@ void Rules::AddValueMapping(StringPiece lhs,
       /*callback_param=*/value, max_whitespace_gap, case_sensitive, shard);
 }
 
+void Rules::AddRegex(StringPiece lhs, const std::string& regex_pattern) {
+  AddRegex(AddNonterminal(lhs), regex_pattern);
+}
+
+void Rules::AddRegex(int lhs, const std::string& regex_pattern) {
+  nonterminals_[lhs].regex_rules.push_back(regex_rules_.size());
+  regex_rules_.push_back(regex_pattern);
+}
+
 Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   Ir rules(filters_, num_shards_);
   std::unordered_map<int, Nonterm> nonterminal_ids;
@@ -295,7 +304,8 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   // multiple rules or that have a filter callback on some rule.
   for (int i = 0; i < nonterminals_.size(); i++) {
     const NontermInfo& nonterminal = nonterminals_[i];
-    bool unmergeable = (nonterminal.rules.size() > 1);
+    bool unmergeable =
+        (nonterminal.rules.size() > 1 || !nonterminal.regex_rules.empty());
     for (const int rule_index : nonterminal.rules) {
       const Rule& rule = rules_[rule_index];
 
@@ -307,11 +317,17 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
         unmergeable = true;
       }
     }
+
     if (unmergeable) {
       // Define unique nonterminal id.
       nonterminal_ids[i] = rules.AddUnshareableNonterminal(nonterminal.name);
     } else {
       nonterminal_ids[i] = rules.AddNonterminal(nonterminal.name);
+    }
+
+    // Define regex rules.
+    for (const int regex_rule : nonterminal.regex_rules) {
+      rules.AddRegex(nonterminal_ids[i], regex_rules_[regex_rule]);
     }
   }
 
