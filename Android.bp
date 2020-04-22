@@ -290,6 +290,7 @@ cc_test {
     ],
 
     static_libs: ["libgmock"],
+    header_libs: ["jni_headers"],
 
     multilib: {
         lib32: {
