@@ -120,6 +120,7 @@ cc_defaults {
     ],
 
     header_libs: [
+        "jni_headers",
         "tensorflow_headers",
         "flatbuffer_headers",
     ],
@@ -324,6 +325,7 @@ cc_test {
         "utils/utf8/*_test-include.*"
     ],
 
+    header_libs: ["jni_headers"],
     static_libs: ["libgmock_ndk"],
 
     multilib: {
