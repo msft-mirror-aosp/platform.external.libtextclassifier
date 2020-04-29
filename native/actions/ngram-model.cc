@@ -61,8 +61,8 @@ class FirstTokenIterator
 }  // anonymous namespace
 
 std::unique_ptr<NGramModel> NGramModel::Create(
-    const NGramLinearRegressionModel* model, const Tokenizer* tokenizer,
-    const UniLib* unilib) {
+    const UniLib* unilib, const NGramLinearRegressionModel* model,
+    const Tokenizer* tokenizer) {
   if (model == nullptr) {
     return nullptr;
   }
@@ -70,11 +70,12 @@ std::unique_ptr<NGramModel> NGramModel::Create(
     TC3_LOG(ERROR) << "No tokenizer options specified.";
     return nullptr;
   }
-  return std::unique_ptr<NGramModel>(new NGramModel(model, tokenizer, unilib));
+  return std::unique_ptr<NGramModel>(new NGramModel(unilib, model, tokenizer));
 }
 
-NGramModel::NGramModel(const NGramLinearRegressionModel* model,
-                       const Tokenizer* tokenizer, const UniLib* unilib)
+NGramModel::NGramModel(const UniLib* unilib,
+                       const NGramLinearRegressionModel* model,
+                       const Tokenizer* tokenizer)
     : model_(model) {
   // Create new tokenizer if options are specified, reuse feature processor
   // tokenizer otherwise.

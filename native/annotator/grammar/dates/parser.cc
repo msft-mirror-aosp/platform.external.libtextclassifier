@@ -784,9 +784,9 @@ std::vector<DatetimeParseResultSpan> DateParser::Parse(
   if (locale_rules.empty()) {
     return {};
   }
-  grammar::Matcher matcher(unilib_, datetime_rules_->rules(), locale_rules,
+  grammar::Matcher matcher(&unilib_, datetime_rules_->rules(), locale_rules,
                            &extractor);
-  lexer_.Process(text_unicode, tokens, /*matches=*/{}, &matcher);
+  lexer_.Process(text_unicode, tokens, /*annotations=*/nullptr, &matcher);
   return GetOutputAsAnnotationList(unilib_, extractor, codepoint_offsets,
                                    options);
 }

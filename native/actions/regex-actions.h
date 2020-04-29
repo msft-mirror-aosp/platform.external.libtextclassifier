@@ -32,8 +32,9 @@ namespace libtextclassifier3 {
 // Regular expression backed actions suggestions.
 class RegexActions {
  public:
-  RegexActions(const std::string& smart_reply_action_type, const UniLib* unilib)
-      : unilib_(unilib), smart_reply_action_type_(smart_reply_action_type) {}
+  explicit RegexActions(const UniLib* unilib,
+                        const std::string& smart_reply_action_type)
+      : unilib_(*unilib), smart_reply_action_type_(smart_reply_action_type) {}
 
   // Decompresses and initializes all rules in a model.
   bool InitializeRules(
@@ -75,7 +76,7 @@ class RegexActions {
                             ZlibDecompressor* decompressor,
                             std::vector<CompiledRule>* compiled_rules) const;
 
-  const UniLib* unilib_;
+  const UniLib& unilib_;
   const std::string smart_reply_action_type_;
   std::vector<CompiledRule> rules_, low_confidence_rules_;
 };

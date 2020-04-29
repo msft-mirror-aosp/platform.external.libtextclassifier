@@ -31,9 +31,9 @@ namespace libtextclassifier3 {
 
 class FastMathClass {
  private:
-  static const int kBits = 7;
-  static const int kMask1 = (1 << kBits) - 1;
-  static const int kMask2 = 0xFF << kBits;
+  static constexpr int kBits = 7;
+  static constexpr int kMask1 = (1 << kBits) - 1;
+  static constexpr int kMask2 = 0xFF << kBits;
   static constexpr float kLogBase2OfE = 1.44269504088896340736f;
 
   struct Table {

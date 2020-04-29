@@ -40,6 +40,8 @@ StatusOr<ClassificationOptions> FromJavaClassificationOptions(JNIEnv* env,
 StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
                                                       jobject joptions);
 
+StatusOr<InputFragment> FromJavaInputFragment(JNIEnv* env, jobject jfragment);
+
 }  // namespace libtextclassifier3
 
 #endif  // LIBTEXTCLASSIFIER_ANNOTATOR_ANNOTATOR_JNI_COMMON_H_
