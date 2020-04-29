@@ -37,17 +37,17 @@ class GrammarActions {
  public:
   enum class Callback : grammar::CallbackId { kActionRuleMatch = 1 };
 
-  GrammarActions(const UniLib* unilib,
-                 const RulesModel_::GrammarRules* grammar_rules,
-                 const ReflectiveFlatbufferBuilder* entity_data_builder,
-                 const std::string& smart_reply_action_type);
+  explicit GrammarActions(
+      const UniLib* unilib, const RulesModel_::GrammarRules* grammar_rules,
+      const ReflectiveFlatbufferBuilder* entity_data_builder,
+      const std::string& smart_reply_action_type);
 
   // Suggests actions for a conversation from a message stream.
   bool SuggestActions(const Conversation& conversation,
                       std::vector<ActionSuggestion>* result) const;
 
  private:
-  const UniLib* unilib_;
+  const UniLib& unilib_;
   const RulesModel_::GrammarRules* grammar_rules_;
   const std::unique_ptr<Tokenizer> tokenizer_;
   const grammar::Lexer lexer_;

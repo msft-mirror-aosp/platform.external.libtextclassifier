@@ -33,12 +33,11 @@ namespace libtextclassifier3::dates {
 // (List of annotation generated from Grammar rules) to DatetimeParseResultSpan.
 class CfgDatetimeAnnotator {
  public:
-  CfgDatetimeAnnotator(const UniLib& unilib,
-                       const GrammarTokenizerOptions* tokenizer_options,
-                       const CalendarLib& calendar_lib,
-                       const DatetimeRules* datetime_rules,
-                       const float annotator_target_classification_score,
-                       const float annotator_priority_score);
+  explicit CfgDatetimeAnnotator(
+      const UniLib* unilib, const GrammarTokenizerOptions* tokenizer_options,
+      const CalendarLib* calendar_lib, const DatetimeRules* datetime_rules,
+      const float annotator_target_classification_score,
+      const float annotator_priority_score);
 
   // CfgDatetimeAnnotator is neither copyable nor movable.
   CfgDatetimeAnnotator(const CfgDatetimeAnnotator&) = delete;

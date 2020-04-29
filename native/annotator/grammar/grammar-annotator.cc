@@ -47,11 +47,11 @@ std::vector<UnicodeText::const_iterator> UnicodeCodepointOffsets(
 
 class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
  public:
-  GrammarAnnotatorCallbackDelegate(
+  explicit GrammarAnnotatorCallbackDelegate(
       const UniLib* unilib, const GrammarModel* model,
       const ReflectiveFlatbufferBuilder* entity_data_builder,
       const ModeFlag mode)
-      : unilib_(unilib),
+      : unilib_(*unilib),
         model_(model),
         entity_data_builder_(entity_data_builder),
         mode_(mode) {}
@@ -340,7 +340,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
     return true;
   }
 
-  const UniLib* unilib_;
+  const UniLib& unilib_;
   const GrammarModel* model_;
   const ReflectiveFlatbufferBuilder* entity_data_builder_;
   const ModeFlag mode_;
@@ -353,9 +353,9 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 GrammarAnnotator::GrammarAnnotator(
     const UniLib* unilib, const GrammarModel* model,
     const ReflectiveFlatbufferBuilder* entity_data_builder)
-    : unilib_(unilib),
+    : unilib_(*unilib),
       model_(model),
-      lexer_(*unilib, model->rules()),
+      lexer_(unilib, model->rules()),
       tokenizer_(BuildTokenizer(unilib, model->tokenizer_options())),
       entity_data_builder_(entity_data_builder),
       rules_locales_(grammar::ParseRulesLocales(model->rules())) {}
@@ -378,11 +378,12 @@ bool GrammarAnnotator::Annotate(const std::vector<Locale>& locales,
 
   // Run the grammar.
   GrammarAnnotatorCallbackDelegate callback_handler(
-      unilib_, model_, entity_data_builder_,
+      &unilib_, model_, entity_data_builder_,
       /*mode=*/ModeFlag_ANNOTATION);
-  grammar::Matcher matcher(*unilib_, model_->rules(), locale_rules,
+  grammar::Matcher matcher(&unilib_, model_->rules(), locale_rules,
                            &callback_handler);
-  lexer_.Process(text, tokenizer_.Tokenize(text), /*matches=*/{}, &matcher);
+  lexer_.Process(text, tokenizer_.Tokenize(text), /*annotations=*/nullptr,
+                 &matcher);
 
   // Populate results.
   return callback_handler.GetAnnotations(UnicodeCodepointOffsets(text), result);
@@ -408,11 +409,12 @@ bool GrammarAnnotator::SuggestSelection(const std::vector<Locale>& locales,
 
   // Run the grammar.
   GrammarAnnotatorCallbackDelegate callback_handler(
-      unilib_, model_, entity_data_builder_,
+      &unilib_, model_, entity_data_builder_,
       /*mode=*/ModeFlag_SELECTION);
-  grammar::Matcher matcher(*unilib_, model_->rules(), locale_rules,
+  grammar::Matcher matcher(&unilib_, model_->rules(), locale_rules,
                            &callback_handler);
-  lexer_.Process(text, tokenizer_.Tokenize(text), /*matches=*/{}, &matcher);
+  lexer_.Process(text, tokenizer_.Tokenize(text), /*annotations=*/nullptr,
+                 &matcher);
 
   // Populate the result.
   return callback_handler.GetTextSelection(UnicodeCodepointOffsets(text),
@@ -439,16 +441,16 @@ bool GrammarAnnotator::ClassifyText(
 
   // Run the grammar.
   GrammarAnnotatorCallbackDelegate callback_handler(
-      unilib_, model_, entity_data_builder_,
+      &unilib_, model_, entity_data_builder_,
       /*mode=*/ModeFlag_CLASSIFICATION);
-  grammar::Matcher matcher(*unilib_, model_->rules(), locale_rules,
+  grammar::Matcher matcher(&unilib_, model_->rules(), locale_rules,
                            &callback_handler);
 
   const std::vector<Token> tokens = tokenizer_.Tokenize(text);
   if (model_->context_left_num_tokens() == -1 &&
       model_->context_right_num_tokens() == -1) {
     // Use all tokens.
-    lexer_.Process(text, tokens, /*matches=*/{}, &matcher);
+    lexer_.Process(text, tokens, /*annotations=*/{}, &matcher);
   } else {
     TokenSpan context_span = CodepointSpanToTokenSpan(
         tokens, selection, /*snap_boundaries_to_containing_tokens=*/true);
@@ -466,7 +468,7 @@ bool GrammarAnnotator::ClassifyText(
                                      model_->context_right_num_tokens()));
     }
     lexer_.Process(text, begin, end,
-                   /*matches=*/{}, &matcher);
+                   /*annotations=*/nullptr, &matcher);
   }
 
   // Populate result.

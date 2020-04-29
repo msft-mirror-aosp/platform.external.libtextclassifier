@@ -32,8 +32,8 @@ TokenFeatureExtractorOptions BuildTokenFeatureExtractorOptions(
   extractor_options.unicode_aware_features = options->unicode_aware_features();
   extractor_options.extract_selection_mask_feature = false;
   if (options->regexp_features() != nullptr) {
-    for (const auto& regexp_feauture : *options->regexp_features()) {
-      extractor_options.regexp_features.push_back(regexp_feauture->str());
+    for (const auto regexp_feature : *options->regexp_features()) {
+      extractor_options.regexp_features.push_back(regexp_feature->str());
     }
   }
   extractor_options.remap_digits = options->remap_digits();
@@ -70,7 +70,7 @@ ActionsFeatureProcessor::ActionsFeatureProcessor(
     : options_(options),
       tokenizer_(CreateTokenizer(options->tokenizer_options(), unilib)),
       token_feature_extractor_(BuildTokenFeatureExtractorOptions(options),
-                               *unilib) {}
+                               unilib) {}
 
 int ActionsFeatureProcessor::GetTokenEmbeddingSize() const {
   return options_->embedding_size() +

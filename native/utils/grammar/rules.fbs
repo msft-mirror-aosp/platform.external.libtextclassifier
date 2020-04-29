@@ -110,6 +110,12 @@ struct Lhs {
   max_whitespace_gap:byte;
 }
 
+namespace libtextclassifier3.grammar.RulesSet_.Nonterminals_;
+table AnnotationNtEntry {
+  key:string (key, shared);
+  value:int;
+}
+
 // Usage of pre-defined non-terminals that the lexer can generate if used by
 // the grammar.
 namespace libtextclassifier3.grammar.RulesSet_;
@@ -135,6 +141,10 @@ table Nonterminals {
 
   // Id of the nonterminal indicating an uppercase token.
   uppercase_token_nt:int;
+
+  // Predefined nonterminals for annotations.
+  // Maps annotation/collection names to non-terminal ids.
+  annotation_nt:[Nonterminals_.AnnotationNtEntry];
 }
 
 // Callback information.
