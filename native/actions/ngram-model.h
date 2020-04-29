@@ -30,8 +30,8 @@ namespace libtextclassifier3 {
 class NGramModel {
  public:
   static std::unique_ptr<NGramModel> Create(
-      const NGramLinearRegressionModel* model, const Tokenizer* tokenizer,
-      const UniLib* unilib);
+      const UniLib* unilib, const NGramLinearRegressionModel* model,
+      const Tokenizer* tokenizer);
 
   // Evaluates an n-gram linear regression model, and tests against the
   // threshold. Returns true in case of a positive classification. The caller
@@ -48,8 +48,8 @@ class NGramModel {
                                 int max_skips);
 
  private:
-  NGramModel(const NGramLinearRegressionModel* model,
-             const Tokenizer* tokenizer, const UniLib* unilib);
+  NGramModel(const UniLib* unilib, const NGramLinearRegressionModel* model,
+             const Tokenizer* tokenizer);
 
   // Returns the (begin,end] range of n-grams where the first hashed token
   // matches the given value.

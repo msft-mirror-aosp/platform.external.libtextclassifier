@@ -45,7 +45,7 @@ void SuggestTextRepliesFromCapturingMatch(
 
 // Applies normalization to a capturing match.
 UnicodeText NormalizeMatchText(
-    const UniLib* unilib,
+    const UniLib& unilib,
     const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
     StringPiece match_text);
 

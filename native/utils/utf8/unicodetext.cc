@@ -288,7 +288,7 @@ char32 UnicodeText::const_iterator::operator*() const {
 }
 
 UnicodeText::const_iterator& UnicodeText::const_iterator::operator++() {
-  it_ += GetNumBytesForNonZeroUTF8Char(it_);
+  it_ += GetNumBytesForUTF8Char(it_);
   return *this;
 }
 
