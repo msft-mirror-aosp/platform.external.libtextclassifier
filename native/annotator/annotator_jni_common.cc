@@ -269,4 +269,67 @@ StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
   return annotation_options;
 }
 
+StatusOr<InputFragment> FromJavaInputFragment(JNIEnv* env, jobject jfragment) {
+  if (!jfragment) {
+    return Status(StatusCode::INTERNAL, "Called with null input fragment.");
+  }
+  InputFragment fragment;
+
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jclass> fragment_class,
+      JniHelper::FindClass(
+          env, TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$InputFragment"));
+
+  // .getText()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_text,
+      JniHelper::GetMethodID(env, fragment_class.get(), "getText",
+                             "()Ljava/lang/String;"));
+
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jstring> text,
+      JniHelper::CallObjectMethod<jstring>(env, jfragment, get_text));
+
+  TC3_ASSIGN_OR_RETURN(fragment.text, ToStlString(env, text.get()));
+
+  // .hasDatetimeOptions()
+  TC3_ASSIGN_OR_RETURN(jmethodID has_date_time_options_method,
+                       JniHelper::GetMethodID(env, fragment_class.get(),
+                                              "hasDatetimeOptions", "()Z"));
+
+  TC3_ASSIGN_OR_RETURN(bool has_date_time_options,
+                       JniHelper::CallBooleanMethod(
+                           env, jfragment, has_date_time_options_method));
+
+  if (has_date_time_options) {
+    // .getReferenceTimeMsUtc()
+    TC3_ASSIGN_OR_RETURN(
+        jmethodID get_reference_time_method,
+        JniHelper::GetMethodID(env, fragment_class.get(),
+                               "getReferenceTimeMsUtc", "()J"));
+
+    TC3_ASSIGN_OR_RETURN(
+        int64 reference_time,
+        JniHelper::CallLongMethod(env, jfragment, get_reference_time_method));
+
+    // .getReferenceTimezone()
+    TC3_ASSIGN_OR_RETURN(
+        jmethodID get_reference_timezone_method,
+        JniHelper::GetMethodID(env, fragment_class.get(),
+                               "getReferenceTimezone", "()Ljava/lang/String;"));
+
+    TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> jreference_timezone,
+                         JniHelper::CallObjectMethod<jstring>(
+                             env, jfragment, get_reference_timezone_method));
+
+    TC3_ASSIGN_OR_RETURN(std::string reference_timezone,
+                         ToStlString(env, jreference_timezone.get()));
+
+    fragment.datetime_options =
+        DatetimeOptions{.reference_time_ms_utc = reference_time,
+                        .reference_timezone = reference_timezone};
+  }
+
+  return fragment;
+}
 }  // namespace libtextclassifier3

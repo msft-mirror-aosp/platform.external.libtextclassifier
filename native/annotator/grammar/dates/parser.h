@@ -35,8 +35,8 @@ namespace libtextclassifier3::dates {
 // constructs, validates, deduplicates and normalizes date time annotations.
 class DateParser {
  public:
-  DateParser(const UniLib& unilib, const DatetimeRules* datetime_rules)
-      : unilib_(unilib),
+  explicit DateParser(const UniLib* unilib, const DatetimeRules* datetime_rules)
+      : unilib_(*unilib),
         lexer_(unilib, datetime_rules->rules()),
         datetime_rules_(datetime_rules),
         rules_locales_(ParseRulesLocales(datetime_rules->rules())) {}

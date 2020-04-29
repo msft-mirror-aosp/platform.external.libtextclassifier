@@ -442,10 +442,10 @@ void Annotator::ValidateAndInitialize() {
   if (model_->grammar_datetime_model() &&
       model_->grammar_datetime_model()->datetime_rules()) {
     cfg_datetime_parser_.reset(new dates::CfgDatetimeAnnotator(
-        *unilib_,
+        unilib_,
         /*tokenizer_options=*/
         model_->grammar_datetime_model()->grammar_tokenizer_options(),
-        *calendarlib_,
+        calendarlib_,
         /*datetime_rules=*/model_->grammar_datetime_model()->datetime_rules(),
         model_->grammar_datetime_model()->target_classification_score(),
         model_->grammar_datetime_model()->priority_score()));
@@ -458,7 +458,7 @@ void Annotator::ValidateAndInitialize() {
 
   if (model_->datetime_model()) {
     datetime_parser_ = DatetimeParser::Instance(
-        model_->datetime_model(), *unilib_, *calendarlib_, decompressor.get());
+        model_->datetime_model(), unilib_, calendarlib_, decompressor.get());
     if (!datetime_parser_) {
       TC3_LOG(ERROR) << "Could not initialize datetime parser.";
       return;
@@ -558,7 +558,7 @@ bool Annotator::InitializeRegexModel(ZlibDecompressor* decompressor) {
 
   // Initialize pattern recognizers.
   int regex_pattern_id = 0;
-  for (const auto& regex_pattern : *model_->regex_model()->patterns()) {
+  for (const auto regex_pattern : *model_->regex_model()->patterns()) {
     std::unique_ptr<UniLib::RegexPattern> compiled_pattern =
         UncompressMakeRegexPattern(
             *unilib_, regex_pattern->pattern(),
@@ -2391,7 +2391,7 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
         // Apply normalization if specified.
         if (group->normalization_options() != nullptr) {
           normalized_group_match_text =
-              NormalizeText(unilib_, group->normalization_options(),
+              NormalizeText(*unilib_, group->normalization_options(),
                             normalized_group_match_text);
         }
 

@@ -110,7 +110,7 @@ class ActionsSuggestions {
   const ActionsModel* model() const;
   const reflection::Schema* entity_data_schema() const;
 
-  static const int kLocalUserId = 0;
+  static constexpr int kLocalUserId = 0;
 
   // Should be in sync with those defined in Android.
   // android/frameworks/base/core/java/android/view/textclassifier/ConversationActions.java

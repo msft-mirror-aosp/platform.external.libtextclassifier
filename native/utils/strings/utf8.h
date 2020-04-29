@@ -23,20 +23,12 @@ namespace libtextclassifier3 {
 
 // Returns the length (number of bytes) of the Unicode code point starting at
 // src, based on inspecting just that one byte.  Preconditions: src != NULL,
-// *src can be read, and *src is not '\0', and src points to a well-formed UTF-8
-// std::string.
-static inline int GetNumBytesForNonZeroUTF8Char(const char *src) {
+// *src can be read.
+static inline int GetNumBytesForUTF8Char(const char *src) {
   // On most platforms, char is unsigned by default, but iOS is an exception.
   // The cast below makes sure we always interpret *src as an unsigned char.
   return "\1\1\1\1\1\1\1\1\1\1\1\1\2\2\3\4"
       [(*(reinterpret_cast<const unsigned char *>(src)) & 0xFF) >> 4];
-}
-
-// Like GetNumBytesForNonZeroUTF8Char, but *src may be '\0'; returns 0 in that
-// case.
-static inline int GetNumBytesForUTF8Char(const char *src) {
-  if (*src == '\0') return 0;
-  return GetNumBytesForNonZeroUTF8Char(src);
 }
 
 // Returns true if this byte is a trailing UTF-8 byte (10xx xxxx)
