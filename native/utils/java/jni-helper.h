@@ -100,6 +100,11 @@ class JniHelper {
   static StatusOr<ScopedLocalRef<jfloatArray>> NewFloatArray(JNIEnv* env,
                                                              jsize length);
 
+  static StatusOr<jsize> GetArrayLength(JNIEnv* env, jarray jinput_fragments);
+
+  static Status SetObjectArrayElement(JNIEnv* env, jobjectArray array,
+                                      jsize index, jobject val);
+
   // Call* methods.
   TC3_DEFINE_VARIADIC_SCOPED_LOCAL_REF_ENV_METHOD(CallObjectMethod, jobject,
                                                   jobject, TC3_JNI_NO_CHECK);

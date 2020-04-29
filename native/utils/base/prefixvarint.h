@@ -109,11 +109,11 @@ namespace libtextclassifier3 {
 class PrefixVarint {
  public:
   // The max bytes used to encode a uint32:
-  static const int kMax32 = 5;
-  static const int kMax64 = 9;
+  static constexpr int kMax32 = 5;
+  static constexpr int kMax64 = 9;
 
   // This decoder does not read past the encoded buffer.
-  static const int kSlopBytes = 0;
+  static constexpr int kSlopBytes = 0;
 
   // Returns the number of bytes used to encode the given value:
   static int Length32(uint32 val);
@@ -122,8 +122,8 @@ class PrefixVarint {
   // The Encode functions could reset up to the following bytes past the last
   // encoded byte. Use the slower SafeEncode equivalent if you want the encode
   // to not use any slop bytes.
-  static const int kEncode32SlopBytes = 1;
-  static const int kEncode64SlopBytes = 3;
+  static constexpr int kEncode32SlopBytes = 1;
+  static constexpr int kEncode64SlopBytes = 3;
 
   // The safer version of the Encode functions, which don't need any slop bytes.
   static char* SafeEncode32(char* ptr, uint32 val);
@@ -145,14 +145,14 @@ class PrefixVarint {
   static const char* Parse64Inline(const char* ptr, uint64* val);
 
  private:
-  static const int kMin2Bytes = (1 << 7);
-  static const int kMin3Bytes = (1 << 14);
-  static const int kMin4Bytes = (1 << 21);
-  static const int kMin5Bytes = (1 << 28);
-  static const int64 kMin6Bytes = (1LL << 35);
-  static const int64 kMin7Bytes = (1LL << 42);
-  static const int64 kMin8Bytes = (1LL << 49);
-  static const int64 kMin9Bytes = (1LL << 56);
+  static constexpr int kMin2Bytes = (1 << 7);
+  static constexpr int kMin3Bytes = (1 << 14);
+  static constexpr int kMin4Bytes = (1 << 21);
+  static constexpr int kMin5Bytes = (1 << 28);
+  static constexpr int64 kMin6Bytes = (1LL << 35);
+  static constexpr int64 kMin7Bytes = (1LL << 42);
+  static constexpr int64 kMin8Bytes = (1LL << 49);
+  static constexpr int64 kMin9Bytes = (1LL << 56);
 
   static void Append32Slow(std::string* s, uint32 value);
   static void Append64Slow(std::string* s, uint64 value);
