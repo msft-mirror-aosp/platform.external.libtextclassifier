@@ -28,8 +28,8 @@
 
 namespace libtextclassifier3 {
 std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
-    const DatetimeModel* model, const UniLib& unilib,
-    const CalendarLib& calendarlib, ZlibDecompressor* decompressor) {
+    const DatetimeModel* model, const UniLib* unilib,
+    const CalendarLib* calendarlib, ZlibDecompressor* decompressor) {
   std::unique_ptr<DatetimeParser> result(
       new DatetimeParser(model, unilib, calendarlib, decompressor));
   if (!result->initialized_) {
@@ -38,10 +38,10 @@ std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
   return result;
 }
 
-DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
-                               const CalendarLib& calendarlib,
+DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib* unilib,
+                               const CalendarLib* calendarlib,
                                ZlibDecompressor* decompressor)
-    : unilib_(unilib), calendarlib_(calendarlib) {
+    : unilib_(*unilib), calendarlib_(*calendarlib) {
   initialized_ = false;
 
   if (model == nullptr) {
@@ -54,7 +54,7 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
         for (const DatetimeModelPattern_::Regex* regex : *pattern->regexes()) {
           std::unique_ptr<UniLib::RegexPattern> regex_pattern =
               UncompressMakeRegexPattern(
-                  unilib, regex->pattern(), regex->compressed_pattern(),
+                  unilib_, regex->pattern(), regex->compressed_pattern(),
                   model->lazy_regex_compilation(), decompressor);
           if (!regex_pattern) {
             TC3_LOG(ERROR) << "Couldn't create rule pattern.";
@@ -75,7 +75,7 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib& unilib,
     for (const DatetimeModelExtractor* extractor : *model->extractors()) {
       std::unique_ptr<UniLib::RegexPattern> regex_pattern =
           UncompressMakeRegexPattern(
-              unilib, extractor->pattern(), extractor->compressed_pattern(),
+              unilib_, extractor->pattern(), extractor->compressed_pattern(),
               model->lazy_regex_compilation(), decompressor);
       if (!regex_pattern) {
         TC3_LOG(ERROR) << "Couldn't create extractor pattern";
@@ -357,7 +357,7 @@ bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
                                      std::vector<DatetimeParseResult>* results,
                                      CodepointSpan* result_span) const {
   DatetimeParsedData parse;
-  DatetimeExtractor extractor(rule, matcher, locale_id, unilib_,
+  DatetimeExtractor extractor(rule, matcher, locale_id, &unilib_,
                               extractor_rules_,
                               type_and_locale_to_extractor_rule_);
   if (!extractor.Extract(&parse, result_span)) {

@@ -69,7 +69,7 @@ void SuggestTextRepliesFromCapturingMatch(
 }
 
 UnicodeText NormalizeMatchText(
-    const UniLib* unilib,
+    const UniLib& unilib,
     const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
     StringPiece match_text) {
   UnicodeText normalized_match_text =

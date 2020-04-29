@@ -65,8 +65,10 @@ struct TokenFeatureExtractorOptions {
 
 class TokenFeatureExtractor {
  public:
-  TokenFeatureExtractor(const TokenFeatureExtractorOptions& options,
-                        const UniLib& unilib);
+  // Des not take ownership of unilib, which must refer to a valid unilib
+  // instance that outlives this feature extractor.
+  explicit TokenFeatureExtractor(const TokenFeatureExtractorOptions& options,
+                                 const UniLib* unilib);
 
   // Extracts both the sparse (charactergram) and the dense features from a
   // token. is_in_span is a bool indicator whether the token is a part of the

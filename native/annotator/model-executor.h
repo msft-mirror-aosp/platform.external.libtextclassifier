@@ -56,8 +56,8 @@ class ModelExecutor : public TfLiteModelExecutor {
   explicit ModelExecutor(std::unique_ptr<const tflite::FlatBufferModel> model)
       : TfLiteModelExecutor(std::move(model)) {}
 
-  static const int kInputIndexFeatures = 0;
-  static const int kOutputIndexLogits = 0;
+  static constexpr int kInputIndexFeatures = 0;
+  static constexpr int kOutputIndexLogits = 0;
 };
 
 // Executor for embedding sparse features into a dense vector.

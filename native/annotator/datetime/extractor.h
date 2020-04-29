@@ -44,9 +44,9 @@ struct CompiledRule {
 // (DateParseDate) from the current match of the passed RegexMatcher.
 class DatetimeExtractor {
  public:
-  DatetimeExtractor(
+  explicit DatetimeExtractor(
       const CompiledRule& rule, const UniLib::RegexMatcher& matcher,
-      int locale_id, const UniLib& unilib,
+      int locale_id, const UniLib* unilib,
       const std::vector<std::unique_ptr<const UniLib::RegexPattern>>&
           extractor_rules,
       const std::unordered_map<DatetimeExtractorType,
@@ -55,7 +55,7 @@ class DatetimeExtractor {
       : rule_(rule),
         matcher_(matcher),
         locale_id_(locale_id),
-        unilib_(unilib),
+        unilib_(*unilib),
         rules_(extractor_rules),
         type_and_locale_to_rule_(type_and_locale_to_extractor_rule) {}
   bool Extract(DatetimeParsedData* result, CodepointSpan* result_span) const;

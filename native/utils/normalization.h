@@ -27,14 +27,14 @@
 namespace libtextclassifier3 {
 
 // Normalizes a text according to the options.
-UnicodeText NormalizeText(const UniLib* unilib,
+UnicodeText NormalizeText(const UniLib& unilib,
                           const NormalizationOptions* normalization_options,
                           const UnicodeText& text);
 
 // Normalizes a text codepoint wise by applying each codepoint wise op in
 // `codepointwise_ops` that is interpreted as a set of
 // `CodepointwiseNormalizationOp`.
-UnicodeText NormalizeTextCodepointWise(const UniLib* unilib,
+UnicodeText NormalizeTextCodepointWise(const UniLib& unilib,
                                        const uint32 codepointwise_ops,
                                        const UnicodeText& text);
 

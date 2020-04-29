@@ -139,6 +139,14 @@ StatusOr<ScopedLocalRef<jfloatArray>> JniHelper::NewFloatArray(JNIEnv* env,
   return result;
 }
 
+Status JniHelper::SetObjectArrayElement(JNIEnv* env, jobjectArray array,
+                                        jsize index, jobject val) {
+  TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
+  env->SetObjectArrayElement(array, index, val);
+  TC3_NO_EXCEPTION_OR_RETURN;
+  return Status::OK;
+}
+
 StatusOr<ScopedLocalRef<jobjectArray>> JniHelper::NewObjectArray(
     JNIEnv* env, jsize length, jclass element_class, jobject initial_element) {
   TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
@@ -146,6 +154,14 @@ StatusOr<ScopedLocalRef<jobjectArray>> JniHelper::NewObjectArray(
       env->NewObjectArray(length, element_class, initial_element), env);
   TC3_NO_EXCEPTION_OR_RETURN;
   TC3_NOT_NULL_OR_RETURN;
+  return result;
+}
+
+StatusOr<jsize> JniHelper::GetArrayLength(JNIEnv* env,
+                                          jarray jinput_fragments) {
+  TC3_ENSURE_LOCAL_CAPACITY_OR_RETURN;
+  jsize result = env->GetArrayLength(jinput_fragments);
+  TC3_NO_EXCEPTION_OR_RETURN;
   return result;
 }
 

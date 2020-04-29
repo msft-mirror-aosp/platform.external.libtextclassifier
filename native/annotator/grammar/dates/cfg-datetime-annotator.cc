@@ -23,7 +23,6 @@
 #include "utils/tokenizer.h"
 #include "utils/utf8/unicodetext.h"
 
-
 namespace libtextclassifier3::dates {
 namespace {
 
@@ -56,12 +55,12 @@ static void InterpretParseData(const DatetimeParsedData& datetime_parsed_data,
 }  // namespace
 
 CfgDatetimeAnnotator::CfgDatetimeAnnotator(
-    const UniLib& unilib, const GrammarTokenizerOptions* tokenizer_options,
-    const CalendarLib& calendar_lib, const DatetimeRules* datetime_rules,
+    const UniLib* unilib, const GrammarTokenizerOptions* tokenizer_options,
+    const CalendarLib* calendar_lib, const DatetimeRules* datetime_rules,
     const float annotator_target_classification_score,
     const float annotator_priority_score)
-    : calendar_lib_(calendar_lib),
-      tokenizer_(BuildTokenizer(&unilib, tokenizer_options)),
+    : calendar_lib_(*calendar_lib),
+      tokenizer_(BuildTokenizer(unilib, tokenizer_options)),
       parser_(unilib, datetime_rules),
       annotator_target_classification_score_(
           annotator_target_classification_score),
