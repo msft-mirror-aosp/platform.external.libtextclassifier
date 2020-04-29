@@ -180,6 +180,15 @@ public final class AnnotatorModel implements AutoCloseable {
   }
 
   /**
+   * Annotates multiple fragments of text at once. There will be one AnnotatedSpan array for each
+   * input fragment to annotate.
+   */
+  public AnnotatedSpan[][] annotateStructuredInput(
+      InputFragment[] fragments, AnnotationOptions options) {
+    return nativeAnnotateStructuredInput(annotatorPtr, fragments, options);
+  }
+
+  /**
    * Looks up a knowledge entity by its identifier. Returns null if the entity is not found or on
    * error.
    */
@@ -412,6 +421,52 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public ClassificationResult[] getClassification() {
       return classification;
+    }
+  }
+
+  /** Represents a fragment of text to the AnnotateStructuredInput call. */
+  public static final class InputFragment {
+
+    /** Encapsulates the data required to set the relative time of an InputFragment. */
+    public static final class DatetimeOptions {
+      private final String referenceTimezone;
+      private final Long referenceTimeMsUtc;
+
+      DatetimeOptions(String referenceTimezone, Long referenceTimeMsUtc) {
+        this.referenceTimeMsUtc = referenceTimeMsUtc;
+        this.referenceTimezone = referenceTimezone;
+      }
+    }
+
+    InputFragment(String text) {
+      this.text = text;
+      this.datetimeOptionsNullable = null;
+    }
+
+    InputFragment(String text, DatetimeOptions datetimeOptions) {
+      this.text = text;
+      this.datetimeOptionsNullable = datetimeOptions;
+    }
+
+    private final String text;
+    // The DatetimeOptions can't be Optional because the _api16 build of the TCLib SDK does not
+    // support java.util.Optional.
+    private final DatetimeOptions datetimeOptionsNullable;
+
+    public String getText() {
+      return text;
+    }
+
+    public boolean hasDatetimeOptions() {
+      return datetimeOptionsNullable != null;
+    }
+
+    public long getReferenceTimeMsUtc() {
+      return datetimeOptionsNullable.referenceTimeMsUtc;
+    }
+
+    public String getReferenceTimezone() {
+      return datetimeOptionsNullable.referenceTimezone;
     }
   }
 
@@ -759,6 +814,9 @@ public final class AnnotatorModel implements AutoCloseable {
 
   private native AnnotatedSpan[] nativeAnnotate(
       long context, String text, AnnotationOptions options);
+
+  private native AnnotatedSpan[][] nativeAnnotateStructuredInput(
+      long context, InputFragment[] inputFragments, AnnotationOptions options);
 
   private native byte[] nativeLookUpKnowledgeEntity(long context, String id);
 

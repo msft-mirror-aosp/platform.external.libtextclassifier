@@ -36,8 +36,8 @@ std::unique_ptr<Tokenizer> CreateTokenizer(
 // Feature processor for the actions suggestions model.
 class ActionsFeatureProcessor {
  public:
-  ActionsFeatureProcessor(const ActionsTokenFeatureProcessorOptions* options,
-                          const UniLib* unilib);
+  explicit ActionsFeatureProcessor(
+      const ActionsTokenFeatureProcessorOptions* options, const UniLib* unilib);
 
   // Embeds and appends features to the output vector.
   bool AppendFeatures(const std::vector<int>& sparse_features,
