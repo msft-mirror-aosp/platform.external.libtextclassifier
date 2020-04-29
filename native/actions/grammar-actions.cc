@@ -32,17 +32,11 @@
 namespace libtextclassifier3 {
 namespace {
 
-// Represents an annotator annotated span in the grammar.
-struct AnnotationMatch : public grammar::Match {
-  static const int16 kType = 1;
-  ClassificationResult annotation;
-};
-
 class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
  public:
   GrammarActionsCallbackDelegate(const UniLib* unilib,
                                  const RulesModel_::GrammarRules* grammar_rules)
-      : unilib_(unilib), grammar_rules_(grammar_rules) {}
+      : unilib_(*unilib), grammar_rules_(grammar_rules) {}
 
   // Handle a grammar rule match in the actions grammar.
   void MatchFound(const grammar::Match* match, grammar::CallbackId type,
@@ -169,14 +163,14 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
                   /*span=*/capturing_match->codepoint_span, group,
                   /*message_index=*/message_index, match_text, &annotation)) {
             if (group->use_annotation_match()) {
-              const AnnotationMatch* annotation_match =
-                  grammar::SelectFirstOfType<AnnotationMatch>(
-                      capturing_match, AnnotationMatch::kType);
+              const grammar::AnnotationMatch* annotation_match =
+                  grammar::SelectFirstOfType<grammar::AnnotationMatch>(
+                      capturing_match, grammar::Match::kAnnotationMatch);
               if (!annotation_match) {
                 TC3_LOG(ERROR) << "Could not get annotation for match.";
                 return false;
               }
-              annotation.entity = annotation_match->annotation;
+              annotation.entity = *annotation_match->annotation;
             }
             annotations.push_back(std::move(annotation));
           }
@@ -194,7 +188,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
     return true;
   }
 
-  const UniLib* unilib_;
+  const UniLib& unilib_;
   const RulesModel_::GrammarRules* grammar_rules_;
 
   // All action rule match candidates.
@@ -208,10 +202,10 @@ GrammarActions::GrammarActions(
     const UniLib* unilib, const RulesModel_::GrammarRules* grammar_rules,
     const ReflectiveFlatbufferBuilder* entity_data_builder,
     const std::string& smart_reply_action_type)
-    : unilib_(unilib),
+    : unilib_(*unilib),
       grammar_rules_(grammar_rules),
       tokenizer_(CreateTokenizer(grammar_rules->tokenizer_options(), unilib)),
-      lexer_(*unilib, grammar_rules->rules()),
+      lexer_(unilib, grammar_rules->rules()),
       entity_data_builder_(entity_data_builder),
       smart_reply_action_type_(smart_reply_action_type),
       rules_locales_(ParseRulesLocales(grammar_rules->rules())) {}
@@ -240,34 +234,8 @@ bool GrammarActions::SuggestActions(
     return true;
   }
 
-  GrammarActionsCallbackDelegate callback_handler(unilib_, grammar_rules_);
-
-  std::vector<AnnotationMatch> matches;
-  if (auto annotation_nonterminals = grammar_rules_->annotation_nonterminal()) {
-    for (const AnnotatedSpan& annotation :
-         conversation.messages.back().annotations) {
-      if (annotation.classification.empty()) {
-        continue;
-      }
-      const ClassificationResult& classification =
-          annotation.classification.front();
-      if (auto entry = annotation_nonterminals->LookupByKey(
-              classification.collection.c_str())) {
-        AnnotationMatch match;
-        match.Init(entry->value(), annotation.span, annotation.span.first,
-                   AnnotationMatch::kType);
-        match.annotation = classification;
-        matches.push_back(std::move(match));
-      }
-    }
-  }
-
-  std::vector<grammar::Match*> annotation_matches(matches.size());
-  for (int i = 0; i < matches.size(); i++) {
-    annotation_matches[i] = &matches[i];
-  }
-
-  grammar::Matcher matcher(*unilib_, grammar_rules_->rules(), locale_rules,
+  GrammarActionsCallbackDelegate callback_handler(&unilib_, grammar_rules_);
+  grammar::Matcher matcher(&unilib_, grammar_rules_->rules(), locale_rules,
                            &callback_handler);
 
   const UnicodeText text =
@@ -275,7 +243,8 @@ bool GrammarActions::SuggestActions(
 
   // Run grammar on last message.
   lexer_.Process(text, tokenizer_->Tokenize(text),
-                 /*matches=*/annotation_matches, &matcher);
+                 /*annotations=*/&conversation.messages.back().annotations,
+                 &matcher);
 
   // Populate results.
   return callback_handler.GetActions(conversation, smart_reply_action_type_,

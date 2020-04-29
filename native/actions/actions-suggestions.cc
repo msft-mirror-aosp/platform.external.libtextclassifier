@@ -283,7 +283,7 @@ bool ActionsSuggestions::ValidateAndInitialize() {
   // Initialize regular expressions model.
   std::unique_ptr<ZlibDecompressor> decompressor = ZlibDecompressor::Instance();
   regex_actions_.reset(
-      new RegexActions(model_->smart_reply_action_type()->str(), unilib_));
+      new RegexActions(unilib_, model_->smart_reply_action_type()->str()));
   if (!regex_actions_->InitializeRules(
           model_->rules(), model_->low_confidence_rules(),
           triggering_preconditions_overlay_, decompressor.get())) {
@@ -348,11 +348,10 @@ bool ActionsSuggestions::ValidateAndInitialize() {
 
   // Create low confidence model if specified.
   if (model_->low_confidence_ngram_model() != nullptr) {
-    ngram_model_ = NGramModel::Create(model_->low_confidence_ngram_model(),
-                                      feature_processor_ == nullptr
-                                          ? nullptr
-                                          : feature_processor_->tokenizer(),
-                                      unilib_);
+    ngram_model_ = NGramModel::Create(
+        unilib_, model_->low_confidence_ngram_model(),
+        feature_processor_ == nullptr ? nullptr
+                                      : feature_processor_->tokenizer());
     if (ngram_model_ == nullptr) {
       TC3_LOG(ERROR) << "Could not create ngram linear regression model.";
       return false;
@@ -681,7 +680,7 @@ bool ActionsSuggestions::ReadModelOutput(
     ActionsSuggestionsResponse* response) const {
   // Read sensitivity and triggering score predictions.
   if (model_->tflite_model_spec()->output_triggering_score() >= 0) {
-    const TensorView<float>& triggering_score =
+    const TensorView<float> triggering_score =
         model_executor_->OutputView<float>(
             model_->tflite_model_spec()->output_triggering_score(),
             interpreter);
@@ -695,7 +694,7 @@ bool ActionsSuggestions::ReadModelOutput(
          preconditions_.min_smart_reply_triggering_score);
   }
   if (model_->tflite_model_spec()->output_sensitive_topic_score() >= 0) {
-    const TensorView<float>& sensitive_topic_score =
+    const TensorView<float> sensitive_topic_score =
         model_executor_->OutputView<float>(
             model_->tflite_model_spec()->output_sensitive_topic_score(),
             interpreter);
@@ -851,7 +850,11 @@ Conversation ActionsSuggestions::AnnotateConversation(
   }
   const int num_messages_grammar =
       ((model_->rules() && model_->rules()->grammar_rules() &&
-        model_->rules()->grammar_rules()->annotation_nonterminal())
+        model_->rules()
+            ->grammar_rules()
+            ->rules()
+            ->nonterminals()
+            ->annotation_nt())
            ? 1
            : 0);
   const int num_messages_mapping =
@@ -988,7 +991,7 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
         // Apply normalization if specified.
         if (mapping->normalization_options() != nullptr) {
           normalized_annotation_text =
-              NormalizeText(unilib_, mapping->normalization_options(),
+              NormalizeText(*unilib_, mapping->normalization_options(),
                             normalized_annotation_text);
         }
 

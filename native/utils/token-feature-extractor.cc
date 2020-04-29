@@ -70,8 +70,8 @@ void RemapTokenUnicode(const std::string& token,
 }  // namespace
 
 TokenFeatureExtractor::TokenFeatureExtractor(
-    const TokenFeatureExtractorOptions& options, const UniLib& unilib)
-    : options_(options), unilib_(unilib) {
+    const TokenFeatureExtractorOptions& options, const UniLib* unilib)
+    : options_(options), unilib_(*unilib) {
   for (const std::string& pattern : options.regexp_features) {
     regex_patterns_.push_back(std::unique_ptr<UniLib::RegexPattern>(
         unilib_.CreateRegexPattern(UTF8ToUnicodeText(

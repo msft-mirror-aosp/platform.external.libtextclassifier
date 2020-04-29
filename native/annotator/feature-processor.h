@@ -91,9 +91,10 @@ class FeatureProcessor {
   // identical.
   typedef std::map<CodepointSpan, std::vector<float>> EmbeddingCache;
 
-  FeatureProcessor(const FeatureProcessorOptions* options, const UniLib* unilib)
+  explicit FeatureProcessor(const FeatureProcessorOptions* options,
+                            const UniLib* unilib)
       : feature_extractor_(internal::BuildTokenFeatureExtractorOptions(options),
-                           *unilib),
+                           unilib),
         options_(options),
         tokenizer_(internal::BuildTokenizer(options, unilib)) {
     MakeLabelMaps();

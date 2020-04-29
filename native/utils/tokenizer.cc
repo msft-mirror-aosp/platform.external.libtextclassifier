@@ -126,8 +126,7 @@ std::vector<Token> Tokenizer::Tokenize(const UnicodeText& text_unicode) const {
 
 void AppendCodepointToToken(UnicodeText::const_iterator it, Token* token) {
   token->value += std::string(
-      it.utf8_data(),
-      it.utf8_data() + GetNumBytesForNonZeroUTF8Char(it.utf8_data()));
+      it.utf8_data(), it.utf8_data() + GetNumBytesForUTF8Char(it.utf8_data()));
 }
 
 std::vector<Token> Tokenizer::InternalTokenize(
@@ -285,20 +284,19 @@ bool Tokenizer::NumberTokenize(const UnicodeText& text_unicode,
     }
   };
 
-  auto MaybeResetTokenAndAddChar = [&new_token, PushToken, &current_token_type](
-                                       int codepoint_index,
-                                       NumberTokenType token_type,
-                                       UnicodeText::const_iterator it,
-                                       bool is_whitespace = false) {
-    if (current_token_type != token_type) {
-      PushToken();
-      new_token = Token("", codepoint_index, codepoint_index,
-                        /*is_padding=*/false, is_whitespace);
-    }
-    new_token.end += 1;
-    AppendCodepointToToken(it, &new_token);
-    current_token_type = token_type;
-  };
+  auto MaybeResetTokenAndAddChar =
+      [&new_token, PushToken, &current_token_type](
+          int codepoint_index, NumberTokenType token_type,
+          UnicodeText::const_iterator it, bool is_whitespace = false) {
+        if (current_token_type != token_type) {
+          PushToken();
+          new_token = Token("", codepoint_index, codepoint_index,
+                            /*is_padding=*/false, is_whitespace);
+        }
+        new_token.end += 1;
+        AppendCodepointToToken(it, &new_token);
+        current_token_type = token_type;
+      };
 
   auto FinishTokenAndAddSeparator =
       [&new_token, result, &current_token_type, PushToken](

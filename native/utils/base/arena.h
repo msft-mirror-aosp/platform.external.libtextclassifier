@@ -105,7 +105,7 @@ class BaseArena {
   }
 
   // The alignment that ArenaAllocator uses except for 1-byte objects.
-  static const int kDefaultAlignment = 8;
+  static constexpr int kDefaultAlignment = 8;
 
  protected:
   bool SatisfyAlignment(const size_t alignment);

@@ -103,11 +103,11 @@ namespace libtextclassifier3::grammar {
 
 class Matcher {
  public:
-  Matcher(const UniLib& unilib, const RulesSet* rules,
-          const std::vector<const RulesSet_::Rules*> rules_shards,
-          CallbackDelegate* delegate)
+  explicit Matcher(const UniLib* unilib, const RulesSet* rules,
+                   const std::vector<const RulesSet_::Rules*> rules_shards,
+                   CallbackDelegate* delegate)
       : state_(STATE_DEFAULT),
-        unilib_(unilib),
+        unilib_(*unilib),
         arena_(kBlocksize),
         rules_(rules),
         rules_shards_(rules_shards),
@@ -115,8 +115,8 @@ class Matcher {
     TC3_CHECK(rules_ != nullptr);
     Reset();
   }
-  Matcher(const UniLib& unilib, const RulesSet* rules,
-          CallbackDelegate* delegate)
+  explicit Matcher(const UniLib* unilib, const RulesSet* rules,
+                   CallbackDelegate* delegate)
       : Matcher(unilib, rules, {}, delegate) {
     rules_shards_.reserve(rules->rules()->size());
     rules_shards_.insert(rules_shards_.end(), rules->rules()->begin(),

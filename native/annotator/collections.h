@@ -139,6 +139,11 @@ class Collections {
         *[]() { return new std::string("url"); }();
     return value;
   }
+  static const std::string& OtpCode() {
+    static const std::string& value =
+        *[]() { return new std::string("otp_code"); }();
+    return value;
+  }
 };
 
 }  // namespace libtextclassifier3
