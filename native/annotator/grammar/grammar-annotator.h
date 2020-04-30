@@ -37,8 +37,9 @@ class GrammarAnnotator {
     kRuleMatch = 1,
   };
 
-  GrammarAnnotator(const UniLib* unilib, const GrammarModel* model,
-                   const ReflectiveFlatbufferBuilder* entity_data_builder);
+  explicit GrammarAnnotator(
+      const UniLib* unilib, const GrammarModel* model,
+      const ReflectiveFlatbufferBuilder* entity_data_builder);
 
   // Annotates a given text.
   // Returns true if the text was successfully annotated.
@@ -58,7 +59,7 @@ class GrammarAnnotator {
                         AnnotatedSpan* result) const;
 
  private:
-  const UniLib* unilib_;
+  const UniLib& unilib_;
   const GrammarModel* model_;
   const grammar::Lexer lexer_;
   const Tokenizer tokenizer_;
