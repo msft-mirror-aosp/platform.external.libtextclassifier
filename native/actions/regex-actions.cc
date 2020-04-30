@@ -96,7 +96,7 @@ bool RegexActions::InitializeRulesModel(
   for (const RulesModel_::RegexRule* rule : *rules->regex_rule()) {
     std::unique_ptr<UniLib::RegexPattern> compiled_pattern =
         UncompressMakeRegexPattern(
-            *unilib_, rule->pattern(), rule->compressed_pattern(),
+            unilib_, rule->pattern(), rule->compressed_pattern(),
             rules->lazy_regex_compilation(), decompressor);
     if (compiled_pattern == nullptr) {
       TC3_LOG(ERROR) << "Failed to load rule pattern.";
@@ -108,7 +108,7 @@ bool RegexActions::InitializeRulesModel(
     if (rule->output_pattern() != nullptr ||
         rule->compressed_output_pattern() != nullptr) {
       compiled_output_pattern = UncompressMakeRegexPattern(
-          *unilib_, rule->output_pattern(), rule->compressed_output_pattern(),
+          unilib_, rule->output_pattern(), rule->compressed_output_pattern(),
           rules->lazy_regex_compilation(), decompressor);
       if (compiled_output_pattern == nullptr) {
         TC3_LOG(ERROR) << "Failed to load rule output pattern.";

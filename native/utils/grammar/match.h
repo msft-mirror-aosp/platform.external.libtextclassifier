@@ -30,13 +30,14 @@ namespace libtextclassifier3::grammar {
 // Instances should be created by calling Matcher::AllocateMatch().
 // This uses an arena to allocate matches (and subclasses thereof).
 struct Match {
-  static const int16 kUnknownType = 0;
-  static const int16 kTokenType = -1;
-  static const int16 kDigitsType = -2;
-  static const int16 kBreakType = -3;
-  static const int16 kAssertionMatch = -4;
-  static const int16 kMappingMatch = -5;
-  static const int16 kExclusionMatch = -6;
+  static constexpr int16 kUnknownType = 0;
+  static constexpr int16 kTokenType = -1;
+  static constexpr int16 kDigitsType = -2;
+  static constexpr int16 kBreakType = -3;
+  static constexpr int16 kAssertionMatch = -4;
+  static constexpr int16 kMappingMatch = -5;
+  static constexpr int16 kExclusionMatch = -6;
+  static constexpr int16 kAnnotationMatch = -7;
 
   void Init(const Nonterm arg_lhs, const CodepointSpan arg_codepoint_span,
             const int arg_match_offset, const int arg_type = kUnknownType) {
@@ -112,6 +113,11 @@ struct ExclusionMatch : public Match {
   // So the match is only valid if there is no match of `exclusion_nonterm`
   // spanning the same text range.
   Nonterm exclusion_nonterm;
+};
+
+// Match to represent an annotator annotated span in the grammar.
+struct AnnotationMatch : public Match {
+  const ClassificationResult* annotation;
 };
 
 // Utility functions for parse tree traversal.
