@@ -50,12 +50,22 @@ void CheckedEmit(const Nonterm nonterm, const CodepointSpan codepoint_span,
   }
 }
 
+int MapCodepointToTokenPaddingIfPresent(
+    const std::unordered_map<CodepointIndex, CodepointIndex>& token_alignment,
+    const int start) {
+  const auto it = token_alignment.find(start);
+  if (it != token_alignment.end()) {
+    return it->second;
+  }
+  return start;
+}
+
 }  // namespace
 
-Lexer::Lexer(const UniLib& unilib, const RulesSet* rules)
-    : unilib_(unilib),
+Lexer::Lexer(const UniLib* unilib, const RulesSet* rules)
+    : unilib_(*unilib),
       rules_(rules),
-      regex_annotators_(BuildRegexAnnotator(unilib, rules)) {}
+      regex_annotators_(BuildRegexAnnotator(unilib_, rules)) {}
 
 std::vector<Lexer::RegexAnnotator> Lexer::BuildRegexAnnotator(
     const UniLib& unilib, const RulesSet* rules) const {
@@ -174,15 +184,15 @@ void Lexer::ProcessToken(const StringPiece value, const int prev_token_end,
 }
 
 void Lexer::Process(const UnicodeText& text, const std::vector<Token>& tokens,
-                    const std::vector<Match*>& matches,
+                    const std::vector<AnnotatedSpan>* annotations,
                     Matcher* matcher) const {
-  return Process(text, tokens.begin(), tokens.end(), matches, matcher);
+  return Process(text, tokens.begin(), tokens.end(), annotations, matcher);
 }
 
 void Lexer::Process(const UnicodeText& text,
                     const std::vector<Token>::const_iterator& begin,
                     const std::vector<Token>::const_iterator& end,
-                    const std::vector<Match*>& matches,
+                    const std::vector<AnnotatedSpan>* annotations,
                     Matcher* matcher) const {
   if (begin == end) {
     return;
@@ -249,14 +259,24 @@ void Lexer::Process(const UnicodeText& text,
     symbols.push_back(Symbol(match));
   }
 
-  // Add predefined matches.
-  for (Match* match : matches) {
-    // Decrease match offset to include preceding whitespace.
-    auto token_match_start_it = token_match_start.find(match->match_offset);
-    if (token_match_start_it != token_match_start.end()) {
-      match->match_offset = token_match_start_it->second;
+  // Add matches based on annotations.
+  auto annotation_nonterminals = nonterminals->annotation_nt();
+  if (annotation_nonterminals != nullptr && annotations != nullptr) {
+    for (const AnnotatedSpan& annotated_span : *annotations) {
+      const ClassificationResult& classification =
+          annotated_span.classification.front();
+      if (auto entry = annotation_nonterminals->LookupByKey(
+              classification.collection.c_str())) {
+        AnnotationMatch* match = matcher->AllocateAndInitMatch<AnnotationMatch>(
+            entry->value(), annotated_span.span,
+            /*match_offset=*/
+            MapCodepointToTokenPaddingIfPresent(token_match_start,
+                                                annotated_span.span.first),
+            Match::kAnnotationMatch);
+        match->annotation = &classification;
+        symbols.push_back(Symbol(match));
+      }
     }
-    symbols.push_back(Symbol(match));
   }
 
   // Add regex annotator matches for the range covered by the tokens.
@@ -270,15 +290,10 @@ void Lexer::Process(const UnicodeText& text,
       const CodepointSpan span = {
           regex_matcher->Start(0, &status) + begin->start,
           regex_matcher->End(0, &status) + begin->start};
-      auto match_start_it = token_match_start.find(span.first);
-
-      // Decrease match offset to incldue preceding whitespace if the match is
-      // aligning with token boundaries.
-      const int match_offset =
-          (match_start_it != token_match_start.end() ? match_start_it->second
-                                                     : span.first);
       if (Match* match =
-              CheckedAddMatch(regex_annotator.nonterm, span, match_offset,
+              CheckedAddMatch(regex_annotator.nonterm, span, /*match_offset=*/
+                              MapCodepointToTokenPaddingIfPresent(
+                                  token_match_start, span.first),
                               Match::kUnknownType, matcher)) {
         symbols.push_back(Symbol(match));
       }

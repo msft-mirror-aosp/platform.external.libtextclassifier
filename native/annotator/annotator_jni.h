@@ -68,6 +68,11 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeClassifyText)
  jint selection_end, jobject options, jobject app_context,
  jstring device_locales);
 
+TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME,
+               nativeAnnotateStructuredInput)
+(JNIEnv* env, jobject thiz, jlong ptr, jobjectArray jinput_fragments,
+ jobject options);
+
 TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring context, jobject options);
 
