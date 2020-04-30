@@ -27,6 +27,7 @@
 #include "annotator/annotator_jni_common.h"
 #include "annotator/types.h"
 #include "utils/base/integral_types.h"
+#include "utils/base/status_macros.h"
 #include "utils/base/statusor.h"
 #include "utils/calendar/calendar.h"
 #include "utils/intents/intent-generator.h"
@@ -327,7 +328,8 @@ ClassificationResultsWithIntentsToJObjectArray(
             datetime_parse_class_constructor, device_locales, options, context,
             selection_indices, classification_result[i],
             generate_intents && (i == 0)));
-    env->SetObjectArrayElement(results.get(), i, result.get());
+    TC3_RETURN_IF_ERROR(
+        JniHelper::SetObjectArrayElement(env, results.get(), i, result.get()));
   }
   return results;
 }
@@ -451,7 +453,9 @@ using libtextclassifier3::ConvertIndicesBMPToUTF8;
 using libtextclassifier3::ConvertIndicesUTF8ToBMP;
 using libtextclassifier3::FromJavaAnnotationOptions;
 using libtextclassifier3::FromJavaClassificationOptions;
+using libtextclassifier3::FromJavaInputFragment;
 using libtextclassifier3::FromJavaSelectionOptions;
+using libtextclassifier3::InputFragment;
 using libtextclassifier3::ToStlString;
 
 TC3_JNI_METHOD(jlong, TC3_ANNOTATOR_CLASS_NAME, nativeNewAnnotator)
@@ -513,7 +517,8 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
   Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
 
   std::string serialized_config_string;
-  const int length = env->GetArrayLength(serialized_config);
+  TC3_ASSIGN_OR_RETURN_FALSE(jsize length,
+                             JniHelper::GetArrayLength(env, serialized_config));
   serialized_config_string.resize(length);
   env->GetByteArrayRegion(serialized_config, 0, length,
                           reinterpret_cast<jbyte*>(const_cast<char*>(
@@ -532,7 +537,8 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
   Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
 
   std::string serialized_config_string;
-  const int length = env->GetArrayLength(serialized_config);
+  TC3_ASSIGN_OR_RETURN_FALSE(jsize length,
+                             JniHelper::GetArrayLength(env, serialized_config));
   serialized_config_string.resize(length);
   env->GetByteArrayRegion(serialized_config, 0, length,
                           reinterpret_cast<jbyte*>(const_cast<char*>(
@@ -551,7 +557,8 @@ TC3_JNI_METHOD(jboolean, TC3_ANNOTATOR_CLASS_NAME,
   Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
 
   std::string serialized_config_string;
-  const int length = env->GetArrayLength(serialized_config);
+  TC3_ASSIGN_OR_RETURN_FALSE(jsize length,
+                             JniHelper::GetArrayLength(env, serialized_config));
   serialized_config_string.resize(length);
   env->GetByteArrayRegion(serialized_config, 0, length,
                           reinterpret_cast<jbyte*>(const_cast<char*>(
@@ -677,10 +684,12 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
       JniHelper::FindClass(
           env, TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$AnnotatedSpan"));
 
-  jmethodID result_class_constructor =
-      env->GetMethodID(result_class.get(), "<init>",
-                       "(II[L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
-                       "$ClassificationResult;)V");
+  TC3_ASSIGN_OR_RETURN_NULL(
+      jmethodID result_class_constructor,
+      JniHelper::GetMethodID(
+          env, result_class.get(), "<init>",
+          "(II[L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+          "$ClassificationResult;)V"));
 
   TC3_ASSIGN_OR_RETURN_NULL(
       ScopedLocalRef<jobjectArray> results,
@@ -701,8 +710,111 @@ TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME, nativeAnnotate)
                              static_cast<jint>(span_bmp.first),
                              static_cast<jint>(span_bmp.second),
                              classification_results.get()));
-    env->SetObjectArrayElement(results.get(), i, result.get());
+    if (!JniHelper::SetObjectArrayElement(env, results.get(), i, result.get())
+             .ok()) {
+      return nullptr;
+    }
   }
+  return results.release();
+}
+
+TC3_JNI_METHOD(jobjectArray, TC3_ANNOTATOR_CLASS_NAME,
+               nativeAnnotateStructuredInput)
+(JNIEnv* env, jobject thiz, jlong ptr, jobjectArray jinput_fragments,
+ jobject options) {
+  if (!ptr) {
+    return nullptr;
+  }
+  const AnnotatorJniContext* model_context =
+      reinterpret_cast<AnnotatorJniContext*>(ptr);
+
+  std::vector<InputFragment> string_fragments;
+  TC3_ASSIGN_OR_RETURN_NULL(jsize input_size,
+                            JniHelper::GetArrayLength(env, jinput_fragments));
+  for (int i = 0; i < input_size; ++i) {
+    TC3_ASSIGN_OR_RETURN_NULL(
+        ScopedLocalRef<jobject> jfragment,
+        JniHelper::GetObjectArrayElement<jobject>(env, jinput_fragments, i));
+    TC3_ASSIGN_OR_RETURN_NULL(InputFragment fragment,
+                              FromJavaInputFragment(env, jfragment.get()));
+    string_fragments.push_back(std::move(fragment));
+  }
+
+  TC3_ASSIGN_OR_RETURN_NULL(
+      libtextclassifier3::AnnotationOptions annotation_options,
+      FromJavaAnnotationOptions(env, options));
+  const StatusOr<std::vector<std::vector<AnnotatedSpan>>> annotations_or =
+      model_context->model()->AnnotateStructuredInput(string_fragments,
+                                                      annotation_options);
+  if (!annotations_or.ok()) {
+    TC3_LOG(ERROR) << "Annotation of structured input failed with error: "
+                   << annotations_or.status().error_message();
+    return nullptr;
+  }
+
+  std::vector<std::vector<AnnotatedSpan>> annotations =
+      std::move(annotations_or.ValueOrDie());
+  TC3_ASSIGN_OR_RETURN_NULL(
+      ScopedLocalRef<jclass> span_class,
+      JniHelper::FindClass(
+          env, TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR "$AnnotatedSpan"));
+
+  TC3_ASSIGN_OR_RETURN_NULL(
+      jmethodID span_class_constructor,
+      JniHelper::GetMethodID(
+          env, span_class.get(), "<init>",
+          "(II[L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+          "$ClassificationResult;)V"));
+
+  TC3_ASSIGN_OR_RETURN_NULL(
+      ScopedLocalRef<jclass> span_class_array,
+      JniHelper::FindClass(env,
+                           "[L" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
+                           "$AnnotatedSpan;"));
+
+  TC3_ASSIGN_OR_RETURN_NULL(
+      ScopedLocalRef<jobjectArray> results,
+      JniHelper::NewObjectArray(env, input_size, span_class_array.get()));
+
+  for (int fragment_index = 0; fragment_index < annotations.size();
+       ++fragment_index) {
+    TC3_ASSIGN_OR_RETURN_NULL(
+        ScopedLocalRef<jobjectArray> jfragmentAnnotations,
+        JniHelper::NewObjectArray(env, annotations[fragment_index].size(),
+                                  span_class.get()));
+    for (int annotation_index = 0;
+         annotation_index < annotations[fragment_index].size();
+         ++annotation_index) {
+      CodepointSpan span_bmp = ConvertIndicesUTF8ToBMP(
+          string_fragments[fragment_index].text,
+          annotations[fragment_index][annotation_index].span);
+      TC3_ASSIGN_OR_RETURN_NULL(
+          ScopedLocalRef<jobjectArray> classification_results,
+          ClassificationResultsToJObjectArray(
+              env, model_context,
+              annotations[fragment_index][annotation_index].classification));
+      TC3_ASSIGN_OR_RETURN_NULL(
+          ScopedLocalRef<jobject> single_annotation,
+          JniHelper::NewObject(env, span_class.get(), span_class_constructor,
+                               static_cast<jint>(span_bmp.first),
+                               static_cast<jint>(span_bmp.second),
+                               classification_results.get()));
+
+      if (!JniHelper::SetObjectArrayElement(env, jfragmentAnnotations.get(),
+                                            annotation_index,
+                                            single_annotation.get())
+               .ok()) {
+        return nullptr;
+      }
+    }
+
+    if (!JniHelper::SetObjectArrayElement(env, results.get(), fragment_index,
+                                          jfragmentAnnotations.get())
+             .ok()) {
+      return nullptr;
+    }
+  }
+
   return results.release();
 }
 
