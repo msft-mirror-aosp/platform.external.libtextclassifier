@@ -47,8 +47,8 @@ struct ByteIterator {
 
 // Iterator that lowercases a utf8 string on the fly and enumerates the bytes.
 struct LowercasingByteIterator {
-  LowercasingByteIterator(const UniLib& unilib, StringPiece text)
-      : unilib(unilib),
+  LowercasingByteIterator(const UniLib* unilib, StringPiece text)
+      : unilib(*unilib),
         data(text.data()),
         end(text.data() + text.size()),
         buffer_pos(0),
@@ -291,7 +291,7 @@ void Matcher::AddTerminal(const CodepointSpan codepoint_span,
 
     // Try case-insensitive matches.
     if (const RulesSet_::LhsSet* lhs_set = FindTerminalMatches(
-            LowercasingByteIterator(unilib_, terminal), rules_,
+            LowercasingByteIterator(&unilib_, terminal), rules_,
             shard->lowercase_terminal_rules(), &terminal)) {
       // `terminal` points now into the rules string pool, providing a
       // stable reference.

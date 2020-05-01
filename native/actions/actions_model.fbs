@@ -436,12 +436,6 @@ table RuleMatch {
   action_id:[uint];
 }
 
-namespace libtextclassifier3.RulesModel_.GrammarRules_;
-table AnnotationNonterminalEntry {
-  key:string (key, shared);
-  value:int;
-}
-
 // Configuration for actions based on context-free grammars.
 namespace libtextclassifier3.RulesModel_;
 table GrammarRules {
@@ -455,10 +449,6 @@ table GrammarRules {
 
   // The action specifications used by the rule matches.
   actions:[RuleActionSpec];
-
-  // Predefined nonterminals for annotations.
-  // Maps annotation/collection names to non-terminal ids.
-  annotation_nonterminal:[GrammarRules_.AnnotationNonterminalEntry];
 }
 
 // Rule based actions.
