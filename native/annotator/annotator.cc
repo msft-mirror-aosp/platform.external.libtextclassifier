@@ -548,6 +548,14 @@ void Annotator::ValidateAndInitialize() {
     return;
   }
 
+  if (model_->conflict_resolution_options() != nullptr) {
+    prioritize_longest_annotation_ =
+        model_->conflict_resolution_options()->prioritize_longest_annotation();
+    do_conflict_resolution_in_raw_mode_ =
+        model_->conflict_resolution_options()
+            ->do_conflict_resolution_in_raw_mode();
+  }
+
   initialized_ = true;
 }
 
@@ -684,6 +692,14 @@ bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
   return InitializePersonNameEngineFromScopedMmap(*mmap);
 }
 
+bool Annotator::InitializeExperimentalAnnotators() {
+  if (ExperimentalAnnotator::IsEnabled()) {
+    experimental_annotator_.reset(new ExperimentalAnnotator(*unilib_));
+    return true;
+  }
+  return false;
+}
+
 namespace {
 
 int CountDigits(const std::string& str, CodepointSpan selection_indices) {
@@ -816,6 +832,12 @@ CodepointSpan Annotator::SuggestSelection(
     TC3_LOG(ERROR) << "Not initialized";
     return original_click_indices;
   }
+  if (options.annotation_usecase !=
+      AnnotationUsecase_ANNOTATION_USECASE_SMART) {
+    TC3_LOG(WARNING)
+        << "Invoking SuggestSelection, which is not supported in RAW mode.";
+    return original_click_indices;
+  }
   if (!(model_->enabled_modes() & ModeFlag_SELECTION)) {
     return original_click_indices;
   }
@@ -924,6 +946,11 @@ CodepointSpan Annotator::SuggestSelection(
                                            context_unicode, click_indices,
                                            &grammar_suggested_span)) {
     candidates.push_back(grammar_suggested_span);
+  }
+
+  if (experimental_annotator_ != nullptr) {
+    candidates.push_back(experimental_annotator_->SuggestSelection(
+        context_unicode, click_indices));
   }
 
   // Sort candidates according to their position in the input, so that the next
@@ -1115,18 +1142,15 @@ bool Annotator::ResolveConflict(
     }
   }
 
-  const bool prioritize_longest_annotation =
-      model_->triggering_options() != nullptr &&
-      model_->triggering_options()->prioritize_longest_annotation();
-  std::sort(conflicting_indices.begin(), conflicting_indices.end(),
-            [&scores_lengths, candidates, conflicting_indices,
-             prioritize_longest_annotation](int i, int j) {
-              if (scores_lengths[i].first == scores_lengths[j].first &&
-                  prioritize_longest_annotation) {
-                return scores_lengths[i].second > scores_lengths[j].second;
-              }
-              return scores_lengths[i].first > scores_lengths[j].first;
-            });
+  std::sort(
+      conflicting_indices.begin(), conflicting_indices.end(),
+      [this, &scores_lengths, candidates, conflicting_indices](int i, int j) {
+        if (scores_lengths[i].first == scores_lengths[j].first &&
+            prioritize_longest_annotation_) {
+          return scores_lengths[i].second > scores_lengths[j].second;
+        }
+        return scores_lengths[i].first > scores_lengths[j].first;
+      });
 
   // Here we keep a set of indices that were chosen, per-source, to enable
   // effective computation.
@@ -1147,7 +1171,12 @@ bool Annotator::ResolveConflict(
         chosen_indices_for_source_ptr = &source_set_pair.second;
       }
 
-      if (DoSourcesConflict(annotation_usecase, source_set_pair.first,
+      const bool needs_conflict_resolution =
+          annotation_usecase == AnnotationUsecase_ANNOTATION_USECASE_SMART ||
+          (annotation_usecase == AnnotationUsecase_ANNOTATION_USECASE_RAW &&
+           do_conflict_resolution_in_raw_mode_);
+      if (needs_conflict_resolution &&
+          DoSourcesConflict(annotation_usecase, source_set_pair.first,
                             candidates[considered_candidate].source) &&
           DoesCandidateConflict(considered_candidate, candidates,
                                 source_set_pair.second)) {
@@ -1711,7 +1740,12 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     TC3_LOG(ERROR) << "Not initialized";
     return {};
   }
-
+  if (options.annotation_usecase !=
+      AnnotationUsecase_ANNOTATION_USECASE_SMART) {
+    TC3_LOG(WARNING)
+        << "Invoking ClassifyText, which is not supported in RAW mode.";
+    return {};
+  }
   if (!(model_->enabled_modes() & ModeFlag_CLASSIFICATION)) {
     return {};
   }
@@ -1805,22 +1839,25 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.back().source = AnnotatedSpan::Source::DATETIME;
   }
 
+  const UnicodeText context_unicode =
+      UTF8ToUnicodeText(context, /*do_copy=*/false);
+
   // Try the number annotator.
   // TODO(b/126579108): Propagate error status.
   ClassificationResult number_annotator_result;
   if (number_annotator_ &&
-      number_annotator_->ClassifyText(
-          UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
-          options.annotation_usecase, &number_annotator_result)) {
+      number_annotator_->ClassifyText(context_unicode, selection_indices,
+                                      options.annotation_usecase,
+                                      &number_annotator_result)) {
     candidates.push_back({selection_indices, {number_annotator_result}});
   }
 
   // Try the duration annotator.
   ClassificationResult duration_annotator_result;
   if (duration_annotator_ &&
-      duration_annotator_->ClassifyText(
-          UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
-          options.annotation_usecase, &duration_annotator_result)) {
+      duration_annotator_->ClassifyText(context_unicode, selection_indices,
+                                        options.annotation_usecase,
+                                        &duration_annotator_result)) {
     candidates.push_back({selection_indices, {duration_annotator_result}});
     candidates.back().source = AnnotatedSpan::Source::DURATION;
   }
@@ -1828,19 +1865,25 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   // Try the translate annotator.
   ClassificationResult translate_annotator_result;
   if (translate_annotator_ &&
-      translate_annotator_->ClassifyText(
-          UTF8ToUnicodeText(context, /*do_copy=*/false), selection_indices,
-          options.user_familiar_language_tags, &translate_annotator_result)) {
+      translate_annotator_->ClassifyText(context_unicode, selection_indices,
+                                         options.user_familiar_language_tags,
+                                         &translate_annotator_result)) {
     candidates.push_back({selection_indices, {translate_annotator_result}});
   }
 
   // Try the grammar model.
   ClassificationResult grammar_annotator_result;
   if (grammar_annotator_ && grammar_annotator_->ClassifyText(
-                                detected_text_language_tags,
-                                UTF8ToUnicodeText(context, /*do_copy=*/false),
+                                detected_text_language_tags, context_unicode,
                                 selection_indices, &grammar_annotator_result)) {
     candidates.push_back({selection_indices, {grammar_annotator_result}});
+  }
+
+  ClassificationResult experimental_annotator_result;
+  if (experimental_annotator_ &&
+      experimental_annotator_->ClassifyText(context_unicode, selection_indices,
+                                            &experimental_annotator_result)) {
+    candidates.push_back({selection_indices, {experimental_annotator_result}});
   }
 
   // Try the ML model.
@@ -2148,12 +2191,29 @@ Status Annotator::AnnotateSingleInput(
     return Status(StatusCode::INTERNAL, "Couldn't run grammar annotators.");
   }
 
+  if (experimental_annotator_ != nullptr &&
+      !experimental_annotator_->Annotate(context_unicode, candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run experimental annotator.");
+  }
+
   // Sort candidates according to their position in the input, so that the next
   // code can assume that any connected component of overlapping spans forms a
   // contiguous block.
+  // Also sort them according to the end position and collection, so that the
+  // deduplication code below can assume that same spans and classifications
+  // form contiguous blocks.
   std::sort(candidates->begin(), candidates->end(),
             [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
-              return a.span.first < b.span.first;
+              if (a.span.first != b.span.first) {
+                return a.span.first < b.span.first;
+              }
+
+              if (a.span.second != b.span.second) {
+                return a.span.second < b.span.second;
+              }
+
+              return a.classification[0].collection <
+                     b.classification[0].collection;
             });
 
   std::vector<int> candidate_indices;
@@ -2163,29 +2223,28 @@ Status Annotator::AnnotateSingleInput(
     return Status(StatusCode::INTERNAL, "Couldn't resolve conflicts.");
   }
 
+  // Remove candidates that overlap exactly and have the same collection.
+  // This can e.g. happen for phone coming from both ML model and regex.
+  candidate_indices.erase(
+      std::unique(candidate_indices.begin(), candidate_indices.end(),
+                  [&candidates](const int a_index, const int b_index) {
+                    const AnnotatedSpan& a = (*candidates)[a_index];
+                    const AnnotatedSpan& b = (*candidates)[b_index];
+                    return a.span == b.span &&
+                           a.classification[0].collection ==
+                               b.classification[0].collection;
+                  }),
+      candidate_indices.end());
+
   std::vector<AnnotatedSpan> result;
   result.reserve(candidate_indices.size());
-  AnnotatedSpan aggregated_span;
   for (const int i : candidate_indices) {
-    if ((*candidates)[i].span != aggregated_span.span) {
-      if (!aggregated_span.classification.empty()) {
-        result.push_back(std::move(aggregated_span));
-      }
-      aggregated_span =
-          AnnotatedSpan((*candidates)[i].span, /*arg_classification=*/{});
-    }
     if ((*candidates)[i].classification.empty() ||
         ClassifiedAsOther((*candidates)[i].classification) ||
         FilteredForAnnotation((*candidates)[i])) {
       continue;
     }
-    for (ClassificationResult& classification :
-         (*candidates)[i].classification) {
-      aggregated_span.classification.push_back(std::move(classification));
-    }
-  }
-  if (!aggregated_span.classification.empty()) {
-    result.push_back(std::move(aggregated_span));
+    result.push_back(std::move((*candidates)[i]));
   }
 
   // We generate all candidates and remove them later (with the exception of
