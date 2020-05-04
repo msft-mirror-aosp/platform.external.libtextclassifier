@@ -27,6 +27,31 @@ include "utils/zlib/buffer.fbs";
 
 file_identifier "TC3A";
 
+// Prediction type for a multi-task model.
+namespace libtextclassifier3;
+enum PredictionType : int {
+  UNSUPPORTED = 0,
+  NEXT_MESSAGE_PREDICTION = 1,
+  INTENT_TRIGGERING = 2,
+  ENTITY_ANNOTATION = 3,
+}
+
+// Prediction metadata for an arbitrary task.
+namespace libtextclassifier3;
+table PredictionMetadata {
+  prediction_type:PredictionType;
+  task_spec:ActionSuggestionSpec;
+  output_suggestions:int;
+  output_suggestions_scores:int;
+  output_suggestions_spans:int;
+}
+
+namespace libtextclassifier3.TensorflowLiteModelSpec_;
+table InputNameIndexEntry {
+  key:string (key, shared);
+  value:int;
+}
+
 // TensorFlow Lite model for suggesting actions.
 namespace libtextclassifier3;
 table TensorflowLiteModelSpec {
@@ -87,6 +112,13 @@ table TensorflowLiteModelSpec {
   // A (max tokens, embedding_size) float tensor specifying the embeddings of
   // each token.
   input_flattened_token_embeddings:int = -1;
+
+  // Generalized output specification that handles arbitrary number of
+  // prediction tasks.
+  prediction_metadata:[PredictionMetadata];
+
+  // Map of additional input tensor name to its index.
+  input_name_index:[TensorflowLiteModelSpec_.InputNameIndexEntry];
 }
 
 // Configuration for the tokenizer.
