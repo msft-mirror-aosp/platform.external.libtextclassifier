@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -46,6 +47,7 @@ namespace libtextclassifier3 {
 // Options for suggesting actions.
 struct ActionSuggestionOptions {
   static ActionSuggestionOptions Default() { return ActionSuggestionOptions(); }
+  std::unordered_map<std::string, Variant> model_parameters;
 };
 
 // Class for predicting actions following a conversation.
@@ -178,7 +180,22 @@ class ActionsSuggestions {
                        const std::vector<int>& user_ids,
                        const std::vector<float>& time_diffs,
                        const int num_suggestions,
+                       const ActionSuggestionOptions& options,
                        tflite::Interpreter* interpreter) const;
+
+  void FillSuggestionFromSpecWithEntityData(const ActionSuggestionSpec* spec,
+                                            ActionSuggestion* suggestion) const;
+
+  void PopulateTextReplies(const tflite::Interpreter* interpreter,
+                           int suggestion_index, int score_index,
+                           const std::string& type,
+                           ActionsSuggestionsResponse* response) const;
+
+  void PopulateIntentTriggering(const tflite::Interpreter* interpreter,
+                                int suggestion_index, int score_index,
+                                const ActionSuggestionSpec* task_spec,
+                                ActionsSuggestionsResponse* response) const;
+
   bool ReadModelOutput(tflite::Interpreter* interpreter,
                        const ActionSuggestionOptions& options,
                        ActionsSuggestionsResponse* response) const;
