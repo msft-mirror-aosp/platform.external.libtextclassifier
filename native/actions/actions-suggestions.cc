@@ -50,6 +50,9 @@ const std::string& ActionsSuggestions::kSendEmailType =
     *[]() { return new std::string("send_email"); }();
 const std::string& ActionsSuggestions::kShareLocation =
     *[]() { return new std::string("share_location"); }();
+constexpr float kDefaultFloat = 0.0;
+constexpr bool kDefaultBool = false;
+constexpr int kDefaultInt = 1;
 
 namespace {
 
@@ -593,6 +596,7 @@ bool ActionsSuggestions::AllocateInput(const int conversation_length,
 bool ActionsSuggestions::SetupModelInput(
     const std::vector<std::string>& context, const std::vector<int>& user_ids,
     const std::vector<float>& time_diffs, const int num_suggestions,
+    const ActionSuggestionOptions& options,
     tflite::Interpreter* interpreter) const {
   // Compute token embeddings.
   std::vector<std::vector<Token>> tokens;
@@ -672,7 +676,130 @@ bool ActionsSuggestions::SetupModelInput(
         model_->tflite_model_spec()->input_flattened_token_embeddings(),
         flattened_token_embeddings, interpreter);
   }
+  // Set up additional input parameters.
+  if (const auto* input_name_index =
+          model_->tflite_model_spec()->input_name_index()) {
+    const std::unordered_map<std::string, Variant>& model_parameters =
+        options.model_parameters;
+    for (const TensorflowLiteModelSpec_::InputNameIndexEntry* entry :
+         *input_name_index) {
+      const std::string param_name = entry->key()->str();
+      const int param_index = entry->value();
+      const TfLiteType param_type =
+          interpreter->tensor(interpreter->inputs()[param_index])->type;
+      const auto param_value_it = model_parameters.find(param_name);
+      const bool has_value = param_value_it != model_parameters.end();
+      /*
+      case kTfLiteInt16:
+        *tflite::GetTensorData<int16_t>(input_tensor) = input_value;
+        break;
+      case kTfLiteInt8:
+       */
+      switch (param_type) {
+        case kTfLiteFloat32:
+          model_executor_->SetInput<float>(
+              param_index,
+              has_value ? param_value_it->second.FloatValue() : kDefaultFloat,
+              interpreter);
+          break;
+        case kTfLiteInt32:
+          model_executor_->SetInput<int32_t>(
+              param_index,
+              has_value ? param_value_it->second.IntValue() : kDefaultInt,
+              interpreter);
+          break;
+        case kTfLiteInt64:
+          model_executor_->SetInput<int64_t>(
+              param_index,
+              has_value ? param_value_it->second.Int64Value() : kDefaultInt,
+              interpreter);
+          break;
+        case kTfLiteUInt8:
+          model_executor_->SetInput<uint8_t>(
+              param_index,
+              has_value ? param_value_it->second.UInt8Value() : kDefaultInt,
+              interpreter);
+          break;
+        case kTfLiteInt8:
+          model_executor_->SetInput<int8_t>(
+              param_index,
+              has_value ? param_value_it->second.Int8Value() : kDefaultInt,
+              interpreter);
+          break;
+        case kTfLiteBool:
+          model_executor_->SetInput<bool>(
+              param_index,
+              has_value ? param_value_it->second.BoolValue() : kDefaultBool,
+              interpreter);
+          break;
+        default:
+          TC3_LOG(ERROR) << "Unsupported type of additional input parameter: "
+                         << param_name;
+      }
+    }
+  }
   return true;
+}
+
+void ActionsSuggestions::PopulateTextReplies(
+    const tflite::Interpreter* interpreter, int suggestion_index,
+    int score_index, const std::string& type,
+    ActionsSuggestionsResponse* response) const {
+  const std::vector<tflite::StringRef> replies =
+      model_executor_->Output<tflite::StringRef>(suggestion_index, interpreter);
+  const TensorView<float> scores =
+      model_executor_->OutputView<float>(score_index, interpreter);
+  for (int i = 0; i < replies.size(); i++) {
+    if (replies[i].len == 0) {
+      continue;
+    }
+    const float score = scores.data()[i];
+    if (score < preconditions_.min_reply_score_threshold) {
+      continue;
+    }
+    response->actions.push_back(
+        {std::string(replies[i].str, replies[i].len), type, score});
+  }
+}
+
+void ActionsSuggestions::FillSuggestionFromSpecWithEntityData(
+    const ActionSuggestionSpec* spec, ActionSuggestion* suggestion) const {
+  std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+      entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                      : nullptr;
+  FillSuggestionFromSpec(spec, entity_data.get(), suggestion);
+}
+
+void ActionsSuggestions::PopulateIntentTriggering(
+    const tflite::Interpreter* interpreter, int suggestion_index,
+    int score_index, const ActionSuggestionSpec* task_spec,
+    ActionsSuggestionsResponse* response) const {
+  if (!task_spec || task_spec->type()->size() == 0) {
+    TC3_LOG(ERROR)
+        << "Task type for intent (action) triggering cannot be empty!";
+    return;
+  }
+  const TensorView<bool> intent_prediction =
+      model_executor_->OutputView<bool>(suggestion_index, interpreter);
+  const TensorView<float> intent_scores =
+      model_executor_->OutputView<float>(score_index, interpreter);
+  // Two result corresponding to binary triggering case.
+  TC3_CHECK_EQ(intent_prediction.size(), 2);
+  TC3_CHECK_EQ(intent_scores.size(), 2);
+  // We rely on in-graph thresholding logic so at this point the results
+  // have been ranked properly according to threshold.
+  const bool triggering = intent_prediction.data()[0];
+  const float trigger_score = intent_scores.data()[0];
+
+  if (triggering) {
+    ActionSuggestion suggestion;
+    std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+        entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
+                                        : nullptr;
+    FillSuggestionFromSpecWithEntityData(task_spec, &suggestion);
+    suggestion.score = trigger_score;
+    response->actions.push_back(std::move(suggestion));
+  }
 }
 
 bool ActionsSuggestions::ReadModelOutput(
@@ -715,24 +842,12 @@ bool ActionsSuggestions::ReadModelOutput(
   }
 
   // Read smart reply predictions.
-  std::vector<ActionSuggestion> text_replies;
   if (!response->output_filtered_min_triggering_score &&
       model_->tflite_model_spec()->output_replies() >= 0) {
-    const std::vector<tflite::StringRef> replies =
-        model_executor_->Output<tflite::StringRef>(
-            model_->tflite_model_spec()->output_replies(), interpreter);
-    TensorView<float> scores = model_executor_->OutputView<float>(
-        model_->tflite_model_spec()->output_replies_scores(), interpreter);
-    for (int i = 0; i < replies.size(); i++) {
-      if (replies[i].len == 0) continue;
-      const float score = scores.data()[i];
-      if (score < preconditions_.min_reply_score_threshold) {
-        continue;
-      }
-      response->actions.push_back({std::string(replies[i].str, replies[i].len),
-                                   model_->smart_reply_action_type()->str(),
-                                   score});
-    }
+    PopulateTextReplies(interpreter,
+                        model_->tflite_model_spec()->output_replies(),
+                        model_->tflite_model_spec()->output_replies_scores(),
+                        model_->smart_reply_action_type()->str(), response);
   }
 
   // Read actions suggestions.
@@ -756,10 +871,41 @@ bool ActionsSuggestions::ReadModelOutput(
       std::unique_ptr<ReflectiveFlatbuffer> entity_data =
           entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
                                           : nullptr;
-      FillSuggestionFromSpec(action_type->action(), entity_data.get(),
-                             &suggestion);
+      FillSuggestionFromSpecWithEntityData(action_type->action(), &suggestion);
       suggestion.score = score;
       response->actions.push_back(std::move(suggestion));
+    }
+  }
+
+  // Read multi-task predictions and construct the result properly.
+  if (const auto* prediction_metadata =
+          model_->tflite_model_spec()->prediction_metadata()) {
+    for (const PredictionMetadata* metadata : *prediction_metadata) {
+      const ActionSuggestionSpec* task_spec = metadata->task_spec();
+      const int suggestions_index = metadata->output_suggestions();
+      const int suggestions_scores_index =
+          metadata->output_suggestions_scores();
+      switch (metadata->prediction_type()) {
+        case PredictionType_NEXT_MESSAGE_PREDICTION:
+          if (!task_spec || task_spec->type()->size() == 0) {
+            TC3_LOG(WARNING) << "Task type not provided, use default "
+                                "smart_reply_action_type!";
+          }
+          PopulateTextReplies(
+              interpreter, suggestions_index, suggestions_scores_index,
+              task_spec ? task_spec->type()->str()
+                        : model_->smart_reply_action_type()->str(),
+              response);
+          break;
+        case PredictionType_INTENT_TRIGGERING:
+          PopulateIntentTriggering(interpreter, suggestions_index,
+                                   suggestions_scores_index, task_spec,
+                                   response);
+          break;
+        default:
+          TC3_LOG(ERROR) << "Unsupported prediction type!";
+          return false;
+      }
     }
   }
 
@@ -814,7 +960,7 @@ bool ActionsSuggestions::SuggestActionsFromModel(
   }
 
   if (!SetupModelInput(context, user_ids, time_diffs,
-                       /*num_suggestions=*/model_->num_smart_replies(),
+                       /*num_suggestions=*/model_->num_smart_replies(), options,
                        interpreter->get())) {
     TC3_LOG(ERROR) << "Failed to setup input for TensorFlow Lite model.";
     return false;
