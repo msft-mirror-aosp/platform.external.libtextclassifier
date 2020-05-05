@@ -538,9 +538,7 @@ table ModelTriggeringOptions {
 
   // Priority score assigned to knowledge engine annotations.
   knowledge_priority_score:float = 0;
-
-  // If true, will prioritize the longest annotation during conflict resolution.
-  prioritize_longest_annotation:bool = false;
+  reserved_7:int16 (deprecated);
 
   // Apply a factor to the priority score for entities that are added to this
   // map. Key: collection type e.g. "address", "phone"..., Value: float number.
@@ -577,6 +575,18 @@ table EmbeddingPruningMask {
   // Index of row of compressed embedding matrix to which all pruned buckets
   // are mapped.
   pruned_row_bucket_id:int;
+}
+
+namespace libtextclassifier3.Model_;
+table ConflictResolutionOptions {
+  // If true, will prioritize the longest annotation during conflict
+  // resolution.
+  prioritize_longest_annotation:bool = false;
+
+  // If true, the annotator will perform conflict resolution between the
+  // different sub-annotators also in the RAW mode. If false, no conflict
+  // resolution will be performed in RAW mode.
+  do_conflict_resolution_in_raw_mode:bool = true;
 }
 
 namespace libtextclassifier3;
@@ -646,6 +656,7 @@ table Model {
   money_parsing_options:MoneyParsingOptions;
   translate_annotator_options:TranslateAnnotatorOptions;
   grammar_model:GrammarModel;
+  conflict_resolution_options:Model_.ConflictResolutionOptions;
 }
 
 // Method for selecting the center token.
