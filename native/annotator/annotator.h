@@ -28,6 +28,7 @@
 #include "annotator/contact/contact-engine.h"
 #include "annotator/datetime/parser.h"
 #include "annotator/duration/duration.h"
+#include "annotator/experimental/experimental.h"
 #include "annotator/feature-processor.h"
 #include "annotator/grammar/dates/cfg-datetime-annotator.h"
 #include "annotator/grammar/grammar-annotator.h"
@@ -159,6 +160,11 @@ class Annotator {
   // provided file descriptor.
   bool InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
                                                     int size);
+
+  // Initializes the experimental annotators if available.
+  // Returns true if there is an implementation of experimental annotators
+  // linked in.
+  bool InitializeExperimentalAnnotators();
 
   // Sets up the lang-id instance that should be used.
   void SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id);
@@ -485,6 +491,7 @@ class Annotator {
   std::unique_ptr<const DurationAnnotator> duration_annotator_;
   std::unique_ptr<const PersonNameEngine> person_name_engine_;
   std::unique_ptr<const TranslateAnnotator> translate_annotator_;
+  std::unique_ptr<const ExperimentalAnnotator> experimental_annotator_;
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;
@@ -504,6 +511,14 @@ class Annotator {
 
   // Model for language identification.
   const libtextclassifier3::mobile::lang_id::LangId* lang_id_ = nullptr;
+
+  // If true, will prioritize the longest annotation during conflict resolution.
+  bool prioritize_longest_annotation_ = false;
+
+  // If true, the annotator will perform conflict resolution between the
+  // different sub-annotators also in the RAW mode. If false, no conflict
+  // resolution will be performed in RAW mode.
+  bool do_conflict_resolution_in_raw_mode_ = true;
 };
 
 namespace internal {
