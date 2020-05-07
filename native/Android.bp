@@ -93,7 +93,7 @@ cc_defaults {
     product_variables: {
         debuggable: {
             // Only enable debug logging in userdebug/eng builds.
-            cflags: ["-DTC_DEBUG_LOGGING=1"],
+            cflags: ["-DTC3_DEBUG_LOGGING=1"],
         },
     },
 
