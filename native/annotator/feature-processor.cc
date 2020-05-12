@@ -661,6 +661,10 @@ float FeatureProcessor::SupportedCodepointsRatio(
       ++num_total;
     }
   }
+  // Avoid division by zero.
+  if (num_total == 0) {
+    return 0.0;
+  }
   return static_cast<float>(num_supported) / static_cast<float>(num_total);
 }
 
