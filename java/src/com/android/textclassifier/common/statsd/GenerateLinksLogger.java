@@ -22,14 +22,14 @@ import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLinks;
 import androidx.collection.ArrayMap;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
-import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -140,8 +140,8 @@ public final class GenerateLinksLogger {
       long latencyMs,
       Optional<ModelInfo> annotatorModel,
       Optional<ModelInfo> langIdModel) {
-    String annotatorModelName = annotatorModel.map(ModelInfo::toModelName).orElse(null);
-    String langIdModelName = langIdModel.map(ModelInfo::toModelName).orElse(null);
+    String annotatorModelName = annotatorModel.transform(ModelInfo::toModelName).or("");
+    String langIdModelName = langIdModel.transform(ModelInfo::toModelName).or("");
     StatsEvent statsEvent =
         StatsEvent.newBuilder()
             .setAtomId(TextClassifierEventLogger.TEXT_LINKIFY_EVENT_ATOM_ID)
