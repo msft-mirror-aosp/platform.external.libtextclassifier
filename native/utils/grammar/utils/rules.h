@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+// Utility functions for pre-processing, creating and testing context free
+// grammars.
+
 #ifndef LIBTEXTCLASSIFIER_UTILS_GRAMMAR_UTILS_RULES_H_
 #define LIBTEXTCLASSIFIER_UTILS_GRAMMAR_UTILS_RULES_H_
 
@@ -22,13 +25,12 @@
 
 #include "utils/grammar/types.h"
 #include "utils/grammar/utils/ir.h"
-#include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3::grammar {
 
-// Utility functions for pre-processing, creating and testing context free
-// grammars.
-//
+// Special nonterminals.
+constexpr const char* kFiller = "<filler>";
+
 // All rules for a grammar will be collected in a rules object.
 //
 //    Rules r;
@@ -89,6 +91,9 @@ class Rules {
     // The name of the non-terminal, if defined.
     std::string name;
 
+    // Whether the nonterminal is provided via an annotation.
+    bool from_annotation = false;
+
     // Rules that have this non-terminal as the lhs.
     std::vector<int> rules;
 
@@ -103,7 +108,7 @@ class Rules {
   //  * A terminal
   // optionally followed by a `?` which indicates that the component is
   // optional. The `rhs` must contain at least one non-optional component.
-  void Add(StringPiece lhs, const std::vector<std::string>& rhs,
+  void Add(const std::string& lhs, const std::vector<std::string>& rhs,
            const CallbackId callback = kNoCallback,
            const int64 callback_param = 0, int8 max_whitespace_gap = -1,
            bool case_sensitive = false, int shard = 0);
@@ -118,30 +123,39 @@ class Rules {
   // Adds a rule `lhs ::= rhs` with exclusion.
   // The rule only matches, if `excluded_nonterminal` doesn't match the same
   // span.
-  void AddWithExclusion(StringPiece lhs, const std::vector<std::string>& rhs,
-                        StringPiece excluded_nonterminal,
+  void AddWithExclusion(const std::string& lhs,
+                        const std::vector<std::string>& rhs,
+                        const std::string& excluded_nonterminal,
                         int8 max_whitespace_gap = -1,
                         bool case_sensitive = false, int shard = 0);
 
   // Adds an assertion callback.
-  void AddAssertion(StringPiece lhs, const std::vector<std::string>& rhs,
+  void AddAssertion(const std::string& lhs, const std::vector<std::string>& rhs,
                     bool negative = true, int8 max_whitespace_gap = -1,
                     bool case_sensitive = false, int shard = 0);
 
   // Adds a mapping callback.
-  void AddValueMapping(StringPiece lhs, const std::vector<std::string>& rhs,
-                       int64 value, int8 max_whitespace_gap = -1,
+  void AddValueMapping(const std::string& lhs,
+                       const std::vector<std::string>& rhs, int64 value,
+                       int8 max_whitespace_gap = -1,
                        bool case_sensitive = false, int shard = 0);
 
   // Adds a regex rule.
-  void AddRegex(StringPiece lhs, const std::string& regex_pattern);
+  void AddRegex(const std::string& lhs, const std::string& regex_pattern);
   void AddRegex(int lhs, const std::string& regex_pattern);
 
   // Creates a nonterminal with the given name, if one doesn't already exist.
-  int AddNonterminal(StringPiece nonterminal_name);
+  int AddNonterminal(const std::string& nonterminal_name);
 
   // Creates a new nonterminal.
   int AddNewNonterminal();
+
+  // Defines a nonterminal for an externally provided annotation.
+  int AddAnnotation(const std::string& annotation_name);
+
+  // Adds an alias for a nonterminal. This is a separate name for the same
+  // nonterminal.
+  void AddAlias(const std::string& nonterminal_name, const std::string& alias);
 
   // Defines a new filter id.
   void DefineFilter(const CallbackId filter_id) { filters_.insert(filter_id); }
@@ -161,11 +175,38 @@ class Rules {
       std::vector<int>::const_iterator optional_element_indices_end,
       std::vector<bool>* omit_these);
 
+  // Applies optimizations to the right hand side of a rule.
+  std::vector<RhsElement> OptimizeRhs(const std::vector<RhsElement>& rhs);
+
+  // Removes start and end anchors in case they are followed (respectively
+  // preceded) by unbounded filler.
+  std::vector<RhsElement> ResolveAnchors(
+      const std::vector<RhsElement>& rhs) const;
+
+  // Rewrites fillers in a rule.
+  // Fillers in a rule such as `lhs ::= <a> <filler> <b>` could be lowered as
+  // <tokens> ::= <token>
+  // <tokens> ::= <tokens> <token>
+  // This has the disadvantage that it will produce a match for each possible
+  // span in the text, which is quadratic in the number of tokens.
+  // It can be more efficiently written as:
+  // `lhs ::= <a_with_tokens> <b>` with
+  // `<a_with_tokens> ::= <a>`
+  // `<a_with_tokens> ::= <a_with_tokens> <token>`
+  // In this each occurrence of `<a>` can start a sequence of tokens.
+  std::vector<RhsElement> ResolveFillers(const std::vector<RhsElement>& rhs);
+
+  // Checks whether an element denotes a specific nonterminal.
+  bool IsNonterminalOfName(const RhsElement& element,
+                           const std::string& nonterminal) const;
+
   const int num_shards_;
 
   // Non-terminal to id map.
   std::unordered_map<std::string, int> nonterminal_names_;
   std::vector<NontermInfo> nonterminals_;
+  std::unordered_map<std::string, std::string> nonterminal_alias_;
+  std::unordered_map<std::string, int> annotation_nonterminals_;
 
   // Rules.
   std::vector<Rule> rules_;
