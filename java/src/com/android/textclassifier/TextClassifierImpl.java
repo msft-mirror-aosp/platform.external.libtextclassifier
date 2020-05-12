@@ -46,9 +46,9 @@ import com.android.textclassifier.ModelFileManager.ModelFile;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.intent.LabeledIntent;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
+import com.android.textclassifier.common.logging.ResultIdUtils;
+import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
 import com.android.textclassifier.common.statsd.GenerateLinksLogger;
-import com.android.textclassifier.common.statsd.ResultIdUtils;
-import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
 import com.android.textclassifier.common.statsd.SelectionEventConverter;
 import com.android.textclassifier.common.statsd.TextClassificationSessionIdConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
@@ -57,7 +57,9 @@ import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.LangIdModel;
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -69,7 +71,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import javax.annotation.Nullable;
 
 /**
@@ -340,8 +341,9 @@ final class TextClassifierImpl {
       Optional<ModelInfo> annotatorModelInfo;
       Optional<ModelInfo> langIdModelInfo;
       synchronized (lock) {
-        annotatorModelInfo = Optional.ofNullable(annotatorModelInUse).map(ModelFile::toModelInfo);
-        langIdModelInfo = Optional.ofNullable(langIdModelInUse).map(ModelFile::toModelInfo);
+        annotatorModelInfo =
+            Optional.fromNullable(annotatorModelInUse).transform(ModelFile::toModelInfo);
+        langIdModelInfo = Optional.fromNullable(langIdModelInUse).transform(ModelFile::toModelInfo);
       }
       generateLinksLogger.logGenerateLinks(
           request.getText(),
@@ -495,9 +497,9 @@ final class TextClassifierImpl {
           ActionsSuggestionsHelper.createResultId(
               context,
               request.getConversation(),
-              Optional.ofNullable(actionModelInUse),
-              Optional.ofNullable(annotatorModelInUse),
-              Optional.ofNullable(langIdModelInUse));
+              Optional.fromNullable(actionModelInUse),
+              Optional.fromNullable(annotatorModelInUse),
+              Optional.fromNullable(langIdModelInUse));
       return new ConversationActions(conversationActions, resultId);
     }
   }
@@ -547,7 +549,7 @@ final class TextClassifierImpl {
     synchronized (lock) {
       final ModelFileManager.ModelFile bestModel = langIdModelFileManager.findBestModelFile(null);
       if (bestModel == null) {
-        return Optional.empty();
+        return Optional.absent();
       }
       if (langIdImpl == null || !Objects.equals(langIdModelInUse, bestModel)) {
         TcLog.d(TAG, "Loading " + bestModel);
@@ -558,7 +560,7 @@ final class TextClassifierImpl {
                   new File(bestModel.getPath()), ParcelFileDescriptor.MODE_READ_ONLY);
         } catch (FileNotFoundException e) {
           TcLog.e(TAG, "Failed to open the LangID model file", e);
-          return Optional.empty();
+          return Optional.absent();
         }
         try {
           if (pfd != null) {
@@ -610,7 +612,7 @@ final class TextClassifierImpl {
           start,
           end,
           ModelFile.toModelInfos(
-              Optional.ofNullable(annotatorModelInUse), Optional.ofNullable(langIdModelInUse)));
+              Optional.fromNullable(annotatorModelInUse), Optional.fromNullable(langIdModelInUse)));
     }
   }
 
@@ -670,13 +672,13 @@ final class TextClassifierImpl {
       actionIntents.add(intent);
     }
     Bundle extras = new Bundle();
-    langId.ifPresent(
-        model -> {
-          maybeCreateExtrasForTranslate(actionIntents, model)
-              .ifPresent(
-                  foreignLanguageExtra ->
-                      ExtrasUtils.putForeignLanguageExtra(extras, foreignLanguageExtra));
-        });
+    Optional<Bundle> foreignLanguageExtra =
+        langId
+            .transform(model -> maybeCreateExtrasForTranslate(actionIntents, model))
+            .or(Optional.<Bundle>absent());
+    if (foreignLanguageExtra.isPresent()) {
+      ExtrasUtils.putForeignLanguageExtra(extras, foreignLanguageExtra.get());
+    }
     if (actionIntents.stream().anyMatch(Objects::nonNull)) {
       ArrayList<Intent> strippedIntents =
           actionIntents.stream()
@@ -704,16 +706,16 @@ final class TextClassifierImpl {
   private static Optional<Bundle> maybeCreateExtrasForTranslate(
       List<Intent> intents, LangIdModel langId) {
     Optional<Intent> translateIntent =
-        intents.stream()
+        FluentIterable.from(intents)
             .filter(Objects::nonNull)
             .filter(intent -> Intent.ACTION_TRANSLATE.equals(intent.getAction()))
-            .findFirst();
+            .first();
     if (!translateIntent.isPresent()) {
-      return Optional.empty();
+      return Optional.absent();
     }
     Pair<String, Float> topLanguageWithScore = ExtrasUtils.getTopLanguage(translateIntent.get());
     if (topLanguageWithScore == null) {
-      return Optional.empty();
+      return Optional.absent();
     }
     return Optional.of(
         ExtrasUtils.createForeignLanguageExtra(
@@ -723,13 +725,13 @@ final class TextClassifierImpl {
   private ImmutableList<String> detectLanguageTags(
       Optional<LangIdModel> langId, CharSequence text) {
     return langId
-        .map(
+        .transform(
             model -> {
               float threshold = getLangIdThreshold(model);
               EntityConfidence languagesConfidence = detectLanguages(model, text, threshold);
               return ImmutableList.copyOf(languagesConfidence.getEntities());
             })
-        .orElse(ImmutableList.of());
+        .or(ImmutableList.of());
   }
 
   /**
