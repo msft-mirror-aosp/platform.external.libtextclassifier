@@ -54,12 +54,12 @@ std::vector<const grammar::RulesSet_::Rules*> SelectLocaleMatchingShards(
   return shards;
 }
 
-std::vector<RuleMatch> DeduplicateMatches(
-    const std::vector<RuleMatch>& matches) {
-  std::vector<RuleMatch> sorted_candidates = matches;
+std::vector<Derivation> DeduplicateDerivations(
+    const std::vector<Derivation>& derivations) {
+  std::vector<Derivation> sorted_candidates = derivations;
   std::stable_sort(
       sorted_candidates.begin(), sorted_candidates.end(),
-      [](const RuleMatch& a, const RuleMatch& b) {
+      [](const Derivation& a, const Derivation& b) {
         // Sort by id.
         if (a.rule_id != b.rule_id) {
           return a.rule_id < b.rule_id;
@@ -75,9 +75,9 @@ std::vector<RuleMatch> DeduplicateMatches(
       });
 
   // Deduplicate by overlap.
-  std::vector<RuleMatch> result;
+  std::vector<Derivation> result;
   for (int i = 0; i < sorted_candidates.size(); i++) {
-    const RuleMatch& candidate = sorted_candidates[i];
+    const Derivation& candidate = sorted_candidates[i];
     bool eliminated = false;
 
     // Due to the sorting above, the candidate can only be completely
