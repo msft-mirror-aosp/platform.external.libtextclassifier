@@ -172,6 +172,9 @@ class Ir {
   // Adds a regex rule <lhs> ::= <regex_pattern>.
   Nonterm AddRegex(Nonterm lhs, const std::string& regex_pattern);
 
+  // Adds a definition for a nonterminal provided by a text annotation.
+  void AddAnnotation(Nonterm lhs, const std::string& annotation);
+
   // Serializes a rule set in the intermediate representation into the
   // memory mappable inference format.
   void Serialize(bool include_debug_information, RulesSetT* output) const;
@@ -219,6 +222,9 @@ class Ir {
 
   // The regex rules.
   std::vector<std::pair<std::string, Nonterm>> regex_rules_;
+
+  // Mapping from annotation name to nonterminal.
+  std::vector<std::pair<std::string, Nonterm>> annotations_;
 
   // Debug information.
   std::unordered_map<Nonterm, std::string> nonterminal_names_;
