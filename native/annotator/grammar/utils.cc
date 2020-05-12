@@ -16,7 +16,14 @@
 
 #include "annotator/grammar/utils.h"
 
+#include "utils/grammar/utils/rules.h"
+
 namespace libtextclassifier3 {
+namespace {
+
+using ::libtextclassifier3::GrammarModel_::RuleClassificationResultT;
+
+}  // namespace
 
 Tokenizer BuildTokenizer(const UniLib* unilib,
                          const GrammarTokenizerOptions* options) {
@@ -42,6 +49,18 @@ Tokenizer BuildTokenizer(const UniLib* unilib,
   return Tokenizer(options->tokenization_type(), unilib, codepoint_config,
                    internal_codepoint_config, tokenize_on_script_change,
                    /*icu_preserve_whitespace_tokens=*/false);
+}
+
+int AddRuleClassificationResult(const std::string& collection,
+                                const ModeFlag& enabled_modes,
+                                GrammarModelT* model) {
+  const int result_id = model->rule_classification_result.size();
+  model->rule_classification_result.emplace_back(new RuleClassificationResultT);
+  RuleClassificationResultT* result =
+      model->rule_classification_result.back().get();
+  result->collection_name = collection;
+  result->enabled_modes = enabled_modes;
+  return result_id;
 }
 
 }  // namespace libtextclassifier3

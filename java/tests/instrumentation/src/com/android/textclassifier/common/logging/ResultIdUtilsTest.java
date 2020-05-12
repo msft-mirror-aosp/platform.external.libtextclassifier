@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package com.android.textclassifier.common.statsd;
+package com.android.textclassifier.common.logging;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
-import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
+import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import java.util.Locale;
-import java.util.Optional;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -38,12 +38,12 @@ public class ResultIdUtilsTest {
   public void createId_customHash() {
     ImmutableList<Optional<ModelInfo>> modelInfos =
         ImmutableList.of(
-            Optional.empty(),
+            Optional.absent(),
             Optional.of(
                 new ModelInfo(/* version= */ 1, ImmutableList.of(Locale.ENGLISH, Locale.FRENCH))),
-            Optional.empty(),
+            Optional.absent(),
             Optional.of(new ModelInfo(/* version= */ 2, ImmutableList.of(Locale.CHINESE))),
-            Optional.empty());
+            Optional.absent());
 
     String resultId = ResultIdUtils.createId(HASH, modelInfos);
 
@@ -87,6 +87,13 @@ public class ResultIdUtilsTest {
     ModelInfo modelInfo = new ModelInfo(700, ImmutableList.of(Locale.ENGLISH));
 
     assertThat(modelInfo.toModelName()).isEqualTo("en_v700");
+  }
+
+  @Test
+  public void modelInfo_toModelName_supportedLanguageTags() {
+    ModelInfo modelInfo = new ModelInfo(700, "en,fr");
+
+    assertThat(modelInfo.toModelName()).isEqualTo("en,fr_v700");
   }
 
   @Test
