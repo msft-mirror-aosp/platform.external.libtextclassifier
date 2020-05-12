@@ -64,8 +64,8 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
       codepoint_offsets.push_back(it);
     }
     codepoint_offsets.push_back(message_unicode.end());
-    for (const grammar::RuleMatch& candidate :
-         grammar::DeduplicateMatches(candidates_)) {
+    for (const grammar::Derivation& candidate :
+         grammar::DeduplicateDerivations(candidates_)) {
       // Check that assertions are fulfilled.
       if (!VerifyAssertions(candidate.match)) {
         continue;
@@ -84,7 +84,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
  private:
   // Handles action rule matches.
   void HandleRuleMatch(const grammar::Match* match, const int64 rule_id) {
-    candidates_.push_back(grammar::RuleMatch{match, rule_id});
+    candidates_.push_back(grammar::Derivation{match, rule_id});
   }
 
   // Instantiates action suggestions from verified and deduplicated rule matches
@@ -94,7 +94,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
   bool InstantiateActionsFromMatch(
       const std::vector<UnicodeText::const_iterator>& message_codepoint_offsets,
       int message_index, const std::string& smart_reply_action_type,
-      const grammar::RuleMatch& candidate,
+      const grammar::Derivation& candidate,
       const ReflectiveFlatbufferBuilder* entity_data_builder,
       std::vector<ActionSuggestion>* result) const {
     const RulesModel_::GrammarRules_::RuleMatch* rule_match =
@@ -194,7 +194,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
   // All action rule match candidates.
   // Grammar rule matches are recorded, deduplicated, verified and then
   // instantiated.
-  std::vector<grammar::RuleMatch> candidates_;
+  std::vector<grammar::Derivation> candidates_;
 };
 }  // namespace
 
