@@ -37,18 +37,18 @@ std::vector<const grammar::RulesSet_::Rules*> SelectLocaleMatchingShards(
     const std::vector<std::vector<Locale>>& shard_locales,
     const std::vector<Locale>& locales);
 
-// Deduplicates rule matches by containing overlap.
+// Deduplicates rule derivations by containing overlap.
 // The grammar system can output multiple candidates for optional parts.
 // For example if a rule has an optional suffix, we
-// will get two rule matches when the suffix is present: one with and one
+// will get two rule derivations when the suffix is present: one with and one
 // without the suffix. We therefore deduplicate by containing overlap, viz. from
 // two candidates we keep the longer one if it completely contains the shorter.
-struct RuleMatch {
+struct Derivation {
   const Match* match;
   int64 rule_id;
 };
-std::vector<RuleMatch> DeduplicateMatches(
-    const std::vector<RuleMatch>& matches);
+std::vector<Derivation> DeduplicateDerivations(
+    const std::vector<Derivation>& derivations);
 
 // Checks that all assertions of a match tree are fulfilled.
 bool VerifyAssertions(const Match* match);
