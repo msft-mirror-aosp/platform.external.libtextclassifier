@@ -24,14 +24,14 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.ModelFileManager.ModelFile;
-import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
+import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.After;
@@ -341,8 +341,7 @@ public class ModelFileManagerTest {
 
     assertThat(
             modelInfos.stream()
-                .map(modelFile -> modelFile.map(ModelInfo::toModelName))
-                .map(Optional::get)
+                .map(modelFile -> modelFile.transform(ModelInfo::toModelName).or(""))
                 .collect(Collectors.toList()))
         .containsExactly("en_v1", "ja_v2")
         .inOrder();

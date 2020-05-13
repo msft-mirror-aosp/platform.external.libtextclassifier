@@ -23,6 +23,7 @@ import android.util.StatsEvent;
 import android.util.StatsLog;
 import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.common.logging.ResultIdUtils;
 import com.android.textclassifier.common.logging.TextClassificationContext;
 import com.android.textclassifier.common.logging.TextClassificationSessionId;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
