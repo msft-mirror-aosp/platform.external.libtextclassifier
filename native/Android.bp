@@ -128,13 +128,13 @@ cc_defaults {
 
     shared_libs: [
         "liblog",
+        "libz",
     ],
 
     static_libs: [
         "liblua",
         "libutf",
         "libtflite_static",
-        "libz_current",
     ],
 }
 
