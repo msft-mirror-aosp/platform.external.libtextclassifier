@@ -20,6 +20,7 @@
 
 #include "utils/grammar/utils/ir.h"
 #include "utils/strings/append.h"
+#include "utils/strings/stringpiece.h"
 
 namespace libtextclassifier3::grammar {
 namespace {
@@ -136,14 +137,18 @@ void ValidateTerminal(StringPiece rhs_component) {
 
 }  // namespace
 
-int Rules::AddNonterminal(StringPiece nonterminal_name) {
-  const std::string key = nonterminal_name.ToString();
+int Rules::AddNonterminal(const std::string& nonterminal_name) {
+  std::string key = nonterminal_name;
+  auto alias_it = nonterminal_alias_.find(key);
+  if (alias_it != nonterminal_alias_.end()) {
+    key = alias_it->second;
+  }
   auto it = nonterminal_names_.find(key);
   if (it != nonterminal_names_.end()) {
     return it->second;
   }
   const int index = nonterminals_.size();
-  nonterminals_.push_back(NontermInfo{nonterminal_name.ToString()});
+  nonterminals_.push_back(NontermInfo{key});
   nonterminal_names_.insert(it, {key, index});
   return index;
 }
@@ -152,6 +157,32 @@ int Rules::AddNewNonterminal() {
   const int index = nonterminals_.size();
   nonterminals_.push_back(NontermInfo{});
   return index;
+}
+
+void Rules::AddAlias(const std::string& nonterminal_name,
+                     const std::string& alias) {
+  TC3_CHECK_EQ(nonterminal_alias_.insert_or_assign(alias, nonterminal_name)
+                   .first->second,
+               nonterminal_name)
+      << "Cannot redefine alias: " << alias;
+}
+
+// Defines a nonterminal for an externally provided annotation.
+int Rules::AddAnnotation(const std::string& annotation_name) {
+  auto [it, inserted] =
+      annotation_nonterminals_.insert({annotation_name, nonterminals_.size()});
+  if (inserted) {
+    nonterminals_.push_back(NontermInfo{});
+  }
+  return it->second;
+}
+
+bool Rules::IsNonterminalOfName(const RhsElement& element,
+                                const std::string& nonterminal) const {
+  if (element.is_terminal) {
+    return false;
+  }
+  return (nonterminals_[element.nonterminal].name == nonterminal);
 }
 
 // Note: For k optional components this creates 2^k rules, but it would be
@@ -199,30 +230,95 @@ void Rules::ExpandOptionals(
                   optional_element_indices_end, omit_these);
 }
 
+std::vector<Rules::RhsElement> Rules::ResolveAnchors(
+    const std::vector<RhsElement>& rhs) const {
+  if (rhs.size() <= 2) {
+    return rhs;
+  }
+  auto begin = rhs.begin();
+  auto end = rhs.end();
+  if (IsNonterminalOfName(rhs.front(), kStartNonterm) &&
+      IsNonterminalOfName(rhs[1], kFiller)) {
+    // Skip start anchor and filler.
+    begin += 2;
+  }
+  if (IsNonterminalOfName(rhs.back(), kEndNonterm) &&
+      IsNonterminalOfName(rhs[rhs.size() - 2], kFiller)) {
+    // Skip filler and end anchor.
+    end -= 2;
+  }
+  return std::vector<Rules::RhsElement>(begin, end);
+}
+
+std::vector<Rules::RhsElement> Rules::ResolveFillers(
+    const std::vector<RhsElement>& rhs) {
+  std::vector<RhsElement> result;
+  for (int i = 0; i < rhs.size();) {
+    if (i == rhs.size() - 1 || IsNonterminalOfName(rhs[i], kFiller) ||
+        rhs[i].is_optional || !IsNonterminalOfName(rhs[i + 1], kFiller)) {
+      result.push_back(rhs[i]);
+      i++;
+      continue;
+    }
+
+    // We have the case:
+    // <a> <filler>
+    // rewrite as:
+    // <a_with_tokens> ::= <a>
+    // <a_with_tokens> ::= <a_with_tokens> <token>
+    const int with_tokens_nonterminal = AddNewNonterminal();
+    const RhsElement token(AddNonterminal(kTokenNonterm),
+                           /*is_optional=*/false);
+    if (rhs[i + 1].is_optional) {
+      // <a_with_tokens> ::= <a>
+      Add(with_tokens_nonterminal, {rhs[i]});
+    } else {
+      // <a_with_tokens> ::= <a> <token>
+      Add(with_tokens_nonterminal, {rhs[i], token});
+    }
+    // <a_with_tokens> ::= <a_with_tokens> <token>
+    const RhsElement with_tokens(with_tokens_nonterminal,
+                                 /*is_optional=*/false);
+    Add(with_tokens_nonterminal, {with_tokens, token});
+    result.push_back(with_tokens);
+    i += 2;
+  }
+  return result;
+}
+
+std::vector<Rules::RhsElement> Rules::OptimizeRhs(
+    const std::vector<RhsElement>& rhs) {
+  return ResolveFillers(ResolveAnchors(rhs));
+}
+
 void Rules::Add(const int lhs, const std::vector<RhsElement>& rhs,
                 const CallbackId callback, const int64 callback_param,
                 const int8 max_whitespace_gap, const bool case_sensitive,
                 const int shard) {
+  // Resolve anchors and fillers.
+  const std::vector optimized_rhs = OptimizeRhs(rhs);
+
   std::vector<int> optional_element_indices;
-  TC3_CHECK_LT(optional_element_indices.size(), rhs.size())
+  TC3_CHECK_LT(optional_element_indices.size(), optimized_rhs.size())
       << "Rhs must contain at least one non-optional element.";
-  for (int i = 0; i < rhs.size(); i++) {
-    if (rhs[i].is_optional) {
+  for (int i = 0; i < optimized_rhs.size(); i++) {
+    if (optimized_rhs[i].is_optional) {
       optional_element_indices.push_back(i);
     }
   }
-  std::vector<bool> omit_these(rhs.size(), false);
-  ExpandOptionals(lhs, rhs, callback, callback_param, max_whitespace_gap,
-                  case_sensitive, shard, optional_element_indices.begin(),
+  std::vector<bool> omit_these(optimized_rhs.size(), false);
+  ExpandOptionals(lhs, optimized_rhs, callback, callback_param,
+                  max_whitespace_gap, case_sensitive, shard,
+                  optional_element_indices.begin(),
                   optional_element_indices.end(), &omit_these);
 }
 
-void Rules::Add(StringPiece lhs, const std::vector<std::string>& rhs,
+void Rules::Add(const std::string& lhs, const std::vector<std::string>& rhs,
                 const CallbackId callback, const int64 callback_param,
                 const int8 max_whitespace_gap, const bool case_sensitive,
                 const int shard) {
   TC3_CHECK(!rhs.empty()) << "Rhs cannot be empty (Lhs=" << lhs << ")";
-  TC3_CHECK(!IsPredefinedNonterminal(lhs.ToString()));
+  TC3_CHECK(!IsPredefinedNonterminal(lhs));
   std::vector<RhsElement> rhs_elements;
   rhs_elements.reserve(rhs.size());
   for (StringPiece rhs_component : rhs) {
@@ -235,7 +331,7 @@ void Rules::Add(StringPiece lhs, const std::vector<std::string>& rhs,
     // Check whether this component is a non-terminal.
     if (IsNonterminal(rhs_component)) {
       rhs_elements.push_back(
-          RhsElement(AddNonterminal(rhs_component), is_optional));
+          RhsElement(AddNonterminal(rhs_component.ToString()), is_optional));
     } else {
       // A terminal.
       // Sanity check for common typos -- '<' or '>' in a terminal.
@@ -247,9 +343,9 @@ void Rules::Add(StringPiece lhs, const std::vector<std::string>& rhs,
       max_whitespace_gap, case_sensitive, shard);
 }
 
-void Rules::AddWithExclusion(StringPiece lhs,
+void Rules::AddWithExclusion(const std::string& lhs,
                              const std::vector<std::string>& rhs,
-                             StringPiece excluded_nonterminal,
+                             const std::string& excluded_nonterminal,
                              const int8 max_whitespace_gap,
                              const bool case_sensitive, const int shard) {
   Add(lhs, rhs,
@@ -258,7 +354,8 @@ void Rules::AddWithExclusion(StringPiece lhs,
       max_whitespace_gap, case_sensitive, shard);
 }
 
-void Rules::AddAssertion(StringPiece lhs, const std::vector<std::string>& rhs,
+void Rules::AddAssertion(const std::string& lhs,
+                         const std::vector<std::string>& rhs,
                          const bool negative, const int8 max_whitespace_gap,
                          const bool case_sensitive, const int shard) {
   Add(lhs, rhs,
@@ -266,7 +363,7 @@ void Rules::AddAssertion(StringPiece lhs, const std::vector<std::string>& rhs,
       /*callback_param=*/negative, max_whitespace_gap, case_sensitive, shard);
 }
 
-void Rules::AddValueMapping(StringPiece lhs,
+void Rules::AddValueMapping(const std::string& lhs,
                             const std::vector<std::string>& rhs,
                             const int64 value, const int8 max_whitespace_gap,
                             const bool case_sensitive, const int shard) {
@@ -275,7 +372,7 @@ void Rules::AddValueMapping(StringPiece lhs,
       /*callback_param=*/value, max_whitespace_gap, case_sensitive, shard);
 }
 
-void Rules::AddRegex(StringPiece lhs, const std::string& regex_pattern) {
+void Rules::AddRegex(const std::string& lhs, const std::string& regex_pattern) {
   AddRegex(AddNonterminal(lhs), regex_pattern);
 }
 
@@ -305,7 +402,8 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   for (int i = 0; i < nonterminals_.size(); i++) {
     const NontermInfo& nonterminal = nonterminals_[i];
     bool unmergeable =
-        (nonterminal.rules.size() > 1 || !nonterminal.regex_rules.empty());
+        (nonterminal.from_annotation || nonterminal.rules.size() > 1 ||
+         !nonterminal.regex_rules.empty());
     for (const int rule_index : nonterminal.rules) {
       const Rule& rule = rules_[rule_index];
 
@@ -329,6 +427,11 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
     for (const int regex_rule : nonterminal.regex_rules) {
       rules.AddRegex(nonterminal_ids[i], regex_rules_[regex_rule]);
     }
+  }
+
+  // Define annotations.
+  for (const auto& [annotation, nonterminal] : annotation_nonterminals_) {
+    rules.AddAnnotation(nonterminal_ids[nonterminal], annotation);
   }
 
   // Now, keep adding eligible rules (rules whose rhs is completely assigned)
