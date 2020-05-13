@@ -72,8 +72,8 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
   // Deduplicate and populate annotations from grammar matches.
   bool GetAnnotations(const std::vector<UnicodeText::const_iterator>& text,
                       std::vector<AnnotatedSpan>* annotations) const {
-    for (const grammar::RuleMatch& candidate :
-         grammar::DeduplicateMatches(candidates_)) {
+    for (const grammar::Derivation& candidate :
+         grammar::DeduplicateDerivations(candidates_)) {
       // Check that assertions are fulfilled.
       if (!grammar::VerifyAssertions(candidate.match)) {
         continue;
@@ -87,10 +87,10 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
   bool GetTextSelection(const std::vector<UnicodeText::const_iterator>& text,
                         const CodepointSpan& selection, AnnotatedSpan* result) {
-    std::vector<grammar::RuleMatch> selection_candidates;
+    std::vector<grammar::Derivation> selection_candidates;
     // Deduplicate and verify matches.
     auto maybe_interpretation = GetBestValidInterpretation(
-        grammar::DeduplicateMatches(GetOverlappingRuleMatches(
+        grammar::DeduplicateDerivations(GetOverlappingRuleMatches(
             selection, candidates_, /*only_exact_overlap=*/false)));
     if (!maybe_interpretation.has_value()) {
       return false;
@@ -108,7 +108,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
                          ClassificationResult* classification) const {
     // Deduplicate and verify matches.
     auto maybe_interpretation = GetBestValidInterpretation(
-        grammar::DeduplicateMatches(GetOverlappingRuleMatches(
+        grammar::DeduplicateDerivations(GetOverlappingRuleMatches(
             selection, candidates_, /*only_exact_overlap=*/true)));
     if (!maybe_interpretation.has_value()) {
       return false;
@@ -127,7 +127,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
   void HandleRuleMatch(const grammar::Match* match, const int64 rule_id) {
     if ((model_->rule_classification_result()->Get(rule_id)->enabled_modes() &
          mode_) != 0) {
-      candidates_.push_back(grammar::RuleMatch{match, rule_id});
+      candidates_.push_back(grammar::Derivation{match, rule_id});
     }
   }
 
@@ -172,12 +172,12 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
   }
 
   // Filters out results that do not overlap with a reference span.
-  std::vector<grammar::RuleMatch> GetOverlappingRuleMatches(
+  std::vector<grammar::Derivation> GetOverlappingRuleMatches(
       const CodepointSpan& selection,
-      const std::vector<grammar::RuleMatch>& candidates,
+      const std::vector<grammar::Derivation>& candidates,
       const bool only_exact_overlap) const {
-    std::vector<grammar::RuleMatch> result;
-    for (const grammar::RuleMatch& candidate : candidates) {
+    std::vector<grammar::Derivation> result;
+    for (const grammar::Derivation& candidate : candidates) {
       // Discard matches that do not match the selection.
       // Simple check.
       if (!SpansOverlap(selection, candidate.match->codepoint_span)) {
@@ -202,11 +202,11 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
   Optional<std::pair<const GrammarModel_::RuleClassificationResult*,
                      const grammar::Match*>>
   GetBestValidInterpretation(
-      const std::vector<grammar::RuleMatch>& candidates) const {
+      const std::vector<grammar::Derivation>& candidates) const {
     const GrammarModel_::RuleClassificationResult* best_interpretation =
         nullptr;
     const grammar::Match* best_match = nullptr;
-    for (const grammar::RuleMatch& candidate : candidates) {
+    for (const grammar::Derivation& candidate : candidates) {
       if (!grammar::VerifyAssertions(candidate.match)) {
         continue;
       }
@@ -235,7 +235,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
   // result.
   bool AddAnnotatedSpanFromMatch(
       const std::vector<UnicodeText::const_iterator>& text,
-      const grammar::RuleMatch& candidate,
+      const grammar::Derivation& candidate,
       std::vector<AnnotatedSpan>* result) const {
     if (candidate.rule_id < 0 ||
         candidate.rule_id >= model_->rule_classification_result()->size()) {
@@ -347,7 +347,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
   // All annotation/selection/classification rule match candidates.
   // Grammar rule matches are recorded, deduplicated and then instantiated.
-  std::vector<grammar::RuleMatch> candidates_;
+  std::vector<grammar::Derivation> candidates_;
 };
 
 GrammarAnnotator::GrammarAnnotator(

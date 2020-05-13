@@ -29,6 +29,14 @@ namespace libtextclassifier3 {
 Tokenizer BuildTokenizer(const UniLib* unilib,
                          const GrammarTokenizerOptions* options);
 
+// Adds a rule classification result to the |model|.
+// collection: the classification entity detected.
+// enabled_modes: the target to apply the given rule.
+// Returns the ID associated with the created classification rule.
+int AddRuleClassificationResult(const std::string& collection,
+                                const ModeFlag& enabled_modes,
+                                GrammarModelT* model);
+
 }  // namespace libtextclassifier3
 
 #endif  // LIBTEXTCLASSIFIER_ANNOTATOR_GRAMMAR_UTILS_H_
