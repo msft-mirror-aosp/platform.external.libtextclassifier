@@ -54,6 +54,7 @@ cc_library_static {
         "//apex_available:platform",
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
+        "com.android.extservices",
     ],
 }
 
@@ -299,6 +300,11 @@ cc_library_shared {
     ],
 
     version_script: "jni.lds",
+
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.extservices",
+    ],
 }
 
 // -----------------------
