@@ -25,6 +25,18 @@ namespace {
 
 constexpr size_t kMaxHashTableSize = 100;
 
+template <typename T>
+void SortForBinarySearchLookup(T* entries) {
+  std::sort(entries->begin(), entries->end(),
+            [](const auto& a, const auto& b) { return a->key < b->key; });
+}
+
+template <typename T>
+void SortStructsForBinarySearchLookup(T* entries) {
+  std::sort(entries->begin(), entries->end(),
+            [](const auto& a, const auto& b) { return a.key() < b.key(); });
+}
+
 bool IsSameLhs(const Ir::Lhs& lhs, const RulesSet_::Lhs& other) {
   return (lhs.nonterminal == other.nonterminal() &&
           lhs.callback.id == other.callback_id() &&
@@ -129,10 +141,7 @@ void SerializeUnaryRulesShard(
     rules->unary_rules.push_back(RulesSet_::Rules_::UnaryRulesEntry(
         it.first, AddLhsSet(it.second, rules_set)));
   }
-
-  // Sort for binary search lookup.
-  std::sort(rules->unary_rules.begin(), rules->unary_rules.end(),
-            [](const auto& a, const auto& b) { return a.key() < b.key(); });
+  SortStructsForBinarySearchLookup(&rules->unary_rules);
 }
 
 // // Serializes a binary rules table.
@@ -253,6 +262,10 @@ Nonterm Ir::AddRegex(Nonterm lhs, const std::string& regex_pattern) {
   lhs = DefineNonterminal(lhs);
   regex_rules_.emplace_back(regex_pattern, lhs);
   return lhs;
+}
+
+void Ir::AddAnnotation(const Nonterm lhs, const std::string& annotation) {
+  annotations_.emplace_back(annotation, lhs);
 }
 
 // Serializes the terminal rules table.
@@ -398,12 +411,7 @@ void Ir::Serialize(const bool include_debug_information,
     output->callback.push_back(RulesSet_::CallbackEntry(
         filter_callback_id, RulesSet_::Callback(/*is_filter=*/true)));
   }
-  // Sort for binary search.
-  std::sort(
-      output->callback.begin(), output->callback.end(),
-      [](const RulesSet_::CallbackEntry& a, const RulesSet_::CallbackEntry& b) {
-        return a.key() < b.key();
-      });
+  SortStructsForBinarySearchLookup(&output->callback);
 
   // Add information about predefined nonterminal classes.
   output->nonterminals.reset(new RulesSet_::NonterminalsT);
@@ -421,6 +429,13 @@ void Ir::Serialize(const bool include_debug_information,
       output->nonterminals->n_digits_nt[i - 1] = n_digits_nt;
     }
   }
+  for (const auto& [annotation, annotation_nt] : annotations_) {
+    output->nonterminals->annotation_nt.emplace_back(
+        new RulesSet_::Nonterminals_::AnnotationNtEntryT);
+    output->nonterminals->annotation_nt.back()->key = annotation;
+    output->nonterminals->annotation_nt.back()->value = annotation_nt;
+  }
+  SortForBinarySearchLookup(&output->nonterminals->annotation_nt);
 
   if (include_debug_information) {
     output->debug_information.reset(new RulesSet_::DebugInformationT);
@@ -431,10 +446,7 @@ void Ir::Serialize(const bool include_debug_information,
       output->debug_information->nonterminal_names.back()->key = it.first;
       output->debug_information->nonterminal_names.back()->value = it.second;
     }
-    // Sort for binary search lookup.
-    std::sort(output->debug_information->nonterminal_names.begin(),
-              output->debug_information->nonterminal_names.end(),
-              [](const auto& a, const auto& b) { return a->key < b->key; });
+    SortForBinarySearchLookup(&output->debug_information->nonterminal_names);
   }
 
   // Add regex rules.
