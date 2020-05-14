@@ -21,7 +21,8 @@ import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 import androidx.annotation.GuardedBy;
 import com.android.textclassifier.common.base.TcLog;
-import com.android.textclassifier.common.statsd.ResultIdUtils.ModelInfo;
+import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
@@ -34,8 +35,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -288,28 +287,24 @@ final class ModelFileManager {
     }
 
     public ModelInfo toModelInfo() {
-      return new ModelInfo(getVersion(), getSupportedLocales());
+      return new ModelInfo(getVersion(), supportedLocalesStr);
     }
 
     @Override
     public String toString() {
-      final StringJoiner localesJoiner = new StringJoiner(",");
-      for (Locale locale : supportedLocales) {
-        localesJoiner.add(locale.toLanguageTag());
-      }
       return String.format(
           Locale.US,
           "ModelFile { path=%s name=%s version=%d locales=%s }",
           getPath(),
           getName(),
           version,
-          localesJoiner);
+          supportedLocalesStr);
     }
 
     public static ImmutableList<Optional<ModelInfo>> toModelInfos(
         Optional<ModelFile>... modelFiles) {
       return Arrays.stream(modelFiles)
-          .map(modelFile -> modelFile.map(ModelFile::toModelInfo))
+          .map(modelFile -> modelFile.transform(ModelFile::toModelInfo))
           .collect(Collectors.collectingAndThen(Collectors.toList(), ImmutableList::copyOf));
     }
   }
