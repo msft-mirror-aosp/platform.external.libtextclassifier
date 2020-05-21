@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "annotator/model_generated.h"
 #include "utils/base/logging.h"
@@ -274,14 +275,15 @@ class ReflectiveFlatbuffer {
   const reflection::Object* const type_;
 
   // Cached primitive fields (scalars and strings).
-  std::map<const reflection::Field*, Variant> fields_;
+  std::unordered_map<const reflection::Field*, Variant> fields_;
 
   // Cached sub-messages.
-  std::map<const reflection::Field*, std::unique_ptr<ReflectiveFlatbuffer>>
+  std::unordered_map<const reflection::Field*,
+                     std::unique_ptr<ReflectiveFlatbuffer>>
       children_;
 
   // Cached repeated fields.
-  std::map<const reflection::Field*, std::unique_ptr<RepeatedField>>
+  std::unordered_map<const reflection::Field*, std::unique_ptr<RepeatedField>>
       repeated_fields_;
 
   // Flattens the flatbuffer as a flat map.
