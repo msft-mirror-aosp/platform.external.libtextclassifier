@@ -37,6 +37,7 @@ enum class DefaultCallback : CallbackId {
   kAssertion = -2,
   kMapping = -3,
   kExclusion = -4,
+  kRootRule = 1,
 };
 
 // Special CallbackId indicating that there's no callback associated with a
