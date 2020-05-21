@@ -1,0 +1,4 @@
+namespace libtextclassifier3;
+table ExperimentalModel {
+}
+
