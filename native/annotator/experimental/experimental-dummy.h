@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 
+#include "annotator/feature-processor.h"
 #include "annotator/types.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
@@ -32,7 +33,8 @@ class ExperimentalAnnotator {
   // always disabled;
   static constexpr bool IsEnabled() { return false; }
 
-  explicit ExperimentalAnnotator(const UniLib& unilib) {}
+  explicit ExperimentalAnnotator(const FeatureProcessor& feature_processor,
+                                 const UniLib& unilib) {}
 
   bool Annotate(const UnicodeText& context,
                 std::vector<AnnotatedSpan>* candidates) const {

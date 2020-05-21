@@ -47,12 +47,14 @@ public final class CopyCodeActivityTest {
 
   @Test
   public void onCreate_emptyCode() throws Exception {
-    activityRule.launchActivity(EMPTY_INTENT);
-
     ClipboardManager clipboardManager =
         ApplicationProvider.getApplicationContext().getSystemService(ClipboardManager.class);
     // Use shell's permissions to ensure we can access the clipboard
     InstrumentationRegistry.getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
+    clipboardManager.clearPrimaryClip();
+
+    activityRule.launchActivity(EMPTY_INTENT);
+
     try {
       assertThat(clipboardManager.hasPrimaryClip()).isFalse();
     } finally {
@@ -62,12 +64,14 @@ public final class CopyCodeActivityTest {
 
   @Test
   public void onCreate_codeCopied() throws Exception {
-    activityRule.launchActivity(CODE_INTENT);
-
     ClipboardManager clipboardManager =
         ApplicationProvider.getApplicationContext().getSystemService(ClipboardManager.class);
     // Use shell's permissions to ensure we can access the clipboard
     InstrumentationRegistry.getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
+    clipboardManager.clearPrimaryClip();
+
+    activityRule.launchActivity(CODE_INTENT);
+
     ClipData clipFromClipboard;
     try {
       assertThat(clipboardManager.hasPrimaryClip()).isTrue();
