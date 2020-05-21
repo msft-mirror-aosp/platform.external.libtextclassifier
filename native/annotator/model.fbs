@@ -15,6 +15,7 @@
 //
 
 include "annotator/entity-data.fbs";
+include "annotator/experimental/experimental.fbs";
 include "annotator/grammar/dates/dates.fbs";
 include "utils/codepoint-range.fbs";
 include "utils/flatbuffers.fbs";
@@ -657,6 +658,7 @@ table Model {
   translate_annotator_options:TranslateAnnotatorOptions;
   grammar_model:GrammarModel;
   conflict_resolution_options:Model_.ConflictResolutionOptions;
+  experimental_model:ExperimentalModel;
 }
 
 // Method for selecting the center token.

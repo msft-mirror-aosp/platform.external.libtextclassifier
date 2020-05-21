@@ -432,18 +432,18 @@ public final class AnnotatorModel implements AutoCloseable {
       private final String referenceTimezone;
       private final Long referenceTimeMsUtc;
 
-      DatetimeOptions(String referenceTimezone, Long referenceTimeMsUtc) {
+      public DatetimeOptions(String referenceTimezone, Long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;
         this.referenceTimezone = referenceTimezone;
       }
     }
 
-    InputFragment(String text) {
+    public InputFragment(String text) {
       this.text = text;
       this.datetimeOptionsNullable = null;
     }
 
-    InputFragment(String text, DatetimeOptions datetimeOptions) {
+    public InputFragment(String text, DatetimeOptions datetimeOptions) {
       this.text = text;
       this.datetimeOptionsNullable = datetimeOptions;
     }
