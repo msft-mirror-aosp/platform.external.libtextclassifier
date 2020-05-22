@@ -53,6 +53,7 @@
 
 #include <assert.h>
 #include <string.h>
+
 #include <vector>
 #ifdef ADDRESS_SANITIZER
 #include <sanitizer/asan_interface.h>
@@ -67,7 +68,7 @@ namespace libtextclassifier3 {
 // arena at the same time without locking, as long as they use only
 // const methods.
 class BaseArena {
- protected:         // You can't make an arena directly; only a subclass of one
+ protected:  // You can't make an arena directly; only a subclass of one
   BaseArena(char* first_block, const size_t block_size, bool align_to_page);
 
  public:
@@ -77,18 +78,17 @@ class BaseArena {
 
   // they're "slow" only 'cause they're virtual (subclasses define "fast" ones)
   virtual char* SlowAlloc(size_t size) = 0;
-  virtual void  SlowFree(void* memory, size_t size) = 0;
+  virtual void SlowFree(void* memory, size_t size) = 0;
   virtual char* SlowRealloc(char* memory, size_t old_size, size_t new_size) = 0;
 
   class Status {
    private:
     friend class BaseArena;
     size_t bytes_allocated_;
+
    public:
-    Status() : bytes_allocated_(0) { }
-    size_t bytes_allocated() const {
-      return bytes_allocated_;
-    }
+    Status() : bytes_allocated_(0) {}
+    size_t bytes_allocated() const { return bytes_allocated_; }
   };
 
   // Accessors and stats counters
@@ -96,8 +96,8 @@ class BaseArena {
   // type-compatible with ArenaAllocator (in arena_allocator.h).  That is,
   // we define arena() because ArenaAllocator does, and that way you
   // can template on either of these and know it's safe to call arena().
-  virtual BaseArena* arena()  { return this; }
-  size_t block_size() const   { return block_size_; }
+  virtual BaseArena* arena() { return this; }
+  size_t block_size() const { return block_size_; }
   int block_count() const;
   bool is_empty() const {
     // must check block count in case we allocated a block larger than blksize
@@ -112,8 +112,8 @@ class BaseArena {
   void MakeNewBlock(const uint32 alignment);
   void* GetMemoryFallback(const size_t size, const int align);
   void* GetMemory(const size_t size, const int align) {
-    assert(remaining_ <= block_size_);          // an invariant
-    if ( size > 0 && size <= remaining_ && align == 1 ) {       // common case
+    assert(remaining_ <= block_size_);                   // an invariant
+    if (size > 0 && size <= remaining_ && align == 1) {  // common case
       last_alloc_ = freestart_;
       freestart_ += size;
       remaining_ -= size;
@@ -161,18 +161,18 @@ class BaseArena {
   const AllocatedBlock* IndexToBlock(int index) const;
 
   const size_t block_size_;
-  char* freestart_;         // beginning of the free space in most recent block
+  char* freestart_;  // beginning of the free space in most recent block
   char* freestart_when_empty_;  // beginning of the free space when we're empty
-  char* last_alloc_;         // used to make sure ReturnBytes() is safe
+  char* last_alloc_;            // used to make sure ReturnBytes() is safe
   // if the first_blocks_ aren't enough, expand into overflow_blocks_.
   std::vector<AllocatedBlock>* overflow_blocks_;
   // STL vector isn't as efficient as it could be, so we use an array at first
-  const bool first_block_externally_owned_;   // true if they pass in 1st block
+  const bool first_block_externally_owned_;  // true if they pass in 1st block
   const bool page_aligned_;  // when true, all blocks need to be page aligned
   int8_t blocks_alloced_;  // how many of the first_blocks_ have been allocated
-  AllocatedBlock first_blocks_[16];   // the length of this array is arbitrary
+  AllocatedBlock first_blocks_[16];  // the length of this array is arbitrary
 
-  void FreeBlocks();         // Frees all except first block
+  void FreeBlocks();  // Frees all except first block
 
   BaseArena(const BaseArena&) = delete;
   BaseArena& operator=(const BaseArena&) = delete;
@@ -182,18 +182,18 @@ class UnsafeArena : public BaseArena {
  public:
   // Allocates a thread-compatible arena with the specified block size.
   explicit UnsafeArena(const size_t block_size)
-    : BaseArena(nullptr, block_size, false) { }
+      : BaseArena(nullptr, block_size, false) {}
   UnsafeArena(const size_t block_size, bool align)
-    : BaseArena(nullptr, block_size, align) { }
+      : BaseArena(nullptr, block_size, align) {}
 
   // Allocates a thread-compatible arena with the specified block
   // size. "first_block" must have size "block_size". Memory is
   // allocated from "first_block" until it is exhausted; after that
   // memory is allocated by allocating new blocks from the heap.
   UnsafeArena(char* first_block, const size_t block_size)
-    : BaseArena(first_block, block_size, false) { }
+      : BaseArena(first_block, block_size, false) {}
   UnsafeArena(char* first_block, const size_t block_size, bool align)
-    : BaseArena(first_block, block_size, align) { }
+      : BaseArena(first_block, block_size, align) {}
 
   char* Alloc(const size_t size) {
     return reinterpret_cast<char*>(GetMemory(size, 1));
@@ -201,6 +201,14 @@ class UnsafeArena : public BaseArena {
   void* AllocAligned(const size_t size, const int align) {
     return GetMemory(size, align);
   }
+
+  // Allocates and initializes an object on the arena.
+  template <typename T, typename... Args>
+  T* AllocAndInit(Args... args) {
+    return new (reinterpret_cast<T*>(AllocAligned(sizeof(T), alignof(T))))
+        T(std::forward<Args>(args)...);
+  }
+
   char* Calloc(const size_t size) {
     void* return_value = Alloc(size);
     memset(return_value, 0, size);
@@ -214,9 +222,7 @@ class UnsafeArena : public BaseArena {
   }
 
   // Free does nothing except for the last piece allocated.
-  void Free(void* memory, size_t size) {
-    ReturnMemory(memory, size);
-  }
+  void Free(void* memory, size_t size) { ReturnMemory(memory, size); }
   char* SlowAlloc(size_t size) override {  // "slow" 'cause it's virtual
     return Alloc(size);
   }
@@ -234,14 +240,12 @@ class UnsafeArena : public BaseArena {
     return newstr;
   }
   char* MemdupPlusNUL(const char* s, size_t bytes) {  // like "string(s, len)"
-    char* newstr = Alloc(bytes+1);
+    char* newstr = Alloc(bytes + 1);
     memcpy(newstr, s, bytes);
     newstr[bytes] = '\0';
     return newstr;
   }
-  char* Strdup(const char* s) {
-    return Memdup(s, strlen(s) + 1);
-  }
+  char* Strdup(const char* s) { return Memdup(s, strlen(s) + 1); }
   // Unlike libc's strncpy, I always NUL-terminate.  libc's semantics are dumb.
   // This will allocate at most n+1 bytes (+1 is for the nul terminator).
   char* Strndup(const char* s, size_t n) {
@@ -261,8 +265,8 @@ class UnsafeArena : public BaseArena {
   // If you know the new size is smaller (or equal), you don't need to know
   // oldsize.  We don't check that newsize is smaller, so you'd better be sure!
   char* Shrink(char* s, size_t newsize) {
-    AdjustLastAlloc(s, newsize);       // reclaim space if we can
-    return s;                          // never need to move if we go smaller
+    AdjustLastAlloc(s, newsize);  // reclaim space if we can
+    return s;                     // never need to move if we go smaller
   }
 
   // We make a copy so you can keep track of status at a given point in time

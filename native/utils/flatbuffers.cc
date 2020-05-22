@@ -118,6 +118,49 @@ const reflection::Field* GetFieldOrNull(const reflection::Object* type,
   return GetFieldOrNull(type, field->field_name, field->field_offset);
 }
 
+bool Parse(const std::string& str_value, float* value) {
+  double double_value;
+  if (!ParseDouble(str_value.data(), &double_value)) {
+    return false;
+  }
+  *value = static_cast<float>(double_value);
+  return true;
+}
+
+bool Parse(const std::string& str_value, double* value) {
+  return ParseDouble(str_value.data(), value);
+}
+
+bool Parse(const std::string& str_value, int64* value) {
+  return ParseInt64(str_value.data(), value);
+}
+
+bool Parse(const std::string& str_value, int32* value) {
+  return ParseInt32(str_value.data(), value);
+}
+
+bool Parse(const std::string& str_value, std::string* value) {
+  *value = str_value;
+  return true;
+}
+
+template <typename T>
+bool ParseAndSetField(const reflection::Field* field,
+                      const std::string& str_value,
+                      ReflectiveFlatbuffer* buffer) {
+  T value;
+  if (!Parse(str_value, &value)) {
+    TC3_LOG(ERROR) << "Could not parse '" << str_value << "'";
+    return false;
+  }
+  if (field->type()->base_type() == reflection::Vector) {
+    buffer->Repeated<T>(field)->Add(value);
+    return true;
+  } else {
+    return buffer->Set<T>(field, value);
+  }
+}
+
 }  // namespace
 
 template <>
@@ -185,41 +228,19 @@ const reflection::Field* ReflectiveFlatbuffer::GetFieldByOffsetOrNull(
 
 bool ReflectiveFlatbuffer::ParseAndSet(const reflection::Field* field,
                                        const std::string& value) {
-  switch (field->type()->base_type()) {
+  switch (field->type()->base_type() == reflection::Vector
+              ? field->type()->element()
+              : field->type()->base_type()) {
     case reflection::String:
-      return Set(field, value);
-    case reflection::Int: {
-      int32 int_value;
-      if (!ParseInt32(value.data(), &int_value)) {
-        TC3_LOG(ERROR) << "Could not parse '" << value << "' as int32.";
-        return false;
-      }
-      return Set(field, int_value);
-    }
-    case reflection::Long: {
-      int64 int_value;
-      if (!ParseInt64(value.data(), &int_value)) {
-        TC3_LOG(ERROR) << "Could not parse '" << value << "' as int64.";
-        return false;
-      }
-      return Set(field, int_value);
-    }
-    case reflection::Float: {
-      double double_value;
-      if (!ParseDouble(value.data(), &double_value)) {
-        TC3_LOG(ERROR) << "Could not parse '" << value << "' as float.";
-        return false;
-      }
-      return Set(field, static_cast<float>(double_value));
-    }
-    case reflection::Double: {
-      double double_value;
-      if (!ParseDouble(value.data(), &double_value)) {
-        TC3_LOG(ERROR) << "Could not parse '" << value << "' as double.";
-        return false;
-      }
-      return Set(field, double_value);
-    }
+      return ParseAndSetField<std::string>(field, value, this);
+    case reflection::Int:
+      return ParseAndSetField<int32>(field, value, this);
+    case reflection::Long:
+      return ParseAndSetField<int64>(field, value, this);
+    case reflection::Float:
+      return ParseAndSetField<float>(field, value, this);
+    case reflection::Double:
+      return ParseAndSetField<double>(field, value, this);
     default:
       TC3_LOG(ERROR) << "Unhandled field type: " << field->type()->base_type();
       return false;
