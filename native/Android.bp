@@ -107,6 +107,7 @@ cc_defaults {
         "libtextclassifier_fbgen_resources_extra",
         "libtextclassifier_fbgen_intent_config",
         "libtextclassifier_fbgen_annotator_model",
+        "libtextclassifier_fbgen_annotator_experimental_model",
         "libtextclassifier_fbgen_actions_model",
         "libtextclassifier_fbgen_tflite_text_encoder_config",
         "libtextclassifier_fbgen_lang_id_embedded_network",
@@ -202,6 +203,13 @@ genrule {
     name: "libtextclassifier_fbgen_annotator_model",
     srcs: ["annotator/model.fbs"],
     out: ["annotator/model_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_annotator_experimental_model",
+    srcs: ["annotator/experimental/experimental.fbs"],
+    out: ["annotator/experimental/experimental_generated.h"],
     defaults: ["fbgen"],
 }
 
