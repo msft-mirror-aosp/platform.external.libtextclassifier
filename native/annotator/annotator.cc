@@ -556,6 +556,11 @@ void Annotator::ValidateAndInitialize() {
             ->do_conflict_resolution_in_raw_mode();
   }
 
+#ifdef TC3_EXPERIMENTAL
+  TC3_LOG(WARNING) << "Enabling experimental annotators.";
+  InitializeExperimentalAnnotators();
+#endif
+
   initialized_ = true;
 }
 
@@ -694,7 +699,8 @@ bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
 
 bool Annotator::InitializeExperimentalAnnotators() {
   if (ExperimentalAnnotator::IsEnabled()) {
-    experimental_annotator_.reset(new ExperimentalAnnotator(*unilib_));
+    experimental_annotator_.reset(
+        new ExperimentalAnnotator(*selection_feature_processor_, *unilib_));
     return true;
   }
   return false;
