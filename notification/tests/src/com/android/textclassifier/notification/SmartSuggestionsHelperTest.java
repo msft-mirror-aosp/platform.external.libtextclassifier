@@ -47,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -71,10 +72,6 @@ public class SmartSuggestionsHelperTest {
   public void setup() {
     TextClassificationManager textClassificationManager =
         context.getSystemService(TextClassificationManager.class);
-    // Workaround b/144163980.
-    // TODO(tonymak) Remove this workaround once the latest emulator image is dropped.
-    textClassificationManager.setTextClassificationSessionFactory(
-        classificationContext -> fakeTextClassifier);
     textClassificationManager.setTextClassifier(fakeTextClassifier);
     smartActions = new SmartSuggestionsHelper(context, config);
     notificationBuilder = new Notification.Builder(context, "id");
@@ -343,6 +340,25 @@ public class SmartSuggestionsHelperTest {
 
     assertThat(smartSuggestions.getActions()).hasSize(1);
     assertThat(smartSuggestions.getActions().get(0).title.toString()).isEqualTo("12345");
+  }
+
+  @Ignore // Disabled because it is way too slow to run on an emulator.
+  @Test
+  public void noBinderLeakage() {
+    // Use the real text classifier from system.
+    TextClassificationManager textClassificationManager =
+        context.getSystemService(TextClassificationManager.class);
+    textClassificationManager.setTextClassifier(null);
+
+    // System server crashes when there are more than 20,000 leaked binder proxy.
+    // See
+    // http://cs/android/frameworks/base/core/java/android/os/BinderProxy.java?l=73&rcl=ae52315c8c7d0391bd3c7bca0525a98eeb4cd840.
+    for (int i = 0; i < 20000; i++) {
+      Notification notification = createMessageCategoryNotification();
+      StatusBarNotification statusBarNotification =
+          createStatusBarNotification(notification, PACKAGE_NAME);
+      smartActions.onNotificationEnqueued(statusBarNotification);
+    }
   }
 
   private Notification createMessageCategoryNotification() {
