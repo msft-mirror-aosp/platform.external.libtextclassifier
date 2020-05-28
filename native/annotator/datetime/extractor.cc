@@ -473,6 +473,7 @@ bool DatetimeExtractor::ParseRelationAndConvertToRelativeCount(
                       {DatetimeExtractorType_NEXT, 1},
                       {DatetimeExtractorType_NEXT_OR_SAME, 1},
                       {DatetimeExtractorType_LAST, -1},
+                      {DatetimeExtractorType_PAST, -1},
                   },
                   relative_count);
 }

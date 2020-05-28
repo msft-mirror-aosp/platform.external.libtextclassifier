@@ -175,40 +175,41 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
     case Variant::TYPE_INT_VALUE:
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_int_, name.get(),
-                                  value.IntValue());
+                                  value.Value<int>());
 
     case Variant::TYPE_INT64_VALUE:
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_long_, name.get(),
-                                  value.Int64Value());
+                                  value.Value<int64>());
 
     case Variant::TYPE_FLOAT_VALUE:
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_float_, name.get(),
-                                  value.FloatValue());
+                                  value.Value<float>());
 
     case Variant::TYPE_DOUBLE_VALUE:
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_double_, name.get(),
-                                  value.DoubleValue());
+                                  value.Value<double>());
 
     case Variant::TYPE_BOOL_VALUE:
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_bool_, name.get(),
-                                  value.BoolValue());
+                                  value.Value<bool>());
 
     case Variant::TYPE_STRING_VALUE: {
       TC3_ASSIGN_OR_RETURN(
           ScopedLocalRef<jstring> value_jstring,
-          jni_cache_->ConvertToJavaString(value.StringValue()));
+          jni_cache_->ConvertToJavaString(value.ConstRefValue<std::string>()));
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_string_, name.get(),
                                   value_jstring.get());
     }
 
     case Variant::TYPE_STRING_VECTOR_VALUE: {
-      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jobjectArray> value_jstring_array,
-                           AsStringArray(value.StringVectorValue()));
+      TC3_ASSIGN_OR_RETURN(
+          ScopedLocalRef<jobjectArray> value_jstring_array,
+          AsStringArray(value.ConstRefValue<std::vector<std::string>>()));
 
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_string_array_, name.get(),
@@ -216,8 +217,9 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
     }
 
     case Variant::TYPE_FLOAT_VECTOR_VALUE: {
-      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jfloatArray> value_jfloat_array,
-                           AsFloatArray(value.FloatVectorValue()));
+      TC3_ASSIGN_OR_RETURN(
+          ScopedLocalRef<jfloatArray> value_jfloat_array,
+          AsFloatArray(value.ConstRefValue<std::vector<float>>()));
 
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_float_array_, name.get(),
@@ -226,7 +228,7 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
 
     case Variant::TYPE_INT_VECTOR_VALUE: {
       TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jintArray> value_jint_array,
-                           AsIntArray(value.IntVectorValue()));
+                           AsIntArray(value.ConstRefValue<std::vector<int>>()));
 
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_int_array_, name.get(),
@@ -234,8 +236,10 @@ StatusOr<ScopedLocalRef<jobject>> RemoteActionTemplatesHandler::AsNamedVariant(
     }
 
     case Variant::TYPE_STRING_VARIANT_MAP_VALUE: {
-      TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jobjectArray> value_jobect_array,
-                           AsNamedVariantArray(value.StringVariantMapValue()));
+      TC3_ASSIGN_OR_RETURN(
+          ScopedLocalRef<jobjectArray> value_jobect_array,
+          AsNamedVariantArray(
+              value.ConstRefValue<std::map<std::string, Variant>>()));
       return JniHelper::NewObject(env, named_variant_class_.get(),
                                   named_variant_from_named_variant_array_,
                                   name.get(), value_jobect_array.get());

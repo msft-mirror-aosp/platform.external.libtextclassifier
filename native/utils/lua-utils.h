@@ -506,15 +506,15 @@ class LuaEnvironment {
 
   // Reads a repeated field from lua.
   template <typename T>
-  void ReadRepeatedField(const int index, TypedRepeatedField<T>* result) const {
+  void ReadRepeatedField(const int index, RepeatedField* result) const {
     for (const auto& element : ReadVector<T>(index)) {
       result->Add(element);
     }
   }
 
   template <>
-  void ReadRepeatedField<ReflectiveFlatbuffer>(
-      const int index, TypedRepeatedField<ReflectiveFlatbuffer>* result) const {
+  void ReadRepeatedField<ReflectiveFlatbuffer>(const int index,
+                                               RepeatedField* result) const {
     lua_pushnil(state_);
     while (Next(index - 1)) {
       ReadFlatbuffer(index, result->Add());
