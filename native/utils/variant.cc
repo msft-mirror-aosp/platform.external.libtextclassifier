@@ -21,26 +21,26 @@ namespace libtextclassifier3 {
 std::string Variant::ToString() const {
   switch (GetType()) {
     case Variant::TYPE_BOOL_VALUE:
-      if (BoolValue()) {
+      if (Value<bool>()) {
         return "true";
       } else {
         return "false";
       }
       break;
     case Variant::TYPE_INT_VALUE:
-      return std::to_string(IntValue());
+      return std::to_string(Value<int>());
       break;
     case Variant::TYPE_INT64_VALUE:
-      return std::to_string(Int64Value());
+      return std::to_string(Value<int64>());
       break;
     case Variant::TYPE_FLOAT_VALUE:
-      return std::to_string(FloatValue());
+      return std::to_string(Value<float>());
       break;
     case Variant::TYPE_DOUBLE_VALUE:
-      return std::to_string(DoubleValue());
+      return std::to_string(Value<double>());
       break;
     case Variant::TYPE_STRING_VALUE:
-      return StringValue();
+      return ConstRefValue<std::string>();
       break;
     default:
       TC3_LOG(FATAL) << "Unsupported variant type: " << GetType();
