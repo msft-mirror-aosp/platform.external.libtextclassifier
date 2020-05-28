@@ -83,7 +83,16 @@ public class SmartSuggestionsHelper {
   private final TextClassificationManager textClassificationManager;
   private final SmartSuggestionsConfig config;
   private final LruCache<String, SmartSuggestionsLogSession> sessionCache =
-      new LruCache<>(MAX_RESULT_ID_TO_CACHE);
+      new LruCache<String, SmartSuggestionsLogSession>(MAX_RESULT_ID_TO_CACHE) {
+        @Override
+        protected void entryRemoved(
+            boolean evicted,
+            String key,
+            SmartSuggestionsLogSession oldSession,
+            SmartSuggestionsLogSession newSession) {
+          oldSession.destroy();
+        }
+      };
   private final TextClassificationContext textClassificationContext;
 
   public SmartSuggestionsHelper(Context context, SmartSuggestionsConfig config) {
@@ -103,7 +112,7 @@ public class SmartSuggestionsHelper {
   public SmartSuggestions onNotificationEnqueued(StatusBarNotification statusBarNotification) {
     // Whenever onNotificationEnqueued() is called again on the same notification key, its
     // previous session is ended.
-    removeAndDestroySession(statusBarNotification.getKey());
+    sessionCache.remove(statusBarNotification.getKey());
 
     boolean eligibleForReplyAdjustment =
         config.shouldGenerateReplies() && isEligibleForReplyAdjustment(statusBarNotification);
@@ -155,8 +164,9 @@ public class SmartSuggestionsHelper {
         actions.add(notificationAction);
       }
     }
-
-    if (!TextUtils.isEmpty(resultId)) {
+    if (TextUtils.isEmpty(resultId)) {
+      textClassifier.destroy();
+    } else {
       SmartSuggestionsLogSession session =
           new SmartSuggestionsLogSession(
               resultId, repliesScore, textClassifier, textClassificationContext);
@@ -173,14 +183,6 @@ public class SmartSuggestionsHelper {
     }
 
     return new SmartSuggestions(replies, actions);
-  }
-
-  private void removeAndDestroySession(String notificationKey) {
-    SmartSuggestionsLogSession session = sessionCache.get(notificationKey);
-    if (session != null) {
-      session.destroy();
-    }
-    sessionCache.remove(notificationKey);
   }
 
   /**
