@@ -339,6 +339,7 @@ cc_test {
     ],
 
     static_libs: ["libgmock_ndk"],
+    header_libs: ["jni_headers"],
 
     multilib: {
         lib32: {
