@@ -225,6 +225,18 @@ DatetimeComponent::RelativeQualifier DateMatch::GetRelativeQualifier() const {
   return DatetimeComponent::RelativeQualifier::UNSPECIFIED;
 }
 
+// Embed RelativeQualifier information of DatetimeComponent as a sign of
+// relative counter field of datetime component i.e. relative counter is
+// negative when relative qualifier RelativeQualifier::PAST.
+int GetAdjustedRelativeCounter(
+    const DatetimeComponent::RelativeQualifier& relative_qualifier,
+    const int relative_counter) {
+  if (DatetimeComponent::RelativeQualifier::PAST == relative_qualifier) {
+    return -relative_counter;
+  }
+  return relative_counter;
+}
+
 Optional<DatetimeComponent> CreateDatetimeComponent(
     const DatetimeComponent::ComponentType& component_type,
     const DatetimeComponent::RelativeQualifier& relative_qualifier,
@@ -232,13 +244,15 @@ Optional<DatetimeComponent> CreateDatetimeComponent(
   if (absolute_value == NO_VAL && relative_value == NO_VAL) {
     return Optional<DatetimeComponent>();
   }
-  return Optional<DatetimeComponent>(
-      DatetimeComponent(component_type,
-                        (relative_value != NO_VAL)
-                            ? relative_qualifier
-                            : DatetimeComponent::RelativeQualifier::UNSPECIFIED,
-                        (absolute_value != NO_VAL) ? absolute_value : 0,
-                        (relative_value != NO_VAL) ? relative_value : 0));
+  return Optional<DatetimeComponent>(DatetimeComponent(
+      component_type,
+      (relative_value != NO_VAL)
+          ? relative_qualifier
+          : DatetimeComponent::RelativeQualifier::UNSPECIFIED,
+      (absolute_value != NO_VAL) ? absolute_value : 0,
+      (relative_value != NO_VAL)
+          ? GetAdjustedRelativeCounter(relative_qualifier, relative_value)
+          : 0));
 }
 
 Optional<DatetimeComponent> CreateDayOfWeekComponent(

@@ -153,6 +153,10 @@ class Rules {
   // Defines a nonterminal for an externally provided annotation.
   int AddAnnotation(const std::string& annotation_name);
 
+  // Defines a nonterminal for an externally provided annotation.
+  void BindAnnotation(const std::string& nonterminal_name,
+                      const std::string& annotation_name);
+
   // Adds an alias for a nonterminal. This is a separate name for the same
   // nonterminal.
   void AddAlias(const std::string& nonterminal_name, const std::string& alias);

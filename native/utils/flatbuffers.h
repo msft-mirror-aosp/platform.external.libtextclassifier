@@ -19,7 +19,6 @@
 #ifndef LIBTEXTCLASSIFIER_UTILS_FLATBUFFERS_H_
 #define LIBTEXTCLASSIFIER_UTILS_FLATBUFFERS_H_
 
-#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -31,13 +30,12 @@
 #include "utils/variant.h"
 #include "flatbuffers/flatbuffers.h"
 #include "flatbuffers/reflection.h"
+#include "flatbuffers/reflection_generated.h"
 
 namespace libtextclassifier3 {
 
 class ReflectiveFlatBuffer;
 class RepeatedField;
-template <typename T>
-class TypedRepeatedField;
 
 // Loads and interprets the buffer as 'FlatbufferMessage' and verifies its
 // integrity.
@@ -105,6 +103,41 @@ std::string PackFlatbuffer(
                      builder.GetSize());
 }
 
+class ReflectiveFlatbuffer;
+
+// Checks whether a variant value type agrees with a field type.
+template <typename T>
+bool IsMatchingType(const reflection::BaseType type) {
+  switch (type) {
+    case reflection::Bool:
+      return std::is_same<T, bool>::value;
+    case reflection::Byte:
+      return std::is_same<T, int8>::value;
+    case reflection::UByte:
+      return std::is_same<T, uint8>::value;
+    case reflection::Int:
+      return std::is_same<T, int32>::value;
+    case reflection::UInt:
+      return std::is_same<T, uint32>::value;
+    case reflection::Long:
+      return std::is_same<T, int64>::value;
+    case reflection::ULong:
+      return std::is_same<T, uint64>::value;
+    case reflection::Float:
+      return std::is_same<T, float>::value;
+    case reflection::Double:
+      return std::is_same<T, double>::value;
+    case reflection::String:
+      return std::is_same<T, std::string>::value ||
+             std::is_same<T, StringPiece>::value ||
+             std::is_same<T, const char*>::value;
+    case reflection::Obj:
+      return std::is_same<T, ReflectiveFlatbuffer>::value;
+    default:
+      return false;
+  }
+}
+
 // A flatbuffer that can be built using flatbuffer reflection data of the
 // schema.
 // Normally, field information is hard-coded in code generated from a flatbuffer
@@ -123,118 +156,57 @@ class ReflectiveFlatbuffer {
   // field was not defined.
   const reflection::Field* GetFieldOrNull(const StringPiece field_name) const;
   const reflection::Field* GetFieldOrNull(const FlatbufferField* field) const;
-  const reflection::Field* GetFieldByOffsetOrNull(const int field_offset) const;
+  const reflection::Field* GetFieldOrNull(const int field_offset) const;
 
   // Gets a nested field and the message it is defined on.
   bool GetFieldWithParent(const FlatbufferFieldPath* field_path,
                           ReflectiveFlatbuffer** parent,
                           reflection::Field const** field);
 
-  // Checks whether a variant value type agrees with a field type.
-  template <typename T>
-  bool IsMatchingType(const reflection::BaseType type) const {
-    switch (type) {
-      case reflection::Bool:
-        return std::is_same<T, bool>::value;
-      case reflection::Byte:
-        return std::is_same<T, int8>::value;
-      case reflection::UByte:
-        return std::is_same<T, uint8>::value;
-      case reflection::Int:
-        return std::is_same<T, int32>::value;
-      case reflection::UInt:
-        return std::is_same<T, uint32>::value;
-      case reflection::Long:
-        return std::is_same<T, int64>::value;
-      case reflection::ULong:
-        return std::is_same<T, uint64>::value;
-      case reflection::Float:
-        return std::is_same<T, float>::value;
-      case reflection::Double:
-        return std::is_same<T, double>::value;
-      case reflection::String:
-        return std::is_same<T, std::string>::value ||
-               std::is_same<T, StringPiece>::value ||
-               std::is_same<T, const char*>::value;
-      case reflection::Obj:
-        return std::is_same<T, ReflectiveFlatbuffer>::value;
-      default:
-        return false;
-    }
-  }
-
-  // Sets a (primitive) field to a specific value.
+  // Sets a field to a specific value.
   // Returns true if successful, and false if the field was not found or the
   // expected type doesn't match.
   template <typename T>
-  bool Set(StringPiece field_name, T value) {
-    if (const reflection::Field* field = GetFieldOrNull(field_name)) {
-      return Set<T>(field, value);
-    }
-    return false;
-  }
+  bool Set(StringPiece field_name, T value);
 
-  // Sets a (primitive) field to a specific value.
+  // Sets a field to a specific value.
   // Returns true if successful, and false if the expected type doesn't match.
   // Expects `field` to be non-null.
   template <typename T>
-  bool Set(const reflection::Field* field, T value) {
-    if (field == nullptr) {
-      TC3_LOG(ERROR) << "Expected non-null field.";
-      return false;
-    }
-    Variant variant_value(value);
-    if (!IsMatchingType<T>(field->type()->base_type())) {
-      TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
-                     << "`, expected: " << field->type()->base_type()
-                     << ", got: " << variant_value.GetType();
-      return false;
-    }
-    fields_[field] = variant_value;
-    return true;
-  }
+  bool Set(const reflection::Field* field, T value);
 
+  // Sets a field to a specific value. Field is specified by path.
   template <typename T>
-  bool Set(const FlatbufferFieldPath* path, T value) {
-    ReflectiveFlatbuffer* parent;
-    const reflection::Field* field;
-    if (!GetFieldWithParent(path, &parent, &field)) {
-      return false;
-    }
-    return parent->Set<T>(field, value);
-  }
+  bool Set(const FlatbufferFieldPath* path, T value);
 
-  // Sets a (primitive) field to a specific value.
-  // Parses the string value according to the field type.
-  bool ParseAndSet(const reflection::Field* field, const std::string& value);
-  bool ParseAndSet(const FlatbufferFieldPath* path, const std::string& value);
-
-  // Gets the reflective flatbuffer for a table field.
+  // Sets sub-message field (if not set yet), and returns a pointer to it.
   // Returns nullptr if the field was not found, or the field type was not a
   // table.
   ReflectiveFlatbuffer* Mutable(StringPiece field_name);
   ReflectiveFlatbuffer* Mutable(const reflection::Field* field);
+
+  // Parses the value (according to the type) and sets a primitive field to the
+  // parsed value.
+  bool ParseAndSet(const reflection::Field* field, const std::string& value);
+  bool ParseAndSet(const FlatbufferFieldPath* path, const std::string& value);
+
+  // Adds a primitive value to the repeated field.
+  template <typename T>
+  bool Add(StringPiece field_name, T value);
+
+  // Add a sub-message to the repeated field.
+  ReflectiveFlatbuffer* Add(StringPiece field_name);
+
+  template <typename T>
+  bool Add(const reflection::Field* field, T value);
+
+  ReflectiveFlatbuffer* Add(const reflection::Field* field);
 
   // Gets the reflective flatbuffer for a repeated field.
   // Returns nullptr if the field was not found, or the field type was not a
   // vector.
   RepeatedField* Repeated(StringPiece field_name);
   RepeatedField* Repeated(const reflection::Field* field);
-
-  template <typename T>
-  TypedRepeatedField<T>* Repeated(const reflection::Field* field) {
-    if (!IsMatchingType<T>(field->type()->element())) {
-      TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
-                     << "`";
-      return nullptr;
-    }
-    return static_cast<TypedRepeatedField<T>*>(Repeated(field));
-  }
-
-  template <typename T>
-  TypedRepeatedField<T>* Repeated(StringPiece field_name) {
-    return static_cast<TypedRepeatedField<T>*>(Repeated(field_name));
-  }
 
   // Serializes the flatbuffer.
   flatbuffers::uoffset_t Serialize(
@@ -318,76 +290,131 @@ class ReflectiveFlatbufferBuilder {
 // Serves as a common base class for repeated fields.
 class RepeatedField {
  public:
-  virtual ~RepeatedField() {}
+  RepeatedField(const reflection::Schema* const schema,
+                const reflection::Field* field)
+      : schema_(schema),
+        field_(field),
+        is_primitive_(field->type()->element() != reflection::BaseType::Obj) {}
 
-  virtual flatbuffers::uoffset_t Serialize(
-      flatbuffers::FlatBufferBuilder* builder) const = 0;
-};
+  template <typename T>
+  bool Add(const T value);
 
-// Represents a repeated field of particular type.
-template <typename T>
-class TypedRepeatedField : public RepeatedField {
- public:
-  void Add(const T value) { items_.push_back(value); }
+  ReflectiveFlatbuffer* Add();
 
-  flatbuffers::uoffset_t Serialize(
-      flatbuffers::FlatBufferBuilder* builder) const override {
-    return builder->CreateVector(items_).o;
+  template <typename T>
+  T Get(int index) const {
+    return items_.at(index).Value<T>();
   }
 
- private:
-  std::vector<T> items_;
-};
-
-// Specialization for strings.
-template <>
-class TypedRepeatedField<std::string> : public RepeatedField {
- public:
-  void Add(const std::string& value) { items_.push_back(value); }
-
-  flatbuffers::uoffset_t Serialize(
-      flatbuffers::FlatBufferBuilder* builder) const override {
-    std::vector<flatbuffers::Offset<flatbuffers::String>> offsets(
-        items_.size());
-    for (int i = 0; i < items_.size(); i++) {
-      offsets[i] = builder->CreateString(items_[i]);
+  template <>
+  ReflectiveFlatbuffer* Get(int index) const {
+    if (is_primitive_) {
+      TC3_LOG(ERROR) << "Trying to get primitive value out of non-primitive "
+                        "repeated field.";
+      return nullptr;
     }
-    return builder->CreateVector(offsets).o;
+    return object_items_.at(index).get();
   }
 
- private:
-  std::vector<std::string> items_;
-};
-
-// Specialization for repeated sub-messages.
-template <>
-class TypedRepeatedField<ReflectiveFlatbuffer> : public RepeatedField {
- public:
-  TypedRepeatedField<ReflectiveFlatbuffer>(
-      const reflection::Schema* const schema,
-      const reflection::Type* const type)
-      : schema_(schema), type_(type) {}
-
-  ReflectiveFlatbuffer* Add() {
-    items_.emplace_back(new ReflectiveFlatbuffer(
-        schema_, schema_->objects()->Get(type_->index())));
-    return items_.back().get();
+  int Size() const {
+    if (is_primitive_) {
+      return items_.size();
+    } else {
+      return object_items_.size();
+    }
   }
 
   flatbuffers::uoffset_t Serialize(
-      flatbuffers::FlatBufferBuilder* builder) const override {
-    std::vector<flatbuffers::Offset<void>> offsets(items_.size());
-    for (int i = 0; i < items_.size(); i++) {
-      offsets[i] = items_[i]->Serialize(builder);
-    }
-    return builder->CreateVector(offsets).o;
-  }
+      flatbuffers::FlatBufferBuilder* builder) const;
 
  private:
+  flatbuffers::uoffset_t SerializeString(
+      flatbuffers::FlatBufferBuilder* builder) const;
+  flatbuffers::uoffset_t SerializeObject(
+      flatbuffers::FlatBufferBuilder* builder) const;
+
   const reflection::Schema* const schema_;
-  const reflection::Type* const type_;
-  std::vector<std::unique_ptr<ReflectiveFlatbuffer>> items_;
+  const reflection::Field* field_;
+  bool is_primitive_;
+
+  std::vector<Variant> items_;
+  std::vector<std::unique_ptr<ReflectiveFlatbuffer>> object_items_;
 };
+
+template <typename T>
+bool ReflectiveFlatbuffer::Set(StringPiece field_name, T value) {
+  if (const reflection::Field* field = GetFieldOrNull(field_name)) {
+    if (field->type()->base_type() == reflection::BaseType::Vector ||
+        field->type()->base_type() == reflection::BaseType::Obj) {
+      TC3_LOG(ERROR)
+          << "Trying to set a primitive value on a non-scalar field.";
+      return false;
+    }
+    return Set<T>(field, value);
+  }
+  TC3_LOG(ERROR) << "Couldn't find a field: " << field_name;
+  return false;
+}
+
+template <typename T>
+bool ReflectiveFlatbuffer::Set(const reflection::Field* field, T value) {
+  if (field == nullptr) {
+    TC3_LOG(ERROR) << "Expected non-null field.";
+    return false;
+  }
+  Variant variant_value(value);
+  if (!IsMatchingType<T>(field->type()->base_type())) {
+    TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
+                   << "`, expected: " << field->type()->base_type()
+                   << ", got: " << variant_value.GetType();
+    return false;
+  }
+  fields_[field] = variant_value;
+  return true;
+}
+
+template <typename T>
+bool ReflectiveFlatbuffer::Set(const FlatbufferFieldPath* path, T value) {
+  ReflectiveFlatbuffer* parent;
+  const reflection::Field* field;
+  if (!GetFieldWithParent(path, &parent, &field)) {
+    return false;
+  }
+  return parent->Set<T>(field, value);
+}
+
+template <typename T>
+bool ReflectiveFlatbuffer::Add(StringPiece field_name, T value) {
+  const reflection::Field* field = GetFieldOrNull(field_name);
+  if (field == nullptr) {
+    return false;
+  }
+
+  if (field->type()->base_type() != reflection::BaseType::Vector) {
+    return false;
+  }
+
+  return Add<T>(field, value);
+}
+
+template <typename T>
+bool ReflectiveFlatbuffer::Add(const reflection::Field* field, T value) {
+  if (field == nullptr) {
+    return false;
+  }
+  Repeated(field)->Add(value);
+  return true;
+}
+
+template <typename T>
+bool RepeatedField::Add(const T value) {
+  if (!is_primitive_ || !IsMatchingType<T>(field_->type()->element())) {
+    TC3_LOG(ERROR) << "Trying to add value of unmatching type.";
+    return false;
+  }
+  items_.push_back(Variant{value});
+  return true;
+}
 
 // Resolves field lookups by name to the concrete field offsets.
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
@@ -402,7 +429,7 @@ bool ReflectiveFlatbuffer::AppendFromVector(const flatbuffers::Table* from,
     return false;
   }
 
-  TypedRepeatedField<T>* to_repeated = Repeated<T>(field);
+  RepeatedField* to_repeated = Repeated(field);
   for (const T element : *from_vector) {
     to_repeated->Add(element);
   }
