@@ -699,8 +699,8 @@ bool Annotator::InitializePersonNameEngineFromFileDescriptor(int fd, int offset,
 
 bool Annotator::InitializeExperimentalAnnotators() {
   if (ExperimentalAnnotator::IsEnabled()) {
-    experimental_annotator_.reset(
-        new ExperimentalAnnotator(*selection_feature_processor_, *unilib_));
+    experimental_annotator_.reset(new ExperimentalAnnotator(
+        model_->experimental_model(), *selection_feature_processor_, *unilib_));
     return true;
   }
   return false;
@@ -2496,13 +2496,22 @@ bool Annotator::ParseAndFillInMoneyAmount(
       LoadAndVerifyMutableFlatbuffer<libtextclassifier3::EntityData>(
           *serialized_entity_data);
   if (data == nullptr) {
-    TC3_LOG(ERROR)
-        << "Data field is null when trying to parse Money Entity Data";
+    if (model_->version() >= 706) {
+      // This way of parsing money entity data is enabled for models newer than
+      // v706, consequently logging errors only for them (b/156634162).
+      TC3_LOG(ERROR)
+          << "Data field is null when trying to parse Money Entity Data";
+    }
     return false;
   }
   if (data->money->unnormalized_amount.empty()) {
-    TC3_LOG(ERROR) << "Data unnormalized_amount is empty when trying to parse "
-                      "Money Entity Data";
+    if (model_->version() >= 706) {
+      // This way of parsing money entity data is enabled for models newer than
+      // v706, consequently logging errors only for them (b/156634162).
+      TC3_LOG(ERROR)
+          << "Data unnormalized_amount is empty when trying to parse "
+             "Money Entity Data";
+    }
     return false;
   }
 
@@ -2593,7 +2602,11 @@ bool Annotator::RegexChunk(const UnicodeText& context_unicode,
         if (regex_pattern.config->collection_name()->str() ==
             Collections::Money()) {
           if (!ParseAndFillInMoneyAmount(&serialized_entity_data)) {
-            TC3_LOG(ERROR) << "Could not parse and fill in money amount.";
+            if (model_->version() >= 706) {
+              // This way of parsing money entity data is enabled for models
+              // newer than v706 => logging errors only for them (b/156634162).
+              TC3_LOG(ERROR) << "Could not parse and fill in money amount.";
+            }
           }
         }
       }

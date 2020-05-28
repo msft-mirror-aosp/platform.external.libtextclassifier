@@ -229,7 +229,7 @@ bool CalendarLibTempl<TCalendar>::ApplyRelationField(
     case DatetimeComponent::RelativeQualifier::PAST:
       TC3_CALENDAR_CHECK(
           AdjustByRelation(relative_date_time_component,
-                           -relative_date_time_component.relative_count,
+                           relative_date_time_component.relative_count,
                            /*allow_today=*/false, calendar))
       return true;
     case DatetimeComponent::RelativeQualifier::FUTURE:
