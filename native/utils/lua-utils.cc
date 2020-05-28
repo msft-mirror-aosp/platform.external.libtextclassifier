@@ -223,6 +223,11 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
 
 int LuaEnvironment::ReadFlatbuffer(const int index,
                                    ReflectiveFlatbuffer* buffer) const {
+  if (buffer == nullptr) {
+    TC3_LOG(ERROR) << "Called ReadFlatbuffer with null buffer: " << index;
+    lua_error(state_);
+    return LUA_ERRRUN;
+  }
   if (lua_type(state_, /*idx=*/index) != LUA_TTABLE) {
     TC3_LOG(ERROR) << "Expected table, got: "
                    << lua_type(state_, /*idx=*/kIndexStackTop);
@@ -278,48 +283,48 @@ int LuaEnvironment::ReadFlatbuffer(const int index,
         // Read repeated field.
         switch (field->type()->element()) {
           case reflection::Bool:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<bool>(field));
+            ReadRepeatedField<bool>(/*index=*/kIndexStackTop,
+                                    buffer->Repeated(field));
             break;
           case reflection::Byte:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<int8>(field));
+            ReadRepeatedField<int8>(/*index=*/kIndexStackTop,
+                                    buffer->Repeated(field));
             break;
           case reflection::UByte:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<uint8>(field));
+            ReadRepeatedField<uint8>(/*index=*/kIndexStackTop,
+                                     buffer->Repeated(field));
             break;
           case reflection::Int:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<int32>(field));
+            ReadRepeatedField<int32>(/*index=*/kIndexStackTop,
+                                     buffer->Repeated(field));
             break;
           case reflection::UInt:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<uint32>(field));
+            ReadRepeatedField<uint32>(/*index=*/kIndexStackTop,
+                                      buffer->Repeated(field));
             break;
           case reflection::Long:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<int64>(field));
+            ReadRepeatedField<int64>(/*index=*/kIndexStackTop,
+                                     buffer->Repeated(field));
             break;
           case reflection::ULong:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<uint64>(field));
+            ReadRepeatedField<uint64>(/*index=*/kIndexStackTop,
+                                      buffer->Repeated(field));
             break;
           case reflection::Float:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<float>(field));
+            ReadRepeatedField<float>(/*index=*/kIndexStackTop,
+                                     buffer->Repeated(field));
             break;
           case reflection::Double:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<double>(field));
+            ReadRepeatedField<double>(/*index=*/kIndexStackTop,
+                                      buffer->Repeated(field));
             break;
           case reflection::String:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<std::string>(field));
+            ReadRepeatedField<std::string>(/*index=*/kIndexStackTop,
+                                           buffer->Repeated(field));
             break;
           case reflection::Obj:
-            ReadRepeatedField(/*index=*/kIndexStackTop,
-                              buffer->Repeated<ReflectiveFlatbuffer>(field));
+            ReadRepeatedField<ReflectiveFlatbuffer>(/*index=*/kIndexStackTop,
+                                                    buffer->Repeated(field));
             break;
           default:
             TC3_LOG(ERROR) << "Unsupported repeated field type: "
