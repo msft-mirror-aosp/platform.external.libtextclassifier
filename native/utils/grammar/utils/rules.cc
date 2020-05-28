@@ -177,6 +177,13 @@ int Rules::AddAnnotation(const std::string& annotation_name) {
   return it->second;
 }
 
+void Rules::BindAnnotation(const std::string& nonterminal_name,
+                           const std::string& annotation_name) {
+  auto [_, inserted] = annotation_nonterminals_.insert(
+      {annotation_name, AddNonterminal(nonterminal_name)});
+  TC3_CHECK(inserted);
+}
+
 bool Rules::IsNonterminalOfName(const RhsElement& element,
                                 const std::string& nonterminal) const {
   if (element.is_terminal) {
