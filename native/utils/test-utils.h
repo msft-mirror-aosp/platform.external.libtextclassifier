@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
-#ifndef LIBTEXTCLASSIFIER_UTILS_SENTENCEPIECE_TEST_UTILS_H_
-#define LIBTEXTCLASSIFIER_UTILS_SENTENCEPIECE_TEST_UTILS_H_
+// Utilities for tests.
+
+#ifndef LIBTEXTCLASSIFIER_UTILS_TEST_UTILS_H_
+#define LIBTEXTCLASSIFIER_UTILS_TEST_UTILS_H_
 
 #include <string>
-#include <vector>
 
-#include "utils/sentencepiece/normalizer.h"
-#include "utils/strings/stringpiece.h"
+#include "annotator/types.h"
 
 namespace libtextclassifier3 {
 
-SentencePieceNormalizer NormalizerFromSpec(StringPiece spec,
-                                           bool add_dummy_prefix,
-                                           bool remove_extra_whitespaces,
-                                           bool escape_whitespaces);
+// Returns a list of Tokens for a given input string, by tokenizing on space.
+std::vector<Token> TokenizeOnSpace(const std::string& text);
 
-}  // namespace libtextclassifier3
+// Returns a list of Tokens for a given input string, by tokenizing on the
+// given set of delimiter codepoints.
+std::vector<Token> TokenizeOnDelimiters(
+    const std::string& text, const std::unordered_set<char32>& delimiters);
 
-#endif  // LIBTEXTCLASSIFIER_UTILS_SENTENCEPIECE_TEST_UTILS_H_
+}  // namespace  libtextclassifier3
+
+#endif  // LIBTEXTCLASSIFIER_UTILS_TEST_UTILS_H_
