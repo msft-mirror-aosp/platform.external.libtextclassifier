@@ -85,109 +85,177 @@ class Variant {
 
   Variant& operator=(const Variant&) = default;
 
-  int Int8Value() const {
-    TC3_CHECK(HasInt8());
+  template <class T>
+  struct dependent_false : std::false_type {};
+
+  template <typename T>
+  T Value() const {
+    static_assert(dependent_false<T>::value, "Not supported.");
+  }
+
+  template <>
+  int8 Value() const {
+    TC3_CHECK(Has<int8>());
     return int8_value_;
   }
 
-  int UInt8Value() const {
-    TC3_CHECK(HasUInt8());
+  template <>
+  uint8 Value() const {
+    TC3_CHECK(Has<uint8>());
     return uint8_value_;
   }
 
-  int IntValue() const {
-    TC3_CHECK(HasInt());
+  template <>
+  int Value() const {
+    TC3_CHECK(Has<int>());
     return int_value_;
   }
 
-  uint UIntValue() const {
-    TC3_CHECK(HasUInt());
+  template <>
+  uint Value() const {
+    TC3_CHECK(Has<uint>());
     return uint_value_;
   }
 
-  int64 Int64Value() const {
-    TC3_CHECK(HasInt64());
+  template <>
+  int64 Value() const {
+    TC3_CHECK(Has<int64>());
     return long_value_;
   }
 
-  uint64 UInt64Value() const {
-    TC3_CHECK(HasUInt64());
+  template <>
+  uint64 Value() const {
+    TC3_CHECK(Has<uint64>());
     return ulong_value_;
   }
 
-  float FloatValue() const {
-    TC3_CHECK(HasFloat());
+  template <>
+  float Value() const {
+    TC3_CHECK(Has<float>());
     return float_value_;
   }
 
-  double DoubleValue() const {
-    TC3_CHECK(HasDouble());
+  template <>
+  double Value() const {
+    TC3_CHECK(Has<double>());
     return double_value_;
   }
 
-  bool BoolValue() const {
-    TC3_CHECK(HasBool());
+  template <>
+  bool Value() const {
+    TC3_CHECK(Has<bool>());
     return bool_value_;
   }
 
-  const std::string& StringValue() const {
-    TC3_CHECK(HasString());
+  template <typename T>
+  const T& ConstRefValue() const;
+
+  template <>
+  const std::string& ConstRefValue() const {
+    TC3_CHECK(Has<std::string>());
     return string_value_;
   }
 
-  const std::vector<std::string>& StringVectorValue() const {
-    TC3_CHECK(HasStringVector());
+  template <>
+  const std::vector<std::string>& ConstRefValue() const {
+    TC3_CHECK(Has<std::vector<std::string>>());
     return string_vector_value_;
   }
 
-  const std::vector<float>& FloatVectorValue() const {
-    TC3_CHECK(HasFloatVector());
+  template <>
+  const std::vector<float>& ConstRefValue() const {
+    TC3_CHECK(Has<std::vector<float>>());
     return float_vector_value_;
   }
 
-  const std::vector<int>& IntVectorValue() const {
-    TC3_CHECK(HasIntVector());
+  template <>
+  const std::vector<int>& ConstRefValue() const {
+    TC3_CHECK(Has<std::vector<int>>());
     return int_vector_value_;
   }
 
-  const std::map<std::string, Variant>& StringVariantMapValue() const {
-    TC3_CHECK(HasStringVariantMap());
+  template <>
+  const std::map<std::string, Variant>& ConstRefValue() const {
+    TC3_CHECK((Has<std::map<std::string, Variant>>()));
     return string_variant_map_value_;
+  }
+
+  template <typename T>
+  bool Has() const;
+
+  template <>
+  bool Has<int8>() const {
+    return type_ == TYPE_INT8_VALUE;
+  }
+
+  template <>
+  bool Has<uint8>() const {
+    return type_ == TYPE_UINT8_VALUE;
+  }
+
+  template <>
+  bool Has<int>() const {
+    return type_ == TYPE_INT_VALUE;
+  }
+
+  template <>
+  bool Has<uint>() const {
+    return type_ == TYPE_UINT_VALUE;
+  }
+
+  template <>
+  bool Has<int64>() const {
+    return type_ == TYPE_INT64_VALUE;
+  }
+
+  template <>
+  bool Has<uint64>() const {
+    return type_ == TYPE_UINT64_VALUE;
+  }
+
+  template <>
+  bool Has<float>() const {
+    return type_ == TYPE_FLOAT_VALUE;
+  }
+
+  template <>
+  bool Has<double>() const {
+    return type_ == TYPE_DOUBLE_VALUE;
+  }
+
+  template <>
+  bool Has<bool>() const {
+    return type_ == TYPE_BOOL_VALUE;
+  }
+
+  template <>
+  bool Has<std::string>() const {
+    return type_ == TYPE_STRING_VALUE;
+  }
+
+  template <>
+  bool Has<std::vector<std::string>>() const {
+    return type_ == TYPE_STRING_VECTOR_VALUE;
+  }
+
+  template <>
+  bool Has<std::vector<float>>() const {
+    return type_ == TYPE_FLOAT_VECTOR_VALUE;
+  }
+
+  template <>
+  bool Has<std::vector<int>>() const {
+    return type_ == TYPE_INT_VECTOR_VALUE;
+  }
+
+  template <>
+  bool Has<std::map<std::string, Variant>>() const {
+    return type_ == TYPE_STRING_VARIANT_MAP_VALUE;
   }
 
   // Converts the value of this variant to its string representation, regardless
   // of the type of the actual value.
   std::string ToString() const;
-
-  bool HasInt8() const { return type_ == TYPE_INT8_VALUE; }
-
-  bool HasUInt8() const { return type_ == TYPE_UINT8_VALUE; }
-
-  bool HasInt() const { return type_ == TYPE_INT_VALUE; }
-
-  bool HasUInt() const { return type_ == TYPE_UINT_VALUE; }
-
-  bool HasInt64() const { return type_ == TYPE_INT64_VALUE; }
-
-  bool HasUInt64() const { return type_ == TYPE_UINT64_VALUE; }
-
-  bool HasFloat() const { return type_ == TYPE_FLOAT_VALUE; }
-
-  bool HasDouble() const { return type_ == TYPE_DOUBLE_VALUE; }
-
-  bool HasBool() const { return type_ == TYPE_BOOL_VALUE; }
-
-  bool HasString() const { return type_ == TYPE_STRING_VALUE; }
-
-  bool HasStringVector() const { return type_ == TYPE_STRING_VECTOR_VALUE; }
-
-  bool HasFloatVector() const { return type_ == TYPE_FLOAT_VECTOR_VALUE; }
-
-  bool HasIntVector() const { return type_ == TYPE_INT_VECTOR_VALUE; }
-
-  bool HasStringVariantMap() const {
-    return type_ == TYPE_STRING_VARIANT_MAP_VALUE;
-  }
 
   Type GetType() const { return type_; }
 
