@@ -301,10 +301,11 @@ cc_library_shared {
     exclude_srcs: [
         "**/*_test.cc",
         "**/*-test-lib.cc",
-        "utils/testing/*.cc",
+        "**/testing/*.cc",
         "**/*test-util.*",
         "**/*test-utils.*",
         "**/*_test-include.*",
+        "**/*unittest.cc",
     ],
 
     version_script: "jni.lds",
@@ -330,16 +331,13 @@ cc_test {
     ],
 
     srcs: ["**/*.cc"],
-    // TODO: Do not filter out tflite test once the dependency issue is resolved.
-    exclude_srcs: [
-        "utils/tflite/*_test.cc",
-        "utils/flatbuffers_test.cc",
-        "utils/calendar/*_test-include.*",
-        "utils/utf8/*_test-include.*"
-    ],
 
-    static_libs: ["libgmock_ndk"],
     header_libs: ["jni_headers"],
+
+    static_libs: [
+        "libgmock_ndk",
+        "libgtest_ndk_c++",
+    ],
 
     multilib: {
         lib32: {
