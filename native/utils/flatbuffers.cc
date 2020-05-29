@@ -24,49 +24,6 @@
 
 namespace libtextclassifier3 {
 namespace {
-bool CreateRepeatedField(const reflection::Schema* schema,
-                         const reflection::Type* type,
-                         std::unique_ptr<RepeatedField>* repeated_field) {
-  switch (type->element()) {
-    case reflection::Bool:
-      repeated_field->reset(new TypedRepeatedField<bool>);
-      return true;
-    case reflection::Byte:
-      repeated_field->reset(new TypedRepeatedField<char>);
-      return true;
-    case reflection::UByte:
-      repeated_field->reset(new TypedRepeatedField<unsigned char>);
-      return true;
-    case reflection::Int:
-      repeated_field->reset(new TypedRepeatedField<int>);
-      return true;
-    case reflection::UInt:
-      repeated_field->reset(new TypedRepeatedField<uint>);
-      return true;
-    case reflection::Long:
-      repeated_field->reset(new TypedRepeatedField<int64>);
-      return true;
-    case reflection::ULong:
-      repeated_field->reset(new TypedRepeatedField<uint64>);
-      return true;
-    case reflection::Float:
-      repeated_field->reset(new TypedRepeatedField<float>);
-      return true;
-    case reflection::Double:
-      repeated_field->reset(new TypedRepeatedField<double>);
-      return true;
-    case reflection::String:
-      repeated_field->reset(new TypedRepeatedField<std::string>);
-      return true;
-    case reflection::Obj:
-      repeated_field->reset(
-          new TypedRepeatedField<ReflectiveFlatbuffer>(schema, type));
-      return true;
-    default:
-      TC3_LOG(ERROR) << "Unsupported type: " << type->element();
-      return false;
-  }
-}
 
 // Gets the field information for a field name, returns nullptr if the
 // field was not defined.
@@ -76,8 +33,8 @@ const reflection::Field* GetFieldOrNull(const reflection::Object* type,
   return type->fields()->LookupByKey(field_name.data());
 }
 
-const reflection::Field* GetFieldByOffsetOrNull(const reflection::Object* type,
-                                                const int field_offset) {
+const reflection::Field* GetFieldOrNull(const reflection::Object* type,
+                                        const int field_offset) {
   if (type->fields() == nullptr) {
     return nullptr;
   }
@@ -97,14 +54,14 @@ const reflection::Field* GetFieldOrNull(const reflection::Object* type,
   if (!field_name.empty()) {
     return GetFieldOrNull(type, field_name.data());
   }
-  return GetFieldByOffsetOrNull(type, field_offset);
+  return GetFieldOrNull(type, field_offset);
 }
 
 const reflection::Field* GetFieldOrNull(const reflection::Object* type,
                                         const FlatbufferField* field) {
   TC3_CHECK(type != nullptr && field != nullptr);
   if (field->field_name() == nullptr) {
-    return GetFieldByOffsetOrNull(type, field->field_offset());
+    return GetFieldOrNull(type, field->field_offset());
   }
   return GetFieldOrNull(
       type,
@@ -154,7 +111,7 @@ bool ParseAndSetField(const reflection::Field* field,
     return false;
   }
   if (field->type()->base_type() == reflection::Vector) {
-    buffer->Repeated<T>(field)->Add(value);
+    buffer->Repeated(field)->Add(value);
     return true;
   } else {
     return buffer->Set<T>(field, value);
@@ -221,9 +178,9 @@ bool ReflectiveFlatbuffer::GetFieldWithParent(
   return true;
 }
 
-const reflection::Field* ReflectiveFlatbuffer::GetFieldByOffsetOrNull(
+const reflection::Field* ReflectiveFlatbuffer::GetFieldOrNull(
     const int field_offset) const {
-  return libtextclassifier3::GetFieldByOffsetOrNull(type_, field_offset);
+  return libtextclassifier3::GetFieldOrNull(type_, field_offset);
 }
 
 bool ReflectiveFlatbuffer::ParseAndSet(const reflection::Field* field,
@@ -255,6 +212,27 @@ bool ReflectiveFlatbuffer::ParseAndSet(const FlatbufferFieldPath* path,
     return false;
   }
   return parent->ParseAndSet(field, value);
+}
+
+ReflectiveFlatbuffer* ReflectiveFlatbuffer::Add(StringPiece field_name) {
+  const reflection::Field* field = GetFieldOrNull(field_name);
+  if (field == nullptr) {
+    return nullptr;
+  }
+
+  if (field->type()->base_type() != reflection::BaseType::Vector) {
+    return nullptr;
+  }
+
+  return Add(field);
+}
+
+ReflectiveFlatbuffer* ReflectiveFlatbuffer::Add(
+    const reflection::Field* field) {
+  if (field == nullptr) {
+    return nullptr;
+  }
+  return Repeated(field)->Add();
 }
 
 ReflectiveFlatbuffer* ReflectiveFlatbuffer::Mutable(
@@ -306,11 +284,8 @@ RepeatedField* ReflectiveFlatbuffer::Repeated(const reflection::Field* field) {
   }
 
   // Otherwise, create a new instance and store it.
-  std::unique_ptr<RepeatedField> repeated_field;
-  if (!CreateRepeatedField(schema_, field->type(), &repeated_field)) {
-    TC3_LOG(ERROR) << "Could not create repeated field.";
-    return nullptr;
-  }
+  std::unique_ptr<RepeatedField> repeated_field(
+      new RepeatedField(schema_, field));
   const auto it = repeated_fields_.insert(
       /*hint=*/entry, std::make_pair(field, std::move(repeated_field)));
   return it->second.get();
@@ -330,9 +305,10 @@ flatbuffers::uoffset_t ReflectiveFlatbuffer::Serialize(
 
   // Create strings.
   for (const auto& it : fields_) {
-    if (it.second.HasString()) {
-      offsets.push_back({it.first->offset(),
-                         builder->CreateString(it.second.StringValue()).o});
+    if (it.second.Has<std::string>()) {
+      offsets.push_back(
+          {it.first->offset(),
+           builder->CreateString(it.second.ConstRefValue<std::string>()).o});
     }
   }
 
@@ -349,44 +325,46 @@ flatbuffers::uoffset_t ReflectiveFlatbuffer::Serialize(
     switch (it.second.GetType()) {
       case Variant::TYPE_BOOL_VALUE:
         builder->AddElement<uint8_t>(
-            it.first->offset(), static_cast<uint8_t>(it.second.BoolValue()),
+            it.first->offset(), static_cast<uint8_t>(it.second.Value<bool>()),
             static_cast<uint8_t>(it.first->default_integer()));
         continue;
       case Variant::TYPE_INT8_VALUE:
         builder->AddElement<int8_t>(
-            it.first->offset(), static_cast<int8_t>(it.second.Int8Value()),
+            it.first->offset(), static_cast<int8_t>(it.second.Value<int8>()),
             static_cast<int8_t>(it.first->default_integer()));
         continue;
       case Variant::TYPE_UINT8_VALUE:
         builder->AddElement<uint8_t>(
-            it.first->offset(), static_cast<uint8_t>(it.second.UInt8Value()),
+            it.first->offset(), static_cast<uint8_t>(it.second.Value<uint8>()),
             static_cast<uint8_t>(it.first->default_integer()));
         continue;
       case Variant::TYPE_INT_VALUE:
         builder->AddElement<int32>(
-            it.first->offset(), it.second.IntValue(),
+            it.first->offset(), it.second.Value<int>(),
             static_cast<int32>(it.first->default_integer()));
         continue;
       case Variant::TYPE_UINT_VALUE:
         builder->AddElement<uint32>(
-            it.first->offset(), it.second.UIntValue(),
+            it.first->offset(), it.second.Value<uint>(),
             static_cast<uint32>(it.first->default_integer()));
         continue;
       case Variant::TYPE_INT64_VALUE:
-        builder->AddElement<int64>(it.first->offset(), it.second.Int64Value(),
+        builder->AddElement<int64>(it.first->offset(), it.second.Value<int64>(),
                                    it.first->default_integer());
         continue;
       case Variant::TYPE_UINT64_VALUE:
-        builder->AddElement<uint64>(it.first->offset(), it.second.UInt64Value(),
+        builder->AddElement<uint64>(it.first->offset(),
+                                    it.second.Value<uint64>(),
                                     it.first->default_integer());
         continue;
       case Variant::TYPE_FLOAT_VALUE:
         builder->AddElement<float>(
-            it.first->offset(), it.second.FloatValue(),
+            it.first->offset(), it.second.Value<float>(),
             static_cast<float>(it.first->default_real()));
         continue;
       case Variant::TYPE_DOUBLE_VALUE:
-        builder->AddElement<double>(it.first->offset(), it.second.DoubleValue(),
+        builder->AddElement<double>(it.first->offset(),
+                                    it.second.Value<double>(),
                                     it.first->default_real());
         continue;
       default:
@@ -419,7 +397,7 @@ bool ReflectiveFlatbuffer::AppendFromVector<std::string>(
     return false;
   }
 
-  TypedRepeatedField<std::string>* to_repeated = Repeated<std::string>(field);
+  RepeatedField* to_repeated = Repeated(field);
   for (const flatbuffers::String* element : *from_vector) {
     to_repeated->Add(element->str());
   }
@@ -435,8 +413,7 @@ bool ReflectiveFlatbuffer::AppendFromVector<ReflectiveFlatbuffer>(
     return false;
   }
 
-  TypedRepeatedField<ReflectiveFlatbuffer>* to_repeated =
-      Repeated<ReflectiveFlatbuffer>(field);
+  RepeatedField* to_repeated = Repeated(field);
   for (const flatbuffers::Table* const from_element : *from_vector) {
     ReflectiveFlatbuffer* to_element = to_repeated->Add();
     if (to_element == nullptr) {
@@ -502,7 +479,9 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
                        ->str());
         break;
       case reflection::Obj:
-        if (!Mutable(field)->MergeFrom(
+        if (ReflectiveFlatbuffer* nested_field = Mutable(field);
+            nested_field == nullptr ||
+            !nested_field->MergeFrom(
                 from->GetPointer<const flatbuffers::Table* const>(
                     field->offset()))) {
           return false;
@@ -633,6 +612,98 @@ bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
     }
   }
   return true;
+}
+
+//
+// Repeated field methods.
+//
+
+ReflectiveFlatbuffer* RepeatedField::Add() {
+  if (is_primitive_) {
+    TC3_LOG(ERROR) << "Trying to add sub-message on a primitive-typed field.";
+    return nullptr;
+  }
+
+  object_items_.emplace_back(new ReflectiveFlatbuffer(
+      schema_, schema_->objects()->Get(field_->type()->index())));
+  return object_items_.back().get();
+}
+
+namespace {
+
+template <typename T>
+flatbuffers::uoffset_t TypedSerialize(const std::vector<Variant>& values,
+                                      flatbuffers::FlatBufferBuilder* builder) {
+  std::vector<T> typed_values;
+  typed_values.reserve(values.size());
+  for (const Variant& item : values) {
+    typed_values.push_back(item.Value<T>());
+  }
+  return builder->CreateVector(typed_values).o;
+}
+
+}  // namespace
+
+flatbuffers::uoffset_t RepeatedField::Serialize(
+    flatbuffers::FlatBufferBuilder* builder) const {
+  switch (field_->type()->element()) {
+    case reflection::String:
+      return SerializeString(builder);
+      break;
+    case reflection::Obj:
+      return SerializeObject(builder);
+      break;
+    case reflection::Bool:
+      return TypedSerialize<bool>(items_, builder);
+      break;
+    case reflection::Byte:
+      return TypedSerialize<int8_t>(items_, builder);
+      break;
+    case reflection::UByte:
+      return TypedSerialize<uint8_t>(items_, builder);
+      break;
+    case reflection::Int:
+      return TypedSerialize<int>(items_, builder);
+      break;
+    case reflection::UInt:
+      return TypedSerialize<uint>(items_, builder);
+      break;
+    case reflection::Long:
+      return TypedSerialize<int64>(items_, builder);
+      break;
+    case reflection::ULong:
+      return TypedSerialize<uint64>(items_, builder);
+      break;
+    case reflection::Float:
+      return TypedSerialize<float>(items_, builder);
+      break;
+    case reflection::Double:
+      return TypedSerialize<double>(items_, builder);
+      break;
+    default:
+      TC3_LOG(FATAL) << "Unsupported type: " << field_->type()->element();
+      break;
+  }
+  TC3_LOG(FATAL) << "Invalid state.";
+  return 0;
+}
+
+flatbuffers::uoffset_t RepeatedField::SerializeString(
+    flatbuffers::FlatBufferBuilder* builder) const {
+  std::vector<flatbuffers::Offset<flatbuffers::String>> offsets(items_.size());
+  for (int i = 0; i < items_.size(); i++) {
+    offsets[i] = builder->CreateString(items_[i].ConstRefValue<std::string>());
+  }
+  return builder->CreateVector(offsets).o;
+}
+
+flatbuffers::uoffset_t RepeatedField::SerializeObject(
+    flatbuffers::FlatBufferBuilder* builder) const {
+  std::vector<flatbuffers::Offset<void>> offsets(object_items_.size());
+  for (int i = 0; i < object_items_.size(); i++) {
+    offsets[i] = object_items_[i]->Serialize(builder);
+  }
+  return builder->CreateVector(offsets).o;
 }
 
 }  // namespace libtextclassifier3
