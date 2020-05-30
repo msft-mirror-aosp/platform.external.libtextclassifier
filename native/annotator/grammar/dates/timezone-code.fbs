@@ -17,9 +17,7 @@
 namespace libtextclassifier3.dates;
 enum TimezoneCode : int {
   TIMEZONE_CODE_NONE = -1,
-
   ETC_UNKNOWN = 0,
-
   PST8PDT = 1,
   // Delegate.
 
