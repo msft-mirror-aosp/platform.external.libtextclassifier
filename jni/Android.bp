@@ -14,6 +14,8 @@
 
 java_library_static {
     name: "libtextclassifier-java",
-    sdk_version: "core_current",
     srcs: ["**/*.java"],
+    static_libs: ["guava"],
+    sdk_version: "system_current",
+    min_sdk_version: "28",
 }
