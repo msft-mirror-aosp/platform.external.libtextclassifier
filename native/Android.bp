@@ -98,33 +98,11 @@ cc_defaults {
         },
     },
 
-    generated_headers: [
-        "libtextclassifier_fbgen_flatbuffers",
-        "libtextclassifier_fbgen_tokenizer",
-        "libtextclassifier_fbgen_codepoint_range",
-        "libtextclassifier_fbgen_entity-data",
-        "libtextclassifier_fbgen_zlib_buffer",
-        "libtextclassifier_fbgen_resources_extra",
-        "libtextclassifier_fbgen_intent_config",
-        "libtextclassifier_fbgen_annotator_model",
-        "libtextclassifier_fbgen_annotator_experimental_model",
-        "libtextclassifier_fbgen_actions_model",
-        "libtextclassifier_fbgen_tflite_text_encoder_config",
-        "libtextclassifier_fbgen_lang_id_embedded_network",
-        "libtextclassifier_fbgen_lang_id_model",
-        "libtextclassifier_fbgen_actions-entity-data",
-        "libtextclassifier_fbgen_normalization",
-        "libtextclassifier_fbgen_language-tag",
-        "libtextclassifier_fbgen_person_name_model",
-        "libtextclassifier_fbgen_grammar_dates",
-        "libtextclassifier_fbgen_timezone_code",
-        "libtextclassifier_fbgen_grammar_rules"
-    ],
-
     header_libs: [
         "jni_headers",
         "tensorflow_headers",
         "flatbuffer_headers",
+        "libtextclassifier_flatbuffer_headers",
     ],
 
     shared_libs: [
@@ -143,152 +121,12 @@ cc_defaults {
 // Generate headers with FlatBuffer schema compiler.
 // -----------------
 genrule_defaults {
-	name: "fbgen",
+    name: "fbgen",
     tools: ["flatc"],
     // "depfile" is used here in conjunction with flatc's -M to gather the deps
     cmd: "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -M $(in) >$(depfile) && " +
         "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -o $$(dirname $(out)) $(in)",
     depfile: true,
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_flatbuffers",
-    srcs: ["utils/flatbuffers.fbs"],
-    out: ["utils/flatbuffers_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_tokenizer",
-    srcs: ["utils/tokenizer.fbs"],
-    out: ["utils/tokenizer_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_codepoint_range",
-    srcs: ["utils/codepoint-range.fbs"],
-    out: ["utils/codepoint-range_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_resources_extra",
-    srcs: ["utils/resources.fbs"],
-    out: ["utils/resources_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_entity-data",
-    srcs: ["annotator/entity-data.fbs"],
-    out: ["annotator/entity-data_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_zlib_buffer",
-    srcs: ["utils/zlib/buffer.fbs"],
-    out: ["utils/zlib/buffer_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_intent_config",
-    srcs: ["utils/intents/intent-config.fbs"],
-    out: ["utils/intents/intent-config_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_annotator_model",
-    srcs: ["annotator/model.fbs"],
-    out: ["annotator/model_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_annotator_experimental_model",
-    srcs: ["annotator/experimental/experimental.fbs"],
-    out: ["annotator/experimental/experimental_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_actions_model",
-    srcs: ["actions/actions_model.fbs"],
-    out: ["actions/actions_model_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_tflite_text_encoder_config",
-    srcs: ["utils/tflite/text_encoder_config.fbs"],
-    out: ["utils/tflite/text_encoder_config_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_lang_id_embedded_network",
-    srcs: ["lang_id/common/flatbuffers/embedding-network.fbs"],
-    out: ["lang_id/common/flatbuffers/embedding-network_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_lang_id_model",
-    srcs: ["lang_id/common/flatbuffers/model.fbs"],
-    out: ["lang_id/common/flatbuffers/model_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_actions-entity-data",
-    srcs: ["actions/actions-entity-data.fbs"],
-    out: ["actions/actions-entity-data_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_normalization",
-    srcs: ["utils/normalization.fbs"],
-    out: ["utils/normalization_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_language-tag",
-    srcs: ["utils/i18n/language-tag.fbs"],
-    out: ["utils/i18n/language-tag_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_person_name_model",
-    srcs: ["annotator/person_name/person_name_model.fbs"],
-    out: ["annotator/person_name/person_name_model_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_grammar_dates",
-    srcs: ["annotator/grammar/dates/dates.fbs"],
-    out: ["annotator/grammar/dates/dates_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_timezone_code",
-    srcs: ["annotator/grammar/dates/timezone-code.fbs"],
-    out: ["annotator/grammar/dates/timezone-code_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_grammar_rules",
-    srcs: ["utils/grammar/rules.fbs"],
-    out: ["utils/grammar/rules_generated.h"],
-    defaults: ["fbgen"],
 }
 
 // -----------------
@@ -334,7 +172,7 @@ cc_test {
     srcs: ["**/*.cc"],
 
     header_libs: ["jni_headers"],
-    
+
     static_libs: [
         "libgmock_ndk",
         "libgtest_ndk_c++",
@@ -393,3 +231,5 @@ prebuilt_etc {
     src: "models/lang_id.model",
     sub_dir: "textclassifier",
 }
+
+build = ["FlatBufferHeaders.bp"]
