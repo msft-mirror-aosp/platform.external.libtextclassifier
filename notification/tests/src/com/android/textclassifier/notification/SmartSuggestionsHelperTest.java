@@ -65,7 +65,7 @@ public class SmartSuggestionsHelperTest {
   private final Context context = ApplicationProvider.getApplicationContext();
   private final FakeTextClassifier fakeTextClassifier = new FakeTextClassifier();
   private final TestConfig config = new TestConfig();
-  private SmartSuggestionsHelper smartActions;
+  private TestableSmartSuggestionsHelper smartActions;
   private Notification.Builder notificationBuilder;
 
   @Before
@@ -73,8 +73,26 @@ public class SmartSuggestionsHelperTest {
     TextClassificationManager textClassificationManager =
         context.getSystemService(TextClassificationManager.class);
     textClassificationManager.setTextClassifier(fakeTextClassifier);
-    smartActions = new SmartSuggestionsHelper(context, config);
+    smartActions = new TestableSmartSuggestionsHelper(context, config);
     notificationBuilder = new Notification.Builder(context, "id");
+  }
+
+  static class TestableSmartSuggestionsHelper extends SmartSuggestionsHelper {
+    private int numOfSessionsCreated = 0;
+
+    TestableSmartSuggestionsHelper(Context context, SmartSuggestionsConfig config) {
+      super(context, config);
+    }
+
+    @Override
+    TextClassifier createTextClassificationSession() {
+      numOfSessionsCreated += 1;
+      return super.createTextClassificationSession();
+    }
+
+    int getNumOfSessionsCreated() {
+      return numOfSessionsCreated;
+    }
   }
 
   @Test
@@ -87,6 +105,8 @@ public class SmartSuggestionsHelperTest {
 
     assertThat(smartSuggestions.getReplies()).isEmpty();
     assertThat(smartSuggestions.getActions()).isEmpty();
+    // Ideally, we should verify that createTextClassificationSession
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(0);
   }
 
   @Test
@@ -104,6 +124,7 @@ public class SmartSuggestionsHelperTest {
 
     assertThat(smartSuggestions.getReplies()).isEmpty();
     assertThat(smartSuggestions.getActions()).isEmpty();
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(0);
   }
 
   @Test
@@ -120,6 +141,7 @@ public class SmartSuggestionsHelperTest {
 
     assertThat(smartSuggestions.getReplies()).isEmpty();
     assertAdjustmentWithSmartAction(smartSuggestions);
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(1);
   }
 
   @Test
@@ -136,6 +158,7 @@ public class SmartSuggestionsHelperTest {
     List<Message> messages = request.getConversation();
     assertThat(messages).hasSize(1);
     assertThat(messages.get(0).getText().toString()).isEqualTo(MESSAGE);
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(1);
   }
 
   @Test
@@ -169,6 +192,7 @@ public class SmartSuggestionsHelperTest {
     assertMessage(messages.get(1), "secondMessage", PERSON_USER_SELF, 2000);
     assertMessage(messages.get(2), "thirdMessage", userA, 3000);
     assertMessage(messages.get(3), "fourthMessage", userB, 4000);
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(1);
   }
 
   @Test
@@ -192,6 +216,7 @@ public class SmartSuggestionsHelperTest {
 
     assertThat(smartSuggestions.getReplies()).isEmpty();
     assertThat(smartSuggestions.getActions()).isEmpty();
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(0);
   }
 
   @Test
@@ -212,6 +237,7 @@ public class SmartSuggestionsHelperTest {
 
     assertThat(smartSuggestions.getReplies()).isEmpty();
     assertThat(smartSuggestions.getActions()).isEmpty();
+    assertThat(smartActions.getNumOfSessionsCreated()).isEqualTo(0);
   }
 
   @Test
