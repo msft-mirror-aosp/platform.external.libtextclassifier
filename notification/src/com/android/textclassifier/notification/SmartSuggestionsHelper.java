@@ -35,9 +35,12 @@ import android.util.LruCache;
 import android.util.Pair;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
+import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextClassificationContext;
 import android.view.textclassifier.TextClassificationManager;
 import android.view.textclassifier.TextClassifier;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import java.time.Instant;
@@ -48,6 +51,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import javax.annotation.Nullable;
 
 /**
@@ -76,8 +80,9 @@ public class SmartSuggestionsHelper {
   private static final int MAX_RESULT_ID_TO_CACHE = 20;
   private static final ImmutableList<String> HINTS =
       ImmutableList.of(ConversationActions.Request.HINT_FOR_NOTIFICATION);
-  private static final ConversationActions EMPTY_CONVERSATION_ACTIONS =
-      new ConversationActions(ImmutableList.of(), null);
+  private static final SuggestConversationActionsResult EMPTY_SUGGEST_CONVERSATION_ACTION_RESULT =
+      new SuggestConversationActionsResult(
+          Optional.empty(), new ConversationActions(ImmutableList.of(), /* id= */ null));
 
   private final Context context;
   private final TextClassificationManager textClassificationManager;
@@ -119,19 +124,13 @@ public class SmartSuggestionsHelper {
     boolean eligibleForActionAdjustment =
         config.shouldGenerateActions() && isEligibleForActionAdjustment(statusBarNotification);
 
-    TextClassifier textClassifier =
-        textClassificationManager.createTextClassificationSession(textClassificationContext);
-
-    ConversationActions conversationActionsResult =
+    SuggestConversationActionsResult suggestConversationActionsResult =
         suggestConversationActions(
-            textClassifier,
-            statusBarNotification,
-            eligibleForReplyAdjustment,
-            eligibleForActionAdjustment);
+            statusBarNotification, eligibleForReplyAdjustment, eligibleForActionAdjustment);
 
-    String resultId = conversationActionsResult.getId();
+    String resultId = suggestConversationActionsResult.conversationActions.getId();
     List<ConversationAction> conversationActions =
-        conversationActionsResult.getConversationActions();
+        suggestConversationActionsResult.conversationActions.getConversationActions();
 
     ArrayList<CharSequence> replies = new ArrayList<>();
     Map<CharSequence, Float> repliesScore = new ArrayMap<>();
@@ -164,23 +163,31 @@ public class SmartSuggestionsHelper {
         actions.add(notificationAction);
       }
     }
-    if (TextUtils.isEmpty(resultId)) {
-      textClassifier.destroy();
-    } else {
-      SmartSuggestionsLogSession session =
-          new SmartSuggestionsLogSession(
-              resultId, repliesScore, textClassifier, textClassificationContext);
-      session.onSuggestionsGenerated(conversationActions);
 
-      // Store the session if we expect more logging from it, destroy it otherwise.
-      if (!conversationActions.isEmpty()
-          && suggestionsMightBeUsedInNotification(
-              statusBarNotification, !actions.isEmpty(), !replies.isEmpty())) {
-        sessionCache.put(statusBarNotification.getKey(), session);
-      } else {
-        session.destroy();
-      }
-    }
+    suggestConversationActionsResult.textClassifier.ifPresent(
+        textClassifier -> {
+          if (TextUtils.isEmpty(resultId)) {
+            // Missing the result id, skip logging.
+            textClassifier.destroy();
+          } else {
+            SmartSuggestionsLogSession session =
+                new SmartSuggestionsLogSession(
+                    resultId,
+                    repliesScore,
+                    textClassifier,
+                    textClassificationContext);
+            session.onSuggestionsGenerated(conversationActions);
+
+            // Store the session if we expect more logging from it, destroy it otherwise.
+            if (!conversationActions.isEmpty()
+                && suggestionsMightBeUsedInNotification(
+                    statusBarNotification, !actions.isEmpty(), !replies.isEmpty())) {
+              sessionCache.put(statusBarNotification.getKey(), session);
+            } else {
+              session.destroy();
+            }
+          }
+        });
 
     return new SmartSuggestions(replies, actions);
   }
@@ -260,23 +267,20 @@ public class SmartSuggestionsHelper {
   }
 
   /** Adds action adjustments based on the notification contents. */
-  private ConversationActions suggestConversationActions(
-      TextClassifier textClassifier,
-      StatusBarNotification statusBarNotification,
-      boolean includeReplies,
-      boolean includeActions) {
+  private SuggestConversationActionsResult suggestConversationActions(
+      StatusBarNotification statusBarNotification, boolean includeReplies, boolean includeActions) {
     if (!includeReplies && !includeActions) {
-      return EMPTY_CONVERSATION_ACTIONS;
+      return EMPTY_SUGGEST_CONVERSATION_ACTION_RESULT;
     }
     ImmutableList<ConversationActions.Message> messages =
         extractMessages(statusBarNotification.getNotification());
     if (messages.isEmpty()) {
-      return EMPTY_CONVERSATION_ACTIONS;
+      return EMPTY_SUGGEST_CONVERSATION_ACTION_RESULT;
     }
     // Do not generate smart actions if the last message is from the local user.
     ConversationActions.Message lastMessage = Iterables.getLast(messages);
     if (arePersonsEqual(ConversationActions.Message.PERSON_USER_SELF, lastMessage.getAuthor())) {
-      return EMPTY_CONVERSATION_ACTIONS;
+      return EMPTY_SUGGEST_CONVERSATION_ACTION_RESULT;
     }
 
     TextClassifier.EntityConfig.Builder typeConfigBuilder =
@@ -300,7 +304,9 @@ public class SmartSuggestionsHelper {
             .setTypeConfig(typeConfigBuilder.build())
             .build();
 
-    return textClassifier.suggestConversationActions(request);
+    TextClassifier textClassifier = createTextClassificationSession();
+    return new SuggestConversationActionsResult(
+        Optional.of(textClassifier), textClassifier.suggestConversationActions(request));
   }
 
   /**
@@ -464,9 +470,30 @@ public class SmartSuggestionsHelper {
     return ImmutableList.copyOf(new ArrayList<>(extractMessages));
   }
 
+  @VisibleForTesting
+  TextClassifier createTextClassificationSession() {
+    return textClassificationManager.createTextClassificationSession(textClassificationContext);
+  }
+
   private static boolean arePersonsEqual(Person left, Person right) {
     return Objects.equals(left.getKey(), right.getKey())
         && TextUtils.equals(left.getName(), right.getName())
         && Objects.equals(left.getUri(), right.getUri());
+  }
+
+  /**
+   * Result object of {@link #suggestConversationActions(StatusBarNotification, boolean, boolean)}.
+   */
+  private static class SuggestConversationActionsResult {
+    /** The text classifier session that was involved to make suggestions, if any. */
+    final Optional<TextClassifier> textClassifier;
+    /** The resultant suggestions. */
+    final ConversationActions conversationActions;
+
+    SuggestConversationActionsResult(
+        Optional<TextClassifier> textClassifier, ConversationActions conversationActions) {
+      this.textClassifier = textClassifier;
+      this.conversationActions = conversationActions;
+    }
   }
 }
