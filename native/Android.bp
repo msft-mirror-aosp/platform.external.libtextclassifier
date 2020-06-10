@@ -162,7 +162,7 @@ cc_test {
     name: "libtextclassifier_tests",
     defaults: ["libtextclassifier_defaults"],
 
-    test_suites: ["device-tests"],
+    test_suites: ["device-tests", "mts"],
 
     data: [
         "annotator/test_data/**/*",
@@ -180,9 +180,11 @@ cc_test {
 
     multilib: {
         lib32: {
+            suffix: "32",
             cppflags: ["-DTC3_TEST_DATA_DIR=\"/data/nativetest/libtextclassifier_tests/test_data/\""],
         },
         lib64: {
+            suffix: "64",
             cppflags: ["-DTC3_TEST_DATA_DIR=\"/data/nativetest64/libtextclassifier_tests/test_data/\""],
         },
     },
