@@ -14,13 +14,21 @@
      limitations under the License.
 -->
 <configuration description="Config for libtextclassifier_tests">
-    <target_preparer class="com.android.tradefed.targetprep.PushFilePreparer">
+    <option name="test-suite-tag" value="apct" />
+    <option name="test-suite-tag" value="mts" />
+
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="libtextclassifier_tests->/data/local/tmp/libtextclassifier_tests" />
+        <option name="append-bitness" value="true" />
     </target_preparer>
-    <option name="test-suite-tag" value="apct" />
+
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
         <option name="module-name" value="libtextclassifier_tests" />
     </test>
+
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
+        <option name="mainline-module-package-name" value="com.google.android.extservices" />
+    </object>
 </configuration>
