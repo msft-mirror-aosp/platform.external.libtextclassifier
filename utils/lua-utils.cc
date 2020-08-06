@@ -31,7 +31,6 @@ static constexpr int kTableArgId = 3;
 static constexpr luaL_Reg defaultlibs[] = {{"_G", luaopen_base},
                                            {LUA_TABLIBNAME, luaopen_table},
                                            {LUA_STRLIBNAME, luaopen_string},
-                                           {LUA_BITLIBNAME, luaopen_bit32},
                                            {LUA_MATHLIBNAME, luaopen_math},
                                            {nullptr, nullptr}};
 
