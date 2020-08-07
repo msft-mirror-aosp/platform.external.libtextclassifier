@@ -40,13 +40,13 @@ TC3_JNI_METHOD(jlong, TC3_LANG_ID_CLASS_NAME, nativeNewFromPath)
 (JNIEnv* env, jobject clazz, jstring path);
 
 TC3_JNI_METHOD(jobjectArray, TC3_LANG_ID_CLASS_NAME, nativeDetectLanguages)
-(JNIEnv* env, jobject clazz, jlong ptr, jstring text);
+(JNIEnv* env, jobject thiz, jlong ptr, jstring text);
 
 TC3_JNI_METHOD(void, TC3_LANG_ID_CLASS_NAME, nativeClose)
-(JNIEnv* env, jobject clazz, jlong ptr);
+(JNIEnv* env, jobject thiz, jlong ptr);
 
 TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetVersion)
-(JNIEnv* env, jobject clazz, jlong ptr);
+(JNIEnv* env, jobject thiz, jlong ptr);
 
 TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetVersionFromFd)
 (JNIEnv* env, jobject clazz, jint fd);

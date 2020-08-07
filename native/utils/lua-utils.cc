@@ -221,7 +221,7 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
 }
 
 int LuaEnvironment::ReadFlatbuffer(const int index,
-                                   ReflectiveFlatbuffer* buffer) const {
+                                   MutableFlatbuffer* buffer) const {
   if (buffer == nullptr) {
     TC3_LOG(ERROR) << "Called ReadFlatbuffer with null buffer: " << index;
     lua_error(state_);
@@ -322,8 +322,8 @@ int LuaEnvironment::ReadFlatbuffer(const int index,
                                            buffer->Repeated(field));
             break;
           case reflection::Obj:
-            ReadRepeatedField<ReflectiveFlatbuffer>(/*index=*/kIndexStackTop,
-                                                    buffer->Repeated(field));
+            ReadRepeatedField<MutableFlatbuffer>(/*index=*/kIndexStackTop,
+                                                 buffer->Repeated(field));
             break;
           default:
             TC3_LOG(ERROR) << "Unsupported repeated field type: "
@@ -542,7 +542,7 @@ ClassificationResult LuaEnvironment::ReadClassificationResult(
       classification.serialized_entity_data =
           Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals(kEntityKey)) {
-      auto buffer = ReflectiveFlatbufferBuilder(entity_data_schema).NewRoot();
+      auto buffer = MutableFlatbufferBuilder(entity_data_schema).NewRoot();
       ReadFlatbuffer(/*index=*/kIndexStackTop, buffer.get());
       classification.serialized_entity_data = buffer->Serialize();
     } else {
@@ -610,7 +610,7 @@ ActionSuggestion LuaEnvironment::ReadAction(
       ReadAnnotations(actions_entity_data_schema, &action.annotations);
     } else if (key.Equals(kEntityKey)) {
       auto buffer =
-          ReflectiveFlatbufferBuilder(actions_entity_data_schema).NewRoot();
+          MutableFlatbufferBuilder(actions_entity_data_schema).NewRoot();
       ReadFlatbuffer(/*index=*/kIndexStackTop, buffer.get());
       action.serialized_entity_data = buffer->Serialize();
     } else {

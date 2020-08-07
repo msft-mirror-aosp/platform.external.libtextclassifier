@@ -25,7 +25,6 @@
 #include "utils/base/logging.h"
 #include "utils/base/statusor.h"
 #include "utils/java/jni-base.h"
-#include "utils/java/string_utils.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib-common.h"
 
@@ -420,14 +419,14 @@ UnicodeText UniLibBase::RegexMatcher::Group(int* status) const {
       return UTF8ToUnicodeText("", /*do_copy=*/false);
     }
 
-    std::string result;
-    if (!JStringToUtf8String(jenv, status_or_java_result.ValueOrDie().get(),
-                             &result)) {
+    StatusOr<std::string> status_or_result =
+        JStringToUtf8String(jenv, status_or_java_result.ValueOrDie().get());
+    if (!status_or_result.ok()) {
       *status = kError;
       return UTF8ToUnicodeText("", /*do_copy=*/false);
     }
     *status = kNoError;
-    return UTF8ToUnicodeText(result, /*do_copy=*/true);
+    return UTF8ToUnicodeText(status_or_result.ValueOrDie(), /*do_copy=*/true);
   } else {
     *status = kError;
     return UTF8ToUnicodeText("", /*do_copy=*/false);
@@ -455,14 +454,14 @@ UnicodeText UniLibBase::RegexMatcher::Group(int group_idx, int* status) const {
       return UTF8ToUnicodeText("", /*do_copy=*/false);
     }
 
-    std::string result;
-    if (!JStringToUtf8String(jenv, status_or_java_result.ValueOrDie().get(),
-                             &result)) {
+    StatusOr<std::string> status_or_result =
+        JStringToUtf8String(jenv, status_or_java_result.ValueOrDie().get());
+    if (!status_or_result.ok()) {
       *status = kError;
       return UTF8ToUnicodeText("", /*do_copy=*/false);
     }
     *status = kNoError;
-    return UTF8ToUnicodeText(result, /*do_copy=*/true);
+    return UTF8ToUnicodeText(status_or_result.ValueOrDie(), /*do_copy=*/true);
   } else {
     *status = kError;
     return UTF8ToUnicodeText("", /*do_copy=*/false);

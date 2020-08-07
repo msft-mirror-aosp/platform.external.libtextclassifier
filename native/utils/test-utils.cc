@@ -31,7 +31,8 @@ std::vector<Token> TokenizeOnSpace(const std::string& text) {
 }
 
 std::vector<Token> TokenizeOnDelimiters(
-    const std::string& text, const std::unordered_set<char32>& delimiters) {
+    const std::string& text, const std::unordered_set<char32>& delimiters,
+    bool create_tokens_for_non_space_delimiters) {
   const UnicodeText unicode_text = UTF8ToUnicodeText(text, /*do_copy=*/false);
 
   std::vector<Token> result;
@@ -47,6 +48,10 @@ std::vector<Token> TokenizeOnDelimiters(
       if (token_start_it != it) {
         result.push_back(Token{UnicodeText::UTF8Substring(token_start_it, it),
                                token_start_codepoint, codepoint_idx});
+      }
+      if (create_tokens_for_non_space_delimiters && *it != ' ') {
+        result.push_back(
+            Token{std::string(1, *it), codepoint_idx, codepoint_idx + 1});
       }
 
       token_start_codepoint = codepoint_idx + 1;

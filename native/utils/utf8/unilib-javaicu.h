@@ -31,7 +31,6 @@
 #include "utils/java/jni-base.h"
 #include "utils/java/jni-cache.h"
 #include "utils/java/jni-helper.h"
-#include "utils/java/string_utils.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
@@ -115,9 +114,13 @@ class UniLibBase {
 
     // Returns the matched text (the 0th capturing group).
     std::string Text() const {
-      ScopedStringChars text_str =
-          GetScopedStringChars(jni_cache_->GetEnv(), text_.get());
-      return text_str.get();
+      StatusOr<std::string> status_or_result =
+          JStringToUtf8String(jni_cache_->GetEnv(), text_.get());
+      if (!status_or_result.ok()) {
+        TC3_LOG(ERROR) << "JStringToUtf8String failed.";
+        return "";
+      }
+      return status_or_result.ValueOrDie();
     }
 
    private:

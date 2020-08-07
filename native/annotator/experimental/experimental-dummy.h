@@ -39,7 +39,7 @@ class ExperimentalAnnotator {
 
   bool Annotate(const UnicodeText& context,
                 std::vector<AnnotatedSpan>* candidates) const {
-    return false;
+    return true;
   }
 
   AnnotatedSpan SuggestSelection(const UnicodeText& context,
@@ -47,9 +47,9 @@ class ExperimentalAnnotator {
     return {click, {}};
   }
 
-  bool ClassifyText(const UnicodeText& context, CodepointSpan click,
-                    ClassificationResult* result) const {
-    return false;
+  bool ClassifyText(const UnicodeText& context, CodepointSpan selection_indices,
+                    std::vector<AnnotatedSpan>& candidates) const {
+    return true;
   }
 };
 

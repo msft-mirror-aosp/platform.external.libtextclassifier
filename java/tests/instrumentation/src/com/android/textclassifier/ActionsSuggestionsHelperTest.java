@@ -25,6 +25,8 @@ import android.app.Person;
 import android.app.RemoteAction;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ResolveInfo;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Bundle;
@@ -34,6 +36,7 @@ import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.common.intent.LabeledIntent;
+import com.android.textclassifier.common.intent.LabeledIntent.TitleChooser;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.RemoteActionTemplate;
@@ -289,6 +292,92 @@ public class ActionsSuggestionsHelperTest {
     assertThat(labeledIntentResult.resolvedIntent.getAction()).isEqualTo(Intent.ACTION_VIEW);
   }
 
+  @Test
+  public void createTitleChooser_notOpenUrl() {
+    assertThat(ActionsSuggestionsHelper.createTitleChooser(ConversationAction.TYPE_CALL_PHONE))
+        .isNull();
+  }
+
+  @Test
+  public void createTitleChooser_openUrl_resolveInfoIsNull() {
+    TitleChooser titleChooser =
+        ActionsSuggestionsHelper.createTitleChooser(ConversationAction.TYPE_OPEN_URL);
+    LabeledIntent labeledIntent = createWebLabeledIntent();
+
+    assertThat(titleChooser.chooseTitle(labeledIntent, /* resolveInfo= */ null).toString())
+        .isEqualTo("titleWithEntity");
+  }
+
+  @Test
+  public void createTitleChooser_openUrl_packageIsNotAndroidAndHandleAllWebDataUriTrue() {
+    TitleChooser titleChooser =
+        ActionsSuggestionsHelper.createTitleChooser(ConversationAction.TYPE_OPEN_URL);
+    LabeledIntent labeledIntent = createWebLabeledIntent();
+
+    assertThat(
+            titleChooser
+                .chooseTitle(
+                    labeledIntent,
+                    createResolveInfo("com.android.chrome", /* handleAllWebDataURI= */ true))
+                .toString())
+        .isEqualTo("titleWithEntity");
+  }
+
+  @Test
+  public void createTitleChooser_openUrl_packageIsNotAndroidAndHandleAllWebDataUriFalse() {
+    TitleChooser titleChooser =
+        ActionsSuggestionsHelper.createTitleChooser(ConversationAction.TYPE_OPEN_URL);
+    LabeledIntent labeledIntent = createWebLabeledIntent();
+
+    assertThat(
+            titleChooser
+                .chooseTitle(
+                    labeledIntent,
+                    createResolveInfo("com.youtube", /* handleAllWebDataURI= */ false))
+                .toString())
+        .isEqualTo("titleWithoutEntity");
+  }
+
+  @Test
+  public void createTitleChooser_openUrl_packageIsAndroidAndHandleAllWebDataUriFalse() {
+    TitleChooser titleChooser =
+        ActionsSuggestionsHelper.createTitleChooser(ConversationAction.TYPE_OPEN_URL);
+    LabeledIntent labeledIntent = createWebLabeledIntent();
+
+    assertThat(
+            titleChooser
+                .chooseTitle(
+                    labeledIntent, createResolveInfo("android", /* handleAllWebDataURI= */ false))
+                .toString())
+        .isEqualTo("titleWithEntity");
+  }
+
+  @Test
+  public void createTitleChooser_openUrl_packageIsAndroidAndHandleAllWebDataUriTrue() {
+    TitleChooser titleChooser =
+        ActionsSuggestionsHelper.createTitleChooser(ConversationAction.TYPE_OPEN_URL);
+    LabeledIntent labeledIntent = createWebLabeledIntent();
+
+    assertThat(
+            titleChooser
+                .chooseTitle(
+                    labeledIntent, createResolveInfo("android", /* handleAllWebDataURI= */ true))
+                .toString())
+        .isEqualTo("titleWithEntity");
+  }
+
+  private LabeledIntent createWebLabeledIntent() {
+    Intent webIntent = new Intent(Intent.ACTION_VIEW);
+    webIntent.setData(Uri.parse("http://www.android.com"));
+    return new LabeledIntent(
+        "titleWithoutEntity",
+        "titleWithEntity",
+        "description",
+        "descriptionWithAppName",
+        webIntent,
+        /* requestCode= */ 0);
+  }
+
   private static ZonedDateTime createZonedDateTimeFromMsUtc(long msUtc) {
     return ZonedDateTime.ofInstant(Instant.ofEpochMilli(msUtc), ZoneId.of("UTC"));
   }
@@ -302,5 +391,13 @@ public class ActionsSuggestionsHelperTest {
     assertThat(nativeMessage.getUserId()).isEqualTo(userId);
     assertThat(nativeMessage.getDetectedTextLanguageTags()).isEqualTo(LOCALE_TAG);
     assertThat(nativeMessage.getReferenceTimeMsUtc()).isEqualTo(referenceTimeInMsUtc);
+  }
+
+  private static ResolveInfo createResolveInfo(String packageName, boolean handleAllWebDataURI) {
+    ResolveInfo resolveInfo = new ResolveInfo();
+    resolveInfo.activityInfo = new ActivityInfo();
+    resolveInfo.activityInfo.packageName = packageName;
+    resolveInfo.handleAllWebDataURI = handleAllWebDataURI;
+    return resolveInfo;
   }
 }
