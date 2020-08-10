@@ -379,6 +379,14 @@ void Rules::AddValueMapping(const std::string& lhs,
       /*callback_param=*/value, max_whitespace_gap, case_sensitive, shard);
 }
 
+void Rules::AddValueMapping(const int lhs, const std::vector<RhsElement>& rhs,
+                            int64 value, const int8 max_whitespace_gap,
+                            const bool case_sensitive, const int shard) {
+  Add(lhs, rhs,
+      /*callback=*/static_cast<CallbackId>(DefaultCallback::kMapping),
+      /*callback_param=*/value, max_whitespace_gap, case_sensitive, shard);
+}
+
 void Rules::AddRegex(const std::string& lhs, const std::string& regex_pattern) {
   AddRegex(AddNonterminal(lhs), regex_pattern);
 }
@@ -408,6 +416,12 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   // multiple rules or that have a filter callback on some rule.
   for (int i = 0; i < nonterminals_.size(); i++) {
     const NontermInfo& nonterminal = nonterminals_[i];
+
+    // Skip predefined nonterminals, they have already been assigned.
+    if (rules.GetNonterminalForName(nonterminal.name) != kUnassignedNonterm) {
+      continue;
+    }
+
     bool unmergeable =
         (nonterminal.from_annotation || nonterminal.rules.size() > 1 ||
          !nonterminal.regex_rules.empty());

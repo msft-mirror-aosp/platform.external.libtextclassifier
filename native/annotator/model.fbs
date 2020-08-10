@@ -14,16 +14,16 @@
 // limitations under the License.
 //
 
-include "annotator/entity-data.fbs";
 include "annotator/experimental/experimental.fbs";
+include "annotator/entity-data.fbs";
 include "annotator/grammar/dates/dates.fbs";
-include "utils/codepoint-range.fbs";
-include "utils/flatbuffers.fbs";
 include "utils/grammar/rules.fbs";
 include "utils/intents/intent-config.fbs";
-include "utils/normalization.fbs";
 include "utils/resources.fbs";
 include "utils/tokenizer.fbs";
+include "utils/codepoint-range.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
+include "utils/normalization.fbs";
 include "utils/zlib/buffer.fbs";
 
 file_identifier "TC2 ";
@@ -131,6 +131,8 @@ enum DatetimeExtractorType : int {
   NINETY = 70,
   HUNDRED = 71,
   THOUSAND = 72,
+  NOON = 73,
+  MIDNIGHT = 74,
 }
 
 namespace libtextclassifier3;
@@ -154,6 +156,7 @@ enum DatetimeGroupType : int {
   GROUP_DUMMY1 = 12,
 
   GROUP_DUMMY2 = 13,
+  GROUP_ABSOLUTETIME = 14,
 }
 
 // Options for the model that predicts text selection.
@@ -504,10 +507,21 @@ table GrammarModel {
   tokenizer_options:GrammarTokenizerOptions;
 }
 
+namespace libtextclassifier3.MoneyParsingOptions_;
+table QuantitiesNameToExponentEntry {
+  key:string (key, shared);
+  value:int;
+}
+
 namespace libtextclassifier3;
 table MoneyParsingOptions {
   // Separators (codepoints) marking decimal or thousand in the money amount.
   separators:[int];
+
+  // Mapping between a quantity string (e.g. "million") and the power of 10
+  // it multiplies the amount with (e.g. 6 in case of "million").
+  // NOTE: The entries need to be sorted by key since we use LookupByKey.
+  quantities_name_to_exponent:[MoneyParsingOptions_.QuantitiesNameToExponentEntry];
 }
 
 namespace libtextclassifier3.ModelTriggeringOptions_;
@@ -659,6 +673,7 @@ table Model {
   grammar_model:GrammarModel;
   conflict_resolution_options:Model_.ConflictResolutionOptions;
   experimental_model:ExperimentalModel;
+  pod_ner_model:PodNerModel;
 }
 
 // Method for selecting the center token.
@@ -983,6 +998,67 @@ table TranslateAnnotatorOptions {
 
   algorithm:TranslateAnnotatorOptions_.Algorithm;
   backoff_options:TranslateAnnotatorOptions_.BackoffOptions;
+}
+
+namespace libtextclassifier3.PodNerModel_.Label_;
+enum BoiseType : int {
+  NONE = 0,
+  BEGIN = 1,
+  O = 2,
+  // No label.
+
+  INTERMEDIATE = 3,
+  SINGLE = 4,
+  END = 5,
+}
+
+namespace libtextclassifier3.PodNerModel_.Label_;
+enum MentionType : int {
+  UNDEFINED = 0,
+  NAM = 1,
+  NOM = 2,
+}
+
+namespace libtextclassifier3.PodNerModel_;
+table Label {
+  boise_type:Label_.BoiseType;
+  mention_type:Label_.MentionType;
+  collection_id:int;
+  // points to the collections array above.
+}
+
+namespace libtextclassifier3;
+table PodNerModel {
+  tflite_model:[ubyte];
+  word_piece_vocab:[ubyte];
+  lowercase_input:bool = true;
+
+  // Index of mention_logits tensor in the output of the tflite model. Can
+  // be found in the textproto output after model is converted to tflite.
+  logits_index_in_output_tensor:int = 0;
+
+  // Whether to append a period at the end of an input that doesn't already
+  // end in punctuation.
+  append_final_period:bool = false;
+
+  // Priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
+
+  // Maximum number of wordpieces supported by the model.
+  max_num_wordpieces:int = 128;
+
+  // In case of long text (number of wordpieces greater than the max) we use
+  // sliding window approach, this determines the number of overlapping
+  // wordpieces between two consecutive windows. This overlap enables context
+  // for each word NER annotates.
+  sliding_window_num_wordpieces_overlap:int = 20;
+
+  // Possible collections for labeled entities, e.g., "location", "person".
+  collections:[string];
+
+  // The possible labels the ner model can output. If empty the default labels
+  // will be used.
+  labels:[PodNerModel_.Label];
 }
 
 root_type libtextclassifier3.Model;

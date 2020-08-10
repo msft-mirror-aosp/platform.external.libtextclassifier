@@ -18,7 +18,8 @@
 
 #include <string>
 
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/flatbuffers.h"
+#include "utils/flatbuffers/mutable.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -124,7 +125,7 @@ class LuaUtilsTest : public testing::Test, protected LuaEnvironment {
 
   const std::string serialized_flatbuffer_schema_;
   const reflection::Schema* schema_;
-  ReflectiveFlatbufferBuilder flatbuffer_builder_;
+  MutableFlatbufferBuilder flatbuffer_builder_;
 };
 
 TEST_F(LuaUtilsTest, HandlesVectors) {
@@ -184,7 +185,7 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   )lua");
 
   // Read the flatbuffer.
-  std::unique_ptr<ReflectiveFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   ReadFlatbuffer(/*index=*/-1, buffer.get());
   const std::string serialized_buffer = buffer->Serialize();
 
@@ -235,7 +236,7 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
 
 TEST_F(LuaUtilsTest, HandlesSimpleFlatbufferFields) {
   // Create test flatbuffer.
-  std::unique_ptr<ReflectiveFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   buffer->Set("float_field", 42.f);
   const std::string serialized_buffer = buffer->Serialize();
   PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
@@ -252,7 +253,7 @@ TEST_F(LuaUtilsTest, HandlesSimpleFlatbufferFields) {
 
 TEST_F(LuaUtilsTest, HandlesRepeatedFlatbufferFields) {
   // Create test flatbuffer.
-  std::unique_ptr<ReflectiveFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   RepeatedField* repeated_field = buffer->Repeated("repeated_string_field");
   repeated_field->Add("this");
   repeated_field->Add("is");
@@ -274,11 +275,11 @@ TEST_F(LuaUtilsTest, HandlesRepeatedFlatbufferFields) {
 
 TEST_F(LuaUtilsTest, HandlesRepeatedNestedFlatbufferFields) {
   // Create test flatbuffer.
-  std::unique_ptr<ReflectiveFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   RepeatedField* repeated_field = buffer->Repeated("repeated_nested_field");
   repeated_field->Add()->Set("string_field", "hello");
   repeated_field->Add()->Set("string_field", "my");
-  ReflectiveFlatbuffer* nested = repeated_field->Add();
+  MutableFlatbuffer* nested = repeated_field->Add();
   nested->Set("string_field", "old");
   RepeatedField* nested_repeated = nested->Repeated("repeated_string_field");
   nested_repeated->Add("friend");
@@ -308,14 +309,14 @@ TEST_F(LuaUtilsTest, HandlesRepeatedNestedFlatbufferFields) {
 
 TEST_F(LuaUtilsTest, CorrectlyReadsTwoFlatbuffersSimultaneously) {
   // The first flatbuffer.
-  std::unique_ptr<ReflectiveFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   buffer->Set("string_field", "first");
   const std::string serialized_buffer = buffer->Serialize();
   PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
                               serialized_buffer.data()));
   lua_setglobal(state_, "arg");
   // The second flatbuffer.
-  std::unique_ptr<ReflectiveFlatbuffer> buffer2 = flatbuffer_builder_.NewRoot();
+  std::unique_ptr<MutableFlatbuffer> buffer2 = flatbuffer_builder_.NewRoot();
   buffer2->Set("string_field", "second");
   const std::string serialized_buffer2 = buffer2->Serialize();
   PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(

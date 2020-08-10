@@ -22,7 +22,7 @@
 
 #include "actions/actions_model_generated.h"
 #include "actions/types.h"
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/mutable.h"
 #include "utils/grammar/lexer.h"
 #include "utils/grammar/types.h"
 #include "utils/i18n/locale.h"
@@ -37,10 +37,10 @@ class GrammarActions {
  public:
   enum class Callback : grammar::CallbackId { kActionRuleMatch = 1 };
 
-  explicit GrammarActions(
-      const UniLib* unilib, const RulesModel_::GrammarRules* grammar_rules,
-      const ReflectiveFlatbufferBuilder* entity_data_builder,
-      const std::string& smart_reply_action_type);
+  explicit GrammarActions(const UniLib* unilib,
+                          const RulesModel_::GrammarRules* grammar_rules,
+                          const MutableFlatbufferBuilder* entity_data_builder,
+                          const std::string& smart_reply_action_type);
 
   // Suggests actions for a conversation from a message stream.
   bool SuggestActions(const Conversation& conversation,
@@ -51,7 +51,7 @@ class GrammarActions {
   const RulesModel_::GrammarRules* grammar_rules_;
   const std::unique_ptr<Tokenizer> tokenizer_;
   const grammar::Lexer lexer_;
-  const ReflectiveFlatbufferBuilder* entity_data_builder_;
+  const MutableFlatbufferBuilder* entity_data_builder_;
   const std::string smart_reply_action_type_;
 
   // Pre-parsed locales of the rules.

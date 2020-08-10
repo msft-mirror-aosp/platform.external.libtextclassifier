@@ -147,6 +147,9 @@ final class ActionsSuggestionsHelper {
   public static LabeledIntent.TitleChooser createTitleChooser(String actionType) {
     if (ConversationAction.TYPE_OPEN_URL.equals(actionType)) {
       return (labeledIntent, resolveInfo) -> {
+        if (resolveInfo == null) {
+          return labeledIntent.titleWithEntity;
+        }
         if (resolveInfo.handleAllWebDataURI) {
           return labeledIntent.titleWithEntity;
         }

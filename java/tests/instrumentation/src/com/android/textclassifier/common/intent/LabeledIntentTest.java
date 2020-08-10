@@ -154,4 +154,56 @@ public final class LabeledIntentTest {
     assertThat(result.remoteAction.getContentDescription().toString())
         .isEqualTo("Use fake to open map");
   }
+
+  @Test
+  public void resolve_noVisibilityToWebIntentHandler() {
+    Context context =
+        new FakeContextBuilder()
+            .setIntentComponent(Intent.ACTION_VIEW, /* component= */ null)
+            .build();
+    Intent webIntent = new Intent(Intent.ACTION_VIEW);
+    webIntent.setData(Uri.parse("https://www.android.com"));
+    LabeledIntent labeledIntent =
+        new LabeledIntent(
+            TITLE_WITHOUT_ENTITY,
+            TITLE_WITH_ENTITY,
+            DESCRIPTION,
+            /* descriptionWithAppName= */ null,
+            webIntent,
+            REQUEST_CODE);
+
+    LabeledIntent.Result result = labeledIntent.resolve(context, /*titleChooser*/ null);
+
+    assertThat(result).isNotNull();
+    assertThat(result.remoteAction.getTitle().toString()).isEqualTo(TITLE_WITH_ENTITY);
+    assertThat(result.remoteAction.getContentDescription().toString()).isEqualTo(DESCRIPTION);
+    assertThat(result.resolvedIntent.getAction()).isEqualTo(Intent.ACTION_VIEW);
+    assertThat(result.resolvedIntent.getComponent()).isNull();
+  }
+
+  @Test
+  public void resolve_noVisibilityToWebIntentHandler_withDescriptionWithAppName() {
+    Context context =
+        new FakeContextBuilder()
+            .setIntentComponent(Intent.ACTION_VIEW, /* component= */ null)
+            .build();
+    Intent webIntent = new Intent(Intent.ACTION_VIEW);
+    webIntent.setData(Uri.parse("https://www.android.com"));
+    LabeledIntent labeledIntent =
+        new LabeledIntent(
+            TITLE_WITHOUT_ENTITY,
+            TITLE_WITH_ENTITY,
+            DESCRIPTION,
+            /* descriptionWithAppName= */ "name",
+            webIntent,
+            REQUEST_CODE);
+
+    LabeledIntent.Result result = labeledIntent.resolve(context, /*titleChooser*/ null);
+
+    assertThat(result).isNotNull();
+    assertThat(result.remoteAction.getTitle().toString()).isEqualTo(TITLE_WITH_ENTITY);
+    assertThat(result.remoteAction.getContentDescription().toString()).isEqualTo(DESCRIPTION);
+    assertThat(result.resolvedIntent.getAction()).isEqualTo(Intent.ACTION_VIEW);
+    assertThat(result.resolvedIntent.getComponent()).isNull();
+  }
 }

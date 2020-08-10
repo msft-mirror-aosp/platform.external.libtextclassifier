@@ -21,7 +21,7 @@
 
 #include "actions/types.h"
 #include "annotator/types.h"
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/mutable.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/variant.h"
 #include "flatbuffers/reflection_generated.h"
@@ -65,7 +65,7 @@ T FromUpValue(const int index, lua_State* state) {
 class LuaEnvironment {
  public:
   virtual ~LuaEnvironment();
-  LuaEnvironment();
+  explicit LuaEnvironment();
 
   // Compile a lua snippet into binary bytecode.
   // NOTE: The compiled bytecode might not be compatible across Lua versions
@@ -213,7 +213,7 @@ class LuaEnvironment {
   }
 
   // Reads a flatbuffer from the stack.
-  int ReadFlatbuffer(int index, ReflectiveFlatbuffer* buffer) const;
+  int ReadFlatbuffer(int index, MutableFlatbuffer* buffer) const;
 
   // Pushes an iterator.
   template <typename ItemCallback, typename KeyCallback>
@@ -513,8 +513,8 @@ class LuaEnvironment {
   }
 
   template <>
-  void ReadRepeatedField<ReflectiveFlatbuffer>(const int index,
-                                               RepeatedField* result) const {
+  void ReadRepeatedField<MutableFlatbuffer>(const int index,
+                                            RepeatedField* result) const {
     lua_pushnil(state_);
     while (Next(index - 1)) {
       ReadFlatbuffer(index, result->Add());

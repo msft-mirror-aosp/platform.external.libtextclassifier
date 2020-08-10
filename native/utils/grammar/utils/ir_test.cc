@@ -24,6 +24,7 @@
 namespace libtextclassifier3::grammar {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::Ne;
@@ -232,6 +233,22 @@ TEST(IrTest, HandlesRulesSharding) {
 
   EXPECT_THAT(rules.rules[0]->binary_rules, SizeIs(3));
   EXPECT_THAT(rules.rules[1]->binary_rules, SizeIs(3));
+}
+
+TEST(IrTest, DeduplicatesLhsSets) {
+  Ir ir;
+
+  const Nonterm test = ir.AddUnshareableNonterminal();
+  ir.Add(test, "test");
+
+  // Add a second rule for the same nonterminal.
+  ir.Add(test, "again");
+
+  RulesSetT rules;
+  ir.Serialize(/*include_debug_information=*/false, &rules);
+
+  EXPECT_THAT(rules.lhs_set, SizeIs(1));
+  EXPECT_THAT(rules.lhs_set.front()->lhs, ElementsAre(test));
 }
 
 }  // namespace

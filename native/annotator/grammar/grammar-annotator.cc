@@ -49,8 +49,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
  public:
   explicit GrammarAnnotatorCallbackDelegate(
       const UniLib* unilib, const GrammarModel* model,
-      const ReflectiveFlatbufferBuilder* entity_data_builder,
-      const ModeFlag mode)
+      const MutableFlatbufferBuilder* entity_data_builder, const ModeFlag mode)
       : unilib_(*unilib),
         model_(model),
         entity_data_builder_(entity_data_builder),
@@ -276,7 +275,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
     if (entity_data_builder_ == nullptr) {
       return true;
     }
-    std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+    std::unique_ptr<MutableFlatbuffer> entity_data =
         entity_data_builder_->NewRoot();
     if (interpretation->serialized_entity_data() != nullptr) {
       entity_data->MergeFromSerializedFlatbuffer(
@@ -342,7 +341,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
   const UniLib& unilib_;
   const GrammarModel* model_;
-  const ReflectiveFlatbufferBuilder* entity_data_builder_;
+  const MutableFlatbufferBuilder* entity_data_builder_;
   const ModeFlag mode_;
 
   // All annotation/selection/classification rule match candidates.
@@ -352,7 +351,7 @@ class GrammarAnnotatorCallbackDelegate : public grammar::CallbackDelegate {
 
 GrammarAnnotator::GrammarAnnotator(
     const UniLib* unilib, const GrammarModel* model,
-    const ReflectiveFlatbufferBuilder* entity_data_builder)
+    const MutableFlatbufferBuilder* entity_data_builder)
     : unilib_(*unilib),
       model_(model),
       lexer_(unilib, model->rules()),
