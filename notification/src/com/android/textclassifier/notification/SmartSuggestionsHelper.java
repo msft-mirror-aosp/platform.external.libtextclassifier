@@ -35,11 +35,9 @@ import android.util.LruCache;
 import android.util.Pair;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
-import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextClassificationContext;
 import android.view.textclassifier.TextClassificationManager;
 import android.view.textclassifier.TextClassifier;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -172,10 +170,7 @@ public class SmartSuggestionsHelper {
           } else {
             SmartSuggestionsLogSession session =
                 new SmartSuggestionsLogSession(
-                    resultId,
-                    repliesScore,
-                    textClassifier,
-                    textClassificationContext);
+                    resultId, repliesScore, textClassifier, textClassificationContext);
             session.onSuggestionsGenerated(conversationActions);
 
             // Store the session if we expect more logging from it, destroy it otherwise.

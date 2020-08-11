@@ -32,13 +32,13 @@ extern "C" {
 #endif
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModel)
-(JNIEnv* env, jobject thiz, jint fd, jbyteArray serialized_preconditions);
+(JNIEnv* env, jobject clazz, jint fd, jbyteArray serialized_preconditions);
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelFromPath)
-(JNIEnv* env, jobject thiz, jstring path, jbyteArray serialized_preconditions);
+(JNIEnv* env, jobject clazz, jstring path, jbyteArray serialized_preconditions);
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelWithOffset)
-(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size,
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size,
  jbyteArray serialized_preconditions);
 
 TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)

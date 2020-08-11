@@ -23,7 +23,7 @@
 
 #include "actions/actions-entity-data_generated.h"
 #include "annotator/types.h"
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/flatbuffers.h"
 
 namespace libtextclassifier3 {
 

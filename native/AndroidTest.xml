@@ -20,7 +20,6 @@
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
         <option name="push" value="libtextclassifier_tests->/data/local/tmp/libtextclassifier_tests" />
-        <option name="append-bitness" value="true" />
     </target_preparer>
 
     <test class="com.android.tradefed.testtype.GTest" >

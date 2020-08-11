@@ -27,7 +27,6 @@ cc_defaults {
     name: "libtextclassifier_hash_defaults",
     srcs: [
         "utils/hash/farmhash.cc",
-        "util/hash/hash.cc",
     ],
     cflags: [
         "-DNAMESPACE_FOR_HASH_FUNCTIONS=farmhash",
@@ -138,13 +137,15 @@ cc_library_shared {
 
     srcs: ["**/*.cc"],
     exclude_srcs: [
-        "**/*_test.cc",
-        "**/*-test-lib.cc",
-        "**/testing/*.cc",
+        "**/*_test.*",
+        "**/*-test-lib.*",
+        "**/testing/*.*",
         "**/*test-util.*",
         "**/*test-utils.*",
+        "**/*test_util.*",
+        "**/*test_utils.*",
         "**/*_test-include.*",
-        "**/*unittest.cc",
+        "**/*unittest.*",
     ],
 
     version_script: "jni.lds",
@@ -165,8 +166,7 @@ cc_test {
     test_suites: ["device-tests", "mts"],
 
     data: [
-        "annotator/test_data/**/*",
-        "actions/test_data/**/*",
+        "**/test_data/*",
     ],
 
     srcs: ["**/*.cc"],
@@ -176,18 +176,10 @@ cc_test {
     static_libs: [
         "libgmock_ndk",
         "libgtest_ndk_c++",
+        "libbase_ndk"
     ],
 
-    multilib: {
-        lib32: {
-            suffix: "32",
-            cppflags: ["-DTC3_TEST_DATA_DIR=\"/data/nativetest/libtextclassifier_tests/test_data/\""],
-        },
-        lib64: {
-            suffix: "64",
-            cppflags: ["-DTC3_TEST_DATA_DIR=\"/data/nativetest64/libtextclassifier_tests/test_data/\""],
-        },
-    },
+    compile_multilib: "prefer32",
 }
 
 // ----------------

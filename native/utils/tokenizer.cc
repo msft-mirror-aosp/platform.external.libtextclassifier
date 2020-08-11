@@ -234,15 +234,12 @@ bool Tokenizer::ICUTokenize(const UnicodeText& context_unicode,
   if (!break_iterator) {
     return false;
   }
-  int last_break_index = 0;
-  int break_index = 0;
   int last_unicode_index = 0;
   int unicode_index = 0;
   auto token_begin_it = context_unicode.begin();
-  while ((break_index = break_iterator->Next()) !=
+  while ((unicode_index = break_iterator->Next()) !=
          UniLib::BreakIterator::kDone) {
-    const int token_length = break_index - last_break_index;
-    unicode_index = last_unicode_index + token_length;
+    const int token_length = unicode_index - last_unicode_index;
 
     auto token_end_it = token_begin_it;
     std::advance(token_end_it, token_length);
@@ -264,7 +261,6 @@ bool Tokenizer::ICUTokenize(const UnicodeText& context_unicode,
                               /*is_padding=*/false, is_whitespace));
     }
 
-    last_break_index = break_index;
     last_unicode_index = unicode_index;
     token_begin_it = token_end_it;
   }

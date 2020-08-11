@@ -14,16 +14,16 @@
 // limitations under the License.
 //
 
-include "actions/actions-entity-data.fbs";
-include "annotator/model.fbs";
-include "utils/codepoint-range.fbs";
-include "utils/flatbuffers.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/intents/intent-config.fbs";
 include "utils/normalization.fbs";
-include "utils/resources.fbs";
+include "utils/grammar/rules.fbs";
+include "actions/actions-entity-data.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
+include "utils/intents/intent-config.fbs";
+include "utils/codepoint-range.fbs";
 include "utils/tokenizer.fbs";
 include "utils/zlib/buffer.fbs";
+include "utils/resources.fbs";
+include "annotator/model.fbs";
 
 file_identifier "TC3A";
 
@@ -75,13 +75,10 @@ table TensorflowLiteModelSpec {
   // int, the number of smart replies to produce.
   input_num_suggestions:int = 4;
 
-  // float, the output diversification distance parameter.
   reserved_7:int (deprecated);
 
-  // float, the empirical probability factor parameter.
   reserved_8:int (deprecated);
 
-  // float, the confidence threshold.
   reserved_9:int (deprecated);
 
   // Input port for hashed and embedded tokens, a (num messages, max tokens,
@@ -280,7 +277,9 @@ table TriggeringPreconditions {
   low_confidence_rules:RulesModel;
 
   reserved_11:float (deprecated);
+
   reserved_12:float (deprecated);
+
   reserved_13:float (deprecated);
 
   // Smart reply thresholds.

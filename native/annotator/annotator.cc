@@ -26,6 +26,8 @@
 #include <vector>
 
 #include "annotator/collections.h"
+#include "annotator/flatbuffer-utils.h"
+#include "annotator/knowledge/knowledge-engine-types.h"
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
@@ -37,6 +39,7 @@
 #include "utils/normalization.h"
 #include "utils/optional.h"
 #include "utils/regex-match.h"
+#include "utils/strings/append.h"
 #include "utils/strings/numbers.h"
 #include "utils/strings/split.h"
 #include "utils/utf8/unicodetext.h"
@@ -104,7 +107,7 @@ const CalendarLib* MaybeCreateCalendarlib(
 // Returns whether the provided input is valid:
 //   * Valid utf8 text.
 //   * Sane span indices.
-bool IsValidSpanInput(const UnicodeText& context, const CodepointSpan span) {
+bool IsValidSpanInput(const UnicodeText& context, const CodepointSpan& span) {
   if (!context.is_valid()) {
     return false;
   }
@@ -504,6 +507,16 @@ void Annotator::ValidateAndInitialize() {
                               selection_feature_processor_.get(), unilib_));
   }
 
+  if (model_->grammar_model()) {
+    grammar_annotator_.reset(new GrammarAnnotator(
+        unilib_, model_->grammar_model(), entity_data_builder_.get()));
+  }
+
+  if (model_->pod_ner_model()) {
+    pod_ner_annotator_ =
+        PodNerAnnotator::Create(model_->pod_ner_model(), *unilib_);
+  }
+
   if (model_->entity_data_schema()) {
     entity_data_schema_ = LoadAndVerifyFlatbuffer<reflection::Schema>(
         model_->entity_data_schema()->Data(),
@@ -514,15 +527,10 @@ void Annotator::ValidateAndInitialize() {
     }
 
     entity_data_builder_.reset(
-        new ReflectiveFlatbufferBuilder(entity_data_schema_));
+        new MutableFlatbufferBuilder(entity_data_schema_));
   } else {
     entity_data_schema_ = nullptr;
     entity_data_builder_ = nullptr;
-  }
-
-  if (model_->grammar_model()) {
-    grammar_annotator_.reset(new GrammarAnnotator(
-        unilib_, model_->grammar_model(), entity_data_builder_.get()));
   }
 
   if (model_->triggering_locales() &&
@@ -701,6 +709,7 @@ bool Annotator::InitializeExperimentalAnnotators() {
   if (ExperimentalAnnotator::IsEnabled()) {
     experimental_annotator_.reset(new ExperimentalAnnotator(
         model_->experimental_model(), *selection_feature_processor_, *unilib_));
+
     return true;
   }
   return false;
@@ -708,7 +717,8 @@ bool Annotator::InitializeExperimentalAnnotators() {
 
 namespace {
 
-int CountDigits(const std::string& str, CodepointSpan selection_indices) {
+int CountDigits(const std::string& str,
+                const CodepointSpan& selection_indices) {
   int count = 0;
   int i = 0;
   const UnicodeText unicode_str = UTF8ToUnicodeText(str, /*do_copy=*/false);
@@ -727,10 +737,10 @@ namespace internal {
 // Helper function, which if the initial 'span' contains only white-spaces,
 // moves the selection to a single-codepoint selection on a left or right side
 // of this space.
-CodepointSpan SnapLeftIfWhitespaceSelection(CodepointSpan span,
+CodepointSpan SnapLeftIfWhitespaceSelection(const CodepointSpan& span,
                                             const UnicodeText& context_unicode,
                                             const UniLib& unilib) {
-  TC3_CHECK(ValidNonEmptySpan(span));
+  TC3_CHECK(span.IsValid() && !span.IsEmpty());
 
   UnicodeText::const_iterator it;
 
@@ -743,10 +753,8 @@ CodepointSpan SnapLeftIfWhitespaceSelection(CodepointSpan span,
     }
   }
 
-  CodepointSpan result;
-
   // Try moving left.
-  result = span;
+  CodepointSpan result = span;
   it = context_unicode.begin();
   std::advance(it, span.first);
   while (it != context_unicode.begin() && unilib.IsWhitespace(*it)) {
@@ -888,60 +896,72 @@ CodepointSpan Annotator::SuggestSelection(
         click_indices, context_unicode, *unilib_);
   }
 
-  std::vector<AnnotatedSpan> candidates;
+  Annotations candidates;
+  // As we process a single string of context, the candidates will only
+  // contain one vector of AnnotatedSpan.
+  candidates.annotated_spans.resize(1);
   InterpreterManager interpreter_manager(selection_executor_.get(),
                                          classification_executor_.get());
   std::vector<Token> tokens;
   if (!ModelSuggestSelection(context_unicode, click_indices,
                              detected_text_language_tags, &interpreter_manager,
-                             &tokens, &candidates)) {
+                             &tokens, &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Model suggest selection failed.";
     return original_click_indices;
   }
-  if (!RegexChunk(context_unicode, selection_regex_patterns_, &candidates,
-                  /*is_serialized_entity_data_enabled=*/false)) {
+  const std::unordered_set<std::string> set;
+  const EnabledEntityTypes is_entity_type_enabled(set);
+  if (!RegexChunk(context_unicode, selection_regex_patterns_,
+                  /*is_serialized_entity_data_enabled=*/false,
+                  is_entity_type_enabled, options.annotation_usecase,
+                  &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Regex suggest selection failed.";
     return original_click_indices;
   }
-  if (!DatetimeChunk(
-          UTF8ToUnicodeText(context, /*do_copy=*/false),
-          /*reference_time_ms_utc=*/0, /*reference_timezone=*/"",
-          options.locales, ModeFlag_SELECTION, options.annotation_usecase,
-          /*is_serialized_entity_data_enabled=*/false, &candidates)) {
+  if (!DatetimeChunk(UTF8ToUnicodeText(context, /*do_copy=*/false),
+                     /*reference_time_ms_utc=*/0, /*reference_timezone=*/"",
+                     options.locales, ModeFlag_SELECTION,
+                     options.annotation_usecase,
+                     /*is_serialized_entity_data_enabled=*/false,
+                     &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Datetime suggest selection failed.";
     return original_click_indices;
   }
   if (knowledge_engine_ != nullptr &&
       !knowledge_engine_->Chunk(context, options.annotation_usecase,
                                 options.location_context, Permissions(),
-                                &candidates)) {
+                                AnnotateMode::kEntityAnnotation, &candidates)) {
     TC3_LOG(ERROR) << "Knowledge suggest selection failed.";
     return original_click_indices;
   }
   if (contact_engine_ != nullptr &&
-      !contact_engine_->Chunk(context_unicode, tokens, &candidates)) {
+      !contact_engine_->Chunk(context_unicode, tokens,
+                              &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Contact suggest selection failed.";
     return original_click_indices;
   }
   if (installed_app_engine_ != nullptr &&
-      !installed_app_engine_->Chunk(context_unicode, tokens, &candidates)) {
+      !installed_app_engine_->Chunk(context_unicode, tokens,
+                                    &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Installed app suggest selection failed.";
     return original_click_indices;
   }
   if (number_annotator_ != nullptr &&
       !number_annotator_->FindAll(context_unicode, options.annotation_usecase,
-                                  &candidates)) {
+                                  &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Number annotator failed in suggest selection.";
     return original_click_indices;
   }
   if (duration_annotator_ != nullptr &&
       !duration_annotator_->FindAll(context_unicode, tokens,
-                                    options.annotation_usecase, &candidates)) {
+                                    options.annotation_usecase,
+                                    &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Duration annotator failed in suggest selection.";
     return original_click_indices;
   }
   if (person_name_engine_ != nullptr &&
-      !person_name_engine_->Chunk(context_unicode, tokens, &candidates)) {
+      !person_name_engine_->Chunk(context_unicode, tokens,
+                                  &candidates.annotated_spans[0])) {
     TC3_LOG(ERROR) << "Person name suggest selection failed.";
     return original_click_indices;
   }
@@ -951,24 +971,31 @@ CodepointSpan Annotator::SuggestSelection(
       grammar_annotator_->SuggestSelection(detected_text_language_tags,
                                            context_unicode, click_indices,
                                            &grammar_suggested_span)) {
-    candidates.push_back(grammar_suggested_span);
+    candidates.annotated_spans[0].push_back(grammar_suggested_span);
+  }
+
+  if (pod_ner_annotator_ != nullptr && options.use_pod_ner) {
+    candidates.annotated_spans[0].push_back(
+        pod_ner_annotator_->SuggestSelection(context_unicode, click_indices));
   }
 
   if (experimental_annotator_ != nullptr) {
-    candidates.push_back(experimental_annotator_->SuggestSelection(
-        context_unicode, click_indices));
+    candidates.annotated_spans[0].push_back(
+        experimental_annotator_->SuggestSelection(context_unicode,
+                                                  click_indices));
   }
 
   // Sort candidates according to their position in the input, so that the next
   // code can assume that any connected component of overlapping spans forms a
   // contiguous block.
-  std::sort(candidates.begin(), candidates.end(),
+  std::sort(candidates.annotated_spans[0].begin(),
+            candidates.annotated_spans[0].end(),
             [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
               return a.span.first < b.span.first;
             });
 
   std::vector<int> candidate_indices;
-  if (!ResolveConflicts(candidates, context, tokens,
+  if (!ResolveConflicts(candidates.annotated_spans[0], context, tokens,
                         detected_text_language_tags, options.annotation_usecase,
                         &interpreter_manager, &candidate_indices)) {
     TC3_LOG(ERROR) << "Couldn't resolve conflicts.";
@@ -977,32 +1004,36 @@ CodepointSpan Annotator::SuggestSelection(
 
   std::sort(candidate_indices.begin(), candidate_indices.end(),
             [this, &candidates](int a, int b) {
-              return GetPriorityScore(candidates[a].classification) >
-                     GetPriorityScore(candidates[b].classification);
+              return GetPriorityScore(
+                         candidates.annotated_spans[0][a].classification) >
+                     GetPriorityScore(
+                         candidates.annotated_spans[0][b].classification);
             });
 
   for (const int i : candidate_indices) {
-    if (SpansOverlap(candidates[i].span, click_indices) &&
-        SpansOverlap(candidates[i].span, original_click_indices)) {
+    if (SpansOverlap(candidates.annotated_spans[0][i].span, click_indices) &&
+        SpansOverlap(candidates.annotated_spans[0][i].span,
+                     original_click_indices)) {
       // Run model classification if not present but requested and there's a
       // classification collection filter specified.
-      if (candidates[i].classification.empty() &&
+      if (candidates.annotated_spans[0][i].classification.empty() &&
           model_->selection_options()->always_classify_suggested_selection() &&
           !filtered_collections_selection_.empty()) {
-        if (!ModelClassifyText(context, detected_text_language_tags,
-                               candidates[i].span, &interpreter_manager,
-                               /*embedding_cache=*/nullptr,
-                               &candidates[i].classification)) {
+        if (!ModelClassifyText(
+                context, detected_text_language_tags,
+                candidates.annotated_spans[0][i].span, &interpreter_manager,
+                /*embedding_cache=*/nullptr,
+                &candidates.annotated_spans[0][i].classification)) {
           return original_click_indices;
         }
       }
 
       // Ignore if span classification is filtered.
-      if (FilteredForSelection(candidates[i])) {
+      if (FilteredForSelection(candidates.annotated_spans[0][i])) {
         return original_click_indices;
       }
 
-      return candidates[i].span;
+      return candidates.annotated_spans[0][i].span;
     }
   }
 
@@ -1220,7 +1251,7 @@ bool Annotator::ResolveConflict(
 }
 
 bool Annotator::ModelSuggestSelection(
-    const UnicodeText& context_unicode, CodepointSpan click_indices,
+    const UnicodeText& context_unicode, const CodepointSpan& click_indices,
     const std::vector<Locale>& detected_text_language_tags,
     InterpreterManager* interpreter_manager, std::vector<Token>* tokens,
     std::vector<AnnotatedSpan>* result) const {
@@ -1254,11 +1285,11 @@ bool Annotator::ModelSuggestSelection(
 
   // The symmetry context span is the clicked token with symmetry_context_size
   // tokens on either side.
-  const TokenSpan symmetry_context_span = IntersectTokenSpans(
-      ExpandTokenSpan(SingleTokenSpan(click_pos),
-                      /*num_tokens_left=*/symmetry_context_size,
-                      /*num_tokens_right=*/symmetry_context_size),
-      {0, tokens->size()});
+  const TokenSpan symmetry_context_span =
+      IntersectTokenSpans(TokenSpan(click_pos).Expand(
+                              /*num_tokens_left=*/symmetry_context_size,
+                              /*num_tokens_right=*/symmetry_context_size),
+                          AllOf(*tokens));
 
   // Compute the extraction span based on the model type.
   TokenSpan extraction_span;
@@ -1269,22 +1300,21 @@ bool Annotator::ModelSuggestSelection(
     // the bounds of the selection.
     const int max_selection_span =
         selection_feature_processor_->GetOptions()->max_selection_span();
-    extraction_span =
-        ExpandTokenSpan(symmetry_context_span,
-                        /*num_tokens_left=*/max_selection_span +
-                            bounds_sensitive_features->num_tokens_before(),
-                        /*num_tokens_right=*/max_selection_span +
-                            bounds_sensitive_features->num_tokens_after());
+    extraction_span = symmetry_context_span.Expand(
+        /*num_tokens_left=*/max_selection_span +
+            bounds_sensitive_features->num_tokens_before(),
+        /*num_tokens_right=*/max_selection_span +
+            bounds_sensitive_features->num_tokens_after());
   } else {
     // The extraction span is the symmetry context span expanded to include
     // context_size tokens on either side.
     const int context_size =
         selection_feature_processor_->GetOptions()->context_size();
-    extraction_span = ExpandTokenSpan(symmetry_context_span,
-                                      /*num_tokens_left=*/context_size,
-                                      /*num_tokens_right=*/context_size);
+    extraction_span = symmetry_context_span.Expand(
+        /*num_tokens_left=*/context_size,
+        /*num_tokens_right=*/context_size);
   }
-  extraction_span = IntersectTokenSpans(extraction_span, {0, tokens->size()});
+  extraction_span = IntersectTokenSpans(extraction_span, AllOf(*tokens));
 
   if (!selection_feature_processor_->HasEnoughSupportedCodepoints(
           *tokens, extraction_span)) {
@@ -1333,7 +1363,8 @@ bool Annotator::ModelSuggestSelection(
 bool Annotator::ModelClassifyText(
     const std::string& context,
     const std::vector<Locale>& detected_text_language_tags,
-    CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
+    const CodepointSpan& selection_indices,
+    InterpreterManager* interpreter_manager,
     FeatureProcessor::EmbeddingCache* embedding_cache,
     std::vector<ClassificationResult>* classification_results) const {
   return ModelClassifyText(context, {}, detected_text_language_tags,
@@ -1343,7 +1374,7 @@ bool Annotator::ModelClassifyText(
 
 namespace internal {
 std::vector<Token> CopyCachedTokens(const std::vector<Token>& cached_tokens,
-                                    CodepointSpan selection_indices,
+                                    const CodepointSpan& selection_indices,
                                     TokenSpan tokens_around_selection_to_copy) {
   const auto first_selection_token = std::upper_bound(
       cached_tokens.begin(), cached_tokens.end(), selection_indices.first,
@@ -1407,7 +1438,8 @@ void SortClassificationResults(
 bool Annotator::ModelClassifyText(
     const std::string& context, const std::vector<Token>& cached_tokens,
     const std::vector<Locale>& detected_text_language_tags,
-    CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
+    const CodepointSpan& selection_indices,
+    InterpreterManager* interpreter_manager,
     FeatureProcessor::EmbeddingCache* embedding_cache,
     std::vector<ClassificationResult>* classification_results) const {
   std::vector<Token> tokens;
@@ -1419,7 +1451,8 @@ bool Annotator::ModelClassifyText(
 bool Annotator::ModelClassifyText(
     const std::string& context, const std::vector<Token>& cached_tokens,
     const std::vector<Locale>& detected_text_language_tags,
-    CodepointSpan selection_indices, InterpreterManager* interpreter_manager,
+    const CodepointSpan& selection_indices,
+    InterpreterManager* interpreter_manager,
     FeatureProcessor::EmbeddingCache* embedding_cache,
     std::vector<ClassificationResult>* classification_results,
     std::vector<Token>* tokens) const {
@@ -1450,7 +1483,7 @@ bool Annotator::ModelClassifyText(
       tokens, &click_pos);
   const TokenSpan selection_token_span =
       CodepointSpanToTokenSpan(*tokens, selection_indices);
-  const int selection_num_tokens = TokenSpanSize(selection_token_span);
+  const int selection_num_tokens = selection_token_span.Size();
   if (model_->classification_options()->max_num_tokens() > 0 &&
       model_->classification_options()->max_num_tokens() <
           selection_num_tokens) {
@@ -1473,8 +1506,7 @@ bool Annotator::ModelClassifyText(
   if (bounds_sensitive_features && bounds_sensitive_features->enabled()) {
     // The extraction span is the selection span expanded to include a relevant
     // number of tokens outside of the bounds of the selection.
-    extraction_span = ExpandTokenSpan(
-        selection_token_span,
+    extraction_span = selection_token_span.Expand(
         /*num_tokens_left=*/bounds_sensitive_features->num_tokens_before(),
         /*num_tokens_right=*/bounds_sensitive_features->num_tokens_after());
   } else {
@@ -1486,11 +1518,11 @@ bool Annotator::ModelClassifyText(
     // either side.
     const int context_size =
         classification_feature_processor_->GetOptions()->context_size();
-    extraction_span = ExpandTokenSpan(SingleTokenSpan(click_pos),
-                                      /*num_tokens_left=*/context_size,
-                                      /*num_tokens_right=*/context_size);
+    extraction_span = TokenSpan(click_pos).Expand(
+        /*num_tokens_left=*/context_size,
+        /*num_tokens_right=*/context_size);
   }
-  extraction_span = IntersectTokenSpans(extraction_span, {0, tokens->size()});
+  extraction_span = IntersectTokenSpans(extraction_span, AllOf(*tokens));
 
   if (!classification_feature_processor_->HasEnoughSupportedCodepoints(
           *tokens, extraction_span)) {
@@ -1588,7 +1620,7 @@ bool Annotator::ModelClassifyText(
 }
 
 bool Annotator::RegexClassifyText(
-    const std::string& context, CodepointSpan selection_indices,
+    const std::string& context, const CodepointSpan& selection_indices,
     std::vector<ClassificationResult>* classification_result) const {
   const std::string selection_text =
       UTF8ToUnicodeText(context, /*do_copy=*/false)
@@ -1643,42 +1675,10 @@ std::string PickCollectionForDatetime(
   }
 }
 
-std::string CreateDatetimeSerializedEntityData(
-    const DatetimeParseResult& parse_result) {
-  EntityDataT entity_data;
-  entity_data.datetime.reset(new EntityData_::DatetimeT());
-  entity_data.datetime->time_ms_utc = parse_result.time_ms_utc;
-  entity_data.datetime->granularity =
-      static_cast<EntityData_::Datetime_::Granularity>(
-          parse_result.granularity);
-
-  for (const auto& c : parse_result.datetime_components) {
-    EntityData_::Datetime_::DatetimeComponentT datetime_component;
-    datetime_component.absolute_value = c.value;
-    datetime_component.relative_count = c.relative_count;
-    datetime_component.component_type =
-        static_cast<EntityData_::Datetime_::DatetimeComponent_::ComponentType>(
-            c.component_type);
-    datetime_component.relation_type =
-        EntityData_::Datetime_::DatetimeComponent_::RelationType_ABSOLUTE;
-    if (c.relative_qualifier !=
-        DatetimeComponent::RelativeQualifier::UNSPECIFIED) {
-      datetime_component.relation_type =
-          EntityData_::Datetime_::DatetimeComponent_::RelationType_RELATIVE;
-    }
-    entity_data.datetime->datetime_component.emplace_back(
-        new EntityData_::Datetime_::DatetimeComponentT(datetime_component));
-  }
-  flatbuffers::FlatBufferBuilder builder;
-  FinishEntityDataBuffer(builder, EntityData::Pack(builder, &entity_data));
-  return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
-                     builder.GetSize());
-}
-
 }  // namespace
 
 bool Annotator::DatetimeClassifyText(
-    const std::string& context, CodepointSpan selection_indices,
+    const std::string& context, const CodepointSpan& selection_indices,
     const ClassificationOptions& options,
     std::vector<ClassificationResult>* classification_results) const {
   if (!datetime_parser_ && !cfg_datetime_parser_) {
@@ -1720,8 +1720,8 @@ bool Annotator::DatetimeClassifyText(
   for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {
     // Only consider the result valid if the selection and extracted datetime
     // spans exactly match.
-    if (std::make_pair(datetime_span.span.first + selection_indices.first,
-                       datetime_span.span.second + selection_indices.first) ==
+    if (CodepointSpan(datetime_span.span.first + selection_indices.first,
+                      datetime_span.span.second + selection_indices.first) ==
         selection_indices) {
       for (const DatetimeParseResult& parse_result : datetime_span.data) {
         classification_results->emplace_back(
@@ -1740,7 +1740,7 @@ bool Annotator::DatetimeClassifyText(
 }
 
 std::vector<ClassificationResult> Annotator::ClassifyText(
-    const std::string& context, CodepointSpan selection_indices,
+    const std::string& context, const CodepointSpan& selection_indices,
     const ClassificationOptions& options) const {
   if (!initialized_) {
     TC3_LOG(ERROR) << "Not initialized";
@@ -1772,8 +1772,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   if (!IsValidSpanInput(UTF8ToUnicodeText(context, /*do_copy=*/false),
                         selection_indices)) {
     TC3_VLOG(1) << "Trying to run ClassifyText with invalid input: "
-                << std::get<0>(selection_indices) << " "
-                << std::get<1>(selection_indices);
+                << selection_indices.first << " " << selection_indices.second;
     return {};
   }
 
@@ -1885,11 +1884,16 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, {grammar_annotator_result}});
   }
 
-  ClassificationResult experimental_annotator_result;
-  if (experimental_annotator_ &&
-      experimental_annotator_->ClassifyText(context_unicode, selection_indices,
-                                            &experimental_annotator_result)) {
-    candidates.push_back({selection_indices, {experimental_annotator_result}});
+  ClassificationResult pod_ner_annotator_result;
+  if (pod_ner_annotator_ && options.use_pod_ner &&
+      pod_ner_annotator_->ClassifyText(context_unicode, selection_indices,
+                                       &pod_ner_annotator_result)) {
+    candidates.push_back({selection_indices, {pod_ner_annotator_result}});
+  }
+
+  if (experimental_annotator_) {
+    experimental_annotator_->ClassifyText(context_unicode, selection_indices,
+                                          candidates);
   }
 
   // Try the ML model.
@@ -1983,7 +1987,8 @@ bool Annotator::ModelAnnotate(
         selection_feature_processor_->GetOptions()->only_use_line_with_click(),
         tokens,
         /*click_pos=*/nullptr);
-    const TokenSpan full_line_span = {0, tokens->size()};
+    const TokenSpan full_line_span = {0,
+                                      static_cast<TokenIndex>(tokens->size())};
 
     // TODO(zilka): Add support for greater granularity of this check.
     if (!selection_feature_processor_->HasEnoughSupportedCodepoints(
@@ -2014,9 +2019,13 @@ bool Annotator::ModelAnnotate(
 
     const int offset = std::distance(context_unicode.begin(), line.first);
     for (const TokenSpan& chunk : local_chunks) {
-      const CodepointSpan codepoint_span =
+      CodepointSpan codepoint_span =
           selection_feature_processor_->StripBoundaryCodepoints(
               line_str, TokenSpanToCodepointSpan(*tokens, chunk));
+      if (model_->selection_options()->strip_unpaired_brackets()) {
+        codepoint_span =
+            StripUnpairedBrackets(context_unicode, codepoint_span, *unilib_);
+      }
 
       // Skip empty spans.
       if (codepoint_span.first != codepoint_span.second) {
@@ -2133,15 +2142,16 @@ Status Annotator::AnnotateSingleInput(
     return Status(StatusCode::INTERNAL, "Couldn't run ModelAnnotate.");
   }
 
+  const EnabledEntityTypes is_entity_type_enabled(options.entity_types);
   // Annotate with the regular expression models.
-  if (!RegexChunk(UTF8ToUnicodeText(context, /*do_copy=*/false),
-                  annotation_regex_patterns_, candidates,
-                  options.is_serialized_entity_data_enabled)) {
+  if (!RegexChunk(
+          UTF8ToUnicodeText(context, /*do_copy=*/false),
+          annotation_regex_patterns_, options.is_serialized_entity_data_enabled,
+          is_entity_type_enabled, options.annotation_usecase, candidates)) {
     return Status(StatusCode::INTERNAL, "Couldn't run RegexChunk.");
   }
 
   // Annotate with the datetime model.
-  const EnabledEntityTypes is_entity_type_enabled(options.entity_types);
   if ((is_entity_type_enabled(Collections::Date()) ||
        is_entity_type_enabled(Collections::DateTime())) &&
       !DatetimeChunk(UTF8ToUnicodeText(context, /*do_copy=*/false),
@@ -2166,7 +2176,15 @@ Status Annotator::AnnotateSingleInput(
   }
 
   // Annotate with the number annotator.
-  if (number_annotator_ != nullptr &&
+  bool number_annotations_enabled = true;
+  // Disable running the annotator in RAW mode if the number/percentage
+  // annotations are not explicitly requested.
+  if (options.annotation_usecase == AnnotationUsecase_ANNOTATION_USECASE_RAW &&
+      !is_entity_type_enabled(Collections::Number()) &&
+      !is_entity_type_enabled(Collections::Percentage())) {
+    number_annotations_enabled = false;
+  }
+  if (number_annotations_enabled && number_annotator_ != nullptr &&
       !number_annotator_->FindAll(context_unicode, options.annotation_usecase,
                                   candidates)) {
     return Status(StatusCode::INTERNAL,
@@ -2197,6 +2215,13 @@ Status Annotator::AnnotateSingleInput(
     return Status(StatusCode::INTERNAL, "Couldn't run grammar annotators.");
   }
 
+  // Annotate with the POD NER annotator.
+  if (pod_ner_annotator_ != nullptr && options.use_pod_ner &&
+      !pod_ner_annotator_->Annotate(context_unicode, candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run POD NER annotator.");
+  }
+
+  // Annotate with the experimental annotator.
   if (experimental_annotator_ != nullptr &&
       !experimental_annotator_->Annotate(context_unicode, candidates)) {
     return Status(StatusCode::INTERNAL, "Couldn't run experimental annotator.");
@@ -2267,12 +2292,11 @@ Status Annotator::AnnotateSingleInput(
   return Status::OK;
 }
 
-StatusOr<std::vector<std::vector<AnnotatedSpan>>>
-Annotator::AnnotateStructuredInput(
+StatusOr<Annotations> Annotator::AnnotateStructuredInput(
     const std::vector<InputFragment>& string_fragments,
     const AnnotationOptions& options) const {
-  std::vector<std::vector<AnnotatedSpan>> annotation_candidates(
-      string_fragments.size());
+  Annotations annotation_candidates;
+  annotation_candidates.annotated_spans.resize(string_fragments.size());
 
   std::vector<std::string> text_to_annotate;
   text_to_annotate.reserve(string_fragments.size());
@@ -2286,19 +2310,28 @@ Annotator::AnnotateStructuredInput(
       !knowledge_engine_
            ->ChunkMultipleSpans(text_to_annotate, options.annotation_usecase,
                                 options.location_context, options.permissions,
-                                &annotation_candidates)
+                                options.annotate_mode, &annotation_candidates)
            .ok()) {
     return Status(StatusCode::INTERNAL, "Couldn't run knowledge engine Chunk.");
   }
   // The annotator engines shouldn't change the number of annotation vectors.
-  if (annotation_candidates.size() != text_to_annotate.size()) {
+  if (annotation_candidates.annotated_spans.size() != text_to_annotate.size()) {
     TC3_LOG(ERROR) << "Received " << text_to_annotate.size()
                    << " texts to annotate but generated a different number of  "
                       "lists of annotations:"
-                   << annotation_candidates.size();
+                   << annotation_candidates.annotated_spans.size();
     return Status(StatusCode::INTERNAL,
                   "Number of annotation candidates differs from "
                   "number of texts to annotate.");
+  }
+
+  // As an optimization, if the only annotated type is Entity, we skip all the
+  // other annotators than the KnowledgeEngine. This only happens in the raw
+  // mode, to make sure it does not affect the result.
+  if (options.annotation_usecase == ANNOTATION_USECASE_RAW &&
+      options.entity_types.size() == 1 &&
+      *options.entity_types.begin() == Collections::Entity()) {
+    return annotation_candidates;
   }
 
   // Other annotators run on each fragment independently.
@@ -2314,10 +2347,11 @@ Annotator::AnnotateStructuredInput(
     }
 
     AddContactMetadataToKnowledgeClassificationResults(
-        &annotation_candidates[i]);
+        &annotation_candidates.annotated_spans[i]);
 
-    Status annotation_status = AnnotateSingleInput(
-        text_to_annotate[i], annotation_options, &annotation_candidates[i]);
+    Status annotation_status =
+        AnnotateSingleInput(text_to_annotate[i], annotation_options,
+                            &annotation_candidates.annotated_spans[i]);
     if (!annotation_status.ok()) {
       return annotation_status;
     }
@@ -2329,14 +2363,14 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
     const std::string& context, const AnnotationOptions& options) const {
   std::vector<InputFragment> string_fragments;
   string_fragments.push_back({.text = context});
-  StatusOr<std::vector<std::vector<AnnotatedSpan>>> annotations =
+  StatusOr<Annotations> annotations =
       AnnotateStructuredInput(string_fragments, options);
   if (!annotations.ok()) {
     TC3_LOG(ERROR) << "Returned error when calling AnnotateStructuredInput: "
                    << annotations.status().error_message();
     return {};
   }
-  return annotations.ValueOrDie()[0];
+  return annotations.ValueOrDie().annotated_spans[0];
 }
 
 CodepointSpan Annotator::ComputeSelectionBoundaries(
@@ -2408,7 +2442,7 @@ bool Annotator::SerializedEntityDataFromRegexMatch(
   }
   TC3_CHECK(entity_data_builder_ != nullptr);
 
-  std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+  std::unique_ptr<MutableFlatbuffer> entity_data =
       entity_data_builder_->NewRoot();
 
   TC3_CHECK(entity_data != nullptr);
@@ -2490,8 +2524,44 @@ UnicodeText RemoveMoneySeparators(
   return whole_amount;
 }
 
+void Annotator::GetMoneyQuantityFromCapturingGroup(
+    const UniLib::RegexMatcher* match, const RegexModel_::Pattern* config,
+    const UnicodeText& context_unicode, std::string* quantity,
+    int* exponent) const {
+  if (config->capturing_group() == nullptr) {
+    *exponent = 0;
+    return;
+  }
+
+  const int num_groups = config->capturing_group()->size();
+  for (int i = 0; i < num_groups; i++) {
+    int status = UniLib::RegexMatcher::kNoError;
+    const int group_start = match->Start(i, &status);
+    const int group_end = match->End(i, &status);
+    if (group_start == kInvalidIndex || group_end == kInvalidIndex) {
+      continue;
+    }
+
+    *quantity =
+        unilib_
+            ->ToLowerText(UnicodeText::Substring(context_unicode, group_start,
+                                                 group_end, /*do_copy=*/false))
+            .ToUTF8String();
+
+    if (auto entry = model_->money_parsing_options()
+                         ->quantities_name_to_exponent()
+                         ->LookupByKey((*quantity).c_str())) {
+      *exponent = entry->value();
+      return;
+    }
+  }
+  *exponent = 0;
+}
+
 bool Annotator::ParseAndFillInMoneyAmount(
-    std::string* serialized_entity_data) const {
+    std::string* serialized_entity_data, const UniLib::RegexMatcher* match,
+    const RegexModel_::Pattern* config,
+    const UnicodeText& context_unicode) const {
   std::unique_ptr<EntityDataT> data =
       LoadAndVerifyMutableFlatbuffer<libtextclassifier3::EntityData>(
           *serialized_entity_data);
@@ -2543,19 +2613,40 @@ bool Annotator::ParseAndFillInMoneyAmount(
                    << data->money->unnormalized_amount;
     return false;
   }
+
   if (it_decimal_separator == amount.end()) {
     data->money->amount_decimal_part = 0;
+    data->money->nanos = 0;
   } else {
     const int amount_codepoints_size = amount.size_codepoints();
-    if (!unilib_->ParseInt32(
-            UnicodeText::Substring(
-                amount, amount_codepoints_size - separator_back_index,
-                amount_codepoints_size, /*do_copy=*/false),
-            &data->money->amount_decimal_part)) {
+    const UnicodeText decimal_part = UnicodeText::Substring(
+        amount, amount_codepoints_size - separator_back_index,
+        amount_codepoints_size, /*do_copy=*/false);
+    if (!unilib_->ParseInt32(decimal_part, &data->money->amount_decimal_part)) {
       TC3_LOG(ERROR) << "Could not parse the money decimal part as int32 from "
                         "the amount: "
                      << data->money->unnormalized_amount;
       return false;
+    }
+    data->money->nanos = data->money->amount_decimal_part *
+                         pow(10, 9 - decimal_part.size_codepoints());
+  }
+
+  if (model_->money_parsing_options()->quantities_name_to_exponent() !=
+      nullptr) {
+    int quantity_exponent;
+    std::string quantity;
+    GetMoneyQuantityFromCapturingGroup(match, config, context_unicode,
+                                       &quantity, &quantity_exponent);
+    if (quantity_exponent != 0) {
+      data->money->amount_whole_part =
+          data->money->amount_whole_part * pow(10, quantity_exponent) +
+          data->money->nanos / pow(10, 9 - quantity_exponent);
+      data->money->nanos = data->money->nanos %
+                           static_cast<int>(pow(10, 9 - quantity_exponent)) *
+                           pow(10, quantity_exponent);
+      data->money->unnormalized_amount = strings::JoinStrings(
+          " ", {data->money->unnormalized_amount, quantity});
     }
   }
 
@@ -2566,10 +2657,17 @@ bool Annotator::ParseAndFillInMoneyAmount(
 
 bool Annotator::RegexChunk(const UnicodeText& context_unicode,
                            const std::vector<int>& rules,
-                           std::vector<AnnotatedSpan>* result,
-                           bool is_serialized_entity_data_enabled) const {
+                           bool is_serialized_entity_data_enabled,
+                           const EnabledEntityTypes& enabled_entity_types,
+                           const AnnotationUsecase& annotation_usecase,
+                           std::vector<AnnotatedSpan>* result) const {
   for (int pattern_id : rules) {
     const CompiledRegexPattern& regex_pattern = regex_patterns_[pattern_id];
+    if (!enabled_entity_types(regex_pattern.config->collection_name()->str()) &&
+        annotation_usecase == AnnotationUsecase_ANNOTATION_USECASE_RAW) {
+      // No regex annotation type has been requested, skip regex annotation.
+      continue;
+    }
     const auto matcher = regex_pattern.pattern->Matcher(context_unicode);
     if (!matcher) {
       TC3_LOG(ERROR) << "Could not get regex matcher for pattern: "
@@ -2596,12 +2694,14 @@ bool Annotator::RegexChunk(const UnicodeText& context_unicode,
           return false;
         }
 
-        // Further parsing unnormalized_amount for money into amount_whole_part
-        // and amount_decimal_part. Can't do this with regexes because we cannot
-        // have empty groups (amount_decimal_part might be an empty group).
+        // Further parsing of money amount. Need this since regexes cannot have
+        // empty groups that fill in entity data (amount_decimal_part and
+        // quantity might be empty groups).
         if (regex_pattern.config->collection_name()->str() ==
             Collections::Money()) {
-          if (!ParseAndFillInMoneyAmount(&serialized_entity_data)) {
+          if (!ParseAndFillInMoneyAmount(&serialized_entity_data, matcher.get(),
+                                         regex_pattern.config,
+                                         context_unicode)) {
             if (model_->version() >= 706) {
               // This way of parsing money entity data is enabled for models
               // newer than v706 => logging errors only for them (b/156634162).
@@ -2639,11 +2739,11 @@ bool Annotator::ModelChunk(int num_tokens, const TokenSpan& span_of_interest,
   // The inference span is the span of interest expanded to include
   // max_selection_span tokens on either side, which is how far a selection can
   // stretch from the click.
-  const TokenSpan inference_span = IntersectTokenSpans(
-      ExpandTokenSpan(span_of_interest,
-                      /*num_tokens_left=*/max_selection_span,
-                      /*num_tokens_right=*/max_selection_span),
-      {0, num_tokens});
+  const TokenSpan inference_span =
+      IntersectTokenSpans(span_of_interest.Expand(
+                              /*num_tokens_left=*/max_selection_span,
+                              /*num_tokens_right=*/max_selection_span),
+                          {0, num_tokens});
 
   std::vector<ScoredChunk> scored_chunks;
   if (selection_feature_processor_->GetOptions()->bounds_sensitive_features() &&
@@ -2670,7 +2770,7 @@ bool Annotator::ModelChunk(int num_tokens, const TokenSpan& span_of_interest,
   // Traverse the candidate chunks from highest-scoring to lowest-scoring. Pick
   // them greedily as long as they do not overlap with any previously picked
   // chunks.
-  std::vector<bool> token_used(TokenSpanSize(inference_span));
+  std::vector<bool> token_used(inference_span.Size());
   chunks->clear();
   for (const ScoredChunk& scored_chunk : scored_chunks) {
     bool feasible = true;
@@ -2766,9 +2866,8 @@ bool Annotator::ModelClickContextScoreChunks(
           TC3_LOG(ERROR) << "Couldn't map the label to a token span.";
           return false;
         }
-        const TokenSpan candidate_span = ExpandTokenSpan(
-            SingleTokenSpan(click_pos), relative_token_span.first,
-            relative_token_span.second);
+        const TokenSpan candidate_span = TokenSpan(click_pos).Expand(
+            relative_token_span.first, relative_token_span.second);
         if (candidate_span.first >= 0 && candidate_span.second <= num_tokens) {
           UpdateMax(&chunk_scores, candidate_span, scores[j]);
         }
@@ -2803,7 +2902,7 @@ bool Annotator::ModelBoundsSensitiveScoreChunks(
 
   scored_chunks->clear();
   if (score_single_token_spans_as_zero) {
-    scored_chunks->reserve(TokenSpanSize(span_of_interest));
+    scored_chunks->reserve(span_of_interest.Size());
   }
 
   // Prepare all chunk candidates into one batch:
@@ -2819,8 +2918,7 @@ bool Annotator::ModelBoundsSensitiveScoreChunks(
          end <= inference_span.second && end - start <= max_chunk_length;
          ++end) {
       const TokenSpan candidate_span = {start, end};
-      if (score_single_token_spans_as_zero &&
-          TokenSpanSize(candidate_span) == 1) {
+      if (score_single_token_spans_as_zero && candidate_span.Size() == 1) {
         // Do not include the single token span in the batch, add a zero score
         // for it directly to the output.
         scored_chunks->push_back(ScoredChunk{candidate_span, 0.0f});

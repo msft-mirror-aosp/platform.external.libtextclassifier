@@ -70,7 +70,7 @@ bool IsSameLhsSet(const Ir::LhsSet& lhs_set,
     }
   }
 
-  return false;
+  return true;
 }
 
 Ir::LhsSet SortedLhsSet(const Ir::LhsSet& lhs_set) {
