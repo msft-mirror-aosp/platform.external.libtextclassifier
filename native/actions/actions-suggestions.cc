@@ -24,12 +24,12 @@
 #include "actions/zlib-utils.h"
 #include "annotator/collections.h"
 #include "utils/base/logging.h"
-#include "utils/flatbuffers.h"
 #include "utils/lua-utils.h"
 #include "utils/normalization.h"
 #include "utils/optional.h"
 #include "utils/strings/split.h"
 #include "utils/strings/stringpiece.h"
+#include "utils/strings/utf8.h"
 #include "utils/utf8/unicodetext.h"
 #include "tensorflow/lite/string_util.h"
 
@@ -51,10 +51,6 @@ const std::string& ActionsSuggestions::kSendEmailType =
     *[]() { return new std::string("send_email"); }();
 const std::string& ActionsSuggestions::kShareLocation =
     *[]() { return new std::string("share_location"); }();
-
-// Name for a datetime annotation that only includes time but no date.
-const std::string& kTimeAnnotation =
-    *[]() { return new std::string("time"); }();
 
 constexpr float kDefaultFloat = 0.0;
 constexpr bool kDefaultBool = false;
@@ -285,7 +281,7 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     }
 
     entity_data_builder_.reset(
-        new ReflectiveFlatbufferBuilder(entity_data_schema_));
+        new MutableFlatbufferBuilder(entity_data_schema_));
   } else {
     entity_data_schema_ = nullptr;
   }
@@ -777,7 +773,7 @@ void ActionsSuggestions::PopulateTextReplies(
 
 void ActionsSuggestions::FillSuggestionFromSpecWithEntityData(
     const ActionSuggestionSpec* spec, ActionSuggestion* suggestion) const {
-  std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+  std::unique_ptr<MutableFlatbuffer> entity_data =
       entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
                                       : nullptr;
   FillSuggestionFromSpec(spec, entity_data.get(), suggestion);
@@ -806,7 +802,7 @@ void ActionsSuggestions::PopulateIntentTriggering(
 
   if (triggering) {
     ActionSuggestion suggestion;
-    std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+    std::unique_ptr<MutableFlatbuffer> entity_data =
         entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
                                         : nullptr;
     FillSuggestionFromSpecWithEntityData(task_spec, &suggestion);
@@ -881,7 +877,7 @@ bool ActionsSuggestions::ReadModelOutput(
       // Create action from model output.
       ActionSuggestion suggestion;
       suggestion.type = action_type->name()->str();
-      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+      std::unique_ptr<MutableFlatbuffer> entity_data =
           entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
                                           : nullptr;
       FillSuggestionFromSpecWithEntityData(action_type->action(), &suggestion);
@@ -1036,30 +1032,7 @@ Conversation ActionsSuggestions::AnnotateConversation(
     if (message->annotations.empty()) {
       message->annotations = annotator->Annotate(
           message->text, AnnotationOptionsForMessage(*message));
-      for (int i = 0; i < message->annotations.size(); i++) {
-        ClassificationResult* classification =
-            &message->annotations[i].classification.front();
-
-        // Specialize datetime annotation to time annotation if no date
-        // component is present.
-        if (classification->collection == Collections::DateTime() &&
-            classification->datetime_parse_result.IsSet()) {
-          bool has_only_time = true;
-          for (const DatetimeComponent& component :
-               classification->datetime_parse_result.datetime_components) {
-            if (component.component_type !=
-                    DatetimeComponent::ComponentType::UNSPECIFIED &&
-                component.component_type <
-                    DatetimeComponent::ComponentType::HOUR) {
-              has_only_time = false;
-              break;
-            }
-          }
-          if (has_only_time) {
-            classification->collection = kTimeAnnotation;
-          }
-        }
-      }
+      ConvertDatetimeToTime(&message->annotations);
     }
   }
   return annotated_conversation;
@@ -1160,7 +1133,7 @@ void ActionsSuggestions::SuggestActionsFromAnnotation(
         continue;
       }
 
-      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+      std::unique_ptr<MutableFlatbuffer> entity_data =
           entity_data_builder_ != nullptr ? entity_data_builder_->NewRoot()
                                           : nullptr;
 
@@ -1363,6 +1336,15 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
     if (conversation.messages[i].reference_time_ms_utc <
         conversation.messages[i - 1].reference_time_ms_utc) {
       TC3_LOG(ERROR) << "Messages are not sorted most recent last.";
+      return response;
+    }
+  }
+
+  // Check that messages are valid utf8.
+  for (const ConversationMessage& message : conversation.messages) {
+    if (!IsValidUTF8(message.text.data(), message.text.size())) {
+      TC3_LOG(ERROR) << "Not valid utf8 provided.";
+      return response;
     }
   }
 

@@ -28,6 +28,7 @@
 #include "annotator/annotator.h"
 #include "annotator/annotator_jni_common.h"
 #include "utils/base/integral_types.h"
+#include "utils/base/status_macros.h"
 #include "utils/base/statusor.h"
 #include "utils/intents/intent-generator.h"
 #include "utils/intents/jni.h"
@@ -35,7 +36,6 @@
 #include "utils/java/jni-base.h"
 #include "utils/java/jni-cache.h"
 #include "utils/java/jni-helper.h"
-#include "utils/java/string_utils.h"
 #include "utils/memory/mmap.h"
 
 using libtextclassifier3::ActionsSuggestions;
@@ -45,9 +45,9 @@ using libtextclassifier3::ActionSuggestionOptions;
 using libtextclassifier3::Annotator;
 using libtextclassifier3::Conversation;
 using libtextclassifier3::IntentGenerator;
+using libtextclassifier3::JStringToUtf8String;
 using libtextclassifier3::ScopedLocalRef;
 using libtextclassifier3::StatusOr;
-using libtextclassifier3::ToStlString;
 
 // When using the Java's ICU, UniLib needs to be instantiated with a JavaVM
 // pointer from JNI. When using a standard ICU the pointer is not needed and the
@@ -74,12 +74,13 @@ class ActionsSuggestionsJniContext {
     std::unique_ptr<IntentGenerator> intent_generator =
         IntentGenerator::Create(model->model()->android_intent_options(),
                                 model->model()->resources(), jni_cache);
-    std::unique_ptr<RemoteActionTemplatesHandler> template_handler =
-        libtextclassifier3::RemoteActionTemplatesHandler::Create(jni_cache);
-
-    if (intent_generator == nullptr || template_handler == nullptr) {
+    if (intent_generator == nullptr) {
       return nullptr;
     }
+
+    TC3_ASSIGN_OR_RETURN_NULL(
+        std::unique_ptr<RemoteActionTemplatesHandler> template_handler,
+        libtextclassifier3::RemoteActionTemplatesHandler::Create(jni_cache));
 
     return new ActionsSuggestionsJniContext(jni_cache, std::move(model),
                                             std::move(intent_generator),
@@ -166,11 +167,11 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
           serialized_entity_data,
           JniHelper::NewByteArray(
               env, action_result[i].serialized_entity_data.size()));
-      env->SetByteArrayRegion(
-          serialized_entity_data.get(), 0,
+      TC3_RETURN_IF_ERROR(JniHelper::SetByteArrayRegion(
+          env, serialized_entity_data.get(), 0,
           action_result[i].serialized_entity_data.size(),
           reinterpret_cast<const jbyte*>(
-              action_result[i].serialized_entity_data.data()));
+              action_result[i].serialized_entity_data.data())));
     }
 
     ScopedLocalRef<jobjectArray> remote_action_templates_result;
@@ -203,7 +204,8 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
                              static_cast<jfloat>(action_result[i].score),
                              extras.get(), serialized_entity_data.get(),
                              remote_action_templates_result.get()));
-    env->SetObjectArrayElement(results.get(), i, result.get());
+    TC3_RETURN_IF_ERROR(
+        JniHelper::SetObjectArrayElement(env, results.get(), i, result.get()));
   }
   return results;
 }
@@ -262,13 +264,14 @@ StatusOr<ConversationMessage> FromJavaConversationMessage(JNIEnv* env,
           env, jmessage, get_detected_text_language_tags_method));
 
   ConversationMessage message;
-  TC3_ASSIGN_OR_RETURN(message.text, ToStlString(env, text.get()));
+  TC3_ASSIGN_OR_RETURN(message.text, JStringToUtf8String(env, text.get()));
   message.user_id = user_id;
   message.reference_time_ms_utc = reference_time;
   TC3_ASSIGN_OR_RETURN(message.reference_timezone,
-                       ToStlString(env, reference_timezone.get()));
-  TC3_ASSIGN_OR_RETURN(message.detected_text_language_tags,
-                       ToStlString(env, detected_text_language_tags.get()));
+                       JStringToUtf8String(env, reference_timezone.get()));
+  TC3_ASSIGN_OR_RETURN(
+      message.detected_text_language_tags,
+      JStringToUtf8String(env, detected_text_language_tags.get()));
   return message;
 }
 
@@ -295,7 +298,8 @@ StatusOr<Conversation> FromJavaConversation(JNIEnv* env,
           env, jconversation, get_conversation_messages_method));
 
   std::vector<ConversationMessage> messages;
-  const int size = env->GetArrayLength(jmessages.get());
+  TC3_ASSIGN_OR_RETURN(const int size,
+                       JniHelper::GetArrayLength(env, jmessages.get()));
   for (int i = 0; i < size; i++) {
     TC3_ASSIGN_OR_RETURN(
         ScopedLocalRef<jobject> jmessage,
@@ -353,81 +357,86 @@ using libtextclassifier3::ActionsSuggestionsJniContext;
 using libtextclassifier3::ActionSuggestionsToJObjectArray;
 using libtextclassifier3::FromJavaActionSuggestionOptions;
 using libtextclassifier3::FromJavaConversation;
+using libtextclassifier3::JByteArrayToString;
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModel)
-(JNIEnv* env, jobject thiz, jint fd, jbyteArray serialized_preconditions) {
+(JNIEnv* env, jobject clazz, jint fd, jbyteArray jserialized_preconditions) {
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache =
       libtextclassifier3::JniCache::Create(env);
-  std::string preconditions;
-  if (serialized_preconditions != nullptr &&
-      !libtextclassifier3::JByteArrayToString(env, serialized_preconditions,
-                                              &preconditions)) {
-    TC3_LOG(ERROR) << "Could not convert serialized preconditions.";
-    return 0;
+  std::string serialized_preconditions;
+  if (jserialized_preconditions != nullptr) {
+    TC3_ASSIGN_OR_RETURN_0(
+        serialized_preconditions,
+        JByteArrayToString(env, jserialized_preconditions),
+        TC3_LOG(ERROR) << "Could not convert serialized preconditions.");
   }
+
 #ifdef TC3_UNILIB_JAVAICU
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
-      jni_cache,
-      ActionsSuggestions::FromFileDescriptor(
-          fd, std::unique_ptr<UniLib>(new UniLib(jni_cache)), preconditions)));
+      jni_cache, ActionsSuggestions::FromFileDescriptor(
+                     fd, std::unique_ptr<UniLib>(new UniLib(jni_cache)),
+                     serialized_preconditions)));
 #else
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
-      jni_cache, ActionsSuggestions::FromFileDescriptor(fd, /*unilib=*/nullptr,
-                                                        preconditions)));
+      jni_cache, ActionsSuggestions::FromFileDescriptor(
+                     fd, /*unilib=*/nullptr, serialized_preconditions)));
 #endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelFromPath)
-(JNIEnv* env, jobject thiz, jstring path, jbyteArray serialized_preconditions) {
+(JNIEnv* env, jobject clazz, jstring path,
+ jbyteArray jserialized_preconditions) {
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache =
       libtextclassifier3::JniCache::Create(env);
-  TC3_ASSIGN_OR_RETURN_0(const std::string path_str, ToStlString(env, path));
-  std::string preconditions;
-  if (serialized_preconditions != nullptr &&
-      !libtextclassifier3::JByteArrayToString(env, serialized_preconditions,
-                                              &preconditions)) {
-    TC3_LOG(ERROR) << "Could not convert serialized preconditions.";
-    return 0;
+  TC3_ASSIGN_OR_RETURN_0(const std::string path_str,
+                         JStringToUtf8String(env, path));
+  std::string serialized_preconditions;
+  if (jserialized_preconditions != nullptr) {
+    TC3_ASSIGN_OR_RETURN_0(
+        serialized_preconditions,
+        JByteArrayToString(env, jserialized_preconditions),
+        TC3_LOG(ERROR) << "Could not convert serialized preconditions.");
   }
 #ifdef TC3_UNILIB_JAVAICU
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
       jni_cache, ActionsSuggestions::FromPath(
                      path_str, std::unique_ptr<UniLib>(new UniLib(jni_cache)),
-                     preconditions)));
+                     serialized_preconditions)));
 #else
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
       jni_cache, ActionsSuggestions::FromPath(path_str, /*unilib=*/nullptr,
-                                              preconditions)));
+                                              serialized_preconditions)));
 #endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelWithOffset)
-(JNIEnv* env, jobject thiz, jint fd, jlong offset, jlong size,
- jbyteArray serialized_preconditions) {
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size,
+ jbyteArray jserialized_preconditions) {
   std::shared_ptr<libtextclassifier3::JniCache> jni_cache =
       libtextclassifier3::JniCache::Create(env);
-  std::string preconditions;
-  if (serialized_preconditions != nullptr &&
-      !libtextclassifier3::JByteArrayToString(env, serialized_preconditions,
-                                              &preconditions)) {
-    TC3_LOG(ERROR) << "Could not convert serialized preconditions.";
-    return 0;
+  std::string serialized_preconditions;
+  if (jserialized_preconditions != nullptr) {
+    TC3_ASSIGN_OR_RETURN_0(
+        serialized_preconditions,
+        JByteArrayToString(env, jserialized_preconditions),
+        TC3_LOG(ERROR) << "Could not convert serialized preconditions.");
   }
 #ifdef TC3_UNILIB_JAVAICU
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
       jni_cache,
       ActionsSuggestions::FromFileDescriptor(
           fd, offset, size, std::unique_ptr<UniLib>(new UniLib(jni_cache)),
-          preconditions)));
+          serialized_preconditions)));
 #else
   return reinterpret_cast<jlong>(ActionsSuggestionsJniContext::Create(
-      jni_cache, ActionsSuggestions::FromFileDescriptor(
-                     fd, offset, size, /*unilib=*/nullptr, preconditions)));
+      jni_cache,
+      ActionsSuggestions::FromFileDescriptor(
+          fd, offset, size, /*unilib=*/nullptr, serialized_preconditions)));
 #endif  // TC3_UNILIB_JAVAICU
 }
 
 TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
-(JNIEnv* env, jobject clazz, jlong ptr, jobject jconversation, jobject joptions,
+(JNIEnv* env, jobject thiz, jlong ptr, jobject jconversation, jobject joptions,
  jlong annotatorPtr, jobject app_context, jstring device_locales,
  jboolean generate_intents) {
   if (!ptr) {
@@ -456,7 +465,7 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
 }
 
 TC3_JNI_METHOD(void, TC3_ACTIONS_CLASS_NAME, nativeCloseActionsModel)
-(JNIEnv* env, jobject clazz, jlong model_ptr) {
+(JNIEnv* env, jobject thiz, jlong model_ptr) {
   const ActionsSuggestionsJniContext* context =
       reinterpret_cast<ActionsSuggestionsJniContext*>(model_ptr);
   delete context;

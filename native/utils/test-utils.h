@@ -30,8 +30,13 @@ std::vector<Token> TokenizeOnSpace(const std::string& text);
 
 // Returns a list of Tokens for a given input string, by tokenizing on the
 // given set of delimiter codepoints.
+// If create_tokens_for_non_space_delimiters is true, create tokens for
+// delimiters which are not white spaces. For example "This, is" -> {"This",
+// ",", "is"}.
+
 std::vector<Token> TokenizeOnDelimiters(
-    const std::string& text, const std::unordered_set<char32>& delimiters);
+    const std::string& text, const std::unordered_set<char32>& delimiters,
+    bool create_tokens_for_non_space_delimiters = false);
 
 }  // namespace  libtextclassifier3
 

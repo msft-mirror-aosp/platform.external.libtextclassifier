@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "annotator/knowledge/knowledge-engine-types.h"
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/status.h"
@@ -46,17 +47,17 @@ class KnowledgeEngine {
 
   bool Chunk(const std::string& text, AnnotationUsecase annotation_usecase,
              const Optional<LocationContext>& location_context,
-             const Permissions& permissions,
-             std::vector<AnnotatedSpan>* result) const {
+             const Permissions& permissions, const AnnotateMode annotate_mode,
+             Annotations* result) const {
     return true;
   }
 
-  Status ChunkMultipleSpans(
-      const std::vector<std::string>& text_fragments,
-      AnnotationUsecase annotation_usecase,
-      const Optional<LocationContext>& location_context,
-      const Permissions& permissions,
-      std::vector<std::vector<AnnotatedSpan>>* results) const {
+  Status ChunkMultipleSpans(const std::vector<std::string>& text_fragments,
+                            AnnotationUsecase annotation_usecase,
+                            const Optional<LocationContext>& location_context,
+                            const Permissions& permissions,
+                            const AnnotateMode annotate_mode,
+                            Annotations* results) const {
     return Status::OK;
   }
 

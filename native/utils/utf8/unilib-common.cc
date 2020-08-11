@@ -61,6 +61,12 @@ constexpr char32 kWhitespaces[] = {
     0x1F501, 0x1F502, 0x1F503, 0x1F504, 0x1F5D8, 0x1F5DE};
 constexpr int kNumWhitespaces = ARRAYSIZE(kWhitespaces);
 
+// https://en.wikipedia.org/wiki/Bidirectional_text
+constexpr char32 kBidirectional[] = {0x061C, 0x200E, 0x200F, 0x202A,
+                                     0x202B, 0x202C, 0x202D, 0x202E,
+                                     0x2066, 0x2067, 0x2068, 0x2069};
+constexpr int kNumBidirectional = ARRAYSIZE(kBidirectional);
+
 // grep -E "Nd" UnicodeData.txt | sed -re "s/([0-9A-Z]+);.*/0x\1, /"
 // As the name suggests, these ranges are always 10 codepoints long, so we just
 // store the end of the range.
@@ -500,6 +506,10 @@ bool IsClosingBracket(char32 codepoint) {
 
 bool IsWhitespace(char32 codepoint) {
   return GetMatchIndex(kWhitespaces, kNumWhitespaces, codepoint) >= 0;
+}
+
+bool IsBidirectional(char32 codepoint) {
+  return GetMatchIndex(kBidirectional, kNumBidirectional, codepoint) >= 0;
 }
 
 bool IsDigit(char32 codepoint) {

@@ -34,7 +34,8 @@
 #include "annotator/annotator.h"
 #include "annotator/model-executor.h"
 #include "annotator/types.h"
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/flatbuffers.h"
+#include "utils/flatbuffers/mutable.h"
 #include "utils/i18n/locale.h"
 #include "utils/memory/mmap.h"
 #include "utils/tflite-model-executor.h"
@@ -262,7 +263,7 @@ class ActionsSuggestions {
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;
-  std::unique_ptr<ReflectiveFlatbufferBuilder> entity_data_builder_;
+  std::unique_ptr<MutableFlatbufferBuilder> entity_data_builder_;
   std::unique_ptr<ActionsSuggestionsRanker> ranker_;
 
   std::string lua_bytecode_;
