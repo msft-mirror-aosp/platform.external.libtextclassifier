@@ -66,7 +66,7 @@ CodepointSpan StripUnpairedBrackets(const std::string& context,
 // version.
 CodepointSpan StripUnpairedBrackets(const UnicodeText& context_unicode,
                                     CodepointSpan span, const UniLib& unilib) {
-  if (context_unicode.empty() || !ValidNonEmptySpan(span)) {
+  if (context_unicode.empty() || !span.IsValid() || span.IsEmpty()) {
     return span;
   }
 

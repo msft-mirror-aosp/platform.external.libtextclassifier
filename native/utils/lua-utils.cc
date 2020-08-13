@@ -16,17 +16,11 @@
 
 #include "utils/lua-utils.h"
 
-// lua_dump takes an extra argument "strip" in 5.3, but not in 5.2.
-#ifndef TC3_AOSP
-#define lua_dump(L, w, d, s) lua_dump((L), (w), (d))
-#endif
-
 namespace libtextclassifier3 {
 namespace {
 static constexpr luaL_Reg defaultlibs[] = {{"_G", luaopen_base},
                                            {LUA_TABLIBNAME, luaopen_table},
                                            {LUA_STRLIBNAME, luaopen_string},
-                                           {LUA_BITLIBNAME, luaopen_bit32},
                                            {LUA_MATHLIBNAME, luaopen_math},
                                            {nullptr, nullptr}};
 
@@ -222,7 +216,7 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
 }
 
 int LuaEnvironment::ReadFlatbuffer(const int index,
-                                   ReflectiveFlatbuffer* buffer) const {
+                                   MutableFlatbuffer* buffer) const {
   if (buffer == nullptr) {
     TC3_LOG(ERROR) << "Called ReadFlatbuffer with null buffer: " << index;
     lua_error(state_);
@@ -323,8 +317,8 @@ int LuaEnvironment::ReadFlatbuffer(const int index,
                                            buffer->Repeated(field));
             break;
           case reflection::Obj:
-            ReadRepeatedField<ReflectiveFlatbuffer>(/*index=*/kIndexStackTop,
-                                                    buffer->Repeated(field));
+            ReadRepeatedField<MutableFlatbuffer>(/*index=*/kIndexStackTop,
+                                                 buffer->Repeated(field));
             break;
           default:
             TC3_LOG(ERROR) << "Unsupported repeated field type: "
@@ -543,7 +537,7 @@ ClassificationResult LuaEnvironment::ReadClassificationResult(
       classification.serialized_entity_data =
           Read<std::string>(/*index=*/kIndexStackTop);
     } else if (key.Equals(kEntityKey)) {
-      auto buffer = ReflectiveFlatbufferBuilder(entity_data_schema).NewRoot();
+      auto buffer = MutableFlatbufferBuilder(entity_data_schema).NewRoot();
       ReadFlatbuffer(/*index=*/kIndexStackTop, buffer.get());
       classification.serialized_entity_data = buffer->Serialize();
     } else {
@@ -611,7 +605,7 @@ ActionSuggestion LuaEnvironment::ReadAction(
       ReadAnnotations(actions_entity_data_schema, &action.annotations);
     } else if (key.Equals(kEntityKey)) {
       auto buffer =
-          ReflectiveFlatbufferBuilder(actions_entity_data_schema).NewRoot();
+          MutableFlatbufferBuilder(actions_entity_data_schema).NewRoot();
       ReadFlatbuffer(/*index=*/kIndexStackTop, buffer.get());
       action.serialized_entity_data = buffer->Serialize();
     } else {

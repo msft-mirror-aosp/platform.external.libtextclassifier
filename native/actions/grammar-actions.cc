@@ -54,7 +54,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
   // Deduplicate, verify and populate actions from grammar matches.
   bool GetActions(const Conversation& conversation,
                   const std::string& smart_reply_action_type,
-                  const ReflectiveFlatbufferBuilder* entity_data_builder,
+                  const MutableFlatbufferBuilder* entity_data_builder,
                   std::vector<ActionSuggestion>* action_suggestions) const {
     std::vector<UnicodeText::const_iterator> codepoint_offsets;
     const UnicodeText message_unicode =
@@ -95,7 +95,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
       const std::vector<UnicodeText::const_iterator>& message_codepoint_offsets,
       int message_index, const std::string& smart_reply_action_type,
       const grammar::Derivation& candidate,
-      const ReflectiveFlatbufferBuilder* entity_data_builder,
+      const MutableFlatbufferBuilder* entity_data_builder,
       std::vector<ActionSuggestion>* result) const {
     const RulesModel_::GrammarRules_::RuleMatch* rule_match =
         grammar_rules_->rule_match()->Get(candidate.rule_id);
@@ -118,7 +118,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
           grammar_rules_->actions()->Get(action_id);
       std::vector<ActionSuggestionAnnotation> annotations;
 
-      std::unique_ptr<ReflectiveFlatbuffer> entity_data =
+      std::unique_ptr<MutableFlatbuffer> entity_data =
           entity_data_builder != nullptr ? entity_data_builder->NewRoot()
                                          : nullptr;
 
@@ -200,7 +200,7 @@ class GrammarActionsCallbackDelegate : public grammar::CallbackDelegate {
 
 GrammarActions::GrammarActions(
     const UniLib* unilib, const RulesModel_::GrammarRules* grammar_rules,
-    const ReflectiveFlatbufferBuilder* entity_data_builder,
+    const MutableFlatbufferBuilder* entity_data_builder,
     const std::string& smart_reply_action_type)
     : unilib_(*unilib),
       grammar_rules_(grammar_rules),

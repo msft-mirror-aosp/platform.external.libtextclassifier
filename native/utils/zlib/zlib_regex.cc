@@ -19,7 +19,7 @@
 #include <memory>
 
 #include "utils/base/logging.h"
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/flatbuffers.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {

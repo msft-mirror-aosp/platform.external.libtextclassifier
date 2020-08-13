@@ -80,14 +80,14 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
   resolver->AddBuiltin(tflite::BuiltinOperator_CONV_2D,
                        tflite::ops::builtin::Register_CONV_2D(),
                        /*min_version=*/1,
-                       /*max_version=*/3);
+                       /*max_version=*/5);
   resolver->AddBuiltin(::tflite::BuiltinOperator_EQUAL,
                        ::tflite::ops::builtin::Register_EQUAL());
 
   resolver->AddBuiltin(tflite::BuiltinOperator_FULLY_CONNECTED,
                        tflite::ops::builtin::Register_FULLY_CONNECTED(),
                        /*min_version=*/1,
-                       /*max_version=*/4);
+                       /*max_version=*/9);
   resolver->AddBuiltin(::tflite::BuiltinOperator_GREATER_EQUAL,
                        ::tflite::ops::builtin::Register_GREATER_EQUAL());
   resolver->AddBuiltin(tflite::BuiltinOperator_L2_NORMALIZATION,
@@ -186,7 +186,12 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
 
 namespace libtextclassifier3 {
 
-inline std::unique_ptr<tflite::OpResolver> BuildOpResolver() {
+std::unique_ptr<tflite::OpResolver> BuildOpResolver() {
+  return BuildOpResolver([](tflite::MutableOpResolver* mutable_resolver) {});
+}
+
+std::unique_ptr<tflite::OpResolver> BuildOpResolver(
+    const std::function<void(tflite::MutableOpResolver*)>& customize_fn) {
 #ifdef TC3_USE_SELECTIVE_REGISTRATION
   std::unique_ptr<tflite::MutableOpResolver> resolver(
       new tflite::MutableOpResolver);
@@ -203,6 +208,7 @@ inline std::unique_ptr<tflite::OpResolver> BuildOpResolver() {
   resolver->AddCustom("TokenEncoder",
                       tflite::ops::custom::Register_TOKEN_ENCODER());
 #endif  // TC3_WITH_ACTIONS_OPS
+  customize_fn(resolver.get());
   return std::unique_ptr<tflite::OpResolver>(std::move(resolver));
 }
 

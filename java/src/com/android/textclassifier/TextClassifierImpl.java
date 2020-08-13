@@ -192,7 +192,10 @@ final class TextClassifierImpl {
                 string,
                 request.getStartIndex(),
                 request.getEndIndex(),
-                new AnnotatorModel.SelectionOptions(localesString, detectLanguageTags));
+                AnnotatorModel.SelectionOptions.builder()
+                    .setLocales(localesString)
+                    .setDetectedTextLanguageTags(detectLanguageTags)
+                    .build());
         final int start = startEnd[0];
         final int end = startEnd[1];
         if (start < end
@@ -206,11 +209,12 @@ final class TextClassifierImpl {
                   string,
                   start,
                   end,
-                  new AnnotatorModel.ClassificationOptions(
-                      refTime.toInstant().toEpochMilli(),
-                      refTime.getZone().getId(),
-                      localesString,
-                      detectLanguageTags),
+                  AnnotatorModel.ClassificationOptions.builder()
+                      .setReferenceTimeMsUtc(refTime.toInstant().toEpochMilli())
+                      .setReferenceTimezone(refTime.getZone().getId())
+                      .setLocales(localesString)
+                      .setDetectedTextLanguageTags(detectLanguageTags)
+                      .build(),
                   // Passing null here to suppress intent generation
                   // TODO: Use an explicit flag to suppress it.
                   /* appContext */ null,
@@ -256,13 +260,14 @@ final class TextClassifierImpl {
                     string,
                     request.getStartIndex(),
                     request.getEndIndex(),
-                    new AnnotatorModel.ClassificationOptions(
-                        refTime.toInstant().toEpochMilli(),
-                        refTime.getZone().getId(),
-                        localesString,
-                        String.join(",", detectLanguageTags),
-                        AnnotatorModel.AnnotationUsecase.SMART.getValue(),
-                        LocaleList.getDefault().toLanguageTags()),
+                    AnnotatorModel.ClassificationOptions.builder()
+                        .setReferenceTimeMsUtc(refTime.toInstant().toEpochMilli())
+                        .setReferenceTimezone(refTime.getZone().getId())
+                        .setLocales(localesString)
+                        .setDetectedTextLanguageTags(String.join(",", detectLanguageTags))
+                        .setAnnotationUsecase(AnnotatorModel.AnnotationUsecase.SMART.getValue())
+                        .setUserFamiliarLanguageTags(LocaleList.getDefault().toLanguageTags())
+                        .build(),
                     context,
                     getResourceLocalesString());
         if (results.length > 0) {
@@ -309,14 +314,15 @@ final class TextClassifierImpl {
       final AnnotatorModel.AnnotatedSpan[] annotations =
           annotatorImpl.annotate(
               textString,
-              new AnnotatorModel.AnnotationOptions(
-                  refTime.toInstant().toEpochMilli(),
-                  refTime.getZone().getId(),
-                  localesString,
-                  String.join(",", detectLanguageTags),
-                  entitiesToIdentify,
-                  AnnotatorModel.AnnotationUsecase.SMART.getValue(),
-                  isSerializedEntityDataEnabled));
+              AnnotatorModel.AnnotationOptions.builder()
+                  .setReferenceTimeMsUtc(refTime.toInstant().toEpochMilli())
+                  .setReferenceTimezone(refTime.getZone().getId())
+                  .setLocales(localesString)
+                  .setDetectedTextLanguageTags(String.join(",", detectLanguageTags))
+                  .setEntityTypes(entitiesToIdentify)
+                  .setAnnotationUsecase(AnnotatorModel.AnnotationUsecase.SMART.getValue())
+                  .setIsSerializedEntityDataEnabled(isSerializedEntityDataEnabled)
+                  .build());
       for (AnnotatorModel.AnnotatedSpan span : annotations) {
         final AnnotatorModel.ClassificationResult[] results = span.getClassification();
         if (results.length == 0 || !entitiesToIdentify.contains(results[0].getCollection())) {
