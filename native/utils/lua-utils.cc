@@ -16,11 +16,6 @@
 
 #include "utils/lua-utils.h"
 
-// lua_dump takes an extra argument "strip" in 5.3, but not in 5.2.
-#ifndef TC3_AOSP
-#define lua_dump(L, w, d, s) lua_dump((L), (w), (d))
-#endif
-
 namespace libtextclassifier3 {
 namespace {
 static constexpr luaL_Reg defaultlibs[] = {{"_G", luaopen_base},

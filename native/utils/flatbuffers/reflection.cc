@@ -76,6 +76,16 @@ const reflection::Object* TypeForName(const reflection::Schema* schema,
   return nullptr;
 }
 
+Optional<int> TypeIdForName(const reflection::Schema* schema,
+                            const StringPiece type_name) {
+  for (int i = 0; i < schema->objects()->size(); i++) {
+    if (type_name.Equals(schema->objects()->Get(i)->name()->str())) {
+      return Optional<int>(i);
+    }
+  }
+  return Optional<int>();
+}
+
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
                                     FlatbufferFieldPathT* path) {
   if (schema == nullptr || !schema->root_table()) {
