@@ -137,8 +137,81 @@ const reflection::Field* MutableFlatbuffer::GetFieldOrNull(
   return libtextclassifier3::GetFieldOrNull(type_, field_offset);
 }
 
+Variant MutableFlatbuffer::ParseEnumValue(const reflection::Type* type,
+                                          StringPiece value) const {
+  TC3_DCHECK(IsEnum(type));
+  TC3_CHECK_NE(schema_->enums(), nullptr);
+  const auto* enum_values = schema_->enums()->Get(type->index())->values();
+  if (enum_values == nullptr) {
+    TC3_LOG(ERROR) << "Enum has no specified values.";
+    return Variant();
+  }
+  for (const reflection::EnumVal* enum_value : *enum_values) {
+    if (value.Equals(StringPiece(enum_value->name()->c_str(),
+                                 enum_value->name()->size()))) {
+      const int64 value = enum_value->value();
+      switch (type->base_type()) {
+        case reflection::BaseType::Byte:
+          return Variant(static_cast<int8>(value));
+        case reflection::BaseType::UByte:
+          return Variant(static_cast<uint8>(value));
+        case reflection::BaseType::Short:
+          return Variant(static_cast<int16>(value));
+        case reflection::BaseType::UShort:
+          return Variant(static_cast<uint16>(value));
+        case reflection::BaseType::Int:
+          return Variant(static_cast<int32>(value));
+        case reflection::BaseType::UInt:
+          return Variant(static_cast<uint32>(value));
+        case reflection::BaseType::Long:
+          return Variant(value);
+        case reflection::BaseType::ULong:
+          return Variant(static_cast<uint64>(value));
+        default:
+          break;
+      }
+    }
+  }
+  return Variant();
+}
+
+bool MutableFlatbuffer::SetFromEnumValueName(const reflection::Field* field,
+                                             StringPiece value_name) {
+  if (!IsEnum(field->type())) {
+    return false;
+  }
+  Variant variant_value = ParseEnumValue(field->type(), value_name);
+  if (!variant_value.HasValue()) {
+    return false;
+  }
+  fields_[field] = variant_value;
+  return true;
+}
+
+bool MutableFlatbuffer::SetFromEnumValueName(StringPiece field_name,
+                                             StringPiece value_name) {
+  if (const reflection::Field* field = GetFieldOrNull(field_name)) {
+    return SetFromEnumValueName(field, value_name);
+  }
+  return false;
+}
+
+bool MutableFlatbuffer::SetFromEnumValueName(const FlatbufferFieldPath* path,
+                                             StringPiece value_name) {
+  MutableFlatbuffer* parent;
+  const reflection::Field* field;
+  if (!GetFieldWithParent(path, &parent, &field)) {
+    return false;
+  }
+  return parent->SetFromEnumValueName(field, value_name);
+}
+
 bool MutableFlatbuffer::ParseAndSet(const reflection::Field* field,
                                     const std::string& value) {
+  // Try parsing as an enum value.
+  if (IsEnum(field->type()) && SetFromEnumValueName(field, value)) {
+    return true;
+  }
   switch (field->type()->base_type() == reflection::Vector
               ? field->type()->element()
               : field->type()->base_type()) {
