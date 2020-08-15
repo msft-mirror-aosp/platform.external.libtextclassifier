@@ -36,14 +36,19 @@ namespace libtextclassifier3 {
 class MutableFlatbuffer;
 class RepeatedField;
 
+template <typename T>
+constexpr bool IsStringType() {
+  return std::is_same<T, std::string>::value ||
+         std::is_same<T, StringPiece>::value ||
+         std::is_same<T, const char*>::value;
+}
+
 // Checks whether a variant value type agrees with a field type.
 template <typename T>
 bool IsMatchingType(const reflection::BaseType type) {
   switch (type) {
     case reflection::String:
-      return std::is_same<T, std::string>::value ||
-             std::is_same<T, StringPiece>::value ||
-             std::is_same<T, const char*>::value;
+      return IsStringType<T>();
     case reflection::Obj:
       return std::is_same<T, MutableFlatbuffer>::value;
     default:
@@ -90,6 +95,20 @@ class MutableFlatbuffer {
   // Sets a field to a specific value. Field is specified by path.
   template <typename T>
   bool Set(const FlatbufferFieldPath* path, T value);
+
+  // Sets an enum field from an enum value name.
+  // Returns true if the value could be successfully parsed.
+  bool SetFromEnumValueName(StringPiece field_name, StringPiece value_name);
+
+  // Sets an enum field from an enum value name.
+  // Returns true if the value could be successfully parsed.
+  bool SetFromEnumValueName(const reflection::Field* field,
+                            StringPiece value_name);
+
+  // Sets an enum field from an enum value name. Field is specified by path.
+  // Returns true if the value could be successfully parsed.
+  bool SetFromEnumValueName(const FlatbufferFieldPath* path,
+                            StringPiece value_name);
 
   // Sets sub-message field (if not set yet), and returns a pointer to it.
   // Returns nullptr if the field was not found, or the field type was not a
@@ -156,11 +175,21 @@ class MutableFlatbuffer {
   const reflection::Object* type() const { return type_; }
 
  private:
+  // Parses an enum value.
+  Variant ParseEnumValue(const reflection::Type* type, StringPiece value) const;
+
   // Helper function for merging given repeated field from given flatbuffer
   // table. Appends the elements.
   template <typename T>
   bool AppendFromVector(const flatbuffers::Table* from,
                         const reflection::Field* field);
+
+  // Flattens the flatbuffer as a flat map.
+  // (Nested) fields names are joined by `key_separator` and prefixed by
+  // `key_prefix`.
+  void AsFlatMap(const std::string& key_separator,
+                 const std::string& key_prefix,
+                 std::map<std::string, Variant>* result) const;
 
   const reflection::Schema* const schema_;
   const reflection::Object* const type_;
@@ -176,13 +205,6 @@ class MutableFlatbuffer {
   // Cached repeated fields.
   std::unordered_map<const reflection::Field*, std::unique_ptr<RepeatedField>>
       repeated_fields_;
-
-  // Flattens the flatbuffer as a flat map.
-  // (Nested) fields names are joined by `key_separator` and prefixed by
-  // `key_prefix`.
-  void AsFlatMap(const std::string& key_separator,
-                 const std::string& key_prefix,
-                 std::map<std::string, Variant>* result) const;
 };
 
 // A helper class to build flatbuffers based on schema reflection data.

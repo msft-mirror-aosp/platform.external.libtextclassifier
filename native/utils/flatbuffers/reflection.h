@@ -20,7 +20,9 @@
 #define LIBTEXTCLASSIFIER_UTILS_FLATBUFFERS_REFLECTION_H_
 
 #include "utils/flatbuffers/flatbuffers_generated.h"
+#include "utils/optional.h"
 #include "utils/strings/stringpiece.h"
+#include "flatbuffers/reflection.h"
 #include "flatbuffers/reflection_generated.h"
 
 namespace libtextclassifier3 {
@@ -110,9 +112,18 @@ const reflection::Field* GetFieldOrNull(const reflection::Object* type,
 const reflection::Object* TypeForName(const reflection::Schema* schema,
                                       const StringPiece type_name);
 
+// Gets the type id for a type name.
+Optional<int> TypeIdForName(const reflection::Schema* schema,
+                            const StringPiece type_name);
+
 // Resolves field lookups by name to the concrete field offsets.
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
                                     FlatbufferFieldPathT* path);
+
+// Checks whether a type denotes an enum.
+inline bool IsEnum(const reflection::Type* type) {
+  return flatbuffers::IsInteger(type->base_type()) && type->index() >= 0;
+}
 
 }  // namespace libtextclassifier3
 
