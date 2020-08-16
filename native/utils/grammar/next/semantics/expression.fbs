@@ -21,7 +21,7 @@ union Expression {
   ConstValueExpression,
   ConstituentExpression,
   ComposeExpression,
-  SpanTextExpression,
+  SpanAsStringExpression,
   ParseNumberExpression,
 }
 
@@ -80,7 +80,7 @@ table ComposeExpression {
 
 // Lifts a span as a value.
 namespace libtextclassifier3.grammar.next;
-table SpanTextExpression {
+table SpanAsStringExpression {
 }
 
 // Parses a string as a number.

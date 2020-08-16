@@ -131,7 +131,7 @@ genrule_defaults {
 // -----------------
 // libtextclassifier
 // -----------------
-cc_library_shared {
+cc_library {
     name: "libtextclassifier",
     defaults: ["libtextclassifier_defaults"],
 
@@ -170,6 +170,7 @@ cc_test {
     ],
 
     srcs: ["**/*.cc"],
+    exclude_srcs: [":libtextclassifier_java_test_sources"],
 
     header_libs: ["jni_headers"],
 
@@ -180,6 +181,51 @@ cc_test {
     ],
 
     compile_multilib: "prefer32",
+}
+
+// ------------------------------------
+// Native tests require the JVM to run
+// ------------------------------------
+cc_test_library {
+    name: "libjvm_test_launcher",
+    defaults: ["libtextclassifier_defaults"],
+
+    srcs: [
+        ":libtextclassifier_java_test_sources",
+        "utils/testing/logging_event_listener.cc",
+        "testing/jvm_test_launcher.cc"
+    ],
+
+    version_script: "jni.lds",
+
+    static_libs: [
+        "libgmock_ndk",
+        "libgtest_ndk_c++",
+        "libbase_ndk",
+        "libtextclassifier",
+    ],
+}
+
+android_test {
+    name: "libtextclassifier_java_tests",
+    srcs: ["testing/JvmTestLauncher.java"],
+    test_suites: [
+        "device-tests",
+        "mts",
+    ],
+    static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.rules",
+        "androidx.test.espresso.core",
+        "androidx.test.ext.truth",
+        "truth-prebuilt",
+    ],
+    jni_libs: [
+        "libjvm_test_launcher",
+    ],
+    jni_uses_sdk_apis: true,
+    test_config: "JavaTest.xml",
+    compile_multilib: "both",
 }
 
 // ----------------
@@ -226,4 +272,4 @@ prebuilt_etc {
     sub_dir: "textclassifier",
 }
 
-build = ["FlatBufferHeaders.bp"]
+build = ["FlatBufferHeaders.bp", "JavaTests.bp"]

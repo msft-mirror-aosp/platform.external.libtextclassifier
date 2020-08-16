@@ -14,24 +14,12 @@
 // limitations under the License.
 //
 
-include "utils/i18n/language-tag.fbs";
-include "utils/zlib/buffer.fbs";
-
-namespace libtextclassifier3;
-table Resource {
-  locale:[int];
-  content:string (shared);
+filegroup {
+    name: "libtextclassifier_java_test_sources",
+    srcs: [
+        "annotator/number/number_test-include.cc",
+        "utils/utf8/unilib_test-include.cc",
+        "utils/calendar/calendar_test-include.cc",
+        "utils/intents/intent-generator-test-lib.cc",
+    ],
 }
-
-namespace libtextclassifier3;
-table ResourceEntry {
-  name:string (key, shared);
-  resource:[Resource];
-}
-
-namespace libtextclassifier3;
-table ResourcePool {
-  locale:[LanguageTag];
-  resource_entry:[ResourceEntry];
-}
-
