@@ -26,7 +26,7 @@ TEST_F(CalendarTest, Interface) {
   DatetimeGranularity granularity;
   std::string timezone;
   DatetimeParsedData data;
-  bool result = calendarlib_.InterpretParseData(
+  bool result = calendarlib_->InterpretParseData(
       data, /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Zurich",
       /*reference_locale=*/"en-CH",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity);
@@ -39,14 +39,14 @@ TEST_F(CalendarTest, SetsZeroTimeWhenNotRelative) {
   DatetimeParsedData data;
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::YEAR, 2018);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
   EXPECT_EQ(time, 1514761200000L /* Jan 01 2018 00:00:00 */);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/1L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -60,7 +60,7 @@ TEST_F(CalendarTest, RoundingToGranularityBasic) {
   DatetimeParsedData data;
 
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::YEAR, 2018);
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -68,7 +68,7 @@ TEST_F(CalendarTest, RoundingToGranularityBasic) {
   EXPECT_EQ(time, 1514761200000L /* Jan 01 2018 00:00:00 */);
 
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::MONTH, 4);
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -76,7 +76,7 @@ TEST_F(CalendarTest, RoundingToGranularityBasic) {
   EXPECT_EQ(time, 1522533600000L /* Apr 01 2018 00:00:00 */);
 
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::DAY_OF_MONTH, 25);
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -84,7 +84,7 @@ TEST_F(CalendarTest, RoundingToGranularityBasic) {
   EXPECT_EQ(time, 1524607200000L /* Apr 25 2018 00:00:00 */);
 
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::HOUR, 9);
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -92,7 +92,7 @@ TEST_F(CalendarTest, RoundingToGranularityBasic) {
   EXPECT_EQ(time, 1524639600000L /* Apr 25 2018 09:00:00 */);
 
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::MINUTE, 33);
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -100,7 +100,7 @@ TEST_F(CalendarTest, RoundingToGranularityBasic) {
   EXPECT_EQ(time, 1524641580000 /* Apr 25 2018 09:33:00 */);
 
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::SECOND, 59);
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-CH",
@@ -117,14 +117,14 @@ TEST_F(CalendarTest, RoundingToGranularityWeek) {
                         DatetimeComponent::RelativeQualifier::NEXT);
   data.SetRelativeCount(DatetimeComponent::ComponentType::WEEK, 1);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"de-CH",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
   EXPECT_EQ(time, 342000000L /* Mon Jan 05 1970 00:00:00 */);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/0L, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
@@ -147,7 +147,7 @@ TEST_F(CalendarTest, RelativeTime) {
   future_wed_parse.SetAbsoluteValue(
       DatetimeComponent::ComponentType::DAY_OF_WEEK, kWednesday);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       future_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -163,7 +163,7 @@ TEST_F(CalendarTest, RelativeTime) {
   next_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
                                   1);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       next_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -179,7 +179,7 @@ TEST_F(CalendarTest, RelativeTime) {
   same_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
                                   1);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       same_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -195,7 +195,7 @@ TEST_F(CalendarTest, RelativeTime) {
   last_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
                                   1);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       last_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -211,7 +211,7 @@ TEST_F(CalendarTest, RelativeTime) {
   past_wed_parse.SetRelativeCount(DatetimeComponent::ComponentType::DAY_OF_WEEK,
                                   -2);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       past_wed_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -225,7 +225,7 @@ TEST_F(CalendarTest, RelativeTime) {
       DatetimeComponent::RelativeQualifier::FUTURE);
   in_3_hours_parse.SetRelativeCount(DatetimeComponent::ComponentType::HOUR, 3);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       in_3_hours_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -240,7 +240,7 @@ TEST_F(CalendarTest, RelativeTime) {
   in_5_minutes_parse.SetRelativeCount(DatetimeComponent::ComponentType::MINUTE,
                                       5);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       in_5_minutes_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -255,7 +255,7 @@ TEST_F(CalendarTest, RelativeTime) {
   in_10_seconds_parse.SetRelativeCount(DatetimeComponent::ComponentType::SECOND,
                                        10);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       in_10_seconds_parse, ref_time, /*reference_timezone=*/"Europe/Zurich",
       /*reference_locale=*/"en-US",
       /*prefer_future_for_unspecified_date=*/false, &time, &granularity));
@@ -270,7 +270,7 @@ TEST_F(CalendarTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::HOUR, 7);
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::MINUTE, 10);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/1567317600000L /* Sept 01 2019 00:00:00 */,
       /*reference_timezone=*/"Europe/Zurich",
@@ -287,7 +287,7 @@ TEST_F(CalendarTest,
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::HOUR, 7);
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::MINUTE, 10);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/1567317600000L /* Sept 01 2019 00:00:00 */,
       /*reference_timezone=*/"Europe/Zurich",
@@ -303,7 +303,7 @@ TEST_F(CalendarTest, DoesntAddADayWhenTimeInTheFutureAndDayNotSpecified) {
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::HOUR, 9);
   data.SetAbsoluteValue(DatetimeComponent::ComponentType::MINUTE, 10);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/1567317600000L /* Sept 01 2019 00:00:00 */,
       /*reference_timezone=*/"Europe/Zurich",
@@ -311,7 +311,7 @@ TEST_F(CalendarTest, DoesntAddADayWhenTimeInTheFutureAndDayNotSpecified) {
       &time, &granularity));
   EXPECT_EQ(time, 1567321800000L /* Sept 01 2019 09:10:00 */);
 
-  ASSERT_TRUE(calendarlib_.InterpretParseData(
+  ASSERT_TRUE(calendarlib_->InterpretParseData(
       data,
       /*reference_time_ms_utc=*/1567317600000L /* Sept 01 2019 00:00:00 */,
       /*reference_timezone=*/"Europe/Zurich",
