@@ -49,7 +49,7 @@ class ExperimentalAnnotator {
 
   bool ClassifyText(const UnicodeText& context, CodepointSpan selection_indices,
                     std::vector<AnnotatedSpan>& candidates) const {
-    return true;
+    return false;
   }
 };
 

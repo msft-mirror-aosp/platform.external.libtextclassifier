@@ -81,13 +81,16 @@ cc_defaults {
 
         "-funsigned-char",
         "-fvisibility=hidden",
+        "-fexceptions",
+
         "-DLIBTEXTCLASSIFIER_UNILIB_ICU",
         "-DZLIB_CONST",
         "-DSAFTM_COMPACT_LOGGING",
         "-DTC3_WITH_ACTIONS_OPS",
         "-DTC3_UNILIB_JAVAICU",
         "-DTC3_CALENDAR_JAVAICU",
-        "-DTC3_AOSP"
+        "-DTC3_AOSP",
+        "-DTC3_VOCAB_ANNOTATOR_IMPL"
     ],
 
     product_variables: {
@@ -110,6 +113,7 @@ cc_defaults {
     ],
 
     static_libs: [
+        "marisa-trie",
         "liblua",
         "libutf",
         "libtflite_static",
@@ -126,6 +130,13 @@ genrule_defaults {
     cmd: "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -M $(in) >$(depfile) && " +
         "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -o $$(dirname $(out)) $(in)",
     depfile: true,
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_utils_flatbuffers_flatbuffers_test",
+    srcs: ["utils/flatbuffers/flatbuffers_test.fbs"],
+    out: ["utils/flatbuffers/flatbuffers_test_generated.h"],
+    defaults: ["fbgen"],
 }
 
 // -----------------
@@ -167,6 +178,7 @@ cc_test {
 
     data: [
         "**/test_data/*",
+        "**/*.bfbs",
     ],
 
     srcs: ["**/*.cc"],
@@ -177,8 +189,10 @@ cc_test {
     static_libs: [
         "libgmock_ndk",
         "libgtest_ndk_c++",
-        "libbase_ndk"
+        "libbase_ndk",
     ],
+
+    generated_headers: ["libtextclassifier_fbgen_utils_flatbuffers_flatbuffers_test"],
 
     compile_multilib: "prefer32",
 }
@@ -192,8 +206,9 @@ cc_test_library {
 
     srcs: [
         ":libtextclassifier_java_test_sources",
+        "utils/testing/annotator.cc",
         "utils/testing/logging_event_listener.cc",
-        "testing/jvm_test_launcher.cc"
+        "testing/jvm_test_launcher.cc",
     ],
 
     version_script: "jni.lds",
@@ -224,6 +239,9 @@ android_test {
         "libjvm_test_launcher",
     ],
     jni_uses_sdk_apis: true,
+    data: [
+        "**/test_data/*",
+    ],
     test_config: "JavaTest.xml",
     compile_multilib: "both",
 }

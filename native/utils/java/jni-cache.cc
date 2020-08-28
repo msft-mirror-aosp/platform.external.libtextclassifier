@@ -34,8 +34,7 @@ JniCache::JniCache(JavaVM* jvm)
       breakiterator_class(nullptr, jvm),
       integer_class(nullptr, jvm),
       calendar_class(nullptr, jvm),
-      timezone_class(nullptr, jvm),
-      urlencoder_class(nullptr, jvm)
+      timezone_class(nullptr, jvm)
 #ifdef __ANDROID__
       ,
       context_class(nullptr, jvm),
@@ -222,12 +221,6 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
   TC3_GET_STATIC_METHOD(timezone, get_timezone, "getTimeZone",
                         "(Ljava/lang/String;)Ljava/util/TimeZone;");
 
-  // URLEncoder.
-  TC3_GET_CLASS_OR_RETURN_NULL(urlencoder, "java/net/URLEncoder");
-  TC3_GET_STATIC_METHOD(
-      urlencoder, encode, "encode",
-      "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
-
 #ifdef __ANDROID__
   // Context.
   TC3_GET_CLASS_OR_RETURN_NULL(context, "android/content/Context");
@@ -242,6 +235,8 @@ std::unique_ptr<JniCache> JniCache::Create(JNIEnv* env) {
                         "(Ljava/lang/String;)Landroid/net/Uri;");
   TC3_GET_METHOD(uri, get_scheme, "getScheme", "()Ljava/lang/String;");
   TC3_GET_METHOD(uri, get_host, "getHost", "()Ljava/lang/String;");
+  TC3_GET_STATIC_METHOD(uri, encode, "encode",
+                        "(Ljava/lang/String;)Ljava/lang/String;");
 
   // UserManager.
   TC3_GET_OPTIONAL_CLASS(usermanager, "android/os/UserManager");

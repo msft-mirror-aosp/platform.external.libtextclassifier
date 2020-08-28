@@ -517,6 +517,11 @@ void Annotator::ValidateAndInitialize() {
         PodNerAnnotator::Create(model_->pod_ner_model(), *unilib_);
   }
 
+  if (model_->vocab_model()) {
+    vocab_annotator_ = VocabAnnotator::Create(
+        model_->vocab_model(), *selection_feature_processor_, *unilib_);
+  }
+
   if (model_->entity_data_schema()) {
     entity_data_schema_ = LoadAndVerifyFlatbuffer<reflection::Schema>(
         model_->entity_data_schema()->Data(),
@@ -709,7 +714,6 @@ bool Annotator::InitializeExperimentalAnnotators() {
   if (ExperimentalAnnotator::IsEnabled()) {
     experimental_annotator_.reset(new ExperimentalAnnotator(
         model_->experimental_model(), *selection_feature_processor_, *unilib_));
-
     return true;
   }
   return false;
@@ -1891,6 +1895,15 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, {pod_ner_annotator_result}});
   }
 
+  ClassificationResult vocab_annotator_result;
+  if (vocab_annotator_ &&
+      vocab_annotator_->ClassifyText(
+          context_unicode, selection_indices, detected_text_language_tags,
+          options.trigger_dictionary_on_beginner_words,
+          &vocab_annotator_result)) {
+    candidates.push_back({selection_indices, {vocab_annotator_result}});
+  }
+
   if (experimental_annotator_) {
     experimental_annotator_->ClassifyText(context_unicode, selection_indices,
                                           candidates);
@@ -2219,6 +2232,14 @@ Status Annotator::AnnotateSingleInput(
   if (pod_ner_annotator_ != nullptr && options.use_pod_ner &&
       !pod_ner_annotator_->Annotate(context_unicode, candidates)) {
     return Status(StatusCode::INTERNAL, "Couldn't run POD NER annotator.");
+  }
+
+  // Annotate with the vocab annotator.
+  if (vocab_annotator_ != nullptr &&
+      !vocab_annotator_->Annotate(context_unicode, detected_text_language_tags,
+                                  options.trigger_dictionary_on_beginner_words,
+                                  candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run vocab annotator.");
   }
 
   // Annotate with the experimental annotator.

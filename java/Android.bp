@@ -65,6 +65,6 @@ java_library {
 genrule {
     name: "statslog-textclassifier-java-gen",
     tools: ["stats-log-api-gen"],
-    cmd: "$(location stats-log-api-gen) --java $(out) --module textclassifier --javaPackage com.android.textclassifier --javaClass TextClassifierStatsLog",
-    out: ["com/android/textclassifier/TextClassifierStatsLog.java"],
+    cmd: "$(location stats-log-api-gen) --java $(out) --module textclassifier --javaPackage com.android.textclassifier.common.statsd --javaClass TextClassifierStatsLog",
+    out: ["com/android/textclassifier/common/statsd/TextClassifierStatsLog.java"],
 }
