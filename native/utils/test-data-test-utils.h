@@ -26,8 +26,7 @@ namespace libtextclassifier3 {
 
 // Get the file path to the test data.
 inline std::string GetTestDataPath(const std::string& relative_path) {
-  return android::base::GetExecutableDirectory() + "/" +
-      relative_path;
+  return "/data/local/tmp/" + relative_path;
 }
 
 }  // namespace  libtextclassifier3
