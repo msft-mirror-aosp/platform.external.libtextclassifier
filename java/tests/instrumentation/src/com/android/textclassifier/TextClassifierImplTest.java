@@ -71,7 +71,8 @@ public class TextClassifierImplTest {
             .setAllIntentComponent(FakeContextBuilder.DEFAULT_COMPONENT)
             .setAppLabel(FakeContextBuilder.DEFAULT_COMPONENT.getPackageName(), "Test app")
             .build();
-    classifier = new TextClassifierImpl(context, new TextClassifierSettings());
+    TextClassifierSettings settings = new TextClassifierSettings();
+    classifier = new TextClassifierImpl(context, settings, ModelFileManager.create(settings));
   }
 
   @Test

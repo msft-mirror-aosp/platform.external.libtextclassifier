@@ -14,17 +14,18 @@
 // limitations under the License.
 //
 
-include "annotator/entity-data.fbs";
 include "annotator/grammar/dates/dates.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/intents/intent-config.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
 include "annotator/experimental/experimental.fbs";
+include "utils/grammar/rules.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
+include "annotator/entity-data.fbs";
+include "utils/intents/intent-config.fbs";
 include "utils/normalization.fbs";
-include "utils/tokenizer.fbs";
-include "utils/zlib/buffer.fbs";
-include "utils/resources.fbs";
+include "utils/container/bit-vector.fbs";
 include "utils/codepoint-range.fbs";
+include "utils/zlib/buffer.fbs";
+include "utils/tokenizer.fbs";
+include "utils/resources.fbs";
 
 file_identifier "TC2 ";
 
@@ -674,6 +675,7 @@ table Model {
   conflict_resolution_options:Model_.ConflictResolutionOptions;
   experimental_model:ExperimentalModel;
   pod_ner_model:PodNerModel;
+  vocab_model:VocabModel;
 }
 
 // Method for selecting the center token.
@@ -1059,6 +1061,29 @@ table PodNerModel {
   // The possible labels the ner model can output. If empty the default labels
   // will be used.
   labels:[PodNerModel_.Label];
+}
+
+namespace libtextclassifier3;
+table VocabModel {
+  // A trie that stores a list of vocabs that triggers "Define". A id is
+  // returned when looking up a vocab from the trie and the id can be used
+  // to access more information about that vocab.
+  vocab_trie:[ubyte];
+
+  // A bit vector that tells if the vocab should trigger "Define" for users of
+  // beginner proficiency only. To look up the bit vector, use the id returned
+  // by the trie.
+  beginner_level:BitVectorData;
+
+  // A sorted list of indices of vocabs that should not trigger "Define" if
+  // its leading character is in upper case. The indices are those returned by
+  // trie. You may perform binary search to look up an index.
+  do_not_trigger_in_upper_case:BitVectorData;
+
+  // Comma-separated list of locales (BCP 47 tags) that the model supports, that
+  // are used to prevent  triggering on input in unsupported languages. If
+  // empty, the model will trigger on all inputs.
+  triggering_locales:string (shared);
 }
 
 root_type libtextclassifier3.Model;

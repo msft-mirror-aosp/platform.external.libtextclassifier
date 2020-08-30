@@ -17,7 +17,9 @@
 filegroup {
     name: "libtextclassifier_java_test_sources",
     srcs: [
+        "annotator/vocab/vocab-annotator-impl_test.cc",
         "annotator/number/number_test-include.cc",
+        "annotator/annotator_test-include.cc",
         "utils/utf8/unilib_test-include.cc",
         "utils/calendar/calendar_test-include.cc",
         "utils/intents/intent-generator-test-lib.cc",
