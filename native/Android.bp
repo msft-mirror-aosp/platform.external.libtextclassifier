@@ -180,6 +180,8 @@ cc_test {
     ],
 
     compile_multilib: "prefer32",
+
+    sdk_variant_only: true
 }
 
 // ------------------------------------
