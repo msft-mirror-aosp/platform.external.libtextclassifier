@@ -16,7 +16,9 @@
 
 package com.google.android.textclassifier;
 
+import android.content.res.AssetFileDescriptor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 
 /**
  * Java wrapper for ActionsSuggestions native library interface. This library is used to suggest
@@ -37,7 +39,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
    * Creates a new instance of Actions predictor, using the provided model image, given as a file
    * descriptor.
    */
-  public ActionsSuggestionsModel(int fileDescriptor, byte[] serializedPreconditions) {
+  public ActionsSuggestionsModel(int fileDescriptor, @Nullable byte[] serializedPreconditions) {
     actionsModelPtr = nativeNewActionsModel(fileDescriptor, serializedPreconditions);
     if (actionsModelPtr == 0L) {
       throw new IllegalArgumentException("Couldn't initialize actions model from file descriptor.");
@@ -52,7 +54,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
    * Creates a new instance of Actions predictor, using the provided model image, given as a file
    * path.
    */
-  public ActionsSuggestionsModel(String path, byte[] serializedPreconditions) {
+  public ActionsSuggestionsModel(String path, @Nullable byte[] serializedPreconditions) {
     actionsModelPtr = nativeNewActionsModelFromPath(path, serializedPreconditions);
     if (actionsModelPtr == 0L) {
       throw new IllegalArgumentException("Couldn't initialize actions model from given file.");
@@ -61,6 +63,27 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
   public ActionsSuggestionsModel(String path) {
     this(path, /* serializedPreconditions= */ null);
+  }
+
+  /**
+   * Creates a new instance of Actions predictor, using the provided model image, given as an {@link
+   * AssetFileDescriptor}).
+   */
+  public ActionsSuggestionsModel(
+      AssetFileDescriptor assetFileDescriptor, @Nullable byte[] serializedPreconditions) {
+    actionsModelPtr =
+        nativeNewActionsModelWithOffset(
+            assetFileDescriptor.getParcelFileDescriptor().getFd(),
+            assetFileDescriptor.getStartOffset(),
+            assetFileDescriptor.getLength(),
+            serializedPreconditions);
+    if (actionsModelPtr == 0L) {
+      throw new IllegalArgumentException("Couldn't initialize actions model from file descriptor.");
+    }
+  }
+
+  public ActionsSuggestionsModel(AssetFileDescriptor assetFileDescriptor) {
+    this(assetFileDescriptor, /* serializedPreconditions= */ null);
   }
 
   /** Suggests actions / replies to the given conversation. */
@@ -115,9 +138,25 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     return nativeGetLocales(fd);
   }
 
+  /** Returns a comma separated list of locales supported by the model as BCP 47 tags. */
+  public static String getLocales(AssetFileDescriptor assetFileDescriptor) {
+    return nativeGetLocalesWithOffset(
+        assetFileDescriptor.getParcelFileDescriptor().getFd(),
+        assetFileDescriptor.getStartOffset(),
+        assetFileDescriptor.getLength());
+  }
+
   /** Returns the version of the model. */
   public static int getVersion(int fd) {
     return nativeGetVersion(fd);
+  }
+
+  /** Returns the version of the model. */
+  public static int getVersion(AssetFileDescriptor assetFileDescriptor) {
+    return nativeGetVersionWithOffset(
+        assetFileDescriptor.getParcelFileDescriptor().getFd(),
+        assetFileDescriptor.getStartOffset(),
+        assetFileDescriptor.getLength());
   }
 
   /** Returns the name of the model. */
@@ -125,22 +164,30 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     return nativeGetName(fd);
   }
 
+  /** Returns the name of the model. */
+  public static String getName(AssetFileDescriptor assetFileDescriptor) {
+    return nativeGetNameWithOffset(
+        assetFileDescriptor.getParcelFileDescriptor().getFd(),
+        assetFileDescriptor.getStartOffset(),
+        assetFileDescriptor.getLength());
+  }
+
   /** Action suggestion that contains a response text and the type of the response. */
   public static final class ActionSuggestion {
-    private final String responseText;
+    @Nullable private final String responseText;
     private final String actionType;
     private final float score;
-    private final NamedVariant[] entityData;
-    private final byte[] serializedEntityData;
-    private final RemoteActionTemplate[] remoteActionTemplates;
+    @Nullable private final NamedVariant[] entityData;
+    @Nullable private final byte[] serializedEntityData;
+    @Nullable private final RemoteActionTemplate[] remoteActionTemplates;
 
     public ActionSuggestion(
-        String responseText,
+        @Nullable String responseText,
         String actionType,
         float score,
-        NamedVariant[] entityData,
-        byte[] serializedEntityData,
-        RemoteActionTemplate[] remoteActionTemplates) {
+        @Nullable NamedVariant[] entityData,
+        @Nullable byte[] serializedEntityData,
+        @Nullable RemoteActionTemplate[] remoteActionTemplates) {
       this.responseText = responseText;
       this.actionType = actionType;
       this.score = score;
@@ -149,6 +196,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       this.remoteActionTemplates = remoteActionTemplates;
     }
 
+    @Nullable
     public String getResponseText() {
       return responseText;
     }
@@ -162,14 +210,17 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       return score;
     }
 
+    @Nullable
     public NamedVariant[] getEntityData() {
       return entityData;
     }
 
+    @Nullable
     public byte[] getSerializedEntityData() {
       return serializedEntityData;
     }
 
+    @Nullable
     public RemoteActionTemplate[] getRemoteActionTemplates() {
       return remoteActionTemplates;
     }
@@ -178,17 +229,17 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   /** Represents a single message in the conversation. */
   public static final class ConversationMessage {
     private final int userId;
-    private final String text;
+    @Nullable private final String text;
     private final long referenceTimeMsUtc;
-    private final String referenceTimezone;
-    private final String detectedTextLanguageTags;
+    @Nullable private final String referenceTimezone;
+    @Nullable private final String detectedTextLanguageTags;
 
     public ConversationMessage(
         int userId,
-        String text,
+        @Nullable String text,
         long referenceTimeMsUtc,
-        String referenceTimezone,
-        String detectedTextLanguageTags) {
+        @Nullable String referenceTimezone,
+        @Nullable String detectedTextLanguageTags) {
       this.userId = userId;
       this.text = text;
       this.referenceTimeMsUtc = referenceTimeMsUtc;
@@ -201,6 +252,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       return userId;
     }
 
+    @Nullable
     public String getText() {
       return text;
     }
@@ -213,11 +265,13 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       return referenceTimeMsUtc;
     }
 
+    @Nullable
     public String getReferenceTimezone() {
       return referenceTimezone;
     }
 
     /** Returns a comma separated list of BCP 47 language tags. */
+    @Nullable
     public String getDetectedTextLanguageTags() {
       return detectedTextLanguageTags;
     }

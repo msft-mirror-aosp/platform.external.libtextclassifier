@@ -96,5 +96,49 @@ TEST(TestUtilTest, TokenizeOnDelimiters) {
   EXPECT_EQ(tokens[5].end, 35);
 }
 
+TEST(TestUtilTest, TokenizeOnDelimitersKeepNoSpace) {
+  std::vector<Token> tokens = TokenizeOnDelimiters(
+      "This   might be čomplíčateď?!: Oder?", {' ', '?', '!'},
+      /* create_tokens_for_non_space_delimiters =*/true);
+
+  EXPECT_EQ(tokens.size(), 9);
+
+  EXPECT_EQ(tokens[0].value, "This");
+  EXPECT_EQ(tokens[0].start, 0);
+  EXPECT_EQ(tokens[0].end, 4);
+
+  EXPECT_EQ(tokens[1].value, "might");
+  EXPECT_EQ(tokens[1].start, 7);
+  EXPECT_EQ(tokens[1].end, 12);
+
+  EXPECT_EQ(tokens[2].value, "be");
+  EXPECT_EQ(tokens[2].start, 13);
+  EXPECT_EQ(tokens[2].end, 15);
+
+  EXPECT_EQ(tokens[3].value, "čomplíčateď");
+  EXPECT_EQ(tokens[3].start, 16);
+  EXPECT_EQ(tokens[3].end, 27);
+
+  EXPECT_EQ(tokens[4].value, "?");
+  EXPECT_EQ(tokens[4].start, 27);
+  EXPECT_EQ(tokens[4].end, 28);
+
+  EXPECT_EQ(tokens[5].value, "!");
+  EXPECT_EQ(tokens[5].start, 28);
+  EXPECT_EQ(tokens[5].end, 29);
+
+  EXPECT_EQ(tokens[6].value, ":");
+  EXPECT_EQ(tokens[6].start, 29);
+  EXPECT_EQ(tokens[6].end, 30);
+
+  EXPECT_EQ(tokens[7].value, "Oder");
+  EXPECT_EQ(tokens[7].start, 31);
+  EXPECT_EQ(tokens[7].end, 35);
+
+  EXPECT_EQ(tokens[8].value, "?");
+  EXPECT_EQ(tokens[8].start, 35);
+  EXPECT_EQ(tokens[8].end, 36);
+}
+
 }  // namespace
 }  // namespace libtextclassifier3

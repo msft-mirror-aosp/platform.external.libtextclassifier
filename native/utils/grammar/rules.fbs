@@ -211,5 +211,9 @@ table RulesSet {
 
   // If true, will compile the regexes only on first use.
   lazy_regex_compilation:bool;
+  reserved_10:int16 (deprecated);
+
+  // The schema defining the semantic results.
+  semantic_values_schema:[ubyte];
 }
 

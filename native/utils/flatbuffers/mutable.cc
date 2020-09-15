@@ -14,66 +14,17 @@
  * limitations under the License.
  */
 
-#include "utils/flatbuffers.h"
+#include "utils/flatbuffers/mutable.h"
 
 #include <vector>
 
+#include "utils/flatbuffers/reflection.h"
 #include "utils/strings/numbers.h"
 #include "utils/variant.h"
 #include "flatbuffers/reflection_generated.h"
 
 namespace libtextclassifier3 {
 namespace {
-
-// Gets the field information for a field name, returns nullptr if the
-// field was not defined.
-const reflection::Field* GetFieldOrNull(const reflection::Object* type,
-                                        const StringPiece field_name) {
-  TC3_CHECK(type != nullptr && type->fields() != nullptr);
-  return type->fields()->LookupByKey(field_name.data());
-}
-
-const reflection::Field* GetFieldOrNull(const reflection::Object* type,
-                                        const int field_offset) {
-  if (type->fields() == nullptr) {
-    return nullptr;
-  }
-  for (const reflection::Field* field : *type->fields()) {
-    if (field->offset() == field_offset) {
-      return field;
-    }
-  }
-  return nullptr;
-}
-
-const reflection::Field* GetFieldOrNull(const reflection::Object* type,
-                                        const StringPiece field_name,
-                                        const int field_offset) {
-  // Lookup by name might be faster as the fields are sorted by name in the
-  // schema data, so try that first.
-  if (!field_name.empty()) {
-    return GetFieldOrNull(type, field_name.data());
-  }
-  return GetFieldOrNull(type, field_offset);
-}
-
-const reflection::Field* GetFieldOrNull(const reflection::Object* type,
-                                        const FlatbufferField* field) {
-  TC3_CHECK(type != nullptr && field != nullptr);
-  if (field->field_name() == nullptr) {
-    return GetFieldOrNull(type, field->field_offset());
-  }
-  return GetFieldOrNull(
-      type,
-      StringPiece(field->field_name()->data(), field->field_name()->size()),
-      field->field_offset());
-}
-
-const reflection::Field* GetFieldOrNull(const reflection::Object* type,
-                                        const FlatbufferFieldT* field) {
-  TC3_CHECK(type != nullptr && field != nullptr);
-  return GetFieldOrNull(type, field->field_name, field->field_offset);
-}
 
 bool Parse(const std::string& str_value, float* value) {
   double double_value;
@@ -103,8 +54,7 @@ bool Parse(const std::string& str_value, std::string* value) {
 
 template <typename T>
 bool ParseAndSetField(const reflection::Field* field,
-                      const std::string& str_value,
-                      ReflectiveFlatbuffer* buffer) {
+                      const std::string& str_value, MutableFlatbuffer* buffer) {
   T value;
   if (!Parse(str_value, &value)) {
     TC3_LOG(ERROR) << "Could not parse '" << str_value << "'";
@@ -120,44 +70,48 @@ bool ParseAndSetField(const reflection::Field* field,
 
 }  // namespace
 
-template <>
-const char* FlatbufferFileIdentifier<Model>() {
-  return ModelIdentifier();
+MutableFlatbufferBuilder::MutableFlatbufferBuilder(
+    const reflection::Schema* schema, StringPiece root_type)
+    : schema_(schema), root_type_(TypeForName(schema, root_type)) {}
+
+std::unique_ptr<MutableFlatbuffer> MutableFlatbufferBuilder::NewRoot() const {
+  return NewTable(root_type_);
 }
 
-std::unique_ptr<ReflectiveFlatbuffer> ReflectiveFlatbufferBuilder::NewRoot()
-    const {
-  if (!schema_->root_table()) {
-    TC3_LOG(ERROR) << "No root table specified.";
+std::unique_ptr<MutableFlatbuffer> MutableFlatbufferBuilder::NewTable(
+    StringPiece table_name) const {
+  return NewTable(TypeForName(schema_, table_name));
+}
+
+std::unique_ptr<MutableFlatbuffer> MutableFlatbufferBuilder::NewTable(
+    const int type_id) const {
+  if (type_id < 0 || type_id >= schema_->objects()->size()) {
+    TC3_LOG(ERROR) << "Invalid type id: " << type_id;
     return nullptr;
   }
-  return std::unique_ptr<ReflectiveFlatbuffer>(
-      new ReflectiveFlatbuffer(schema_, schema_->root_table()));
+  return NewTable(schema_->objects()->Get(type_id));
 }
 
-std::unique_ptr<ReflectiveFlatbuffer> ReflectiveFlatbufferBuilder::NewTable(
-    StringPiece table_name) const {
-  for (const reflection::Object* object : *schema_->objects()) {
-    if (table_name.Equals(object->name()->str())) {
-      return std::unique_ptr<ReflectiveFlatbuffer>(
-          new ReflectiveFlatbuffer(schema_, object));
-    }
+std::unique_ptr<MutableFlatbuffer> MutableFlatbufferBuilder::NewTable(
+    const reflection::Object* type) const {
+  if (type == nullptr) {
+    return nullptr;
   }
-  return nullptr;
+  return std::make_unique<MutableFlatbuffer>(schema_, type);
 }
 
-const reflection::Field* ReflectiveFlatbuffer::GetFieldOrNull(
+const reflection::Field* MutableFlatbuffer::GetFieldOrNull(
     const StringPiece field_name) const {
   return libtextclassifier3::GetFieldOrNull(type_, field_name);
 }
 
-const reflection::Field* ReflectiveFlatbuffer::GetFieldOrNull(
+const reflection::Field* MutableFlatbuffer::GetFieldOrNull(
     const FlatbufferField* field) const {
   return libtextclassifier3::GetFieldOrNull(type_, field);
 }
 
-bool ReflectiveFlatbuffer::GetFieldWithParent(
-    const FlatbufferFieldPath* field_path, ReflectiveFlatbuffer** parent,
+bool MutableFlatbuffer::GetFieldWithParent(
+    const FlatbufferFieldPath* field_path, MutableFlatbuffer** parent,
     reflection::Field const** field) {
   const auto* path = field_path->field();
   if (path == nullptr || path->size() == 0) {
@@ -178,13 +132,86 @@ bool ReflectiveFlatbuffer::GetFieldWithParent(
   return true;
 }
 
-const reflection::Field* ReflectiveFlatbuffer::GetFieldOrNull(
+const reflection::Field* MutableFlatbuffer::GetFieldOrNull(
     const int field_offset) const {
   return libtextclassifier3::GetFieldOrNull(type_, field_offset);
 }
 
-bool ReflectiveFlatbuffer::ParseAndSet(const reflection::Field* field,
-                                       const std::string& value) {
+Variant MutableFlatbuffer::ParseEnumValue(const reflection::Type* type,
+                                          StringPiece value) const {
+  TC3_DCHECK(IsEnum(type));
+  TC3_CHECK_NE(schema_->enums(), nullptr);
+  const auto* enum_values = schema_->enums()->Get(type->index())->values();
+  if (enum_values == nullptr) {
+    TC3_LOG(ERROR) << "Enum has no specified values.";
+    return Variant();
+  }
+  for (const reflection::EnumVal* enum_value : *enum_values) {
+    if (value.Equals(StringPiece(enum_value->name()->c_str(),
+                                 enum_value->name()->size()))) {
+      const int64 value = enum_value->value();
+      switch (type->base_type()) {
+        case reflection::BaseType::Byte:
+          return Variant(static_cast<int8>(value));
+        case reflection::BaseType::UByte:
+          return Variant(static_cast<uint8>(value));
+        case reflection::BaseType::Short:
+          return Variant(static_cast<int16>(value));
+        case reflection::BaseType::UShort:
+          return Variant(static_cast<uint16>(value));
+        case reflection::BaseType::Int:
+          return Variant(static_cast<int32>(value));
+        case reflection::BaseType::UInt:
+          return Variant(static_cast<uint32>(value));
+        case reflection::BaseType::Long:
+          return Variant(value);
+        case reflection::BaseType::ULong:
+          return Variant(static_cast<uint64>(value));
+        default:
+          break;
+      }
+    }
+  }
+  return Variant();
+}
+
+bool MutableFlatbuffer::SetFromEnumValueName(const reflection::Field* field,
+                                             StringPiece value_name) {
+  if (!IsEnum(field->type())) {
+    return false;
+  }
+  Variant variant_value = ParseEnumValue(field->type(), value_name);
+  if (!variant_value.HasValue()) {
+    return false;
+  }
+  fields_[field] = variant_value;
+  return true;
+}
+
+bool MutableFlatbuffer::SetFromEnumValueName(StringPiece field_name,
+                                             StringPiece value_name) {
+  if (const reflection::Field* field = GetFieldOrNull(field_name)) {
+    return SetFromEnumValueName(field, value_name);
+  }
+  return false;
+}
+
+bool MutableFlatbuffer::SetFromEnumValueName(const FlatbufferFieldPath* path,
+                                             StringPiece value_name) {
+  MutableFlatbuffer* parent;
+  const reflection::Field* field;
+  if (!GetFieldWithParent(path, &parent, &field)) {
+    return false;
+  }
+  return parent->SetFromEnumValueName(field, value_name);
+}
+
+bool MutableFlatbuffer::ParseAndSet(const reflection::Field* field,
+                                    const std::string& value) {
+  // Try parsing as an enum value.
+  if (IsEnum(field->type()) && SetFromEnumValueName(field, value)) {
+    return true;
+  }
   switch (field->type()->base_type() == reflection::Vector
               ? field->type()->element()
               : field->type()->base_type()) {
@@ -204,9 +231,9 @@ bool ReflectiveFlatbuffer::ParseAndSet(const reflection::Field* field,
   }
 }
 
-bool ReflectiveFlatbuffer::ParseAndSet(const FlatbufferFieldPath* path,
-                                       const std::string& value) {
-  ReflectiveFlatbuffer* parent;
+bool MutableFlatbuffer::ParseAndSet(const FlatbufferFieldPath* path,
+                                    const std::string& value) {
+  MutableFlatbuffer* parent;
   const reflection::Field* field;
   if (!GetFieldWithParent(path, &parent, &field)) {
     return false;
@@ -214,7 +241,7 @@ bool ReflectiveFlatbuffer::ParseAndSet(const FlatbufferFieldPath* path,
   return parent->ParseAndSet(field, value);
 }
 
-ReflectiveFlatbuffer* ReflectiveFlatbuffer::Add(StringPiece field_name) {
+MutableFlatbuffer* MutableFlatbuffer::Add(StringPiece field_name) {
   const reflection::Field* field = GetFieldOrNull(field_name);
   if (field == nullptr) {
     return nullptr;
@@ -227,16 +254,14 @@ ReflectiveFlatbuffer* ReflectiveFlatbuffer::Add(StringPiece field_name) {
   return Add(field);
 }
 
-ReflectiveFlatbuffer* ReflectiveFlatbuffer::Add(
-    const reflection::Field* field) {
+MutableFlatbuffer* MutableFlatbuffer::Add(const reflection::Field* field) {
   if (field == nullptr) {
     return nullptr;
   }
   return Repeated(field)->Add();
 }
 
-ReflectiveFlatbuffer* ReflectiveFlatbuffer::Mutable(
-    const StringPiece field_name) {
+MutableFlatbuffer* MutableFlatbuffer::Mutable(const StringPiece field_name) {
   if (const reflection::Field* field = GetFieldOrNull(field_name)) {
     return Mutable(field);
   }
@@ -244,8 +269,7 @@ ReflectiveFlatbuffer* ReflectiveFlatbuffer::Mutable(
   return nullptr;
 }
 
-ReflectiveFlatbuffer* ReflectiveFlatbuffer::Mutable(
-    const reflection::Field* field) {
+MutableFlatbuffer* MutableFlatbuffer::Mutable(const reflection::Field* field) {
   if (field->type()->base_type() != reflection::Obj) {
     TC3_LOG(ERROR) << "Field is not of type Object.";
     return nullptr;
@@ -258,12 +282,31 @@ ReflectiveFlatbuffer* ReflectiveFlatbuffer::Mutable(
       /*hint=*/entry,
       std::make_pair(
           field,
-          std::unique_ptr<ReflectiveFlatbuffer>(new ReflectiveFlatbuffer(
+          std::unique_ptr<MutableFlatbuffer>(new MutableFlatbuffer(
               schema_, schema_->objects()->Get(field->type()->index())))));
   return it->second.get();
 }
 
-RepeatedField* ReflectiveFlatbuffer::Repeated(StringPiece field_name) {
+MutableFlatbuffer* MutableFlatbuffer::Mutable(const FlatbufferFieldPath* path) {
+  const auto* field_path = path->field();
+  if (field_path == nullptr || field_path->size() == 0) {
+    return this;
+  }
+  MutableFlatbuffer* object = this;
+  for (int i = 0; i < field_path->size(); i++) {
+    const reflection::Field* field = object->GetFieldOrNull(field_path->Get(i));
+    if (field == nullptr) {
+      return nullptr;
+    }
+    object = object->Mutable(field);
+    if (object == nullptr) {
+      return nullptr;
+    }
+  }
+  return object;
+}
+
+RepeatedField* MutableFlatbuffer::Repeated(StringPiece field_name) {
   if (const reflection::Field* field = GetFieldOrNull(field_name)) {
     return Repeated(field);
   }
@@ -271,7 +314,7 @@ RepeatedField* ReflectiveFlatbuffer::Repeated(StringPiece field_name) {
   return nullptr;
 }
 
-RepeatedField* ReflectiveFlatbuffer::Repeated(const reflection::Field* field) {
+RepeatedField* MutableFlatbuffer::Repeated(const reflection::Field* field) {
   if (field->type()->base_type() != reflection::Vector) {
     TC3_LOG(ERROR) << "Field is not of type Vector.";
     return nullptr;
@@ -291,7 +334,7 @@ RepeatedField* ReflectiveFlatbuffer::Repeated(const reflection::Field* field) {
   return it->second.get();
 }
 
-flatbuffers::uoffset_t ReflectiveFlatbuffer::Serialize(
+flatbuffers::uoffset_t MutableFlatbuffer::Serialize(
     flatbuffers::FlatBufferBuilder* builder) const {
   // Build all children before we can start with this table.
   std::vector<
@@ -380,7 +423,7 @@ flatbuffers::uoffset_t ReflectiveFlatbuffer::Serialize(
   return builder->EndTable(table_start);
 }
 
-std::string ReflectiveFlatbuffer::Serialize() const {
+std::string MutableFlatbuffer::Serialize() const {
   flatbuffers::FlatBufferBuilder builder;
   builder.Finish(flatbuffers::Offset<void>(Serialize(&builder)));
   return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
@@ -388,7 +431,7 @@ std::string ReflectiveFlatbuffer::Serialize() const {
 }
 
 template <>
-bool ReflectiveFlatbuffer::AppendFromVector<std::string>(
+bool MutableFlatbuffer::AppendFromVector<std::string>(
     const flatbuffers::Table* from, const reflection::Field* field) {
   auto* from_vector = from->GetPointer<
       const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(
@@ -405,7 +448,7 @@ bool ReflectiveFlatbuffer::AppendFromVector<std::string>(
 }
 
 template <>
-bool ReflectiveFlatbuffer::AppendFromVector<ReflectiveFlatbuffer>(
+bool MutableFlatbuffer::AppendFromVector<MutableFlatbuffer>(
     const flatbuffers::Table* from, const reflection::Field* field) {
   auto* from_vector = from->GetPointer<const flatbuffers::Vector<
       flatbuffers::Offset<const flatbuffers::Table>>*>(field->offset());
@@ -415,7 +458,7 @@ bool ReflectiveFlatbuffer::AppendFromVector<ReflectiveFlatbuffer>(
 
   RepeatedField* to_repeated = Repeated(field);
   for (const flatbuffers::Table* const from_element : *from_vector) {
-    ReflectiveFlatbuffer* to_element = to_repeated->Add();
+    MutableFlatbuffer* to_element = to_repeated->Add();
     if (to_element == nullptr) {
       return false;
     }
@@ -424,7 +467,7 @@ bool ReflectiveFlatbuffer::AppendFromVector<ReflectiveFlatbuffer>(
   return true;
 }
 
-bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
+bool MutableFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
   // No fields to set.
   if (type_->fields() == nullptr) {
     return true;
@@ -479,7 +522,7 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
                        ->str());
         break;
       case reflection::Obj:
-        if (ReflectiveFlatbuffer* nested_field = Mutable(field);
+        if (MutableFlatbuffer* nested_field = Mutable(field);
             nested_field == nullptr ||
             !nested_field->MergeFrom(
                 from->GetPointer<const flatbuffers::Table* const>(
@@ -511,7 +554,7 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
             AppendFromVector<std::string>(from, field);
             break;
           case reflection::Obj:
-            AppendFromVector<ReflectiveFlatbuffer>(from, field);
+            AppendFromVector<MutableFlatbuffer>(from, field);
             break;
           case reflection::Double:
             AppendFromVector<double>(from, field);
@@ -536,12 +579,12 @@ bool ReflectiveFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
   return true;
 }
 
-bool ReflectiveFlatbuffer::MergeFromSerializedFlatbuffer(StringPiece from) {
+bool MutableFlatbuffer::MergeFromSerializedFlatbuffer(StringPiece from) {
   return MergeFrom(flatbuffers::GetAnyRoot(
       reinterpret_cast<const unsigned char*>(from.data())));
 }
 
-void ReflectiveFlatbuffer::AsFlatMap(
+void MutableFlatbuffer::AsFlatMap(
     const std::string& key_separator, const std::string& key_prefix,
     std::map<std::string, Variant>* result) const {
   // Add direct fields.
@@ -557,7 +600,7 @@ void ReflectiveFlatbuffer::AsFlatMap(
   }
 }
 
-std::string ReflectiveFlatbuffer::ToTextProto() const {
+std::string MutableFlatbuffer::ToTextProto() const {
   std::string result;
   std::string current_field_separator;
   // Add direct fields.
@@ -584,47 +627,17 @@ std::string ReflectiveFlatbuffer::ToTextProto() const {
   return result;
 }
 
-bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
-                                    FlatbufferFieldPathT* path) {
-  if (schema == nullptr || !schema->root_table()) {
-    TC3_LOG(ERROR) << "Empty schema provided.";
-    return false;
-  }
-
-  reflection::Object const* type = schema->root_table();
-  for (int i = 0; i < path->field.size(); i++) {
-    const reflection::Field* field = GetFieldOrNull(type, path->field[i].get());
-    if (field == nullptr) {
-      TC3_LOG(ERROR) << "Could not find field: " << path->field[i]->field_name;
-      return false;
-    }
-    path->field[i]->field_name.clear();
-    path->field[i]->field_offset = field->offset();
-
-    // Descend.
-    if (i < path->field.size() - 1) {
-      if (field->type()->base_type() != reflection::Obj) {
-        TC3_LOG(ERROR) << "Field: " << field->name()->str()
-                       << " is not of type `Object`.";
-        return false;
-      }
-      type = schema->objects()->Get(field->type()->index());
-    }
-  }
-  return true;
-}
-
 //
 // Repeated field methods.
 //
 
-ReflectiveFlatbuffer* RepeatedField::Add() {
+MutableFlatbuffer* RepeatedField::Add() {
   if (is_primitive_) {
     TC3_LOG(ERROR) << "Trying to add sub-message on a primitive-typed field.";
     return nullptr;
   }
 
-  object_items_.emplace_back(new ReflectiveFlatbuffer(
+  object_items_.emplace_back(new MutableFlatbuffer(
       schema_, schema_->objects()->Get(field_->type()->index())));
   return object_items_.back().get();
 }

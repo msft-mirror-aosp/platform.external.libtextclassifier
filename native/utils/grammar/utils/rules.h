@@ -66,15 +66,24 @@ class Rules {
   struct RhsElement {
     RhsElement() {}
     explicit RhsElement(const std::string& terminal, const bool is_optional)
-        : is_terminal(true), terminal(terminal), is_optional(is_optional) {}
-    explicit RhsElement(const int nonterminal, const bool is_optional)
+        : is_terminal(true),
+          terminal(terminal),
+          is_optional(is_optional),
+          is_constituent(false) {}
+    explicit RhsElement(const int nonterminal, const bool is_optional,
+                        const bool is_constituent = true)
         : is_terminal(false),
           nonterminal(nonterminal),
-          is_optional(is_optional) {}
+          is_optional(is_optional),
+          is_constituent(is_constituent) {}
     bool is_terminal;
     std::string terminal;
     int nonterminal;
     bool is_optional;
+
+    // Whether the element is a constituent of a rule - these are the explicit
+    // nonterminals, but not terminals or implicitly added anchors.
+    bool is_constituent;
   };
 
   // Represents the right-hand side, and possibly callback, of one rule.
@@ -137,6 +146,9 @@ class Rules {
   // Adds a mapping callback.
   void AddValueMapping(const std::string& lhs,
                        const std::vector<std::string>& rhs, int64 value,
+                       int8 max_whitespace_gap = -1,
+                       bool case_sensitive = false, int shard = 0);
+  void AddValueMapping(int lhs, const std::vector<RhsElement>& rhs, int64 value,
                        int8 max_whitespace_gap = -1,
                        bool case_sensitive = false, int shard = 0);
 
