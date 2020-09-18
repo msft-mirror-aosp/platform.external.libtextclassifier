@@ -42,6 +42,7 @@
 #include "annotator/strip-unpaired-brackets.h"
 #include "annotator/translate/translate.h"
 #include "annotator/types.h"
+#include "annotator/vocab/vocab-annotator.h"
 #include "annotator/zlib-utils.h"
 #include "utils/base/status.h"
 #include "utils/base/statusor.h"
@@ -513,6 +514,7 @@ class Annotator {
   std::unique_ptr<const TranslateAnnotator> translate_annotator_;
   std::unique_ptr<const PodNerAnnotator> pod_ner_annotator_;
   std::unique_ptr<const ExperimentalAnnotator> experimental_annotator_;
+  std::unique_ptr<const VocabAnnotator> vocab_annotator_;
 
   // Builder for creating extra data.
   const reflection::Schema* entity_data_schema_;
