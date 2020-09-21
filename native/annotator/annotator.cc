@@ -512,10 +512,15 @@ void Annotator::ValidateAndInitialize() {
         unilib_, model_->grammar_model(), entity_data_builder_.get()));
   }
 
+  // The following #ifdef is here to aid quality evaluation of a situation, when
+  // a POD NER kill switch in AiAi is invoked, when a model that has POD NER in
+  // it.
+#if !defined(TC3_DISABLE_POD_NER)
   if (model_->pod_ner_model()) {
     pod_ner_annotator_ =
         PodNerAnnotator::Create(model_->pod_ner_model(), *unilib_);
   }
+#endif
 
   if (model_->vocab_model()) {
     vocab_annotator_ = VocabAnnotator::Create(

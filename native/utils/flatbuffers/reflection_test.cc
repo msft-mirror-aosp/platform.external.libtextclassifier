@@ -43,5 +43,27 @@ TEST(ReflectionTest, ResolvesFieldOffsets) {
   EXPECT_EQ(4, path.field[1]->field_offset);
 }
 
+TEST(ReflectionTest, ParseEnumValuesByName) {
+  std::string metadata_buffer = LoadTestMetadata();
+  const reflection::Schema* schema =
+      flatbuffers::GetRoot<reflection::Schema>(metadata_buffer.data());
+  const reflection::Field* field =
+      GetFieldOrNull(schema->root_table(), "enum_value");
+
+  Variant enum_value_0 = ParseEnumValue(schema, field->type(), "VALUE_0");
+  Variant enum_value_1 = ParseEnumValue(schema, field->type(), "VALUE_1");
+  Variant enum_no_value = ParseEnumValue(schema, field->type(), "NO_VALUE");
+
+  EXPECT_TRUE(enum_value_0.HasValue());
+  EXPECT_EQ(enum_value_0.GetType(), Variant::TYPE_INT_VALUE);
+  EXPECT_EQ(enum_value_0.Value<int>(), 0);
+
+  EXPECT_TRUE(enum_value_1.HasValue());
+  EXPECT_EQ(enum_value_1.GetType(), Variant::TYPE_INT_VALUE);
+  EXPECT_EQ(enum_value_1.Value<int>(), 1);
+
+  EXPECT_FALSE(enum_no_value.HasValue());
+}
+
 }  // namespace
 }  // namespace libtextclassifier3

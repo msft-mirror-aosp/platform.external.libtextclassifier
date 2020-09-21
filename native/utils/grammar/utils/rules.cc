@@ -396,6 +396,17 @@ void Rules::AddRegex(int lhs, const std::string& regex_pattern) {
   regex_rules_.push_back(regex_pattern);
 }
 
+bool Rules::UsesFillers() const {
+  for (const Rule& rule : rules_) {
+    for (const RhsElement& rhs_element : rule.rhs) {
+      if (IsNonterminalOfName(rhs_element, kFiller)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   Ir rules(filters_, num_shards_);
   std::unordered_map<int, Nonterm> nonterminal_ids;
@@ -453,6 +464,22 @@ Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
   // Define annotations.
   for (const auto& [annotation, nonterminal] : annotation_nonterminals_) {
     rules.AddAnnotation(nonterminal_ids[nonterminal], annotation);
+  }
+
+  // Check whether fillers are still referenced (if they couldn't get optimized
+  // away).
+  if (UsesFillers()) {
+    TC3_LOG(WARNING) << "Rules use fillers that couldn't be optimized, grammar "
+                        "matching performance might be impacted.";
+
+    // Add a definition for the filler:
+    // <filler> = <token>
+    // <filler> = <token> <filler>
+    const Nonterm filler = rules.GetNonterminalForName(kFiller);
+    const Nonterm token =
+        rules.DefineNonterminal(rules.GetNonterminalForName(kTokenNonterm));
+    rules.Add(filler, token);
+    rules.Add(filler, std::vector<Nonterm>{token, filler});
   }
 
   // Now, keep adding eligible rules (rules whose rhs is completely assigned)
