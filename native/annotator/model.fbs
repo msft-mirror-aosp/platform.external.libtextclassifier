@@ -14,18 +14,18 @@
 // limitations under the License.
 //
 
-include "annotator/grammar/dates/dates.fbs";
-include "annotator/experimental/experimental.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
 include "annotator/entity-data.fbs";
-include "utils/intents/intent-config.fbs";
-include "utils/normalization.fbs";
-include "utils/container/bit-vector.fbs";
-include "utils/codepoint-range.fbs";
 include "utils/zlib/buffer.fbs";
-include "utils/tokenizer.fbs";
+include "utils/container/bit-vector.fbs";
+include "utils/grammar/rules.fbs";
+include "utils/codepoint-range.fbs";
+include "utils/intents/intent-config.fbs";
 include "utils/resources.fbs";
+include "annotator/grammar/dates/dates.fbs";
+include "utils/normalization.fbs";
+include "annotator/experimental/experimental.fbs";
+include "utils/tokenizer.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
 
 file_identifier "TC2 ";
 
@@ -1061,6 +1061,10 @@ table PodNerModel {
   // The possible labels the ner model can output. If empty the default labels
   // will be used.
   labels:[PodNerModel_.Label];
+
+  // If the ratio of unknown wordpieces in the input text is greater than this
+  // maximum, the text won't be annotated.
+  max_ratio_unknown_wordpieces:float = 0.1;
 }
 
 namespace libtextclassifier3;
