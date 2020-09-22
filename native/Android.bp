@@ -203,16 +203,14 @@ cc_test {
 cc_test_library {
     name: "libjvm_test_launcher",
     defaults: ["libtextclassifier_defaults"],
-
     srcs: [
         ":libtextclassifier_java_test_sources",
+        "actions/test-utils.cc",
         "utils/testing/annotator.cc",
         "utils/testing/logging_event_listener.cc",
         "testing/jvm_test_launcher.cc",
     ],
-
     version_script: "jni.lds",
-
     static_libs: [
         "libgmock_ndk",
         "libgtest_ndk_c++",
