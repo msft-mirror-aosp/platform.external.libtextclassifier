@@ -231,6 +231,7 @@ android_test {
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
         "truth-prebuilt",
+        "TextClassifierCoverageLib",
     ],
     jni_libs: [
         "libjvm_test_launcher",

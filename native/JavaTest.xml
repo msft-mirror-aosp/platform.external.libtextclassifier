@@ -31,6 +31,7 @@
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.google.android.textclassifier.tests" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
+        <option name="device-listeners" value="com.android.textclassifier.testing.TextClassifierInstrumentationListener" />
     </test>
 
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
