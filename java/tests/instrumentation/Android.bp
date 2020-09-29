@@ -36,6 +36,7 @@ android_test {
         "TextClassifierServiceLib",
         "statsdprotolite",
         "textclassifierprotoslite",
+        "TextClassifierCoverageLib"
     ],
 
     jni_libs: [
