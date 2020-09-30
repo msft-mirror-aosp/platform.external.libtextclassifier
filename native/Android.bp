@@ -81,7 +81,6 @@ cc_defaults {
 
         "-funsigned-char",
         "-fvisibility=hidden",
-        "-fexceptions",
 
         "-DLIBTEXTCLASSIFIER_UNILIB_ICU",
         "-DZLIB_CONST",
@@ -232,6 +231,7 @@ android_test {
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
         "truth-prebuilt",
+        "TextClassifierCoverageLib",
     ],
     jni_libs: [
         "libjvm_test_launcher",
