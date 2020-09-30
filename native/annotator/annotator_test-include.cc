@@ -2739,6 +2739,13 @@ TEST_F(AnnotatorTest, AnnotateOutputsMoneyEntityData) {
   ExpectFirstEntityIsMoney(classifier->Annotate("7.000056789k €", options), "€",
                            /*amount=*/"7.000056789 k", /*whole_part=*/7000,
                            /*decimal_part=*/56789, /*nanos=*/56789000);
+
+  ExpectFirstEntityIsMoney(classifier->Annotate("$59.3 Billion", options), "$",
+                           /*amount=*/"59.3 billion", /*whole_part=*/59,
+                           /*decimal_part=*/3, /*nanos=*/300000000);
+  ExpectFirstEntityIsMoney(classifier->Annotate("$1.5 Billion", options), "$",
+                           /*amount=*/"1.5 billion", /*whole_part=*/1500000000,
+                           /*decimal_part=*/5, /*nanos=*/0);
 }
 
 TEST_F(AnnotatorTest, TranslateAction) {

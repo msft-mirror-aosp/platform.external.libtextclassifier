@@ -18,6 +18,7 @@ filegroup {
     name: "libtextclassifier_java_test_sources",
     srcs: [
         "actions/grammar-actions_test.cc",
+        "annotator/datetime/parser_test.cc",
         "utils/intents/intent-generator-test-lib.cc",
         "annotator/grammar/grammar-annotator_test.cc",
         "annotator/grammar/test-utils.cc",

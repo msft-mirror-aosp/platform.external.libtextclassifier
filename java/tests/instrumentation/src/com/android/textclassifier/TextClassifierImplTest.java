@@ -40,17 +40,22 @@ import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.ModelFileManager.ModelFile;
+import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
 import com.android.textclassifier.testing.FakeContextBuilder;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Supplier;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -63,6 +68,49 @@ public class TextClassifierImplTest {
   private static final String NO_TYPE = null;
 
   private TextClassifierImpl classifier;
+  private static final ImmutableMap<String, Supplier<ImmutableList<ModelFile>>>
+      MODEL_FILES_SUPPLIER =
+          new ImmutableMap.Builder<String, Supplier<ImmutableList<ModelFile>>>()
+              .put(
+                  ModelType.ANNOTATOR,
+                  () ->
+                      ImmutableList.of(
+                          new ModelFile(
+                              ModelType.ANNOTATOR,
+                              new File(
+                                  TestDataUtils.getTestDataFolder(), "testdata/annotator.model"),
+                              711,
+                              ImmutableList.of(Locale.ENGLISH),
+                              "en",
+                              false)))
+              .put(
+                  ModelType.ACTIONS_SUGGESTIONS,
+                  (Supplier<ImmutableList<ModelFile>>)
+                      () ->
+                          ImmutableList.of(
+                              new ModelFile(
+                                  ModelType.ACTIONS_SUGGESTIONS,
+                                  new File(
+                                      TestDataUtils.getTestDataFolder(), "testdata/actions.model"),
+                                  104,
+                                  ImmutableList.of(Locale.ENGLISH),
+                                  "en",
+                                  false)))
+              .put(
+                  ModelType.LANG_ID,
+                  (Supplier<ImmutableList<ModelFile>>)
+                      () ->
+                          ImmutableList.of(
+                              new ModelFile(
+                                  ModelType.LANG_ID,
+                                  new File(
+                                      TestDataUtils.getTestDataFolder(), "testdata/langid.model"),
+                                  1,
+                                  ImmutableList.of(),
+                                  "*",
+                                  true)))
+              .build();
+  private final ModelFileManager modelFileManager = new ModelFileManager(MODEL_FILES_SUPPLIER);
 
   @Before
   public void setup() {
@@ -72,7 +120,7 @@ public class TextClassifierImplTest {
             .setAppLabel(FakeContextBuilder.DEFAULT_COMPONENT.getPackageName(), "Test app")
             .build();
     TextClassifierSettings settings = new TextClassifierSettings();
-    classifier = new TextClassifierImpl(context, settings, ModelFileManager.create(settings));
+    classifier = new TextClassifierImpl(context, settings, modelFileManager);
   }
 
   @Test
@@ -222,9 +270,6 @@ public class TextClassifierImplTest {
     assertThat(classification, isTextClassification(classifiedText, TextClassifier.TYPE_DATE_TIME));
   }
 
-  // TODO(tonymak): Enable it once we drop the v8 image to Android. I have already run this test
-  // after pushing a test model to a device manually.
-  @Ignore
   @Test
   public void testClassifyText_foreignText() {
     LocaleList originalLocales = LocaleList.getDefault();
@@ -382,7 +427,6 @@ public class TextClassifierImplTest {
     assertThat(textLanguage, isTextLanguage("ja"));
   }
 
-  @Ignore // Doesn't work without a language-based model.
   @Test
   public void testSuggestConversationActions_textReplyOnly_maxOne() {
     ConversationActions.Message message =
@@ -407,7 +451,6 @@ public class TextClassifierImplTest {
     assertThat(conversationAction.getTextReply()).isNotNull();
   }
 
-  @Ignore // Doesn't work without a language-based model.
   @Test
   public void testSuggestConversationActions_textReplyOnly_noMax() {
     ConversationActions.Message message =
@@ -458,7 +501,6 @@ public class TextClassifierImplTest {
     assertNoPackageInfoInExtras(actionIntent);
   }
 
-  @Ignore // Doesn't work without a language-based model.
   @Test
   public void testSuggestConversationActions_copy() {
     ConversationActions.Message message =

@@ -22,6 +22,11 @@
         <option name="test-file-name" value="TextClassifierServiceTest.apk" />
     </target_preparer>
 
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="push" value="testdata->/data/local/tmp/TextClassifierServiceTest/testdata" />
+    </target_preparer>
+
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.textclassifier.tests" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
