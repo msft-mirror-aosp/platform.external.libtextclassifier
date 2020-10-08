@@ -110,7 +110,9 @@ public class TextClassifierImplTest {
                                   "*",
                                   true)))
               .build();
-  private final ModelFileManager modelFileManager = new ModelFileManager(MODEL_FILES_SUPPLIER);
+  private final ModelFileManager modelFileManager =
+      new ModelFileManager(
+          /* downloadModelDir= */ TestDataUtils.getTestDataFolder(), MODEL_FILES_SUPPLIER);
 
   @Before
   public void setup() {

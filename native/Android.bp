@@ -136,6 +136,13 @@ genrule {
     defaults: ["fbgen"],
 }
 
+genrule {
+    name: "libtextclassifier_fbgen_utils_lua_utils_tests",
+    srcs: ["utils/lua_utils_tests.fbs"],
+    out: ["utils/lua_utils_tests_generated.h"],
+    defaults: ["fbgen"],
+}
+
 // -----------------
 // libtextclassifier
 // -----------------
@@ -189,7 +196,10 @@ cc_test {
         "libbase_ndk",
     ],
 
-    generated_headers: ["libtextclassifier_fbgen_utils_flatbuffers_flatbuffers_test"],
+    generated_headers: [
+        "libtextclassifier_fbgen_utils_flatbuffers_flatbuffers_test",
+        "libtextclassifier_fbgen_utils_lua_utils_tests",
+    ],
 
     compile_multilib: "prefer32",
 

@@ -20,93 +20,26 @@
 
 #include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/mutable.h"
+#include "utils/lua_utils_tests_generated.h"
+#include "utils/strings/stringpiece.h"
+#include "utils/test-data-test-utils.h"
+#include "utils/testing/test_data_generator.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace libtextclassifier3 {
 namespace {
 
+using testing::DoubleEq;
 using testing::ElementsAre;
 using testing::Eq;
 using testing::FloatEq;
 
-std::string TestFlatbufferSchema() {
-  // Creates a test schema for flatbuffer passing tests.
-  // Cannot use the object oriented API here as that is not available for the
-  // reflection schema.
-  flatbuffers::FlatBufferBuilder schema_builder;
-  std::vector<flatbuffers::Offset<reflection::Field>> fields = {
-      reflection::CreateField(
-          schema_builder,
-          /*name=*/schema_builder.CreateString("float_field"),
-          /*type=*/
-          reflection::CreateType(schema_builder,
-                                 /*base_type=*/reflection::Float),
-          /*id=*/0,
-          /*offset=*/4),
-      reflection::CreateField(
-          schema_builder,
-          /*name=*/schema_builder.CreateString("nested_field"),
-          /*type=*/
-          reflection::CreateType(schema_builder,
-                                 /*base_type=*/reflection::Obj,
-                                 /*element=*/reflection::None,
-                                 /*index=*/0 /* self */),
-          /*id=*/1,
-          /*offset=*/6),
-      reflection::CreateField(
-          schema_builder,
-          /*name=*/schema_builder.CreateString("repeated_nested_field"),
-          /*type=*/
-          reflection::CreateType(schema_builder,
-                                 /*base_type=*/reflection::Vector,
-                                 /*element=*/reflection::Obj,
-                                 /*index=*/0 /* self */),
-          /*id=*/2,
-          /*offset=*/8),
-      reflection::CreateField(
-          schema_builder,
-          /*name=*/schema_builder.CreateString("repeated_string_field"),
-          /*type=*/
-          reflection::CreateType(schema_builder,
-                                 /*base_type=*/reflection::Vector,
-                                 /*element=*/reflection::String),
-          /*id=*/3,
-          /*offset=*/10),
-      reflection::CreateField(
-          schema_builder,
-          /*name=*/schema_builder.CreateString("string_field"),
-          /*type=*/
-          reflection::CreateType(schema_builder,
-                                 /*base_type=*/reflection::String),
-          /*id=*/4,
-          /*offset=*/12)};
-
-  std::vector<flatbuffers::Offset<reflection::Enum>> enums;
-  std::vector<flatbuffers::Offset<reflection::Object>> objects = {
-      reflection::CreateObject(
-          schema_builder,
-          /*name=*/schema_builder.CreateString("TestData"),
-          /*fields=*/
-          schema_builder.CreateVectorOfSortedTables(&fields))};
-  schema_builder.Finish(reflection::CreateSchema(
-      schema_builder, schema_builder.CreateVectorOfSortedTables(&objects),
-      schema_builder.CreateVectorOfSortedTables(&enums),
-      /*(unused) file_ident=*/0,
-      /*(unused) file_ext=*/0,
-      /*root_table*/ objects[0]));
-  return std::string(
-      reinterpret_cast<const char*>(schema_builder.GetBufferPointer()),
-      schema_builder.GetSize());
-}
-
 class LuaUtilsTest : public testing::Test, protected LuaEnvironment {
  protected:
   LuaUtilsTest()
-      : serialized_flatbuffer_schema_(TestFlatbufferSchema()),
-        schema_(flatbuffers::GetRoot<reflection::Schema>(
-            serialized_flatbuffer_schema_.data())),
-        flatbuffer_builder_(schema_) {
+      : schema_(GetTestFileContent("utils/lua_utils_tests.bfbs")),
+        flatbuffer_builder_(schema_.get()) {
     EXPECT_THAT(RunProtected([this] {
                   LoadDefaultLibraries();
                   return LUA_OK;
@@ -123,49 +56,57 @@ class LuaUtilsTest : public testing::Test, protected LuaEnvironment {
         Eq(LUA_OK));
   }
 
-  const std::string serialized_flatbuffer_schema_;
-  const reflection::Schema* schema_;
+  OwnedFlatbuffer<reflection::Schema, std::string> schema_;
   MutableFlatbufferBuilder flatbuffer_builder_;
+  TestDataGenerator test_data_generator_;
 };
 
-TEST_F(LuaUtilsTest, HandlesVectors) {
-  {
-    PushVector(std::vector<int64>{1, 2, 3, 4, 5});
-    EXPECT_THAT(ReadVector<int64>(), ElementsAre(1, 2, 3, 4, 5));
-  }
-  {
-    PushVector(std::vector<std::string>{"hello", "there"});
-    EXPECT_THAT(ReadVector<std::string>(), ElementsAre("hello", "there"));
-  }
-  {
-    PushVector(std::vector<bool>{true, true, false});
-    EXPECT_THAT(ReadVector<bool>(), ElementsAre(true, true, false));
-  }
+template <typename T>
+class TypedLuaUtilsTest : public LuaUtilsTest {};
+
+using testing::Types;
+using LuaTypes =
+    ::testing::Types<int64, uint64, int32, uint32, int16, uint16, int8, uint8,
+                     float, double, bool, std::string>;
+TYPED_TEST_SUITE(TypedLuaUtilsTest, LuaTypes);
+
+TYPED_TEST(TypedLuaUtilsTest, HandlesVectors) {
+  std::vector<TypeParam> elements(5);
+  std::generate_n(elements.begin(), 5, [&]() {
+    return this->test_data_generator_.template generate<TypeParam>();
+  });
+
+  this->PushVector(elements);
+
+  EXPECT_THAT(this->template ReadVector<TypeParam>(),
+              testing::ContainerEq(elements));
 }
 
-TEST_F(LuaUtilsTest, HandlesVectorIterators) {
-  {
-    const std::vector<int64> elements = {1, 2, 3, 4, 5};
-    PushVectorIterator(&elements);
-    EXPECT_THAT(ReadVector<int64>(), ElementsAre(1, 2, 3, 4, 5));
-  }
-  {
-    const std::vector<std::string> elements = {"hello", "there"};
-    PushVectorIterator(&elements);
-    EXPECT_THAT(ReadVector<std::string>(), ElementsAre("hello", "there"));
-  }
-  {
-    const std::vector<bool> elements = {true, true, false};
-    PushVectorIterator(&elements);
-    EXPECT_THAT(ReadVector<bool>(), ElementsAre(true, true, false));
-  }
+TYPED_TEST(TypedLuaUtilsTest, HandlesVectorIterators) {
+  std::vector<TypeParam> elements(5);
+  std::generate_n(elements.begin(), 5, [&]() {
+    return this->test_data_generator_.template generate<TypeParam>();
+  });
+
+  this->PushVectorIterator(&elements);
+
+  EXPECT_THAT(this->template ReadVector<TypeParam>(),
+              testing::ContainerEq(elements));
 }
 
 TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   // Setup.
   RunScript(R"lua(
     return {
+        byte_field = 1,
+        ubyte_field = 2,
+        int_field = 10,
+        uint_field = 11,
+        long_field = 20,
+        ulong_field = 21,
+        bool_field = true,
         float_field = 42.1,
+        double_field = 12.4,
         string_field = "hello there",
 
         -- Nested field.
@@ -175,6 +116,15 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
         },
 
         -- Repeated fields.
+        repeated_byte_field = {1, 2, 1},
+        repeated_ubyte_field = {2, 4, 2},
+        repeated_int_field = { 1, 2, 3},
+        repeated_uint_field = { 2, 4, 6},
+        repeated_long_field = { 4, 5, 6},
+        repeated_ulong_field = { 8, 10, 12},
+        repeated_bool_field = {true, false, true},
+        repeated_float_field = { 1.23, 2.34, 3.45},
+        repeated_double_field = { 1.11, 2.22, 3.33},
         repeated_string_field = { "a", "bold", "one" },
         repeated_nested_field = {
           { string_field = "a" },
@@ -189,49 +139,38 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   ReadFlatbuffer(/*index=*/-1, buffer.get());
   const std::string serialized_buffer = buffer->Serialize();
 
-  // Check fields. As we do not have flatbuffer compiled generated code for the
-  // ad hoc generated test schema, we have to read by manually using field
-  // offsets.
-  const flatbuffers::Table* flatbuffer_data =
-      flatbuffers::GetRoot<flatbuffers::Table>(serialized_buffer.data());
-  EXPECT_THAT(flatbuffer_data->GetField<float>(/*field=*/4, /*defaultval=*/0),
-              FloatEq(42.1));
-  EXPECT_THAT(
-      flatbuffer_data->GetPointer<const flatbuffers::String*>(/*field=*/12)
-          ->str(),
-      "hello there");
+  std::unique_ptr<test::TestDataT> test_data =
+      LoadAndVerifyMutableFlatbuffer<test::TestData>(buffer->Serialize());
 
-  // Read the nested field.
-  const flatbuffers::Table* nested_field =
-      flatbuffer_data->GetPointer<const flatbuffers::Table*>(/*field=*/6);
-  EXPECT_THAT(nested_field->GetField<float>(/*field=*/4, /*defaultval=*/0),
-              FloatEq(64));
-  EXPECT_THAT(
-      nested_field->GetPointer<const flatbuffers::String*>(/*field=*/12)->str(),
-      "hello nested");
+  EXPECT_THAT(test_data->byte_field, 1);
+  EXPECT_THAT(test_data->ubyte_field, 2);
+  EXPECT_THAT(test_data->int_field, 10);
+  EXPECT_THAT(test_data->uint_field, 11);
+  EXPECT_THAT(test_data->long_field, 20);
+  EXPECT_THAT(test_data->ulong_field, 21);
+  EXPECT_THAT(test_data->bool_field, true);
+  EXPECT_THAT(test_data->float_field, FloatEq(42.1));
+  EXPECT_THAT(test_data->double_field, DoubleEq(12.4));
+  EXPECT_THAT(test_data->string_field, "hello there");
 
-  // Read the repeated string field.
-  auto repeated_strings = flatbuffer_data->GetPointer<
-      flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(
-      /*field=*/10);
-  EXPECT_THAT(repeated_strings->size(), Eq(3));
-  EXPECT_THAT(repeated_strings->GetAsString(0)->str(), Eq("a"));
-  EXPECT_THAT(repeated_strings->GetAsString(1)->str(), Eq("bold"));
-  EXPECT_THAT(repeated_strings->GetAsString(2)->str(), Eq("one"));
+  EXPECT_THAT(test_data->repeated_byte_field, ElementsAre(1, 2, 1));
+  EXPECT_THAT(test_data->repeated_ubyte_field, ElementsAre(2, 4, 2));
+  EXPECT_THAT(test_data->repeated_int_field, ElementsAre(1, 2, 3));
+  EXPECT_THAT(test_data->repeated_uint_field, ElementsAre(2, 4, 6));
+  EXPECT_THAT(test_data->repeated_long_field, ElementsAre(4, 5, 6));
+  EXPECT_THAT(test_data->repeated_ulong_field, ElementsAre(8, 10, 12));
+  EXPECT_THAT(test_data->repeated_bool_field, ElementsAre(true, false, true));
+  EXPECT_THAT(test_data->repeated_float_field, ElementsAre(1.23, 2.34, 3.45));
+  EXPECT_THAT(test_data->repeated_double_field, ElementsAre(1.11, 2.22, 3.33));
 
-  // Read the repeated nested field.
-  auto repeated_nested_fields = flatbuffer_data->GetPointer<
-      flatbuffers::Vector<flatbuffers::Offset<flatbuffers::Table>>*>(
-      /*field=*/8);
-  EXPECT_THAT(repeated_nested_fields->size(), Eq(3));
-  EXPECT_THAT(repeated_nested_fields->Get(0)
-                  ->GetPointer<const flatbuffers::String*>(/*field=*/12)
-                  ->str(),
-              "a");
-  EXPECT_THAT(repeated_nested_fields->Get(1)
-                  ->GetPointer<const flatbuffers::String*>(/*field=*/12)
-                  ->str(),
-              "b");
+  // Nested fields.
+  EXPECT_THAT(test_data->nested_field->float_field, FloatEq(64));
+  EXPECT_THAT(test_data->nested_field->string_field, "hello nested");
+  // Repeated nested fields.
+  EXPECT_THAT(test_data->repeated_nested_field[0]->string_field, "a");
+  EXPECT_THAT(test_data->repeated_nested_field[1]->string_field, "b");
+  EXPECT_THAT(test_data->repeated_nested_field[2]->repeated_string_field,
+              ElementsAre("nested", "nested2"));
 }
 
 TEST_F(LuaUtilsTest, HandlesSimpleFlatbufferFields) {
@@ -239,8 +178,8 @@ TEST_F(LuaUtilsTest, HandlesSimpleFlatbufferFields) {
   std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   buffer->Set("float_field", 42.f);
   const std::string serialized_buffer = buffer->Serialize();
-  PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
-                              serialized_buffer.data()));
+  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
+                                    serialized_buffer.data()));
   lua_setglobal(state_, "arg");
 
   // Setup.
@@ -260,8 +199,8 @@ TEST_F(LuaUtilsTest, HandlesRepeatedFlatbufferFields) {
   repeated_field->Add("a");
   repeated_field->Add("test");
   const std::string serialized_buffer = buffer->Serialize();
-  PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
-                              serialized_buffer.data()));
+  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
+                                    serialized_buffer.data()));
   lua_setglobal(state_, "arg");
 
   // Return flatbuffer repeated field as vector.
@@ -287,8 +226,8 @@ TEST_F(LuaUtilsTest, HandlesRepeatedNestedFlatbufferFields) {
   nested_repeated->Add("are");
   repeated_field->Add()->Set("string_field", "you?");
   const std::string serialized_buffer = buffer->Serialize();
-  PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
-                              serialized_buffer.data()));
+  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
+                                    serialized_buffer.data()));
   lua_setglobal(state_, "arg");
 
   RunScript(R"lua(
@@ -312,15 +251,15 @@ TEST_F(LuaUtilsTest, CorrectlyReadsTwoFlatbuffersSimultaneously) {
   std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   buffer->Set("string_field", "first");
   const std::string serialized_buffer = buffer->Serialize();
-  PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
-                              serialized_buffer.data()));
+  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
+                                    serialized_buffer.data()));
   lua_setglobal(state_, "arg");
   // The second flatbuffer.
   std::unique_ptr<MutableFlatbuffer> buffer2 = flatbuffer_builder_.NewRoot();
   buffer2->Set("string_field", "second");
   const std::string serialized_buffer2 = buffer2->Serialize();
-  PushFlatbuffer(schema_, flatbuffers::GetRoot<flatbuffers::Table>(
-                              serialized_buffer2.data()));
+  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
+                                    serialized_buffer2.data()));
   lua_setglobal(state_, "arg2");
 
   RunScript(R"lua(

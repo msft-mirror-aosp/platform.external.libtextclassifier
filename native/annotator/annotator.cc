@@ -190,8 +190,32 @@ std::unique_ptr<Annotator> Annotator::FromUnownedBuffer(
     return nullptr;
   }
 
-  auto classifier =
-      std::unique_ptr<Annotator>(new Annotator(model, unilib, calendarlib));
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  unilib = MaybeCreateUnilib(unilib, &classifier->owned_unilib_);
+  calendarlib =
+      MaybeCreateCalendarlib(calendarlib, &classifier->owned_calendarlib_);
+  classifier->ValidateAndInitialize(model, unilib, calendarlib);
+  if (!classifier->IsInitialized()) {
+    return nullptr;
+  }
+
+  return classifier;
+}
+
+std::unique_ptr<Annotator> Annotator::FromString(
+    const std::string& buffer, const UniLib* unilib,
+    const CalendarLib* calendarlib) {
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  classifier->owned_buffer_ = buffer;
+  const Model* model = LoadAndVerifyModel(classifier->owned_buffer_.data(),
+                                          classifier->owned_buffer_.size());
+  if (model == nullptr) {
+    return nullptr;
+  }
+  unilib = MaybeCreateUnilib(unilib, &classifier->owned_unilib_);
+  calendarlib =
+      MaybeCreateCalendarlib(calendarlib, &classifier->owned_calendarlib_);
+  classifier->ValidateAndInitialize(model, unilib, calendarlib);
   if (!classifier->IsInitialized()) {
     return nullptr;
   }
@@ -214,8 +238,12 @@ std::unique_ptr<Annotator> Annotator::FromScopedMmap(
     return nullptr;
   }
 
-  auto classifier = std::unique_ptr<Annotator>(
-      new Annotator(mmap, model, unilib, calendarlib));
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  classifier->mmap_ = std::move(*mmap);
+  unilib = MaybeCreateUnilib(unilib, &classifier->owned_unilib_);
+  calendarlib =
+      MaybeCreateCalendarlib(calendarlib, &classifier->owned_calendarlib_);
+  classifier->ValidateAndInitialize(model, unilib, calendarlib);
   if (!classifier->IsInitialized()) {
     return nullptr;
   }
@@ -238,8 +266,12 @@ std::unique_ptr<Annotator> Annotator::FromScopedMmap(
     return nullptr;
   }
 
-  auto classifier = std::unique_ptr<Annotator>(
-      new Annotator(mmap, model, std::move(unilib), std::move(calendarlib)));
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  classifier->mmap_ = std::move(*mmap);
+  classifier->owned_unilib_ = std::move(unilib);
+  classifier->owned_calendarlib_ = std::move(calendarlib);
+  classifier->ValidateAndInitialize(model, classifier->owned_unilib_.get(),
+                                    classifier->owned_calendarlib_.get());
   if (!classifier->IsInitialized()) {
     return nullptr;
   }
@@ -288,40 +320,12 @@ std::unique_ptr<Annotator> Annotator::FromPath(
   return FromScopedMmap(&mmap, std::move(unilib), std::move(calendarlib));
 }
 
-Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-                     const UniLib* unilib, const CalendarLib* calendarlib)
-    : model_(model),
-      mmap_(std::move(*mmap)),
-      owned_unilib_(nullptr),
-      unilib_(MaybeCreateUnilib(unilib, &owned_unilib_)),
-      owned_calendarlib_(nullptr),
-      calendarlib_(MaybeCreateCalendarlib(calendarlib, &owned_calendarlib_)) {
-  ValidateAndInitialize();
-}
+void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
+                                      const CalendarLib* calendarlib) {
+  model_ = model;
+  unilib_ = unilib;
+  calendarlib_ = calendarlib;
 
-Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-                     std::unique_ptr<UniLib> unilib,
-                     std::unique_ptr<CalendarLib> calendarlib)
-    : model_(model),
-      mmap_(std::move(*mmap)),
-      owned_unilib_(std::move(unilib)),
-      unilib_(owned_unilib_.get()),
-      owned_calendarlib_(std::move(calendarlib)),
-      calendarlib_(owned_calendarlib_.get()) {
-  ValidateAndInitialize();
-}
-
-Annotator::Annotator(const Model* model, const UniLib* unilib,
-                     const CalendarLib* calendarlib)
-    : model_(model),
-      owned_unilib_(nullptr),
-      unilib_(MaybeCreateUnilib(unilib, &owned_unilib_)),
-      owned_calendarlib_(nullptr),
-      calendarlib_(MaybeCreateCalendarlib(calendarlib, &owned_calendarlib_)) {
-  ValidateAndInitialize();
-}
-
-void Annotator::ValidateAndInitialize() {
   initialized_ = false;
 
   if (model_ == nullptr) {

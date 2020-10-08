@@ -40,8 +40,6 @@ using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAreArray;
 
-int TestingAnnotator::num_instances_ = 0;
-
 std::string GetTestModelPath() { return GetModelPath() + "test_model.fb"; }
 
 std::string GetModelWithGrammarPath() {
@@ -2999,6 +2997,15 @@ TEST_F(AnnotatorTest, AnnotateGrammarDatetimeRangesEnable) {
 
   EXPECT_THAT(classifier->Annotate("7:20am - 8:00pm"),
               ElementsAreArray({IsAnnotatedSpan(0, 15, "datetime")}));
+}
+
+TEST_F(AnnotatorTest, InitializeFromString) {
+  const std::string test_model = ReadFile(GetTestModelPath());
+
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromString(test_model, unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+  EXPECT_THAT(classifier->Annotate("(857) 225-3556"), Not(IsEmpty()));
 }
 
 }  // namespace test_internal
