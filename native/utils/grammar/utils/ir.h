@@ -105,10 +105,15 @@ class Ir {
     const Nonterm nonterminal = ++num_nonterminals_;
     if (!name.empty()) {
       // Record debug information.
-      nonterminal_names_[nonterminal] = name;
-      nonterminal_ids_[name] = nonterminal;
+      SetNonterminal(name, nonterminal);
     }
     return nonterminal;
+  }
+
+  // Sets the name of a nonterminal.
+  void SetNonterminal(const std::string& name, const Nonterm nonterminal) {
+    nonterminal_names_[nonterminal] = name;
+    nonterminal_ids_[name] = nonterminal;
   }
 
   // Defines a nonterminal if not yet defined.
@@ -183,6 +188,12 @@ class Ir {
       bool include_debug_information = false) const;
 
   const std::vector<RulesShard>& shards() const { return shards_; }
+  const std::vector<std::pair<std::string, Nonterm>>& regex_rules() const {
+    return regex_rules_;
+  }
+  const std::vector<std::pair<std::string, Nonterm>>& annotations() const {
+    return annotations_;
+  }
 
  private:
   template <typename R, typename H>

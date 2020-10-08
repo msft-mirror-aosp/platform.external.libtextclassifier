@@ -295,6 +295,14 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     public ActionSuggestionOptions() {}
   }
 
+  /**
+   * Retrieves the pointer to the native object. Note: Need to keep the {@code
+   * ActionsSuggestionsModel} alive as long as the pointer is used.
+   */
+  long getNativeModelPointer() {
+    return nativeGetNativeModelPtr(actionsModelPtr);
+  }
+
   private static native long nativeNewActionsModel(int fd, byte[] serializedPreconditions);
 
   private static native long nativeNewActionsModelFromPath(
@@ -325,4 +333,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
       boolean generateAndroidIntents);
 
   private native void nativeCloseActionsModel(long ptr);
+
+  private native long nativeGetNativeModelPtr(long context);
 }

@@ -14,17 +14,17 @@
 // limitations under the License.
 //
 
-include "annotator/entity-data.fbs";
-include "utils/zlib/buffer.fbs";
-include "utils/container/bit-vector.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/codepoint-range.fbs";
 include "utils/intents/intent-config.fbs";
-include "utils/resources.fbs";
 include "annotator/grammar/dates/dates.fbs";
 include "utils/normalization.fbs";
-include "annotator/experimental/experimental.fbs";
 include "utils/tokenizer.fbs";
+include "utils/grammar/rules.fbs";
+include "utils/resources.fbs";
+include "utils/zlib/buffer.fbs";
+include "utils/container/bit-vector.fbs";
+include "annotator/entity-data.fbs";
+include "annotator/experimental/experimental.fbs";
+include "utils/codepoint-range.fbs";
 include "utils/flatbuffers/flatbuffers.fbs";
 
 file_identifier "TC2 ";
@@ -1088,6 +1088,12 @@ table VocabModel {
   // are used to prevent  triggering on input in unsupported languages. If
   // empty, the model will trigger on all inputs.
   triggering_locales:string (shared);
+
+  // The final score to assign to the results of the vocab model
+  target_classification_score:float = 1;
+
+  // Priority score used for conflict resolution with the other models.
+  priority_score:float = 0;
 }
 
 root_type libtextclassifier3.Model;
