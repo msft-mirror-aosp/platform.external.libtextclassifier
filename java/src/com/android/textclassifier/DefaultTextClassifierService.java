@@ -38,7 +38,6 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
-import javax.annotation.Nullable;
 
 /** An implementation of a TextClassifierService. */
 public final class DefaultTextClassifierService extends TextClassifierService {
@@ -62,7 +61,6 @@ public final class DefaultTextClassifierService extends TextClassifierService {
                   .setPriority(Thread.NORM_PRIORITY - 1)
                   .build()));
 
-  @Nullable private ModelDownloadManager modelDownloadManager;
   private TextClassifierImpl textClassifier;
 
   @Override
@@ -70,19 +68,13 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     super.onCreate();
 
     TextClassifierSettings settings = new TextClassifierSettings();
-    if (settings.getModelDownloadManagerEnabled()) {
-      modelDownloadManager = new ModelDownloadManager(lowPriorityExecutor);
-      modelDownloadManager.init();
-    }
-    textClassifier = new TextClassifierImpl(this, settings, ModelFileManager.create(settings));
+    ModelFileManager modelFileManager = new ModelFileManager(this, settings);
+    textClassifier = new TextClassifierImpl(this, settings, modelFileManager);
   }
 
   @Override
   public void onDestroy() {
     super.onDestroy();
-    if (modelDownloadManager != null) {
-      modelDownloadManager.destroy();
-    }
   }
 
   @Override

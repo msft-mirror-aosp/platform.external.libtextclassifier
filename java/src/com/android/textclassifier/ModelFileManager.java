@@ -16,6 +16,7 @@
 
 package com.android.textclassifier;
 
+import android.content.Context;
 import android.os.LocaleList;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
@@ -58,22 +59,35 @@ import javax.annotation.Nullable;
  */
 final class ModelFileManager {
   private static final String TAG = "ModelFileManager";
+  private static final String DOWNLOAD_SUB_DIR_NAME = "textclassifier/downloads/models/";
 
+  private final File downloadModelDir;
   private final ImmutableMap<String, Supplier<ImmutableList<ModelFile>>> modelFileSuppliers;
 
   /** Create a ModelFileManager based on hardcoded model file locations. */
-  public static ModelFileManager create(TextClassifierSettings settings) {
+  public ModelFileManager(Context context, TextClassifierSettings settings) {
+    Preconditions.checkNotNull(context);
+    Preconditions.checkNotNull(settings);
+    this.downloadModelDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
+    if (!downloadModelDir.exists()) {
+      downloadModelDir.mkdirs();
+    }
+
     ImmutableMap.Builder<String, Supplier<ImmutableList<ModelFile>>> suppliersBuilder =
         ImmutableMap.builder();
     for (String modelType : ModelType.values()) {
-      suppliersBuilder.put(modelType, new ModelFileSupplierImpl(settings, modelType));
+      suppliersBuilder.put(
+          modelType, new ModelFileSupplierImpl(settings, modelType, downloadModelDir));
     }
-    return new ModelFileManager(suppliersBuilder.build());
+    this.modelFileSuppliers = suppliersBuilder.build();
   }
 
   @VisibleForTesting
-  ModelFileManager(ImmutableMap<String, Supplier<ImmutableList<ModelFile>>> modelFileSuppliers) {
-    this.modelFileSuppliers = modelFileSuppliers;
+  ModelFileManager(
+      File downloadModelDir,
+      ImmutableMap<String, Supplier<ImmutableList<ModelFile>>> modelFileSuppliers) {
+    this.downloadModelDir = Preconditions.checkNotNull(downloadModelDir);
+    this.modelFileSuppliers = Preconditions.checkNotNull(modelFileSuppliers);
   }
 
   /**
@@ -116,6 +130,21 @@ final class ModelFileManager {
   }
 
   /**
+   * Returns a {@link File} that represents the destination to download a model.
+   *
+   * <p>Each model file's name is uniquely formatted based on its unique remote URL address.
+   *
+   * <p>{@link ModelDownloadManager} needs to call this to get the right location and file name.
+   *
+   * @param modelType the type of the model image to download
+   * @param url the unique remote url of the model image
+   */
+  public File getDownloadTargetFile(@ModelType.ModelTypeDef String modelType, String url) {
+    String fileName = String.format("%s.%d.model", modelType, url.hashCode());
+    return new File(downloadModelDir, fileName);
+  }
+
+  /**
    * Dumps the internal state for debugging.
    *
    * @param printWriter writer to write dumped states
@@ -140,24 +169,24 @@ final class ModelFileManager {
     private static final String FACTORY_MODEL_DIR = "/etc/textclassifier/";
 
     private static final class ModelFileInfo {
-      private final String factoryModelNameRegex;
+      private final String modelNameRegex;
       private final String configUpdaterModelPath;
       private final Function<Integer, Integer> versionSupplier;
       private final Function<Integer, String> supportedLocalesSupplier;
 
       public ModelFileInfo(
-          String factoryModelNameRegex,
+          String modelNameRegex,
           String configUpdaterModelPath,
           Function<Integer, Integer> versionSupplier,
           Function<Integer, String> supportedLocalesSupplier) {
-        this.factoryModelNameRegex = factoryModelNameRegex;
-        this.configUpdaterModelPath = configUpdaterModelPath;
-        this.versionSupplier = versionSupplier;
-        this.supportedLocalesSupplier = supportedLocalesSupplier;
+        this.modelNameRegex = Preconditions.checkNotNull(modelNameRegex);
+        this.configUpdaterModelPath = Preconditions.checkNotNull(configUpdaterModelPath);
+        this.versionSupplier = Preconditions.checkNotNull(versionSupplier);
+        this.supportedLocalesSupplier = Preconditions.checkNotNull(supportedLocalesSupplier);
       }
 
-      public String getFactoryModelNameRegex() {
-        return factoryModelNameRegex;
+      public String getModelNameRegex() {
+        return modelNameRegex;
       }
 
       public String getConfigUpdaterModelPath() {
@@ -178,7 +207,7 @@ final class ModelFileManager {
             .put(
                 ModelType.ANNOTATOR,
                 new ModelFileInfo(
-                    "textclassifier\\.(.*)\\.model",
+                    "(annotator|textclassifier)\\.(.*)\\.model",
                     "/data/misc/textclassifier/textclassifier.model",
                     AnnotatorModel::getVersion,
                     AnnotatorModel::getLocales))
@@ -201,7 +230,7 @@ final class ModelFileManager {
     private final TextClassifierSettings settings;
     @ModelType.ModelTypeDef private final String modelType;
     private final File configUpdaterModelFile;
-    private final File downloaderModelFile;
+    private final File downloaderModelDir;
     private final File factoryModelDir;
     private final Pattern modelFilenamePattern;
     private final Function<Integer, Integer> versionSupplier;
@@ -212,14 +241,16 @@ final class ModelFileManager {
     private ImmutableList<ModelFile> factoryModels;
 
     public ModelFileSupplierImpl(
-        TextClassifierSettings settings, @ModelType.ModelTypeDef String modelType) {
+        TextClassifierSettings settings,
+        @ModelType.ModelTypeDef String modelType,
+        File downloaderModelDir) {
       this(
           settings,
           modelType,
           new File(FACTORY_MODEL_DIR),
-          MODEL_FILE_INFO_MAP.get(modelType).getFactoryModelNameRegex(),
+          MODEL_FILE_INFO_MAP.get(modelType).getModelNameRegex(),
           new File(MODEL_FILE_INFO_MAP.get(modelType).getConfigUpdaterModelPath()),
-          /* downloaderModelFile= */ null,
+          downloaderModelDir,
           MODEL_FILE_INFO_MAP.get(modelType).getVersionSupplier(),
           MODEL_FILE_INFO_MAP.get(modelType).getSupportedLocalesSupplier());
     }
@@ -229,18 +260,17 @@ final class ModelFileManager {
         TextClassifierSettings settings,
         @ModelType.ModelTypeDef String modelType,
         File factoryModelDir,
-        String factoryModelFileNameRegex,
+        String modelFileNameRegex,
         File configUpdaterModelFile,
-        @Nullable File downloaderModelFile,
+        File downloaderModelDir,
         Function<Integer, Integer> versionSupplier,
         Function<Integer, String> supportedLocalesSupplier) {
-      this.settings = settings;
-      this.modelType = modelType;
+      this.settings = Preconditions.checkNotNull(settings);
+      this.modelType = Preconditions.checkNotNull(modelType);
       this.factoryModelDir = Preconditions.checkNotNull(factoryModelDir);
-      this.modelFilenamePattern =
-          Pattern.compile(Preconditions.checkNotNull(factoryModelFileNameRegex));
+      this.modelFilenamePattern = Pattern.compile(Preconditions.checkNotNull(modelFileNameRegex));
       this.configUpdaterModelFile = Preconditions.checkNotNull(configUpdaterModelFile);
-      this.downloaderModelFile = downloaderModelFile;
+      this.downloaderModelDir = Preconditions.checkNotNull(downloaderModelDir);
       this.versionSupplier = Preconditions.checkNotNull(versionSupplier);
       this.supportedLocalesSupplier = Preconditions.checkNotNull(supportedLocalesSupplier);
     }
@@ -249,13 +279,8 @@ final class ModelFileManager {
     public ImmutableList<ModelFile> get() {
       final List<ModelFile> modelFiles = new ArrayList<>();
       // The dwonloader and config updater model have higher precedences.
-      if (downloaderModelFile != null
-          && downloaderModelFile.exists()
-          && settings.getModelDownloadManagerEnabled()) {
-        final ModelFile downloaderModel = createModelFile(downloaderModelFile);
-        if (downloaderModel != null) {
-          modelFiles.add(downloaderModel);
-        }
+      if (downloaderModelDir.exists() && settings.isModelDownloadManagerEnabled()) {
+        modelFiles.addAll(getMatchedModelFiles(downloaderModelDir));
       }
       if (configUpdaterModelFile.exists()) {
         final ModelFile updatedModel = createModelFile(configUpdaterModelFile);
@@ -266,28 +291,28 @@ final class ModelFileManager {
       // Factory models should never have overlapping locales, so the order doesn't matter.
       synchronized (lock) {
         if (factoryModels == null) {
-          factoryModels = getFactoryModels();
+          factoryModels = getMatchedModelFiles(factoryModelDir);
         }
         modelFiles.addAll(factoryModels);
       }
       return ImmutableList.copyOf(modelFiles);
     }
 
-    private ImmutableList<ModelFile> getFactoryModels() {
-      List<ModelFile> factoryModelFiles = new ArrayList<>();
-      if (factoryModelDir.exists() && factoryModelDir.isDirectory()) {
-        final File[] files = factoryModelDir.listFiles();
+    private ImmutableList<ModelFile> getMatchedModelFiles(File parentDir) {
+      ImmutableList.Builder<ModelFile> modelFilesBuilder = ImmutableList.builder();
+      if (parentDir.exists() && parentDir.isDirectory()) {
+        final File[] files = parentDir.listFiles();
         for (File file : files) {
           final Matcher matcher = modelFilenamePattern.matcher(file.getName());
           if (matcher.matches() && file.isFile()) {
             final ModelFile model = createModelFile(file);
             if (model != null) {
-              factoryModelFiles.add(model);
+              modelFilesBuilder.add(model);
             }
           }
         }
       }
-      return ImmutableList.copyOf(factoryModelFiles);
+      return modelFilesBuilder.build();
     }
 
     /** Returns null if the path did not point to a compatible model. */

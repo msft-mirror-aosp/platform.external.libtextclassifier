@@ -1106,7 +1106,7 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
   // Check that the location sharing model triggered.
   bool has_location_sharing_action = false;
   for (const ActionSuggestion& action : response.actions) {
-    if (action.type == ActionsSuggestions::kShareLocation) {
+    if (action.type == ActionsSuggestionsTypes::ShareLocation()) {
       has_location_sharing_action = true;
       break;
     }
@@ -1132,7 +1132,7 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
   ActionSuggestionSpecT* action =
       actions_model->rules->regex_rule.back()->actions.back()->action.get();
   action->score = 1.0f;
-  action->type = ActionsSuggestions::kShareLocation;
+  action->type = ActionsSuggestionsTypes::ShareLocation();
 
   flatbuffers::FlatBufferBuilder builder;
   FinishActionsModelBuffer(builder,

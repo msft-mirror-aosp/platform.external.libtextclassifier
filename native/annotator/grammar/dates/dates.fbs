@@ -14,8 +14,8 @@
 // limitations under the License.
 //
 
-include "annotator/grammar/dates/timezone-code.fbs";
 include "utils/grammar/rules.fbs";
+include "annotator/grammar/dates/timezone-code.fbs";
 
 // Type identifiers of all non-trivial matches.
 namespace libtextclassifier3.dates;

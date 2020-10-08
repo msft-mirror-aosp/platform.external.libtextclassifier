@@ -14,8 +14,8 @@
 // limitations under the License.
 //
 
-include "utils/i18n/language-tag.fbs";
 include "utils/zlib/buffer.fbs";
+include "utils/i18n/language-tag.fbs";
 
 namespace libtextclassifier3;
 table Resource {
