@@ -46,30 +46,40 @@ import org.mockito.MockitoAnnotations;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
-public class ModelFileManagerTest {
+public final class ModelFileManagerTest {
   private static final Locale DEFAULT_LOCALE = Locale.forLanguageTag("en-US");
+  private static final String URL = "http://www.gstatic.com/android/text_classifier/q/711/en.fb";
+  private static final String URL_2 = "http://www.gstatic.com/android/text_classifier/q/712/en.fb";
 
   @ModelFile.ModelType.ModelTypeDef
   private static final String MODEL_TYPE = ModelFile.ModelType.ANNOTATOR;
 
+  @ModelFile.ModelType.ModelTypeDef
+  private static final String MODEL_TYPE_2 = ModelFile.ModelType.LANG_ID;
+
   @Mock private Supplier<ImmutableList<ModelFile>> modelFileSupplier;
   @Mock private TextClassifierSettings.IDeviceConfig mockDeviceConfig;
-  private ModelFileManager.ModelFileSupplierImpl modelFileSupplierImpl;
-  private ModelFileManager modelFileManager;
+
   private File rootTestDir;
   private File factoryModelDir;
   private File configUpdaterModelFile;
-  private File downloaderModelFile;
+  private File downloaderModelDir;
+
+  private ModelFileManager modelFileManager;
+  private ModelFileManager.ModelFileSupplierImpl modelFileSupplierImpl;
 
   @Before
   public void setup() {
     MockitoAnnotations.initMocks(this);
-    modelFileManager = new ModelFileManager(ImmutableMap.of(MODEL_TYPE, modelFileSupplier));
-    rootTestDir = ApplicationProvider.getApplicationContext().getCacheDir();
+
+    rootTestDir =
+        new File(ApplicationProvider.getApplicationContext().getCacheDir(), "rootTestDir");
     factoryModelDir = new File(rootTestDir, "factory");
     configUpdaterModelFile = new File(rootTestDir, "configupdater.model");
-    downloaderModelFile = new File(rootTestDir, "downloader.model");
+    downloaderModelDir = new File(rootTestDir, "downloader");
 
+    modelFileManager =
+        new ModelFileManager(downloaderModelDir, ImmutableMap.of(MODEL_TYPE, modelFileSupplier));
     modelFileSupplierImpl =
         new ModelFileManager.ModelFileSupplierImpl(
             new TextClassifierSettings(mockDeviceConfig),
@@ -77,12 +87,13 @@ public class ModelFileManagerTest {
             factoryModelDir,
             "test\\d.model",
             configUpdaterModelFile,
-            downloaderModelFile,
+            downloaderModelDir,
             fd -> 1,
             fd -> ModelFileManager.ModelFile.LANGUAGE_INDEPENDENT);
 
     rootTestDir.mkdirs();
     factoryModelDir.mkdirs();
+    downloaderModelDir.mkdirs();
 
     Locale.setDefault(DEFAULT_LOCALE);
   }
@@ -245,6 +256,25 @@ public class ModelFileManagerTest {
   }
 
   @Test
+  public void getDownloadTargetFile_targetFileInCorrectDir() {
+    File targetFile = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
+    assertThat(targetFile.getParentFile()).isEqualTo(downloaderModelDir);
+  }
+
+  @Test
+  public void getDownloadTargetFile_filePathIsUnique() {
+    File targetFileOne = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
+    File targetFileTwo = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
+    File targetFileThree = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL_2);
+    File targetFileFour = modelFileManager.getDownloadTargetFile(MODEL_TYPE_2, URL);
+
+    assertThat(targetFileOne.getAbsolutePath()).isEqualTo(targetFileTwo.getAbsolutePath());
+    assertThat(targetFileOne.getAbsolutePath()).isNotEqualTo(targetFileThree.getAbsolutePath());
+    assertThat(targetFileOne.getAbsolutePath()).isNotEqualTo(targetFileFour.getAbsolutePath());
+    assertThat(targetFileThree.getAbsolutePath()).isNotEqualTo(targetFileFour.getAbsolutePath());
+  }
+
+  @Test
   public void modelFileEquals() {
     ModelFileManager.ModelFile modelA =
         new ModelFileManager.ModelFile(
@@ -394,6 +424,7 @@ public class ModelFileManagerTest {
             anyBoolean()))
         .thenReturn(false);
     configUpdaterModelFile.createNewFile();
+    File downloaderModelFile = new File(downloaderModelDir, "test0.model");
     downloaderModelFile.createNewFile();
     File model1 = new File(factoryModelDir, "test1.model");
     model1.createNewFile();
@@ -421,6 +452,7 @@ public class ModelFileManagerTest {
             anyBoolean()))
         .thenReturn(true);
     configUpdaterModelFile.createNewFile();
+    File downloaderModelFile = new File(downloaderModelDir, "test0.model");
     downloaderModelFile.createNewFile();
     File factoryModelFile = new File(factoryModelDir, "test1.model");
     factoryModelFile.createNewFile();

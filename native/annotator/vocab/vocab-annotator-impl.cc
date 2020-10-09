@@ -17,6 +17,7 @@
 #include "annotator/vocab/vocab-annotator-impl.h"
 
 #include "annotator/feature-processor.h"
+#include "annotator/model_generated.h"
 #include "utils/base/logging.h"
 #include "utils/optional.h"
 #include "utils/strings/numbers.h"
@@ -26,11 +27,13 @@ namespace libtextclassifier3 {
 VocabAnnotator::VocabAnnotator(
     std::unique_ptr<VocabLevelTable> vocab_level_table,
     const std::vector<Locale>& triggering_locales,
-    const FeatureProcessor& feature_processor, const UniLib& unilib)
+    const FeatureProcessor& feature_processor, const UniLib& unilib,
+    const VocabModel* model)
     : vocab_level_table_(std::move(vocab_level_table)),
       triggering_locales_(triggering_locales),
       feature_processor_(feature_processor),
-      unilib_(unilib) {}
+      unilib_(unilib),
+      model_(model) {}
 
 std::unique_ptr<VocabAnnotator> VocabAnnotator::Create(
     const VocabModel* model, const FeatureProcessor& feature_processor,
@@ -51,7 +54,7 @@ std::unique_ptr<VocabAnnotator> VocabAnnotator::Create(
 
   return std::unique_ptr<VocabAnnotator>(
       new VocabAnnotator(std::move(vocab_lebel_table), triggering_locales,
-                         feature_processor, unilib));
+                         feature_processor, unilib, model));
 }
 
 bool VocabAnnotator::Annotate(
@@ -118,9 +121,10 @@ bool VocabAnnotator::ClassifyTextInternal(
     return false;
   }
   *classification_result =
-      ClassificationResult("dictionary", /*arg_score=*/1.0f,
-                           /*arg_priority_score=*/0.0f);
+      ClassificationResult("dictionary", model_->target_classification_score(),
+                           model_->priority_score());
   *classified_span = stripped_span;
+
   return true;
 }
 }  // namespace libtextclassifier3

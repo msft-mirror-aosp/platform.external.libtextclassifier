@@ -39,22 +39,17 @@ class TestingAnnotator : public Annotator {
  public:
   TestingAnnotator(
       const UniLib* unilib, const CalendarLib* calendarlib,
-      const std::function<void(ModelT*)> model_update_fn = [](ModelT* model) {})
-      : Annotator(ViewEmptyModel(model_update_fn), unilib, calendarlib) {
-    // Since there is only one backing buffer 'model_buffer' in ViewEmptyModel
-    // function, we need to enforce that there is ever only one instance of
-    // TestingAnnotator.
-    TC3_CHECK_EQ(num_instances_, 0);
-    num_instances_++;
+      const std::function<void(ModelT*)> model_update_fn = [](ModelT* model) {
+      }) {
+    owned_buffer_ = CreateEmptyModel(model_update_fn);
+    ValidateAndInitialize(libtextclassifier3::ViewModel(owned_buffer_.data(),
+                                                        owned_buffer_.size()),
+                          unilib, calendarlib);
   }
-
-  ~TestingAnnotator() { --num_instances_; }
 
   static std::unique_ptr<TestingAnnotator> FromUnownedBuffer(
       const char* buffer, int size, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr) {
-    num_instances_++;
-
     // Safe to downcast from Annotator* to TestingAnnotator* because the
     // subclass is not adding any new members.
     return std::unique_ptr<TestingAnnotator>(
@@ -64,18 +59,6 @@ class TestingAnnotator : public Annotator {
   }
 
   using Annotator::ResolveConflicts;
-
- private:
-  const Model* ViewEmptyModel(
-      const std::function<void(ModelT*)> model_update_fn = [](ModelT* model) {
-      }) {
-    static std::string& model_buffer = *new std::string();
-    model_buffer = CreateEmptyModel(model_update_fn);
-    return libtextclassifier3::ViewModel(model_buffer.data(),
-                                         model_buffer.size());
-  }
-
-  static int num_instances_;
 };
 
 class AnnotatorTest : public ::testing::TestWithParam<const char*> {
