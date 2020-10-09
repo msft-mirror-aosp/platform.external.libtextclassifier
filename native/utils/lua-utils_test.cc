@@ -16,6 +16,7 @@
 
 #include "utils/lua-utils.h"
 
+#include <memory>
 #include <string>
 
 #include "utils/flatbuffers/flatbuffers.h"
@@ -94,42 +95,83 @@ TYPED_TEST(TypedLuaUtilsTest, HandlesVectorIterators) {
               testing::ContainerEq(elements));
 }
 
-TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
+TEST_F(LuaUtilsTest, PushAndReadsFlatbufferRoundTrip) {
   // Setup.
+  test::TestDataT input_data;
+  input_data.byte_field = 1;
+  input_data.ubyte_field = 2;
+  input_data.int_field = 10;
+  input_data.uint_field = 11;
+  input_data.long_field = 20;
+  input_data.ulong_field = 21;
+  input_data.bool_field = true;
+  input_data.float_field = 42.1;
+  input_data.double_field = 12.4;
+  input_data.string_field = "hello there";
+  // Nested field.
+  input_data.nested_field = std::make_unique<test::TestDataT>();
+  input_data.nested_field->float_field = 64;
+  input_data.nested_field->string_field = "hello nested";
+  // Repeated fields.
+  input_data.repeated_byte_field = {1, 2, 1};
+  input_data.repeated_byte_field = {1, 2, 1};
+  input_data.repeated_ubyte_field = {2, 4, 2};
+  input_data.repeated_int_field = {1, 2, 3};
+  input_data.repeated_uint_field = {2, 4, 6};
+  input_data.repeated_long_field = {4, 5, 6};
+  input_data.repeated_ulong_field = {8, 10, 12};
+  input_data.repeated_bool_field = {true, false, true};
+  input_data.repeated_float_field = {1.23, 2.34, 3.45};
+  input_data.repeated_double_field = {1.11, 2.22, 3.33};
+  input_data.repeated_string_field = {"a", "bold", "one"};
+  // Repeated nested fields.
+  input_data.repeated_nested_field.push_back(
+      std::make_unique<test::TestDataT>());
+  input_data.repeated_nested_field.back()->string_field = "a";
+  input_data.repeated_nested_field.push_back(
+      std::make_unique<test::TestDataT>());
+  input_data.repeated_nested_field.back()->string_field = "b";
+  input_data.repeated_nested_field.push_back(
+      std::make_unique<test::TestDataT>());
+  input_data.repeated_nested_field.back()->repeated_string_field = {"nested",
+                                                                    "nested2"};
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(test::TestData::Pack(builder, &input_data));
+  const flatbuffers::DetachedBuffer input_buffer = builder.Release();
+  PushFlatbuffer(schema_.get(),
+                 flatbuffers::GetRoot<flatbuffers::Table>(input_buffer.data()));
+  lua_setglobal(state_, "arg");
+
   RunScript(R"lua(
     return {
-        byte_field = 1,
-        ubyte_field = 2,
-        int_field = 10,
-        uint_field = 11,
-        long_field = 20,
-        ulong_field = 21,
-        bool_field = true,
-        float_field = 42.1,
-        double_field = 12.4,
-        string_field = "hello there",
-
-        -- Nested field.
+        byte_field = arg.byte_field,
+        ubyte_field = arg.ubyte_field,
+        int_field = arg.int_field,
+        uint_field = arg.uint_field,
+        long_field = arg.long_field,
+        ulong_field = arg.ulong_field,
+        bool_field = arg.bool_field,
+        float_field = arg.float_field,
+        double_field = arg.double_field,
+        string_field = arg.string_field,
         nested_field = {
-          float_field = 64,
-          string_field = "hello nested",
+          float_field = arg.nested_field.float_field,
+          string_field = arg.nested_field.string_field,
         },
-
-        -- Repeated fields.
-        repeated_byte_field = {1, 2, 1},
-        repeated_ubyte_field = {2, 4, 2},
-        repeated_int_field = { 1, 2, 3},
-        repeated_uint_field = { 2, 4, 6},
-        repeated_long_field = { 4, 5, 6},
-        repeated_ulong_field = { 8, 10, 12},
-        repeated_bool_field = {true, false, true},
-        repeated_float_field = { 1.23, 2.34, 3.45},
-        repeated_double_field = { 1.11, 2.22, 3.33},
-        repeated_string_field = { "a", "bold", "one" },
+        repeated_byte_field = arg.repeated_byte_field,
+        repeated_ubyte_field = arg.repeated_ubyte_field,
+        repeated_int_field = arg.repeated_int_field,
+        repeated_uint_field = arg.repeated_uint_field,
+        repeated_long_field = arg.repeated_long_field,
+        repeated_ulong_field = arg.repeated_ulong_field,
+        repeated_bool_field = arg.repeated_bool_field,
+        repeated_float_field = arg.repeated_float_field,
+        repeated_double_field = arg.repeated_double_field,
+        repeated_string_field = arg.repeated_string_field,
         repeated_nested_field = {
-          { string_field = "a" },
-          { string_field = "b" },
-          { repeated_string_field = { "nested", "nested2" } },
+          { string_field = arg.repeated_nested_field[1].string_field },
+          { string_field = arg.repeated_nested_field[2].string_field },
+          { repeated_string_field = arg.repeated_nested_field[3].repeated_string_field },
         },
     }
   )lua");
@@ -138,7 +180,6 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
   ReadFlatbuffer(/*index=*/-1, buffer.get());
   const std::string serialized_buffer = buffer->Serialize();
-
   std::unique_ptr<test::TestDataT> test_data =
       LoadAndVerifyMutableFlatbuffer<test::TestData>(buffer->Serialize());
 
@@ -152,7 +193,6 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   EXPECT_THAT(test_data->float_field, FloatEq(42.1));
   EXPECT_THAT(test_data->double_field, DoubleEq(12.4));
   EXPECT_THAT(test_data->string_field, "hello there");
-
   EXPECT_THAT(test_data->repeated_byte_field, ElementsAre(1, 2, 1));
   EXPECT_THAT(test_data->repeated_ubyte_field, ElementsAre(2, 4, 2));
   EXPECT_THAT(test_data->repeated_int_field, ElementsAre(1, 2, 3));
@@ -162,7 +202,8 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   EXPECT_THAT(test_data->repeated_bool_field, ElementsAre(true, false, true));
   EXPECT_THAT(test_data->repeated_float_field, ElementsAre(1.23, 2.34, 3.45));
   EXPECT_THAT(test_data->repeated_double_field, ElementsAre(1.11, 2.22, 3.33));
-
+  EXPECT_THAT(test_data->repeated_string_field,
+              ElementsAre("a", "bold", "one"));
   // Nested fields.
   EXPECT_THAT(test_data->nested_field->float_field, FloatEq(64));
   EXPECT_THAT(test_data->nested_field->string_field, "hello nested");
@@ -171,45 +212,6 @@ TEST_F(LuaUtilsTest, ReadsFlatbufferResults) {
   EXPECT_THAT(test_data->repeated_nested_field[1]->string_field, "b");
   EXPECT_THAT(test_data->repeated_nested_field[2]->repeated_string_field,
               ElementsAre("nested", "nested2"));
-}
-
-TEST_F(LuaUtilsTest, HandlesSimpleFlatbufferFields) {
-  // Create test flatbuffer.
-  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
-  buffer->Set("float_field", 42.f);
-  const std::string serialized_buffer = buffer->Serialize();
-  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
-                                    serialized_buffer.data()));
-  lua_setglobal(state_, "arg");
-
-  // Setup.
-  RunScript(R"lua(
-    return arg.float_field
-  )lua");
-
-  EXPECT_THAT(Read<float>(), FloatEq(42));
-}
-
-TEST_F(LuaUtilsTest, HandlesRepeatedFlatbufferFields) {
-  // Create test flatbuffer.
-  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
-  RepeatedField* repeated_field = buffer->Repeated("repeated_string_field");
-  repeated_field->Add("this");
-  repeated_field->Add("is");
-  repeated_field->Add("a");
-  repeated_field->Add("test");
-  const std::string serialized_buffer = buffer->Serialize();
-  PushFlatbuffer(schema_.get(), flatbuffers::GetRoot<flatbuffers::Table>(
-                                    serialized_buffer.data()));
-  lua_setglobal(state_, "arg");
-
-  // Return flatbuffer repeated field as vector.
-  RunScript(R"lua(
-    return arg.repeated_string_field
-  )lua");
-
-  EXPECT_THAT(ReadVector<std::string>(),
-              ElementsAre("this", "is", "a", "test"));
 }
 
 TEST_F(LuaUtilsTest, HandlesRepeatedNestedFlatbufferFields) {
