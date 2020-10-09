@@ -22,6 +22,7 @@ import android.provider.DeviceConfig;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
+import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;
@@ -90,6 +91,49 @@ public class TextClassifierSettingsTest {
                 .usingTolerance(EPSILON)
                 .containsExactly(30f, 0.5f, 0.3f)
                 .inOrder());
+  }
+
+  @Test
+  public void modelURLPrefixSetting() {
+    assertSettings(
+        TextClassifierSettings.ANNOTATOR_URL_PREFIX,
+        "prefix:annotator",
+        settings ->
+            assertThat(settings.getModelURLPrefix(ModelType.ANNOTATOR))
+                .isEqualTo("prefix:annotator"));
+    assertSettings(
+        TextClassifierSettings.LANG_ID_URL_PREFIX,
+        "prefix:lang_id",
+        settings ->
+            assertThat(settings.getModelURLPrefix(ModelType.LANG_ID)).isEqualTo("prefix:lang_id"));
+    assertSettings(
+        TextClassifierSettings.ACTIONS_SUGGESTIONS_URL_PREFIX,
+        "prefix:actions_suggestions",
+        settings ->
+            assertThat(settings.getModelURLPrefix(ModelType.ACTIONS_SUGGESTIONS))
+                .isEqualTo("prefix:actions_suggestions"));
+  }
+
+  @Test
+  public void primaryModelURLSuffixSetting() {
+    assertSettings(
+        TextClassifierSettings.PRIMARY_ANNOTATOR_URL_SUFFIX,
+        "suffix:annotator",
+        settings ->
+            assertThat(settings.getPrimaryModelURLSuffix(ModelType.ANNOTATOR))
+                .isEqualTo("suffix:annotator"));
+    assertSettings(
+        TextClassifierSettings.PRIMARY_LANG_ID_URL_SUFFIX,
+        "suffix:lang_id",
+        settings ->
+            assertThat(settings.getPrimaryModelURLSuffix(ModelType.LANG_ID))
+                .isEqualTo("suffix:lang_id"));
+    assertSettings(
+        TextClassifierSettings.PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX,
+        "suffix:actions_suggestions",
+        settings ->
+            assertThat(settings.getPrimaryModelURLSuffix(ModelType.ACTIONS_SUGGESTIONS))
+                .isEqualTo("suffix:actions_suggestions"));
   }
 
   private static void assertSettings(

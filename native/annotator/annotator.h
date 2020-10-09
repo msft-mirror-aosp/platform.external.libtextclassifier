@@ -108,6 +108,10 @@ class Annotator {
   static std::unique_ptr<Annotator> FromUnownedBuffer(
       const char* buffer, int size, const UniLib* unilib = nullptr,
       const CalendarLib* calendarlib = nullptr);
+  // Copies the underlying model buffer string.
+  static std::unique_ptr<Annotator> FromString(
+      const std::string& buffer, const UniLib* unilib = nullptr,
+      const CalendarLib* calendarlib = nullptr);
   // Takes ownership of the mmap.
   static std::unique_ptr<Annotator> FromScopedMmap(
       std::unique_ptr<ScopedMmap>* mmap, const UniLib* unilib = nullptr,
@@ -237,22 +241,14 @@ class Annotator {
     float score;
   };
 
-  // Constructs and initializes text classifier from given model.
-  // Takes ownership of 'mmap', and thus owns the buffer that backs 'model'.
-  Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-            const UniLib* unilib, const CalendarLib* calendarlib);
-  Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-            std::unique_ptr<UniLib> unilib,
-            std::unique_ptr<CalendarLib> calendarlib);
-
-  // Constructs, validates and initializes text classifier from given model.
-  // Does not own the buffer that backs 'model'.
-  Annotator(const Model* model, const UniLib* unilib,
-            const CalendarLib* calendarlib);
+  // NOTE: ValidateAndInitialize needs to be called before any other method.
+  Annotator() : initialized_(false) {}
 
   // Checks that model contains all required fields, and initializes internal
   // datastructures.
-  void ValidateAndInitialize();
+  // Needs to be called before any other method is.
+  void ValidateAndInitialize(const Model* model, const UniLib* unilib,
+                             const CalendarLib* calendarlib);
 
   // Initializes regular expressions for the regex model.
   bool InitializeRegexModel(ZlibDecompressor* decompressor);
@@ -448,6 +444,10 @@ class Annotator {
 
   std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
+  std::string owned_buffer_;
+  std::unique_ptr<UniLib> owned_unilib_;
+  std::unique_ptr<CalendarLib> owned_calendarlib_;
+
  private:
   struct CompiledRegexPattern {
     const RegexModel_::Pattern* config;
@@ -500,9 +500,7 @@ class Annotator {
   std::vector<int> annotation_regex_patterns_, classification_regex_patterns_,
       selection_regex_patterns_;
 
-  std::unique_ptr<UniLib> owned_unilib_;
   const UniLib* unilib_;
-  std::unique_ptr<CalendarLib> owned_calendarlib_;
   const CalendarLib* calendarlib_;
 
   std::unique_ptr<const KnowledgeEngine> knowledge_engine_;

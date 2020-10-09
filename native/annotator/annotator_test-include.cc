@@ -40,8 +40,6 @@ using ::testing::Eq;
 using ::testing::IsEmpty;
 using ::testing::UnorderedElementsAreArray;
 
-int TestingAnnotator::num_instances_ = 0;
-
 std::string GetTestModelPath() { return GetModelPath() + "test_model.fb"; }
 
 std::string GetModelWithGrammarPath() {
@@ -2739,6 +2737,13 @@ TEST_F(AnnotatorTest, AnnotateOutputsMoneyEntityData) {
   ExpectFirstEntityIsMoney(classifier->Annotate("7.000056789k €", options), "€",
                            /*amount=*/"7.000056789 k", /*whole_part=*/7000,
                            /*decimal_part=*/56789, /*nanos=*/56789000);
+
+  ExpectFirstEntityIsMoney(classifier->Annotate("$59.3 Billion", options), "$",
+                           /*amount=*/"59.3 billion", /*whole_part=*/59,
+                           /*decimal_part=*/3, /*nanos=*/300000000);
+  ExpectFirstEntityIsMoney(classifier->Annotate("$1.5 Billion", options), "$",
+                           /*amount=*/"1.5 billion", /*whole_part=*/1500000000,
+                           /*decimal_part=*/5, /*nanos=*/0);
 }
 
 TEST_F(AnnotatorTest, TranslateAction) {
@@ -2992,6 +2997,15 @@ TEST_F(AnnotatorTest, AnnotateGrammarDatetimeRangesEnable) {
 
   EXPECT_THAT(classifier->Annotate("7:20am - 8:00pm"),
               ElementsAreArray({IsAnnotatedSpan(0, 15, "datetime")}));
+}
+
+TEST_F(AnnotatorTest, InitializeFromString) {
+  const std::string test_model = ReadFile(GetTestModelPath());
+
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromString(test_model, unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+  EXPECT_THAT(classifier->Annotate("(857) 225-3556"), Not(IsEmpty()));
 }
 
 }  // namespace test_internal

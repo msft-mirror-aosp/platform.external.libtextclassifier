@@ -18,6 +18,7 @@
 #define LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_IMPL_H_
 
 #include "annotator/feature-processor.h"
+#include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "annotator/vocab/vocab-level-table.h"
 #include "utils/i18n/locale.h"
@@ -48,7 +49,7 @@ class VocabAnnotator {
   explicit VocabAnnotator(std::unique_ptr<VocabLevelTable> vocab_level_table,
                           const std::vector<Locale> &triggering_locales,
                           const FeatureProcessor &feature_processor,
-                          const UniLib &unilib);
+                          const UniLib &unilib, const VocabModel *model);
 
   bool ClassifyTextInternal(
       const UnicodeText &context, const CodepointSpan click,
@@ -63,6 +64,7 @@ class VocabAnnotator {
   const std::vector<Locale> triggering_locales_;
   const FeatureProcessor &feature_processor_;
   const UniLib &unilib_;
+  const VocabModel *model_;
 };
 
 }  // namespace libtextclassifier3
