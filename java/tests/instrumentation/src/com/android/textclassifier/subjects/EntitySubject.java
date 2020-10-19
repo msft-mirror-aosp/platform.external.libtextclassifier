@@ -43,7 +43,9 @@ public final class EntitySubject extends Subject<EntitySubject, Entity> {
     if (!entity.getEntityType().equals(this.entity.getEntityType())) {
       failWithActual("expected to have type", entity.getEntityType());
     }
-    check("expected to have confidence score").that(entity.getScore()).isWithin(TOLERANCE)
-      .of(this.entity.getScore());
+    check("expected to have confidence score")
+        .that(entity.getScore())
+        .isWithin(TOLERANCE)
+        .of(this.entity.getScore());
   }
 }
