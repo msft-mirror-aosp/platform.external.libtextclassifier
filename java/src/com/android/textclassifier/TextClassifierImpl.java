@@ -177,6 +177,7 @@ final class TextClassifierImpl {
                       .setReferenceTimezone(refTime.getZone().getId())
                       .setLocales(localesString)
                       .setDetectedTextLanguageTags(detectLanguageTags)
+                      .setUserFamiliarLanguageTags(LocaleList.getDefault().toLanguageTags())
                       .build(),
                   // Passing null here to suppress intent generation
                   // TODO: Use an explicit flag to suppress it.

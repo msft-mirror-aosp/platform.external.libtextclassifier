@@ -14,59 +14,44 @@
  * limitations under the License.
  */
 
-#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_IMPL_H_
-#define LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_IMPL_H_
+#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_DUMMY_H_
+#define LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_DUMMY_H_
+
+#include <string>
+#include <vector>
 
 #include "annotator/feature-processor.h"
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
-#include "annotator/vocab/vocab-level-table.h"
 #include "utils/i18n/locale.h"
 #include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
 
 namespace libtextclassifier3 {
 
-// Annotates vocabs of different levels which users may want to look them up
-// in a dictionary.
 class VocabAnnotator {
  public:
   static std::unique_ptr<VocabAnnotator> Create(
       const VocabModel *model, const FeatureProcessor &feature_processor,
-      const UniLib &unilib);
+      const UniLib &unilib) {
+    return nullptr;
+  }
 
   bool Annotate(const UnicodeText &context,
                 const std::vector<Locale> detected_text_language_tags,
                 bool trigger_on_beginner_words,
-                std::vector<AnnotatedSpan> *results) const;
+                std::vector<AnnotatedSpan> *results) const {
+    return true;
+  }
 
   bool ClassifyText(const UnicodeText &context, CodepointSpan click,
                     const std::vector<Locale> detected_text_language_tags,
                     bool trigger_on_beginner_words,
-                    ClassificationResult *result) const;
-
- private:
-  explicit VocabAnnotator(std::unique_ptr<VocabLevelTable> vocab_level_table,
-                          const std::vector<Locale> &triggering_locales,
-                          const FeatureProcessor &feature_processor,
-                          const UniLib &unilib, const VocabModel *model);
-
-  bool ClassifyTextInternal(
-      const UnicodeText &context, const CodepointSpan click,
-      const std::vector<Locale> detected_text_language_tags,
-      bool trigger_on_beginner_words,
-      ClassificationResult *classification_result,
-      CodepointSpan *classified_span) const;
-  bool ShouldTriggerOnBeginnerVocabs() const;
-
-  const std::unique_ptr<VocabLevelTable> vocab_level_table_;
-  // Locales for which this annotator triggers.
-  const std::vector<Locale> triggering_locales_;
-  const FeatureProcessor &feature_processor_;
-  const UniLib &unilib_;
-  const VocabModel *model_;
+                    ClassificationResult *result) const {
+    return false;
+  }
 };
 
 }  // namespace libtextclassifier3
 
-#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_IMPL_H_
+#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_VOCAB_VOCAB_ANNOTATOR_DUMMY_H_
