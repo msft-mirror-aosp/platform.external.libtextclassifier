@@ -137,42 +137,42 @@ class LuaEnvironment {
 
   template <>
   int64 Read<int64>(const int index) const {
-    return static_cast<int64>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<int64>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   uint64 Read<uint64>(const int index) const {
-    return static_cast<uint64>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<uint64>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   int32 Read<int32>(const int index) const {
-    return static_cast<int32>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<int32>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   uint32 Read<uint32>(const int index) const {
-    return static_cast<uint32>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<uint32>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   int16 Read<int16>(const int index) const {
-    return static_cast<int16>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<int16>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   uint16 Read<uint16>(const int index) const {
-    return static_cast<uint16>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<uint16>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   int8 Read<int8>(const int index) const {
-    return static_cast<int8>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<int8>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
   uint8 Read<uint8>(const int index) const {
-    return static_cast<uint8>(lua_tonumber(state_, /*idx=*/index));
+    return static_cast<uint8>(lua_tointeger(state_, /*idx=*/index));
   }
 
   template <>
@@ -507,7 +507,7 @@ class LuaEnvironment {
   // Reads a repeated field from lua.
   template <typename T>
   void ReadRepeatedField(const int index, RepeatedField* result) const {
-    for (const auto& element : ReadVector<T>(index)) {
+    for (const T& element : ReadVector<T>(index)) {
       result->Add(element);
     }
   }

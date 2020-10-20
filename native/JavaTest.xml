@@ -27,6 +27,7 @@
         <option name="push" value="annotator->/data/local/tmp/annotator" />
         <option name="push" value="utils->/data/local/tmp/utils" />
     </target_preparer>
+
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.google.android.textclassifier.tests" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
