@@ -82,7 +82,7 @@ std::string ReadFile(const std::string& file_name) {
   return std::string(std::istreambuf_iterator<char>(file_stream), {});
 }
 
-class ParserTest : public testing::Test {
+class DateTimeParserTest : public testing::Test {
  public:
   void SetUp() override {
     // Loads default unmodified model. Individual tests can call LoadModel to
@@ -245,7 +245,7 @@ class ParserTest : public testing::Test {
 };
 
 // Test with just a few cases to make debugging of general failures easier.
-TEST_F(ParserTest, ParseShort) {
+TEST_F(DateTimeParserTest, ParseShort) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -255,7 +255,7 @@ TEST_F(ParserTest, ParseShort) {
            .Build()}));
 }
 
-TEST_F(ParserTest, Parse) {
+TEST_F(DateTimeParserTest, Parse) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -696,7 +696,7 @@ TEST_F(ParserTest, Parse) {
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 }
 
-TEST_F(ParserTest, ParseWithAnchor) {
+TEST_F(DateTimeParserTest, ParseWithAnchor) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -725,7 +725,7 @@ TEST_F(ParserTest, ParseWithAnchor) {
                           /*anchor_start_end=*/true));
 }
 
-TEST_F(ParserTest, ParseWithRawUsecase) {
+TEST_F(DateTimeParserTest, ParseWithRawUsecase) {
   // Annotated for RAW usecase.
   EXPECT_TRUE(ParsesCorrectly(
       "{tomorrow}", 82800000, GRANULARITY_DAY,
@@ -784,7 +784,7 @@ TEST_F(ParserTest, ParseWithRawUsecase) {
 }
 
 // For details please see b/155437137
-TEST_F(ParserTest, PastRelativeDatetime) {
+TEST_F(DateTimeParserTest, PastRelativeDatetime) {
   EXPECT_TRUE(ParsesCorrectly(
       "called you {last Saturday}",
       -432000000 /* Fri 1969-12-26 16:00:00 PST */, GRANULARITY_DAY,
@@ -830,7 +830,7 @@ TEST_F(ParserTest, PastRelativeDatetime) {
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 }
 
-TEST_F(ParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
+TEST_F(DateTimeParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
   // ParsesCorrectly uses 0 as the reference time, which corresponds to:
   // "Thu Jan 01 1970 01:00:00" Zurich time. So if we pass "0:30" here, it means
   // it is in the past, and so the parser should move this to the next day ->
@@ -845,7 +845,8 @@ TEST_F(ParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
            .Build()}));
 }
 
-TEST_F(ParserTest, DoesNotAddADayWhenTimeInThePastAndDayNotSpecifiedDisabled) {
+TEST_F(DateTimeParserTest,
+       DoesNotAddADayWhenTimeInThePastAndDayNotSpecifiedDisabled) {
   // ParsesCorrectly uses 0 as the reference time, which corresponds to:
   // "Thu Jan 01 1970 01:00:00" Zurich time. So if we pass "0:30" here, it means
   // it is in the past. The parameter prefer_future_when_unspecified_day is
@@ -867,7 +868,7 @@ TEST_F(ParserTest, DoesNotAddADayWhenTimeInThePastAndDayNotSpecifiedDisabled) {
            .Build()}));
 }
 
-TEST_F(ParserTest, ParsesNoonAndMidnightCorrectly) {
+TEST_F(DateTimeParserTest, ParsesNoonAndMidnightCorrectly) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988 12:30am}", 567991800000, GRANULARITY_MINUTE,
       {DatetimeComponentsBuilder()
@@ -899,7 +900,7 @@ TEST_F(ParserTest, ParsesNoonAndMidnightCorrectly) {
            .Build()}));
 }
 
-TEST_F(ParserTest, ParseGerman) {
+TEST_F(DateTimeParserTest, ParseGerman) {
   EXPECT_TRUE(ParsesCorrectlyGerman(
       "{Januar 1 2018}", 1514761200000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -1309,7 +1310,7 @@ TEST_F(ParserTest, ParseGerman) {
            .Build()}));
 }
 
-TEST_F(ParserTest, ParseChinese) {
+TEST_F(DateTimeParserTest, ParseChinese) {
   EXPECT_TRUE(ParsesCorrectlyChinese(
       "{明天 7 上午}", 108000000, GRANULARITY_HOUR,
       {DatetimeComponentsBuilder()
@@ -1320,7 +1321,7 @@ TEST_F(ParserTest, ParseChinese) {
            .Build()}));
 }
 
-TEST_F(ParserTest, ParseNonUs) {
+TEST_F(DateTimeParserTest, ParseNonUs) {
   auto first_may_2015 =
       DatetimeComponentsBuilder()
           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
@@ -1339,7 +1340,7 @@ TEST_F(ParserTest, ParseNonUs) {
                               /*timezone=*/"Europe/Zurich", /*locales=*/"en"));
 }
 
-TEST_F(ParserTest, ParseUs) {
+TEST_F(DateTimeParserTest, ParseUs) {
   auto five_january_2015 =
       DatetimeComponentsBuilder()
           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 5)
@@ -1359,7 +1360,7 @@ TEST_F(ParserTest, ParseUs) {
                               /*locales=*/"es-US"));
 }
 
-TEST_F(ParserTest, ParseUnknownLanguage) {
+TEST_F(DateTimeParserTest, ParseUnknownLanguage) {
   EXPECT_TRUE(ParsesCorrectly(
       "bylo to {31. 12. 2015} v 6 hodin", 1451516400000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -1371,7 +1372,7 @@ TEST_F(ParserTest, ParseUnknownLanguage) {
       /*timezone=*/"Europe/Zurich", /*locales=*/"xx"));
 }
 
-TEST_F(ParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
+TEST_F(DateTimeParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
   LoadModel([](ModelT* model) {
     model->datetime_model->generate_alternative_interpretations_when_ambiguous =
         true;
@@ -1422,7 +1423,8 @@ TEST_F(ParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
            .Build()}));
 }
 
-TEST_F(ParserTest, WhenAlternativesDisabledDoesNotGenerateAlternatives) {
+TEST_F(DateTimeParserTest,
+       WhenAlternativesDisabledDoesNotGenerateAlternatives) {
   LoadModel([](ModelT* model) {
     model->datetime_model->generate_alternative_interpretations_when_ambiguous =
         false;

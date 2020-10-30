@@ -58,10 +58,13 @@ struct LowercasingByteIterator {
     // Queue next character.
     if (buffer_pos >= buffer_size) {
       buffer_pos = 0;
-      // Lower-case the next character.
+
+      // Lower-case the next character. The character and its lower-cased
+      // counterpart may be represented with a different number of bytes in
+      // utf8.
       buffer_size =
           ValidRuneToChar(unilib.ToLower(ValidCharToRune(data)), buffer);
-      data += buffer_size;
+      data += GetNumBytesForUTF8Char(data);
     }
     TC3_DCHECK_LT(buffer_pos, buffer_size);
     return buffer[buffer_pos++];

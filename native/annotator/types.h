@@ -524,6 +524,10 @@ struct BaseOptions {
   // If true, the POD NER annotator is used.
   bool use_pod_ner = true;
 
+  // If true and the model file supports that, the new vocab annotator is used
+  // to annotate "Dictionary". Otherwise, we use the FFModel to do so.
+  bool use_vocab_annotator = false;
+
   bool operator==(const BaseOptions& other) const {
     bool location_context_equality = this->location_context.has_value() ==
                                      other.location_context.has_value();
@@ -536,7 +540,9 @@ struct BaseOptions {
            this->annotation_usecase == other.annotation_usecase &&
            this->detected_text_language_tags ==
                other.detected_text_language_tags &&
-           location_context_equality;
+           location_context_equality &&
+           this->use_pod_ner == other.use_pod_ner &&
+           this->use_vocab_annotator == other.use_vocab_annotator;
   }
 };
 
