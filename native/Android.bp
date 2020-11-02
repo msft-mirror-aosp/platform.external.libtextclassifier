@@ -113,6 +113,7 @@ cc_defaults {
 
     static_libs: [
         "marisa-trie",
+        "libtextclassifier_abseil",
         "liblua",
         "libutf",
         "libtflite_static",
@@ -151,7 +152,7 @@ genrule {
 cc_library {
     name: "libtextclassifier",
     defaults: ["libtextclassifier_defaults"],
-
+    min_sdk_version: "30",
     srcs: ["**/*.cc"],
     exclude_srcs: [
         "**/*_test.*",

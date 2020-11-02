@@ -10,6 +10,7 @@ cc_library_static {
         "com.android.extservices",
     ],
     sdk_version: "current",
+    min_sdk_version: "30",
     stl: "libc++_static",
     exclude_srcs: [
         "**/*_test.cc",
