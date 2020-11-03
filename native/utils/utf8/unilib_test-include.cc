@@ -360,6 +360,12 @@ TEST_F(UniLibTest, Integer32ParseLongNumber) {
   EXPECT_EQ(result, 1000000000);
 }
 
+TEST_F(UniLibTest, Integer32ParseOverflowNumber) {
+  int32 result;
+  EXPECT_FALSE(unilib_->ParseInt32(
+      UTF8ToUnicodeText("9123456789", /*do_copy=*/false), &result));
+}
+
 TEST_F(UniLibTest, Integer32ParseEmptyString) {
   int result;
   EXPECT_FALSE(

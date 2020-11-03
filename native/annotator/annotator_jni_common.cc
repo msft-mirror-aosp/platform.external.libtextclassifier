@@ -126,6 +126,13 @@ StatusOr<T> FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
   TC3_ASSIGN_OR_RETURN(bool use_pod_ner, JniHelper::CallBooleanMethod(
                                              env, joptions, get_use_pod_ner));
 
+  // .getUseVocabAnnotator()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_use_vocab_annotator,
+                       JniHelper::GetMethodID(env, options_class.get(),
+                                              "getUseVocabAnnotator", "()Z"));
+  TC3_ASSIGN_OR_RETURN(
+      bool use_vocab_annotator,
+      JniHelper::CallBooleanMethod(env, joptions, get_use_vocab_annotator));
   T options;
   TC3_ASSIGN_OR_RETURN(options.locales,
                        JStringToUtf8String(env, locales.get()));
@@ -140,6 +147,7 @@ StatusOr<T> FromJavaOptionsInternal(JNIEnv* env, jobject joptions,
   options.location_context = {user_location_lat, user_location_lng,
                               user_location_accuracy_meters};
   options.use_pod_ner = use_pod_ner;
+  options.use_vocab_annotator = use_vocab_annotator;
   return options;
 }
 }  // namespace

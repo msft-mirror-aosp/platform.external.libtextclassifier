@@ -30,9 +30,6 @@
 #elif defined TC3_UNILIB_APPLE
 #include "utils/utf8/unilib-apple.h"
 #define INIT_UNILIB_FOR_TESTING(VAR) VAR()
-#elif defined TC3_UNILIB_DUMMY
-#include "utils/utf8/unilib-dummy.h"
-#define INIT_UNILIB_FOR_TESTING(VAR) VAR()
 #else
 #error No TC3_UNILIB implementation specified.
 #endif

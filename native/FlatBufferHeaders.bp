@@ -85,6 +85,13 @@ genrule {
 }
 
 genrule {
+    name: "libtextclassifier_fbgen_utils_grammar_next_testing_value",
+    srcs: ["utils/grammar/next/testing/value.fbs"],
+    out: ["utils/grammar/next/testing/value_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
     name: "libtextclassifier_fbgen_utils_grammar_next_semantics_expression",
     srcs: ["utils/grammar/next/semantics/expression.fbs"],
     out: ["utils/grammar/next/semantics/expression_generated.h"],
@@ -188,6 +195,7 @@ cc_library_headers {
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
         "libtextclassifier_fbgen_annotator_entity-data",
+        "libtextclassifier_fbgen_utils_grammar_next_testing_value",
         "libtextclassifier_fbgen_utils_grammar_next_semantics_expression",
         "libtextclassifier_fbgen_utils_grammar_rules",
         "libtextclassifier_fbgen_utils_normalization",
@@ -212,6 +220,7 @@ cc_library_headers {
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
         "libtextclassifier_fbgen_annotator_entity-data",
+        "libtextclassifier_fbgen_utils_grammar_next_testing_value",
         "libtextclassifier_fbgen_utils_grammar_next_semantics_expression",
         "libtextclassifier_fbgen_utils_grammar_rules",
         "libtextclassifier_fbgen_utils_normalization",

@@ -26,7 +26,6 @@
 #include "utils/base/statusor.h"
 #include "utils/java/jni-base.h"
 #include "utils/utf8/unicodetext.h"
-#include "utils/utf8/unilib-common.h"
 
 namespace libtextclassifier3 {
 
@@ -94,29 +93,23 @@ bool UniLibBase::ParseDouble(const UnicodeText& text, double* result) const {
     return false;
   }
 
-  JNIEnv* env = jni_cache_->GetEnv();
   auto it_dot = text.begin();
   for (; it_dot != text.end() && !IsDot(*it_dot); it_dot++) {
   }
 
-  int64 integer_part;
+  int32 integer_part;
   if (!ParseInt(UnicodeText::Substring(text.begin(), it_dot, /*do_copy=*/false),
                 &integer_part)) {
     return false;
   }
 
-  int64 fractional_part = 0;
+  int32 fractional_part = 0;
   if (it_dot != text.end()) {
-    std::string fractional_part_str =
-        UnicodeText::UTF8Substring(++it_dot, text.end());
-    TC3_ASSIGN_OR_RETURN_FALSE(
-        const ScopedLocalRef<jstring> fractional_text_java,
-        jni_cache_->ConvertToJavaString(fractional_part_str));
-    TC3_ASSIGN_OR_RETURN_FALSE(
-        fractional_part,
-        JniHelper::CallStaticIntMethod<int64>(
-            env, jni_cache_->integer_class.get(), jni_cache_->integer_parse_int,
-            fractional_text_java.get()));
+    if (!ParseInt(
+            UnicodeText::Substring(++it_dot, text.end(), /*do_copy=*/false),
+            &fractional_part)) {
+      return false;
+    }
   }
 
   double factional_part_double = fractional_part;

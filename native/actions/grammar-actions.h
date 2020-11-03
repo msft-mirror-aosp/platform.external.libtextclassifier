@@ -23,10 +23,10 @@
 #include "actions/actions_model_generated.h"
 #include "actions/types.h"
 #include "utils/flatbuffers/mutable.h"
-#include "utils/grammar/lexer.h"
-#include "utils/grammar/types.h"
+#include "utils/grammar/next/analyzer.h"
+#include "utils/grammar/next/evaluated-derivation.h"
+#include "utils/grammar/next/text-context.h"
 #include "utils/i18n/locale.h"
-#include "utils/strings/stringpiece.h"
 #include "utils/tokenizer.h"
 #include "utils/utf8/unilib.h"
 
@@ -35,8 +35,6 @@ namespace libtextclassifier3 {
 // Grammar backed actions suggestions.
 class GrammarActions {
  public:
-  enum class Callback : grammar::CallbackId { kActionRuleMatch = 1 };
-
   explicit GrammarActions(const UniLib* unilib,
                           const RulesModel_::GrammarRules* grammar_rules,
                           const MutableFlatbufferBuilder* entity_data_builder,
@@ -47,15 +45,18 @@ class GrammarActions {
                       std::vector<ActionSuggestion>* result) const;
 
  private:
+  // Creates action suggestions from a grammar match result.
+  bool InstantiateActionsFromMatch(
+      const grammar::next::TextContext& text_context, int message_index,
+      const grammar::next::Derivation& derivation,
+      std::vector<ActionSuggestion>* result) const;
+
   const UniLib& unilib_;
   const RulesModel_::GrammarRules* grammar_rules_;
   const std::unique_ptr<Tokenizer> tokenizer_;
-  const grammar::Lexer lexer_;
   const MutableFlatbufferBuilder* entity_data_builder_;
+  const grammar::next::Analyzer analyzer_;
   const std::string smart_reply_action_type_;
-
-  // Pre-parsed locales of the rules.
-  const std::vector<std::vector<Locale>> rules_locales_;
 };
 
 }  // namespace libtextclassifier3
