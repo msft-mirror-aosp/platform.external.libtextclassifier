@@ -53,6 +53,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+// TODO(licha): Support garbage collection to delete unused model files
 /**
  * Manages all model files in storage. {@link TextClassifierImpl} depends on this class to get the
  * model files to load.

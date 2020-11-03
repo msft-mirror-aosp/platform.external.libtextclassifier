@@ -48,6 +48,14 @@ public final class LangIdModel implements AutoCloseable {
     }
   }
 
+  /** Creates a new instance of LangId predictor, using the provided model image. */
+  public LangIdModel(int fd, long offset, long size) {
+    modelPtr = nativeNewWithOffset(fd, offset, size);
+    if (modelPtr == 0L) {
+      throw new IllegalArgumentException("Couldn't initialize LangId from given file descriptor.");
+    }
+  }
+
   /** Detects the languages for given text. */
   public LanguageResult[] detectLanguages(String text) {
     return nativeDetectLanguages(modelPtr, text);
@@ -129,6 +137,8 @@ public final class LangIdModel implements AutoCloseable {
   private static native long nativeNew(int fd);
 
   private static native long nativeNewFromPath(String path);
+
+  private static native long nativeNewWithOffset(int fd, long offset, long size);
 
   private native LanguageResult[] nativeDetectLanguages(long nativePtr, String text);
 

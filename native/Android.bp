@@ -89,7 +89,7 @@ cc_defaults {
         "-DTC3_UNILIB_JAVAICU",
         "-DTC3_CALENDAR_JAVAICU",
         "-DTC3_AOSP",
-        "-DTC3_VOCAB_ANNOTATOR_DUMMY"
+        "-DTC3_VOCAB_ANNOTATOR_DUMMY",
     ],
 
     product_variables: {
@@ -249,6 +249,7 @@ android_test {
     ],
     jni_uses_sdk_apis: true,
     data: [
+        "**/*.bfbs",
         "**/test_data/*",
     ],
     test_config: "JavaTest.xml",

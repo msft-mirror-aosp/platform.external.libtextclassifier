@@ -109,6 +109,9 @@ public final class TextClassifierSettings {
   /** Whether to enable model downloading with ModelDownloadManager */
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_MANAGER_ENABLED = "model_download_manager_enabled";
+  /** Max attempts allowed for a single ModelDownloader downloading task. */
+  @VisibleForTesting
+  static final String MODEL_DOWNLOAD_MAX_ATTEMPTS = "model_download_max_attempts";
   /** The prefix of the URL to download models. E.g. https://www.gstatic.com/android/ */
   @VisibleForTesting static final String ANNOTATOR_URL_PREFIX = "annotator_url_prefix";
 
@@ -190,6 +193,7 @@ public final class TextClassifierSettings {
   private static final boolean TRANSLATE_IN_CLASSIFICATION_ENABLED_DEFAULT = true;
   private static final boolean DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT = true;
   private static final boolean MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT = false;
+  private static final int MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 5;
   private static final String ANNOTATOR_URL_PREFIX_DEFAULT =
       "https://www.gstatic.com/android/text_classifier/";
   private static final String LANG_ID_URL_PREFIX_DEFAULT =
@@ -344,6 +348,11 @@ public final class TextClassifierSettings {
         NAMESPACE, MODEL_DOWNLOAD_MANAGER_ENABLED, MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT);
   }
 
+  public int getModelDownloadMaxAttempts() {
+    return deviceConfig.getInt(
+        NAMESPACE, MODEL_DOWNLOAD_MAX_ATTEMPTS, MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT);
+  }
+
   public String getModelURLPrefix(@ModelType.ModelTypeDef String modelType) {
     switch (modelType) {
       case ModelType.ANNOTATOR:
@@ -398,6 +407,7 @@ public final class TextClassifierSettings {
     pw.printPair("template_intent_factory_enabled", isTemplateIntentFactoryEnabled());
     pw.printPair("translate_in_classification_enabled", isTranslateInClassificationEnabled());
     pw.printPair("model_download_manager_enabled", isModelDownloadManagerEnabled());
+    pw.printPair("model_download_max_attempts", getModelDownloadMaxAttempts());
     pw.printPair("annotator_url_prefix", getModelURLPrefix(ModelType.ANNOTATOR));
     pw.printPair("lang_id_url_prefix", getModelURLPrefix(ModelType.LANG_ID));
     pw.printPair(

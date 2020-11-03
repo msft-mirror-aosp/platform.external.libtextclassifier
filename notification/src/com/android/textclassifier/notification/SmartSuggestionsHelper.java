@@ -312,7 +312,15 @@ public class SmartSuggestionsHelper {
    */
   public void onNotificationExpansionChanged(
       StatusBarNotification statusBarNotification, boolean isExpanded) {
-    SmartSuggestionsLogSession session = sessionCache.get(statusBarNotification.getKey());
+    onNotificationExpansionChanged(statusBarNotification.getKey(), isExpanded);
+  }
+
+  /**
+   * Similar to {@link onNotificationExpansionChanged}, except that this takes the notificataion key
+   * as input.
+   */
+  public void onNotificationExpansionChanged(String key, boolean isExpanded) {
+    SmartSuggestionsLogSession session = sessionCache.get(key);
     if (session == null) {
       return;
     }
