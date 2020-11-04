@@ -49,6 +49,8 @@ class PodNerAnnotator {
                     ClassificationResult *result) const {
     return false;
   }
+
+  std::vector<std::string> GetSupportedCollections() const { return {}; }
 };
 
 }  // namespace libtextclassifier3

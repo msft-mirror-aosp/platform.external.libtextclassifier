@@ -775,7 +775,10 @@ final class TextClassifierImpl {
   private static PendingIntent createPendingIntent(
       final Context context, final Intent intent, int requestCode) {
     return PendingIntent.getActivity(
-        context, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        context,
+        requestCode,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
   }
 
   @Nullable
