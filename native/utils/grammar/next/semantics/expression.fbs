@@ -61,12 +61,6 @@ table Field {
 
   // The value.
   value:SemanticExpression;
-
-  // Whether the field can be absent: If set to true, evaluation to null will
-  // not be treated as an error.
-  // A value of null represents a non-present value that can e.g. arise from
-  // optional parts of a rule that might not be present in a match.
-  optional:bool;
 }
 
 // A combination: Compose a result from arguments.

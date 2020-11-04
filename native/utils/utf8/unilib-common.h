@@ -52,6 +52,23 @@ char32 ToLower(char32 codepoint);
 char32 ToUpper(char32 codepoint);
 char32 GetPairedBracket(char32 codepoint);
 
+// Checks if the text format is not likely to be a number. Used to avoid most of
+// the java exceptions thrown when fail to parse.
+template <class T>
+bool PassesIntPreChesks(const UnicodeText& text, const T result) {
+  if (text.empty() ||
+      (std::is_same_v<T, int32> && text.size_codepoints() > 10) ||
+      (std::is_same_v<T, int64> && text.size_codepoints() > 19)) {
+    return false;
+  }
+  for (auto it = text.begin(); it != text.end(); ++it) {
+    if (!IsDigit(*it)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace libtextclassifier3
 
 #endif  // LIBTEXTCLASSIFIER_UTILS_UTF8_UNILIB_COMMON_H_

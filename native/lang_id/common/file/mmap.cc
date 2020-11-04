@@ -195,13 +195,16 @@ MmapHandle MmapFile(int fd) {
   size_t file_size_in_bytes = static_cast<size_t>(sb.st_size);
 
   // Perform actual mmap.
+  return MmapFile(fd, /*offset_in_bytes=*/0, file_size_in_bytes);
+}
+
+MmapHandle MmapFile(int fd, size_t offset_in_bytes, size_t size_in_bytes) {
   void *mmap_addr = mmap(
 
       // Let system pick address for mmapp-ed data.
       nullptr,
 
-      // Mmap all bytes from the file.
-      file_size_in_bytes,
+      size_in_bytes,
 
       // One can read / write the mapped data (but see MAP_PRIVATE below).
       // Normally, we expect only to read it, but in the future, we may want to
@@ -215,16 +218,14 @@ MmapHandle MmapFile(int fd) {
       // Descriptor of file to mmap.
       fd,
 
-      // Map bytes right from the beginning of the file.  This, and
-      // file_size_in_bytes (2nd argument) means we map all bytes from the file.
-      0);
+      offset_in_bytes);
   if (mmap_addr == MAP_FAILED) {
     const std::string last_error = GetLastSystemError();
     SAFTM_LOG(ERROR) << "Error while mmapping: " << last_error;
     return GetErrorMmapHandle();
   }
 
-  return MmapHandle(mmap_addr, file_size_in_bytes);
+  return MmapHandle(mmap_addr, size_in_bytes);
 }
 
 bool Unmap(MmapHandle mmap_handle) {

@@ -39,6 +39,9 @@ TC3_JNI_METHOD(jlong, TC3_LANG_ID_CLASS_NAME, nativeNew)
 TC3_JNI_METHOD(jlong, TC3_LANG_ID_CLASS_NAME, nativeNewFromPath)
 (JNIEnv* env, jobject clazz, jstring path);
 
+TC3_JNI_METHOD(jlong, TC3_LANG_ID_CLASS_NAME, nativeNewWithOffset)
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size);
+
 TC3_JNI_METHOD(jobjectArray, TC3_LANG_ID_CLASS_NAME, nativeDetectLanguages)
 (JNIEnv* env, jobject thiz, jlong ptr, jstring text);
 

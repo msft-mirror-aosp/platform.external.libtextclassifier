@@ -183,6 +183,9 @@ class Rules {
   // fed to the matcher by the lexer.
   Ir Finalize(const std::set<std::string>& predefined_nonterminals = {}) const;
 
+  const std::vector<NontermInfo>& nonterminals() const { return nonterminals_; }
+  const std::vector<Rule>& rules() const { return rules_; }
+
  private:
   void ExpandOptionals(
       int lhs, const std::vector<RhsElement>& rhs, CallbackId callback,

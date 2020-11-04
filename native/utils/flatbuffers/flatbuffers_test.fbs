@@ -36,6 +36,7 @@ table Reminder {
 table NestedA {
   nestedb: NestedB;
   value: string;
+  repeated_str: [string];
 }
 
 table NestedB {
