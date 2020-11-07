@@ -24,7 +24,7 @@ import com.google.common.truth.Subject;
 import javax.annotation.Nullable;
 
 /** Test helper for checking {@link com.android.textclassifier.Entity} results. */
-public final class EntitySubject extends Subject<EntitySubject, Entity> {
+public final class EntitySubject extends Subject {
 
   private static final float TOLERANCE = 0.0001f;
 
