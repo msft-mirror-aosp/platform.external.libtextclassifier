@@ -23,9 +23,9 @@
 #include "actions/actions_model_generated.h"
 #include "actions/types.h"
 #include "utils/flatbuffers/mutable.h"
-#include "utils/grammar/next/analyzer.h"
-#include "utils/grammar/next/evaluated-derivation.h"
-#include "utils/grammar/next/text-context.h"
+#include "utils/grammar/analyzer.h"
+#include "utils/grammar/evaluated-derivation.h"
+#include "utils/grammar/text-context.h"
 #include "utils/i18n/locale.h"
 #include "utils/tokenizer.h"
 #include "utils/utf8/unilib.h"
@@ -46,16 +46,16 @@ class GrammarActions {
 
  private:
   // Creates action suggestions from a grammar match result.
-  bool InstantiateActionsFromMatch(
-      const grammar::next::TextContext& text_context, int message_index,
-      const grammar::next::Derivation& derivation,
-      std::vector<ActionSuggestion>* result) const;
+  bool InstantiateActionsFromMatch(const grammar::TextContext& text_context,
+                                   int message_index,
+                                   const grammar::Derivation& derivation,
+                                   std::vector<ActionSuggestion>* result) const;
 
   const UniLib& unilib_;
   const RulesModel_::GrammarRules* grammar_rules_;
   const std::unique_ptr<Tokenizer> tokenizer_;
   const MutableFlatbufferBuilder* entity_data_builder_;
-  const grammar::next::Analyzer analyzer_;
+  const grammar::Analyzer analyzer_;
   const std::string smart_reply_action_type_;
 };
 

@@ -40,8 +40,8 @@ class PodNerAnnotator {
     return true;
   }
 
-  AnnotatedSpan SuggestSelection(const UnicodeText &context,
-                                 CodepointSpan click) const {
+  bool SuggestSelection(const UnicodeText &context, CodepointSpan click,
+                        AnnotatedSpan *result) const {
     return {};
   }
 

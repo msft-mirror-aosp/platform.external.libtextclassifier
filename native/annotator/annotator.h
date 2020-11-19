@@ -30,7 +30,6 @@
 #include "annotator/duration/duration.h"
 #include "annotator/experimental/experimental.h"
 #include "annotator/feature-processor.h"
-#include "annotator/grammar/dates/cfg-datetime-annotator.h"
 #include "annotator/grammar/grammar-annotator.h"
 #include "annotator/installed_app/installed-app-engine.h"
 #include "annotator/knowledge/knowledge-engine.h"
@@ -174,7 +173,7 @@ class Annotator {
   bool InitializeExperimentalAnnotators();
 
   // Sets up the lang-id instance that should be used.
-  void SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id);
+  bool SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id);
 
   // Runs inference for given a context and current selection (i.e. index
   // of the first and one past last selected characters (utf8 codepoint
@@ -441,8 +440,6 @@ class Annotator {
   std::unique_ptr<const FeatureProcessor> classification_feature_processor_;
 
   std::unique_ptr<const DatetimeParser> datetime_parser_;
-  std::unique_ptr<const dates::CfgDatetimeAnnotator> cfg_datetime_parser_;
-
   std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
   std::string owned_buffer_;

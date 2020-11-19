@@ -133,15 +133,15 @@ final class ModelFileManager {
   /**
    * Returns a {@link File} that represents the destination to download a model.
    *
-   * <p>Each model file's name is uniquely formatted based on its unique remote URL address.
+   * <p>Each model file's name is uniquely formatted based on its unique remote manifest URL.
    *
    * <p>{@link ModelDownloadManager} needs to call this to get the right location and file name.
    *
    * @param modelType the type of the model image to download
-   * @param url the unique remote url of the model image
+   * @param manifestUrl the unique remote url of the model manifest
    */
-  public File getDownloadTargetFile(@ModelType.ModelTypeDef String modelType, String url) {
-    String fileName = String.format("%s.%d.model", modelType, url.hashCode());
+  public File getDownloadTargetFile(@ModelType.ModelTypeDef String modelType, String manifestUrl) {
+    String fileName = String.format("%s.%d.model", modelType, manifestUrl.hashCode());
     return new File(downloadModelDir, fileName);
   }
 

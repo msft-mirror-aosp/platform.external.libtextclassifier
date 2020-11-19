@@ -37,6 +37,7 @@ bool IsNumberSign(char32 codepoint);
 bool IsDot(char32 codepoint);
 bool IsApostrophe(char32 codepoint);
 bool IsQuotation(char32 codepoint);
+bool IsAmpersand(char32 codepoint);
 
 bool IsLatinLetter(char32 codepoint);
 bool IsArabicLetter(char32 codepoint);
@@ -57,8 +58,8 @@ char32 GetPairedBracket(char32 codepoint);
 template <class T>
 bool PassesIntPreChesks(const UnicodeText& text, const T result) {
   if (text.empty() ||
-      (std::is_same_v<T, int32> && text.size_codepoints() > 10) ||
-      (std::is_same_v<T, int64> && text.size_codepoints() > 19)) {
+      (std::is_same<T, int32>::value && text.size_codepoints() > 10) ||
+      (std::is_same<T, int64>::value && text.size_codepoints() > 19)) {
     return false;
   }
   for (auto it = text.begin(); it != text.end(); ++it) {

@@ -44,45 +44,8 @@ using ::testing::UnorderedElementsAreArray;
 
 std::string GetTestModelPath() { return GetModelPath() + "test_model.fb"; }
 
-std::string GetModelWithGrammarPath() {
-  return GetModelPath() + "test_grammar_model.fb";
-}
-
 std::string GetModelWithVocabPath() {
   return GetModelPath() + "test_vocab_model.fb";
-}
-
-void FillDatetimeAnnotationOptionsToModel(
-    ModelT* unpacked_model, const DateAnnotationOptions& options) {
-  unpacked_model->grammar_datetime_model->annotation_options.reset(
-      new GrammarDatetimeModel_::AnnotationOptionsT);
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->enable_date_range = options.enable_date_range;
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->include_preposition = options.include_preposition;
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->merge_adjacent_components = options.merge_adjacent_components;
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->enable_special_day_offset = options.enable_special_day_offset;
-  for (const auto& extra_dates_rule_id : options.extra_requested_dates) {
-    unpacked_model->grammar_datetime_model->annotation_options
-        ->extra_requested_dates.push_back(extra_dates_rule_id);
-  }
-}
-
-std::string GetGrammarModel(const DateAnnotationOptions& options) {
-  const std::string test_model = ReadFile(GetModelWithGrammarPath());
-  std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
-  FillDatetimeAnnotationOptionsToModel(unpacked_model.get(), options);
-  flatbuffers::FlatBufferBuilder builder;
-  FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
-  return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
-                     builder.GetSize());
-}
-
-std::string GetGrammarModel() {
-  DateAnnotationOptions options;
-  return GetGrammarModel(options);
 }
 
 void ExpectFirstEntityIsMoney(const std::vector<AnnotatedSpan>& result,
@@ -154,14 +117,6 @@ TEST_F(AnnotatorTest, ClassifyText) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
   VerifyClassifyText(classifier.get());
-}
-
-TEST_F(AnnotatorTest, ClassifyTextWithGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyText(std::move(classifier.get()));
 }
 
 TEST_F(AnnotatorTest, ClassifyTextLocalesAndDictionary) {
@@ -1336,13 +1291,6 @@ TEST_F(AnnotatorTest, AnnotatesDurationsInRawMode) {
   VerifyAnnotatesDurationsInRawMode(classifier.get());
 }
 
-TEST_F(AnnotatorTest, AnnotatesDurationsInRawModeWithDatetimeGrammar) {
-  const std::string test_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
-  VerifyAnnotatesDurationsInRawMode(classifier.get());
-}
-
 TEST_F(AnnotatorTest, DurationAndRelativeTimeCanOverlapInRawMode) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
@@ -1642,14 +1590,6 @@ TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezone) {
   VerifyClassifyTextDateInZurichTimezone(classifier.get());
 }
 
-TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezoneWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextDateInZurichTimezone(classifier.get());
-}
-
 void VerifyClassifyTextDateInLATimezone(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   ClassificationOptions options;
@@ -1666,14 +1606,6 @@ void VerifyClassifyTextDateInLATimezone(const Annotator* classifier) {
 TEST_F(AnnotatorTest, ClassifyTextDateInLATimezone) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextDateInLATimezone(classifier.get());
-}
-
-TEST_F(AnnotatorTest, ClassifyTextDateInLATimezoneWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
   VerifyClassifyTextDateInLATimezone(classifier.get());
 }
 
@@ -1698,14 +1630,6 @@ TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLine) {
   VerifyClassifyTextDateOnAotherLine(classifier.get());
 }
 
-TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLineWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextDateOnAotherLine(classifier.get());
-}
-
 void VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(
     const Annotator* classifier) {
   EXPECT_TRUE(classifier);
@@ -1725,15 +1649,6 @@ void VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(
 TEST_F(AnnotatorTest, ClassifyTextWhenLocaleUSParsesDateAsMonthDay) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(classifier.get());
-}
-
-TEST_F(AnnotatorTest,
-       ClassifyTextWhenLocaleUSParsesDateAsMonthDayWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
   VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(classifier.get());
 }
 
@@ -1835,7 +1750,7 @@ TEST_F(AnnotatorTest, AnnotatesWithGrammarModel) {
   rules.Add(
       "<famous_person>", {"<tv_detective>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/0 /* rule classification result */);
 
   // Set result.
@@ -2152,13 +2067,6 @@ void VerifyLongInput(const Annotator* classifier) {
 TEST_F(AnnotatorTest, LongInput) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyLongInput(classifier.get());
-}
-
-TEST_F(AnnotatorTest, LongInputWithDatetimeGrammar) {
-  const std::string test_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
   VerifyLongInput(classifier.get());
 }
 
@@ -2608,15 +2516,6 @@ TEST_F(AnnotatorTest, ClassifyTextOutputsDatetimeEntityData) {
   VerifyClassifyTextOutputsDatetimeEntityData(classifier.get());
 }
 
-TEST_F(AnnotatorTest,
-       ClassifyTextOutputsDatetimeEntityDataWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextOutputsDatetimeEntityData(classifier.get());
-}
-
 void VerifyAnnotateOutputsDatetimeEntityData(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   std::vector<AnnotatedSpan> result;
@@ -2666,14 +2565,6 @@ void VerifyAnnotateOutputsDatetimeEntityData(const Annotator* classifier) {
 TEST_F(AnnotatorTest, AnnotateOutputsDatetimeEntityData) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyAnnotateOutputsDatetimeEntityData(classifier.get());
-}
-
-TEST_F(AnnotatorTest, AnnotateOutputsDatetimeEntityDataWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
   VerifyAnnotateOutputsDatetimeEntityData(classifier.get());
 }
 
@@ -2921,42 +2812,6 @@ void AddDummyRegexDatetimeModel(ModelT* unpacked_model) {
 }
 }  // namespace
 
-TEST_F(AnnotatorTest, WorksWithBothRegexAndGrammarDatetimeAtOnce) {
-  // This creates a model that has both regex and grammar datetime. The regex
-  // one is broken, and only matches strings "THIS_MATCHES_IN_REGEX_MODEL",
-  // so that we can use it for testing that both models are used correctly.
-  const std::string test_model = ReadFile(GetModelWithGrammarPath());
-  std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
-  TC3_CHECK(libtextclassifier3::DecompressModel(unpacked_model.get()));
-  AddDummyRegexDatetimeModel(unpacked_model.get());
-  flatbuffers::FlatBufferBuilder builder;
-  FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
-
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      reinterpret_cast<const char*>(builder.GetBufferPointer()),
-      builder.GetSize(), unilib_.get(), calendarlib_.get());
-
-  ASSERT_TRUE(classifier);
-  EXPECT_THAT(classifier->Annotate("THIS_MATCHES_IN_REGEX_MODEL, and this in "
-                                   "grammars: February 2, 2020"),
-              ElementsAreArray({
-                  // Regex model match
-                  IsAnnotatedSpan(0, 27, "date"),
-                  // Grammar model match
-                  IsAnnotatedSpan(51, 67, "date"),
-              }));
-  EXPECT_EQ(
-      FirstResult(classifier->ClassifyText(
-          "THIS_MATCHES_IN_REGEX_MODEL, and this in grammars: February 2, 2020",
-          {0, 27})),
-      "date");
-  EXPECT_EQ(
-      FirstResult(classifier->ClassifyText(
-          "THIS_MATCHES_IN_REGEX_MODEL, and this in grammars: February 2, 2020",
-          {51, 67})),
-      "date");
-}
-
 TEST_F(AnnotatorTest, AnnotateFiltersOutExactDuplicates) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
@@ -2975,85 +2830,6 @@ TEST_F(AnnotatorTest, AnnotateFiltersOutExactDuplicates) {
   }
 
   EXPECT_EQ(num_phones, 1);
-}
-
-TEST_F(AnnotatorTest, AnnotateUsingGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  ASSERT_TRUE(classifier);
-
-  const std::string test_string =
-      "& saw Barack Obama today .. 350 Third Street, Cambridge\nand my phone "
-      "number is 853 225 3556";
-  EXPECT_THAT(classifier->Annotate(test_string),
-              ElementsAreArray({
-                  IsAnnotatedSpan(19, 24, "date"),
-                  IsAnnotatedSpan(28, 55, "address"),
-                  IsAnnotatedSpan(79, 91, "phone"),
-              }));
-}
-
-TEST_F(AnnotatorTest, AnnotateGrammarPriority) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-
-  ASSERT_TRUE(classifier);
-
-  // "May 8, 2015, 545" have two annotation
-  // 1) {May 8, 2015}, 545 -> Datetime (High Priority Score)
-  // 2) May 8, {2015, 545} -> phone number (Low Priority Score)
-  const std::string test_string =
-      "May 8, 2015, 545, shares Comment Now that Joss Whedon";
-  EXPECT_THAT(classifier->Annotate(test_string),
-              ElementsAreArray({IsAnnotatedSpan(0, 11, "date")}));
-}
-
-TEST_F(AnnotatorTest, AnnotateGrammarDatetimeRangesDisable) {
-  const std::string test_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
-  ASSERT_TRUE(classifier);
-
-  EXPECT_THAT(classifier->Annotate("11 Jan to 3 Feb"),
-              ElementsAreArray({IsAnnotatedSpan(0, 6, "date"),
-                                IsAnnotatedSpan(10, 15, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("11 - 14 of Feb"),
-              ElementsAreArray({IsAnnotatedSpan(5, 14, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("Monday 10 - 11pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 6, "date"),
-                                IsAnnotatedSpan(12, 16, "datetime")}));
-
-  EXPECT_THAT(classifier->Annotate("7:20am - 8:00pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 6, "datetime"),
-                                IsAnnotatedSpan(9, 15, "datetime")}));
-}
-
-TEST_F(AnnotatorTest, AnnotateGrammarDatetimeRangesEnable) {
-  DateAnnotationOptions options;
-  options.enable_date_range = true;
-  options.merge_adjacent_components = true;
-  const std::string test_model = GetGrammarModel(options);
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
-  ASSERT_TRUE(classifier);
-
-  EXPECT_THAT(classifier->Annotate("11 Jan to 3 Feb"),
-              ElementsAreArray({IsAnnotatedSpan(0, 15, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("11 - 14 of Feb"),
-              ElementsAreArray({IsAnnotatedSpan(0, 14, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("Monday 10 - 11pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 16, "datetime")}));
-
-  EXPECT_THAT(classifier->Annotate("7:20am - 8:00pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 15, "datetime")}));
 }
 
 // This test tests the optimizations in Annotator, which make some of the
