@@ -618,7 +618,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private double userLocationLng = INVALID_LONGITUDE;
       private float userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
       private boolean usePodNer = true;
-      private boolean useVocabAnnotator;
+      private boolean useVocabAnnotator = true;
 
       public Builder setLocales(@Nullable String locales) {
         this.locales = locales;
@@ -768,7 +768,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private String userFamiliarLanguageTags = "";
       private boolean usePodNer = true;
       private boolean triggerDictionaryOnBeginnerWords = false;
-      private boolean useVocabAnnotator = false;
+      private boolean useVocabAnnotator = true;
 
       public Builder setReferenceTimeMsUtc(long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;
@@ -975,7 +975,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private float userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
       private boolean usePodNer = true;
       private boolean triggerDictionaryOnBeginnerWords = false;
-      private boolean useVocabAnnotator;
+      private boolean useVocabAnnotator = true;
 
       public Builder setReferenceTimeMsUtc(long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;

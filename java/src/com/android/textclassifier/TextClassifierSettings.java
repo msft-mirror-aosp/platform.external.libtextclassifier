@@ -129,6 +129,9 @@ public final class TextClassifierSettings {
   static final String PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX =
       "primary_actions_suggestions_url_suffix";
 
+  /** Sampling rate for TextClassifier API logging. */
+  static final String TEXTCLASSIFIER_API_LOG_SAMPLE_RATE = "textclassifier_api_log_sample_rate";
+
   /**
    * A colon(:) separated string that specifies the configuration to use when including surrounding
    * context text in language detection queries.
@@ -204,8 +207,12 @@ public final class TextClassifierSettings {
   private static final String PRIMARY_LANG_ID_URL_SUFFIX_DEFAULT = "";
   private static final String PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
+  /**
+   * Sampling rate for API logging. For example, 100 means there is a 0.01 chance that the API call
+   * is the logged.
+   */
+  private static final int TEXTCLASSIFIER_API_LOG_SAMPLE_RATE_DEFAULT = 10;
 
-  @VisibleForTesting
   interface IDeviceConfig {
     default int getInt(@NonNull String namespace, @NonNull String name, @NonNull int defaultValue) {
       return defaultValue;
@@ -261,7 +268,7 @@ public final class TextClassifierSettings {
   }
 
   @VisibleForTesting
-  TextClassifierSettings(IDeviceConfig deviceConfig) {
+  public TextClassifierSettings(IDeviceConfig deviceConfig) {
     this.deviceConfig = deviceConfig;
   }
 
@@ -386,38 +393,43 @@ public final class TextClassifierSettings {
     }
   }
 
+  public int getTextClassifierApiLogSampleRate() {
+    return deviceConfig.getInt(
+        NAMESPACE, TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, TEXTCLASSIFIER_API_LOG_SAMPLE_RATE_DEFAULT);
+  }
+
   void dump(IndentingPrintWriter pw) {
     pw.println("TextClassifierSettings:");
     pw.increaseIndent();
-    pw.printPair("classify_text_max_range_length", getClassifyTextMaxRangeLength());
-    pw.printPair("detect_language_from_text_enabled", isDetectLanguagesFromTextEnabled());
-    pw.printPair("entity_list_default", getEntityListDefault());
-    pw.printPair("entity_list_editable", getEntityListEditable());
-    pw.printPair("entity_list_not_editable", getEntityListNotEditable());
-    pw.printPair("generate_links_log_sample_rate", getGenerateLinksLogSampleRate());
-    pw.printPair("generate_links_max_text_length", getGenerateLinksMaxTextLength());
-    pw.printPair("in_app_conversation_action_types_default", getInAppConversationActionTypes());
-    pw.printPair("lang_id_context_settings", Arrays.toString(getLangIdContextSettings()));
-    pw.printPair("lang_id_threshold_override", getLangIdThresholdOverride());
-    pw.printPair("translate_action_threshold", getTranslateActionThreshold());
+    pw.printPair(CLASSIFY_TEXT_MAX_RANGE_LENGTH, getClassifyTextMaxRangeLength());
+    pw.printPair(DETECT_LANGUAGES_FROM_TEXT_ENABLED, isDetectLanguagesFromTextEnabled());
+    pw.printPair(ENTITY_LIST_DEFAULT, getEntityListDefault());
+    pw.printPair(ENTITY_LIST_EDITABLE, getEntityListEditable());
+    pw.printPair(ENTITY_LIST_NOT_EDITABLE, getEntityListNotEditable());
+    pw.printPair(GENERATE_LINKS_LOG_SAMPLE_RATE, getGenerateLinksLogSampleRate());
+    pw.printPair(GENERATE_LINKS_MAX_TEXT_LENGTH, getGenerateLinksMaxTextLength());
+    pw.printPair(IN_APP_CONVERSATION_ACTION_TYPES_DEFAULT, getInAppConversationActionTypes());
+    pw.printPair(LANG_ID_CONTEXT_SETTINGS, Arrays.toString(getLangIdContextSettings()));
+    pw.printPair(LANG_ID_THRESHOLD_OVERRIDE, getLangIdThresholdOverride());
+    pw.printPair(TRANSLATE_ACTION_THRESHOLD, getTranslateActionThreshold());
     pw.printPair(
-        "notification_conversation_action_types_default", getNotificationConversationActionTypes());
-    pw.printPair("suggest_selection_max_range_length", getSuggestSelectionMaxRangeLength());
-    pw.printPair("user_language_profile_enabled", isUserLanguageProfileEnabled());
-    pw.printPair("template_intent_factory_enabled", isTemplateIntentFactoryEnabled());
-    pw.printPair("translate_in_classification_enabled", isTranslateInClassificationEnabled());
-    pw.printPair("model_download_manager_enabled", isModelDownloadManagerEnabled());
-    pw.printPair("model_download_max_attempts", getModelDownloadMaxAttempts());
-    pw.printPair("annotator_url_prefix", getModelURLPrefix(ModelType.ANNOTATOR));
-    pw.printPair("lang_id_url_prefix", getModelURLPrefix(ModelType.LANG_ID));
-    pw.printPair(
-        "actions_suggestions_url_prefix", getModelURLPrefix(ModelType.ACTIONS_SUGGESTIONS));
+        NOTIFICATION_CONVERSATION_ACTION_TYPES_DEFAULT, getNotificationConversationActionTypes());
+    pw.printPair(SUGGEST_SELECTION_MAX_RANGE_LENGTH, getSuggestSelectionMaxRangeLength());
+    pw.printPair(USER_LANGUAGE_PROFILE_ENABLED, isUserLanguageProfileEnabled());
+    pw.printPair(TEMPLATE_INTENT_FACTORY_ENABLED, isTemplateIntentFactoryEnabled());
+    pw.printPair(TRANSLATE_IN_CLASSIFICATION_ENABLED, isTranslateInClassificationEnabled());
+    pw.printPair(MODEL_DOWNLOAD_MANAGER_ENABLED, isModelDownloadManagerEnabled());
+    pw.printPair(MODEL_DOWNLOAD_MAX_ATTEMPTS, getModelDownloadMaxAttempts());
+    pw.printPair(ANNOTATOR_URL_PREFIX, getModelURLPrefix(ModelType.ANNOTATOR));
+    pw.printPair(LANG_ID_URL_PREFIX, getModelURLPrefix(ModelType.LANG_ID));
+    pw.printPair(ACTIONS_SUGGESTIONS_URL_PREFIX, getModelURLPrefix(ModelType.ACTIONS_SUGGESTIONS));
     pw.decreaseIndent();
-    pw.printPair("primary_annotator_url_suffix", getPrimaryModelURLSuffix(ModelType.ANNOTATOR));
-    pw.printPair("primary_lang_id_url_suffix", getPrimaryModelURLSuffix(ModelType.LANG_ID));
+    pw.printPair(PRIMARY_ANNOTATOR_URL_SUFFIX, getPrimaryModelURLSuffix(ModelType.ANNOTATOR));
+    pw.printPair(PRIMARY_LANG_ID_URL_SUFFIX, getPrimaryModelURLSuffix(ModelType.LANG_ID));
     pw.printPair(
-        "primary_actions_suggestions_url_suffix",
+        PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX,
         getPrimaryModelURLSuffix(ModelType.ACTIONS_SUGGESTIONS));
+    pw.printPair(TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, getTextClassifierApiLogSampleRate());
     pw.decreaseIndent();
   }
 

@@ -93,6 +93,9 @@ bool RegexActions::InitializeRules(
 bool RegexActions::InitializeRulesModel(
     const RulesModel* rules, ZlibDecompressor* decompressor,
     std::vector<CompiledRule>* compiled_rules) const {
+  if (rules->regex_rule() == nullptr) {
+    return true;
+  }
   for (const RulesModel_::RegexRule* rule : *rules->regex_rule()) {
     std::unique_ptr<UniLib::RegexPattern> compiled_pattern =
         UncompressMakeRegexPattern(

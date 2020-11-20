@@ -113,6 +113,10 @@ class UniLib : public UniLibBase {
     return libtextclassifier3::IsQuotation(codepoint);
   }
 
+  bool IsAmpersand(char32 codepoint) const {
+    return libtextclassifier3::IsAmpersand(codepoint);
+  }
+
   bool IsLatinLetter(char32 codepoint) const {
     return libtextclassifier3::IsLatinLetter(codepoint);
   }
