@@ -14,18 +14,17 @@
 // limitations under the License.
 //
 
-include "utils/tokenizer.fbs";
-include "utils/zlib/buffer.fbs";
-include "utils/intents/intent-config.fbs";
-include "utils/resources.fbs";
-include "utils/normalization.fbs";
-include "annotator/experimental/experimental.fbs";
 include "utils/codepoint-range.fbs";
+include "utils/normalization.fbs";
 include "annotator/entity-data.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
+include "annotator/experimental/experimental.fbs";
+include "utils/intents/intent-config.fbs";
+include "utils/tokenizer.fbs";
+include "utils/resources.fbs";
 include "utils/grammar/rules.fbs";
+include "utils/zlib/buffer.fbs";
 include "utils/container/bit-vector.fbs";
-include "annotator/grammar/dates/dates.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
 
 file_identifier "TC2 ";
 
@@ -374,85 +373,6 @@ table GrammarTokenizerOptions {
   tokenize_on_script_change:bool = false;
 }
 
-// Options for grammar date/datetime/date range annotations.
-namespace libtextclassifier3.GrammarDatetimeModel_;
-table AnnotationOptions {
-  // If enabled, extract special day offset like today, yesterday, etc.
-  enable_special_day_offset:bool = true;
-
-  // If true, merge the adjacent day of week, time and date. e.g.
-  // "20/2/2016 at 8pm" is extracted as a single instance instead of two
-  // instance: "20/2/2016" and "8pm".
-  merge_adjacent_components:bool = true;
-
-  // List the extra id of requested dates.
-  extra_requested_dates:[string];
-
-  // If true, try to include preposition to the extracted annotation. e.g.
-  // "at 6pm". if it's false, only 6pm is included. offline-actions has
-  // special requirements to include preposition.
-  include_preposition:bool = true;
-
-  // If enabled, extract range in date annotator.
-  // input: Monday, 5-6pm
-  // If the flag is true, The extracted annotation only contains 1 range
-  // instance which is from Monday 5pm to 6pm.
-  // If the flag is false, The extracted annotation contains two date
-  // instance: "Monday" and "6pm".
-  enable_date_range:bool = true;
-  reserved_6:int16 (deprecated);
-
-  // If enabled, the rule priority score is used to set the priority score of
-  // the annotation.
-  // In case of false the annotation priority score is set from
-  // GrammarDatetimeModel's priority_score
-  use_rule_priority_score:bool = false;
-
-  // If enabled, annotator will try to resolve the ambiguity by generating
-  // possible alternative interpretations of the input text
-  // e.g. '9:45' will be resolved to '9:45 AM' and '9:45 PM'.
-  generate_alternative_interpretations_when_ambiguous:bool;
-
-  // List of spans which grammar will ignore during the match e.g. if
-  // “@” is in the allowed span list and input is “12 March @ 12PM” then “@”
-  // will be ignored and 12 March @ 12PM will be translate to
-  // {Day:12 Month: March Hour: 12 MERIDIAN: PM}.
-  // This can also be achieved by adding additional rules e.g.
-  // <Digit_Day> <Month> <Time>
-  // <Digit_Day> <Month> @ <Time>
-  // Though this is doable in the grammar but requires multiple rules, this
-  // list enables the rule to represent multiple rules.
-  ignored_spans:[string];
-}
-
-namespace libtextclassifier3;
-table GrammarDatetimeModel {
-  // List of BCP 47 locale strings representing all locales supported by the
-  // model.
-  locales:[string];
-
-  // If true, will give only future dates (when the day is not specified).
-  prefer_future_for_unspecified_date:bool = false;
-
-  // Grammar specific tokenizer options.
-  grammar_tokenizer_options:GrammarTokenizerOptions;
-
-  // The modes for which to apply the grammars.
-  enabled_modes:ModeFlag = ALL;
-
-  // The datetime grammar rules.
-  datetime_rules:dates.DatetimeRules;
-
-  // The final score to assign to the results of grammar model
-  target_classification_score:float = 1;
-
-  // The priority score used for conflict resolution with the other models.
-  priority_score:float = 0;
-
-  // Options for grammar annotations.
-  annotation_options:GrammarDatetimeModel_.AnnotationOptions;
-}
-
 namespace libtextclassifier3.DatetimeModelLibrary_;
 table Item {
   key:string (shared);
@@ -667,7 +587,7 @@ table Model {
   triggering_locales:string (shared);
 
   embedding_pruning_mask:Model_.EmbeddingPruningMask;
-  grammar_datetime_model:GrammarDatetimeModel;
+  reserved_25:int16 (deprecated);
   contact_annotator_options:ContactAnnotatorOptions;
   money_parsing_options:MoneyParsingOptions;
   translate_annotator_options:TranslateAnnotatorOptions;

@@ -34,19 +34,15 @@ constexpr const char* kFiller = "<filler>";
 // All rules for a grammar will be collected in a rules object.
 //
 //    Rules r;
-//    CallbackId date_output_callback = 1;
-//    CallbackId day_filter_callback = 2;  r.DefineFilter(day_filter_callback);
-//    CallbackId year_filter_callback = 3; r.DefineFilter(year_filter_callback);
-//    r.Add("<date>", {"<monthname>", "<day>", <year>"},
-//          date_output_callback);
+//    r.Add("<date>", {"<monthname>", "<day>", <year>"});
 //    r.Add("<monthname>", {"January"});
 //    ...
 //    r.Add("<monthname>", {"December"});
-//    r.Add("<day>", {"<string_of_digits>"}, day_filter_callback);
-//    r.Add("<year>", {"<string_of_digits>"}, year_filter_callback);
+//    r.Add("<day>", {"<string_of_digits>"});
+//    r.Add("<year>", {"<string_of_digits>"});
 //
-// The Add() method adds a rule with a given lhs, rhs, and (optionally)
-// callback.  The rhs is just a list of terminals and nonterminals.  Anything
+// The Add() method adds a rule with a given lhs, rhs/
+// The rhs is just a list of terminals and nonterminals.  Anything
 // surrounded in angle brackets is considered a nonterminal.  A "?" can follow
 // any element of the RHS, like this:
 //
@@ -55,9 +51,8 @@ constexpr const char* kFiller = "<filler>";
 // This indicates that the <day> and "," parts of the rhs are optional.
 // (This is just notational shorthand for adding a bunch of rules.)
 //
-// Once you're done adding rules and callbacks to the Rules object,
-// call r.Finalize() on it. This lowers the rule set into an internal
-// representation.
+// Once you're done adding rules, r.Finalize() lowers the rule set into an
+// internal representation.
 class Rules {
  public:
   explicit Rules(const int num_shards = 1) : num_shards_(num_shards) {}
@@ -173,9 +168,6 @@ class Rules {
   // nonterminal.
   void AddAlias(const std::string& nonterminal_name, const std::string& alias);
 
-  // Defines a new filter id.
-  void DefineFilter(const CallbackId filter_id) { filters_.insert(filter_id); }
-
   // Lowers the rule set into the intermediate representation.
   // Treats nonterminals given by the argument `predefined_nonterminals` as
   // defined externally. This allows to define rules that are dependent on
@@ -233,9 +225,6 @@ class Rules {
   // Rules.
   std::vector<Rule> rules_;
   std::vector<std::string> regex_rules_;
-
-  // Ids of callbacks that should be treated as filters.
-  std::unordered_set<CallbackId> filters_;
 };
 
 }  // namespace libtextclassifier3::grammar

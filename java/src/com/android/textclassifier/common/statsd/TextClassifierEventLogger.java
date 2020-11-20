@@ -34,11 +34,6 @@ import javax.annotation.Nullable;
 /** Logs {@link android.view.textclassifier.TextClassifierEvent}. */
 public final class TextClassifierEventLogger {
   private static final String TAG = "TCEventLogger";
-  // These constants are defined in atoms.proto.
-  private static final int TEXT_SELECTION_EVENT_ATOM_ID = 219;
-  static final int TEXT_LINKIFY_EVENT_ATOM_ID = 220;
-  private static final int CONVERSATION_ACTIONS_EVENT_ATOM_ID = 221;
-  private static final int LANGUAGE_DETECTION_EVENT_ATOM_ID = 222;
 
   /** Emits a text classifier event to the logs. */
   public void writeEvent(
@@ -68,7 +63,7 @@ public final class TextClassifierEventLogger {
       TextClassifierEvent.TextSelectionEvent event) {
     ImmutableList<String> modelNames = getModelNames(event);
     TextClassifierStatsLog.write(
-        TEXT_SELECTION_EVENT_ATOM_ID,
+        TextClassifierStatsLog.TEXT_SELECTION_EVENT,
         sessionId == null ? null : sessionId.getValue(),
         getEventType(event),
         getItemAt(modelNames, /* index= */ 0, /* defaultValue= */ null),
@@ -98,7 +93,7 @@ public final class TextClassifierEventLogger {
       TextClassificationSessionId sessionId, TextClassifierEvent.TextLinkifyEvent event) {
     ImmutableList<String> modelNames = getModelNames(event);
     TextClassifierStatsLog.write(
-        TEXT_LINKIFY_EVENT_ATOM_ID,
+        TextClassifierStatsLog.TEXT_LINKIFY_EVENT,
         sessionId == null ? null : sessionId.getValue(),
         event.getEventType(),
         getItemAt(modelNames, /* index= */ 0, /* defaultValue= */ null),
@@ -119,7 +114,7 @@ public final class TextClassifierEventLogger {
     String resultId = nullToEmpty(event.getResultId());
     ImmutableList<String> modelNames = ResultIdUtils.getModelNames(resultId);
     TextClassifierStatsLog.write(
-        CONVERSATION_ACTIONS_EVENT_ATOM_ID,
+        TextClassifierStatsLog.CONVERSATION_ACTIONS_EVENT,
         // TODO: Update ExtServices to set the session id.
         sessionId == null
             ? Hashing.goodFastHash(64).hashString(resultId, UTF_8).toString()
@@ -140,7 +135,7 @@ public final class TextClassifierEventLogger {
       @Nullable TextClassificationSessionId sessionId,
       TextClassifierEvent.LanguageDetectionEvent event) {
     TextClassifierStatsLog.write(
-        LANGUAGE_DETECTION_EVENT_ATOM_ID,
+        TextClassifierStatsLog.LANGUAGE_DETECTION_EVENT,
         sessionId == null ? null : sessionId.getValue(),
         event.getEventType(),
         getItemAt(getModelNames(event), /* index= */ 0, /* defaultValue= */ null),

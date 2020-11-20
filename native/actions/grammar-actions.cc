@@ -37,8 +37,8 @@ GrammarActions::GrammarActions(
       smart_reply_action_type_(smart_reply_action_type) {}
 
 bool GrammarActions::InstantiateActionsFromMatch(
-    const grammar::next::TextContext& text_context, const int message_index,
-    const grammar::next::Derivation& derivation,
+    const grammar::TextContext& text_context, const int message_index,
+    const grammar::Derivation& derivation,
     std::vector<ActionSuggestion>* result) const {
   const RulesModel_::GrammarRules_::RuleMatch* rule_match =
       grammar_rules_->rule_match()->Get(derivation.rule_id);
@@ -48,10 +48,10 @@ bool GrammarActions::InstantiateActionsFromMatch(
   }
 
   // Gather active capturing matches.
-  std::unordered_map<uint16, const grammar::next::ParseTree*> capturing_matches;
-  for (const grammar::next::MappingNode* mapping_node :
-       grammar::next::SelectAllOfType<grammar::next::MappingNode>(
-           derivation.parse_tree, grammar::next::ParseTree::Type::kMapping)) {
+  std::unordered_map<uint16, const grammar::ParseTree*> capturing_matches;
+  for (const grammar::MappingNode* mapping_node :
+       grammar::SelectAllOfType<grammar::MappingNode>(
+           derivation.parse_tree, grammar::ParseTree::Type::kMapping)) {
     capturing_matches[mapping_node->id] = mapping_node;
   }
 
@@ -75,7 +75,7 @@ bool GrammarActions::InstantiateActionsFromMatch(
           continue;
         }
 
-        const grammar::next::ParseTree* capturing_match = it->second;
+        const grammar::ParseTree* capturing_match = it->second;
         const UnicodeText match_text =
             text_context.Span(capturing_match->codepoint_span);
         UnicodeText normalized_match_text =
@@ -101,10 +101,9 @@ bool GrammarActions::InstantiateActionsFromMatch(
                 /*message_index=*/message_index, match_text.ToUTF8String(),
                 &annotation)) {
           if (group->use_annotation_match()) {
-            std::vector<const grammar::next::AnnotationNode*> annotations =
-                grammar::next::SelectAllOfType<grammar::next::AnnotationNode>(
-                    capturing_match,
-                    grammar::next::ParseTree::Type::kAnnotation);
+            std::vector<const grammar::AnnotationNode*> annotations =
+                grammar::SelectAllOfType<grammar::AnnotationNode>(
+                    capturing_match, grammar::ParseTree::Type::kAnnotation);
             if (annotations.size() != 1) {
               TC3_LOG(ERROR) << "Could not get annotation for match.";
               return false;
@@ -143,14 +142,14 @@ bool GrammarActions::SuggestActions(
   }
 
   const int message_index = conversation.messages.size() - 1;
-  grammar::next::TextContext text = analyzer_.BuildTextContextForInput(
+  grammar::TextContext text = analyzer_.BuildTextContextForInput(
       UTF8ToUnicodeText(conversation.messages.back().text, /*do_copy=*/false),
       locales);
   text.annotations = conversation.messages.back().annotations;
 
   UnsafeArena arena(/*block_size=*/16 << 10);
-  StatusOr<std::vector<grammar::next::EvaluatedDerivation>>
-      evaluated_derivations = analyzer_.Parse(text, &arena);
+  StatusOr<std::vector<grammar::EvaluatedDerivation>> evaluated_derivations =
+      analyzer_.Parse(text, &arena);
   // TODO(b/171294882): Return the status here and below.
   if (!evaluated_derivations.ok()) {
     TC3_LOG(ERROR) << "Could not run grammar analyzer: "
@@ -158,7 +157,7 @@ bool GrammarActions::SuggestActions(
     return false;
   }
 
-  for (const grammar::next::EvaluatedDerivation& evaluated_derivation :
+  for (const grammar::EvaluatedDerivation& evaluated_derivation :
        evaluated_derivations.ValueOrDie()) {
     if (!InstantiateActionsFromMatch(text, message_index,
                                      evaluated_derivation.derivation, result)) {
