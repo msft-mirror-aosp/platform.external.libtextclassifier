@@ -58,6 +58,9 @@ TEST_F(UniLibTest, CharacterClassesAscii) {
   EXPECT_TRUE(unilib_->IsApostrophe(u'ߴ'));
   EXPECT_TRUE(unilib_->IsQuotation(u'"'));
   EXPECT_TRUE(unilib_->IsQuotation(u'”'));
+  EXPECT_TRUE(unilib_->IsAmpersand(u'&'));
+  EXPECT_TRUE(unilib_->IsAmpersand(u'﹠'));
+  EXPECT_TRUE(unilib_->IsAmpersand(u'＆'));
 
   EXPECT_TRUE(unilib_->IsLatinLetter('A'));
   EXPECT_TRUE(unilib_->IsArabicLetter(u'ب'));  // ARABIC LETTER BEH

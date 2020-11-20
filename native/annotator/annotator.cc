@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iterator>
+#include <limits>
 #include <numeric>
 #include <string>
 #include <unordered_map>
@@ -125,37 +126,6 @@ std::unordered_set<char32> FlatbuffersIntVectorToChar32UnorderedSet(
     ints_set.insert(static_cast<char32>(value));
   }
   return ints_set;
-}
-
-DateAnnotationOptions ToDateAnnotationOptions(
-    const GrammarDatetimeModel_::AnnotationOptions* fb_annotation_options,
-    const std::string& reference_timezone, const int64 reference_time_ms_utc) {
-  DateAnnotationOptions result_annotation_options;
-  result_annotation_options.base_timestamp_millis = reference_time_ms_utc;
-  result_annotation_options.reference_timezone = reference_timezone;
-  if (fb_annotation_options != nullptr) {
-    result_annotation_options.enable_special_day_offset =
-        fb_annotation_options->enable_special_day_offset();
-    result_annotation_options.merge_adjacent_components =
-        fb_annotation_options->merge_adjacent_components();
-    result_annotation_options.enable_date_range =
-        fb_annotation_options->enable_date_range();
-    result_annotation_options.include_preposition =
-        fb_annotation_options->include_preposition();
-    if (fb_annotation_options->extra_requested_dates() != nullptr) {
-      for (const auto& extra_requested_date :
-           *fb_annotation_options->extra_requested_dates()) {
-        result_annotation_options.extra_requested_dates.push_back(
-            extra_requested_date->str());
-      }
-    }
-    if (fb_annotation_options->ignored_spans() != nullptr) {
-      for (const auto& ignored_span : *fb_annotation_options->ignored_spans()) {
-        result_annotation_options.ignored_spans.push_back(ignored_span->str());
-      }
-    }
-  }
-  return result_annotation_options;
 }
 
 }  // namespace
@@ -446,22 +416,6 @@ void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
       return;
     }
   }
-  if (model_->grammar_datetime_model() &&
-      model_->grammar_datetime_model()->datetime_rules()) {
-    cfg_datetime_parser_.reset(new dates::CfgDatetimeAnnotator(
-        unilib_,
-        /*tokenizer_options=*/
-        model_->grammar_datetime_model()->grammar_tokenizer_options(),
-        calendarlib_,
-        /*datetime_rules=*/model_->grammar_datetime_model()->datetime_rules(),
-        model_->grammar_datetime_model()->target_classification_score(),
-        model_->grammar_datetime_model()->priority_score()));
-    if (!cfg_datetime_parser_) {
-      TC3_LOG(ERROR) << "Could not initialize context free grammar based "
-                        "datetime parser.";
-      return;
-    }
-  }
 
   if (model_->datetime_model()) {
     datetime_parser_ = DatetimeParser::Instance(
@@ -662,7 +616,11 @@ bool Annotator::InitializeInstalledAppEngine(
   return true;
 }
 
-void Annotator::SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id) {
+bool Annotator::SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id) {
+  if (lang_id == nullptr) {
+    return false;
+  }
+
   lang_id_ = lang_id;
   if (lang_id_ != nullptr && model_->translate_annotator_options() &&
       model_->translate_annotator_options()->enabled()) {
@@ -671,6 +629,7 @@ void Annotator::SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lan
   } else {
     translate_annotator_.reset(nullptr);
   }
+  return true;
 }
 
 bool Annotator::InitializePersonNameEngineFromUnownedBuffer(const void* buffer,
@@ -854,6 +813,11 @@ bool Annotator::VerifyRegexMatchCandidate(
 CodepointSpan Annotator::SuggestSelection(
     const std::string& context, CodepointSpan click_indices,
     const SelectionOptions& options) const {
+  if (context.size() > std::numeric_limits<int>::max()) {
+    TC3_LOG(ERROR) << "Rejecting too long input: " << context.size();
+    return {};
+  }
+
   CodepointSpan original_click_indices = click_indices;
   if (!initialized_) {
     TC3_LOG(ERROR) << "Not initialized";
@@ -987,9 +951,11 @@ CodepointSpan Annotator::SuggestSelection(
     candidates.annotated_spans[0].push_back(grammar_suggested_span);
   }
 
-  if (pod_ner_annotator_ != nullptr && options.use_pod_ner) {
-    candidates.annotated_spans[0].push_back(
-        pod_ner_annotator_->SuggestSelection(context_unicode, click_indices));
+  AnnotatedSpan pod_ner_suggested_span;
+  if (pod_ner_annotator_ != nullptr && options.use_pod_ner &&
+      pod_ner_annotator_->SuggestSelection(context_unicode, click_indices,
+                                           &pod_ner_suggested_span)) {
+    candidates.annotated_spans[0].push_back(pod_ner_suggested_span);
   }
 
   if (experimental_annotator_ != nullptr) {
@@ -1697,7 +1663,7 @@ bool Annotator::DatetimeClassifyText(
     const std::string& context, const CodepointSpan& selection_indices,
     const ClassificationOptions& options,
     std::vector<ClassificationResult>* classification_results) const {
-  if (!datetime_parser_ && !cfg_datetime_parser_) {
+  if (!datetime_parser_) {
     return true;
   }
 
@@ -1706,21 +1672,6 @@ bool Annotator::DatetimeClassifyText(
           .UTF8Substring(selection_indices.first, selection_indices.second);
 
   std::vector<DatetimeParseResultSpan> datetime_spans;
-
-  if (cfg_datetime_parser_) {
-    if (!(model_->grammar_datetime_model()->enabled_modes() &
-          ModeFlag_CLASSIFICATION)) {
-      return true;
-    }
-    std::vector<Locale> parsed_locales;
-    ParseLocales(options.locales, &parsed_locales);
-    cfg_datetime_parser_->Parse(
-        selection_text,
-        ToDateAnnotationOptions(
-            model_->grammar_datetime_model()->annotation_options(),
-            options.reference_timezone, options.reference_time_ms_utc),
-        parsed_locales, &datetime_spans);
-  }
 
   if (datetime_parser_) {
     if (!datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
@@ -1758,6 +1709,10 @@ bool Annotator::DatetimeClassifyText(
 std::vector<ClassificationResult> Annotator::ClassifyText(
     const std::string& context, const CodepointSpan& selection_indices,
     const ClassificationOptions& options) const {
+  if (context.size() > std::numeric_limits<int>::max()) {
+    TC3_LOG(ERROR) << "Rejecting too long input: " << context.size();
+    return {};
+  }
   if (!initialized_) {
     TC3_LOG(ERROR) << "Not initialized";
     return {};
@@ -2045,25 +2000,13 @@ bool Annotator::ModelAnnotate(
     }
 
     const int offset = std::distance(context_unicode.begin(), line.first);
-    if (local_chunks.empty()) {
-      continue;
-    }
-    const UnicodeText line_unicode =
-        UTF8ToUnicodeText(line_str, /*do_copy=*/false);
-    std::vector<UnicodeText::const_iterator> line_codepoints =
-        line_unicode.Codepoints();
-    line_codepoints.push_back(line_unicode.end());
     for (const TokenSpan& chunk : local_chunks) {
       CodepointSpan codepoint_span =
-          TokenSpanToCodepointSpan(line_tokens, chunk);
-      codepoint_span = selection_feature_processor_->StripBoundaryCodepoints(
-          /*span_begin=*/line_codepoints[codepoint_span.first],
-          /*span_end=*/line_codepoints[codepoint_span.second], codepoint_span);
+          selection_feature_processor_->StripBoundaryCodepoints(
+              line_str, TokenSpanToCodepointSpan(line_tokens, chunk));
       if (model_->selection_options()->strip_unpaired_brackets()) {
-        codepoint_span = StripUnpairedBrackets(
-            /*span_begin=*/line_codepoints[codepoint_span.first],
-            /*span_end=*/line_codepoints[codepoint_span.second], codepoint_span,
-            *unilib_);
+        codepoint_span =
+            StripUnpairedBrackets(context_unicode, codepoint_span, *unilib_);
       }
 
       // Skip empty spans.
@@ -2446,6 +2389,11 @@ StatusOr<Annotations> Annotator::AnnotateStructuredInput(
 
 std::vector<AnnotatedSpan> Annotator::Annotate(
     const std::string& context, const AnnotationOptions& options) const {
+  if (context.size() > std::numeric_limits<int>::max()) {
+    TC3_LOG(ERROR) << "Rejecting too long input.";
+    return {};
+  }
+
   std::vector<InputFragment> string_fragments;
   string_fragments.push_back({.text = context});
   StatusOr<Annotations> annotations =
@@ -3119,19 +3067,6 @@ bool Annotator::DatetimeChunk(const UnicodeText& context_unicode,
                               bool is_serialized_entity_data_enabled,
                               std::vector<AnnotatedSpan>* result) const {
   std::vector<DatetimeParseResultSpan> datetime_spans;
-  if (cfg_datetime_parser_) {
-    if (!(model_->grammar_datetime_model()->enabled_modes() & mode)) {
-      return true;
-    }
-    std::vector<Locale> parsed_locales;
-    ParseLocales(locales, &parsed_locales);
-    cfg_datetime_parser_->Parse(
-        context_unicode.ToUTF8String(),
-        ToDateAnnotationOptions(
-            model_->grammar_datetime_model()->annotation_options(),
-            reference_timezone, reference_time_ms_utc),
-        parsed_locales, &datetime_spans);
-  }
 
   if (datetime_parser_) {
     if (!datetime_parser_->Parse(context_unicode, reference_time_ms_utc,

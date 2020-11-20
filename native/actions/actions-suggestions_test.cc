@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <string>
 
 #include "actions/actions_model_generated.h"
 #include "actions/test-utils.h"
@@ -47,6 +48,8 @@ using ::testing::NotNull;
 using ::testing::SizeIs;
 
 constexpr char kModelFileName[] = "actions_suggestions_test.model";
+constexpr char kModelGrammarFileName[] =
+    "actions_suggestions_grammar_test.model";
 constexpr char kMultiTaskModelFileName[] =
     "actions_suggestions_test.multi_task_9heads.model";
 constexpr char kHashGramModelFileName[] =
@@ -61,9 +64,10 @@ std::string GetModelPath() { return GetTestDataPath("actions/test_data/"); }
 
 class ActionsSuggestionsTest : public testing::Test {
  protected:
-  ActionsSuggestionsTest() : unilib_(CreateUniLibForTesting()) {}
-  std::unique_ptr<ActionsSuggestions> LoadTestModel() {
-    return ActionsSuggestions::FromPath(GetModelPath() + kModelFileName,
+  explicit ActionsSuggestionsTest() : unilib_(CreateUniLibForTesting()) {}
+  std::unique_ptr<ActionsSuggestions> LoadTestModel(
+      const std::string model_file_name) {
+    return ActionsSuggestions::FromPath(GetModelPath() + model_file_name,
                                         unilib_.get());
   }
   std::unique_ptr<ActionsSuggestions> LoadHashGramTestModel() {
@@ -78,11 +82,12 @@ class ActionsSuggestionsTest : public testing::Test {
 };
 
 TEST_F(ActionsSuggestionsTest, InstantiateActionSuggestions) {
-  EXPECT_THAT(LoadTestModel(), NotNull());
+  EXPECT_THAT(LoadTestModel(kModelFileName), NotNull());
 }
 
 TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidInput) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
           {{{/*user_id=*/1, "Where are you?\xf0\x9f",
@@ -93,7 +98,8 @@ TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidInput) {
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
           {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
@@ -103,7 +109,8 @@ TEST_F(ActionsSuggestionsTest, SuggestsActions) {
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsNoActionsForUnknownLocale) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
           {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
@@ -113,7 +120,8 @@ TEST_F(ActionsSuggestionsTest, SuggestsNoActionsForUnknownLocale) {
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsFromAnnotations) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan annotation;
   annotation.span = {11, 15};
   annotation.classification = {ClassificationResult("address", 1.0)};
@@ -240,7 +248,8 @@ TEST_F(ActionsSuggestionsTest,
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsFromDuplicatedAnnotations) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan flight_annotation;
   flight_annotation.span = {11, 15};
   flight_annotation.classification = {ClassificationResult("flight", 2.5)};
@@ -771,8 +780,31 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithLongerConversation) {
   EXPECT_EQ(response.actions[0].score, 1.0);
 }
 
+TEST_F(ActionsSuggestionsTest, SuggestsActionsFromPhoneGrammarAnnotations) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelGrammarFileName);
+  AnnotatedSpan annotation;
+  annotation.span = {11, 15};
+  annotation.classification = {ClassificationResult("phone", 0.0)};
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "Contact us at: *1234",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{annotation},
+             /*locales=*/"en"}}});
+  ASSERT_GE(response.actions.size(), 1);
+  EXPECT_EQ(response.actions.front().type, "call_phone");
+  EXPECT_EQ(response.actions.front().score, 0.0);
+  EXPECT_EQ(response.actions.front().priority_score, 0.0);
+  EXPECT_EQ(response.actions.front().annotations.size(), 1);
+  EXPECT_EQ(response.actions.front().annotations.front().span.span.first, 15);
+  EXPECT_EQ(response.actions.front().annotations.front().span.span.second, 20);
+}
+
 TEST_F(ActionsSuggestionsTest, CreateActionsFromClassificationResult) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan annotation;
   annotation.span = {8, 12};
   annotation.classification = {
@@ -1098,7 +1130,8 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsWithAnnotationsFromGrammarRules) {
 #endif
 
 TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   ActionsSuggestionsResponse response = actions_suggestions->SuggestActions(
       {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
          /*reference_timezone=*/"Europe/Zurich",
@@ -1150,7 +1183,8 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
 }
 
 TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan annotation;
   annotation.span = {7, 11};
   annotation.classification = {
@@ -1210,7 +1244,8 @@ TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
 #endif
 
 TEST_F(ActionsSuggestionsTest, RanksActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   std::vector<AnnotatedSpan> annotations(2);
   annotations[0].span = {11, 15};
   annotations[0].classification = {ClassificationResult("address", 1.0)};

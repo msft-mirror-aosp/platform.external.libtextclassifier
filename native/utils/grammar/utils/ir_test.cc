@@ -97,47 +97,21 @@ TEST(IrTest, HandlesSharingWithCallbacksWithSameParameters) {
   // Test sharing in the presence of callbacks.
   constexpr CallbackId kOutput1 = 1;
   constexpr CallbackId kOutput2 = 2;
-  constexpr CallbackId kFilter1 = 3;
-  constexpr CallbackId kFilter2 = 4;
-  Ir ir(/*filters=*/{kFilter1, kFilter2});
+  Ir ir;
 
   const Nonterm x1 = ir.Add(kUnassignedNonterm, "hello");
   const Nonterm x2 =
       ir.Add(Ir::Lhs{kUnassignedNonterm, {kOutput1, 0}}, "hello");
   const Nonterm x3 =
-      ir.Add(Ir::Lhs{kUnassignedNonterm, {kFilter1, 0}}, "hello");
-  const Nonterm x4 =
       ir.Add(Ir::Lhs{kUnassignedNonterm, {kOutput2, 0}}, "hello");
-  const Nonterm x5 =
-      ir.Add(Ir::Lhs{kUnassignedNonterm, {kFilter2, 0}}, "hello");
 
   // Duplicate entry.
-  const Nonterm x6 =
+  const Nonterm x4 =
       ir.Add(Ir::Lhs{kUnassignedNonterm, {kOutput2, 0}}, "hello");
 
   EXPECT_THAT(x2, Eq(x1));
-  EXPECT_THAT(x3, Ne(x1));
+  EXPECT_THAT(x3, Eq(x1));
   EXPECT_THAT(x4, Eq(x1));
-  EXPECT_THAT(x5, Ne(x1));
-  EXPECT_THAT(x5, Ne(x3));
-  EXPECT_THAT(x6, Ne(x3));
-}
-
-TEST(IrTest, HandlesSharingWithCallbacksWithDifferentParameters) {
-  // Test sharing in the presence of callbacks.
-  constexpr CallbackId kOutput = 1;
-  constexpr CallbackId kFilter = 2;
-  Ir ir(/*filters=*/{kFilter});
-
-  const Nonterm x1 = ir.Add(Ir::Lhs{kUnassignedNonterm, {kOutput, 0}}, "world");
-  const Nonterm x2 = ir.Add(Ir::Lhs{kUnassignedNonterm, {kOutput, 1}}, "world");
-  const Nonterm x3 = ir.Add(Ir::Lhs{kUnassignedNonterm, {kFilter, 0}}, "world");
-  const Nonterm x4 = ir.Add(Ir::Lhs{kUnassignedNonterm, {kFilter, 1}}, "world");
-
-  EXPECT_THAT(x2, Eq(x1));
-  EXPECT_THAT(x3, Ne(x1));
-  EXPECT_THAT(x4, Ne(x1));
-  EXPECT_THAT(x4, Ne(x3));
 }
 
 TEST(IrTest, SerializesRulesToFlatbufferFormat) {
@@ -181,7 +155,7 @@ TEST(IrTest, SerializesRulesToFlatbufferFormat) {
 }
 
 TEST(IrTest, HandlesRulesSharding) {
-  Ir ir(/*filters=*/{}, /*num_shards=*/2);
+  Ir ir(/*num_shards=*/2);
   const Nonterm verb = ir.AddUnshareableNonterminal();
   const Nonterm set_reminder = ir.AddUnshareableNonterminal();
 

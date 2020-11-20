@@ -51,14 +51,12 @@ TEST(SerializeRulesTest, HandlesSimpleRuleSet) {
 TEST(SerializeRulesTest, HandlesRulesSetWithCallbacks) {
   Rules rules;
   const CallbackId output = 1;
-  const CallbackId filter = 2;
-  rules.DefineFilter(filter);
 
   rules.Add("<verb>", {"buy"});
-  rules.Add("<verb>", {"bring"}, output, 0);
-  rules.Add("<verb>", {"remind"}, output, 0);
+  rules.Add("<verb>", {"bring"});
+  rules.Add("<verb>", {"remind"});
   rules.Add("<reminder>", {"remind", "me", "to", "<verb>"});
-  rules.Add("<action>", {"<reminder>"}, filter, 0);
+  rules.Add("<action>", {"<reminder>"}, output, 0);
 
   const Ir ir = rules.Finalize();
   RulesSetT frozen_rules;
@@ -68,9 +66,7 @@ TEST(SerializeRulesTest, HandlesRulesSetWithCallbacks) {
   EXPECT_EQ(frozen_rules.terminals,
             std::string("bring\0buy\0me\0remind\0to\0", 23));
 
-  // We have two identical output calls and one filter call in the rule set
-  // definition above.
-  EXPECT_THAT(frozen_rules.lhs, SizeIs(2));
+  EXPECT_THAT(frozen_rules.lhs, SizeIs(1));
 
   EXPECT_THAT(frozen_rules.rules.front()->binary_rules, SizeIs(3));
   EXPECT_THAT(frozen_rules.rules.front()->unary_rules, SizeIs(1));
