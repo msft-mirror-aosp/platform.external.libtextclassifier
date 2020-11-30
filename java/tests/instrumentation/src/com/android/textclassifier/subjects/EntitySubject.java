@@ -20,12 +20,11 @@ import static com.google.common.truth.Truth.assertAbout;
 
 import com.android.textclassifier.Entity;
 import com.google.common.truth.FailureMetadata;
-import com.google.common.truth.MathUtil;
 import com.google.common.truth.Subject;
 import javax.annotation.Nullable;
 
 /** Test helper for checking {@link com.android.textclassifier.Entity} results. */
-public final class EntitySubject extends Subject<EntitySubject, Entity> {
+public final class EntitySubject extends Subject {
 
   private static final float TOLERANCE = 0.0001f;
 
@@ -44,8 +43,7 @@ public final class EntitySubject extends Subject<EntitySubject, Entity> {
     if (!entity.getEntityType().equals(this.entity.getEntityType())) {
       failWithActual("expected to have type", entity.getEntityType());
     }
-    if (!MathUtil.equalWithinTolerance(entity.getScore(), this.entity.getScore(), TOLERANCE)) {
-      failWithActual("expected to have confidence score", entity.getScore());
-    }
+    check("expected to have confidence score").that(entity.getScore()).isWithin(TOLERANCE)
+      .of(this.entity.getScore());
   }
 }
