@@ -62,7 +62,7 @@ enum ComponentType : int {
 
 namespace libtextclassifier3.grammar.datetime;
 table TimeZone {
-  // Offset from UTC/GTM in hours.
+  // Offset from UTC/GTM in minutes.
   utc_offset_mins:int;
 }
 

@@ -342,6 +342,8 @@ public final class AnnotatorModel implements AutoCloseable {
     @Nullable private final String contactNickname;
     @Nullable private final String contactEmailAddress;
     @Nullable private final String contactPhoneNumber;
+    @Nullable private final String contactAccountType;
+    @Nullable private final String contactAccountName;
     @Nullable private final String contactId;
     @Nullable private final String appName;
     @Nullable private final String appPackageName;
@@ -363,6 +365,8 @@ public final class AnnotatorModel implements AutoCloseable {
         @Nullable String contactNickname,
         @Nullable String contactEmailAddress,
         @Nullable String contactPhoneNumber,
+        @Nullable String contactAccountType,
+        @Nullable String contactAccountName,
         @Nullable String contactId,
         @Nullable String appName,
         @Nullable String appPackageName,
@@ -382,6 +386,8 @@ public final class AnnotatorModel implements AutoCloseable {
       this.contactNickname = contactNickname;
       this.contactEmailAddress = contactEmailAddress;
       this.contactPhoneNumber = contactPhoneNumber;
+      this.contactAccountType = contactAccountType;
+      this.contactAccountName = contactAccountName;
       this.contactId = contactId;
       this.appName = appName;
       this.appPackageName = appPackageName;
@@ -441,6 +447,16 @@ public final class AnnotatorModel implements AutoCloseable {
     @Nullable
     public String getContactPhoneNumber() {
       return contactPhoneNumber;
+    }
+
+    @Nullable
+    public String getContactAccountType() {
+      return contactAccountType;
+    }
+
+    @Nullable
+    public String getContactAccountName() {
+      return contactAccountName;
     }
 
     @Nullable
@@ -550,20 +566,38 @@ public final class AnnotatorModel implements AutoCloseable {
     public InputFragment(String text) {
       this.text = text;
       this.datetimeOptionsNullable = null;
+      this.boundingBoxTop = 0;
+      this.boundingBoxHeight = 0;
     }
 
-    public InputFragment(String text, DatetimeOptions datetimeOptions) {
+    public InputFragment(
+        String text,
+        DatetimeOptions datetimeOptions,
+        float boundingBoxTop,
+        float boundingBoxHeight) {
       this.text = text;
       this.datetimeOptionsNullable = datetimeOptions;
+      this.boundingBoxTop = boundingBoxTop;
+      this.boundingBoxHeight = boundingBoxHeight;
     }
 
     private final String text;
     // The DatetimeOptions can't be Optional because the _api16 build of the TCLib SDK does not
     // support java.util.Optional.
     private final DatetimeOptions datetimeOptionsNullable;
+    private final float boundingBoxTop;
+    private final float boundingBoxHeight;
 
     public String getText() {
       return text;
+    }
+
+    public float getBoundingBoxTop() {
+      return boundingBoxTop;
+    }
+
+    public float getBoundingBoxHeight() {
+      return boundingBoxHeight;
     }
 
     public boolean hasDatetimeOptions() {

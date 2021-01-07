@@ -1345,7 +1345,9 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
       TC3_LOG(ERROR) << "Rejecting too long input: " << message.text.size();
       return {};
     }
-    if (!IsValidUTF8(message.text.data(), message.text.size())) {
+
+    if (!unilib_->IsValidUtf8(UTF8ToUnicodeText(
+            message.text.data(), message.text.size(), /*do_copy=*/false))) {
       TC3_LOG(ERROR) << "Not valid utf8 provided.";
       return response;
     }

@@ -176,3 +176,13 @@ TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetMinTextSizeInBytes)
   LangId* model = reinterpret_cast<LangId*>(ptr);
   return model->GetFloatProperty("min_text_size_in_bytes", 0);
 }
+
+TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetVersionWithOffset)
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size) {
+  std::unique_ptr<LangId> lang_id =
+      GetLangIdFromFlatbufferFileDescriptor(fd, offset, size);
+  if (!lang_id->is_valid()) {
+    return -1;
+  }
+  return lang_id->GetModelVersion();
+}

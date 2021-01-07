@@ -427,6 +427,24 @@ StatusOr<InputFragment> FromJavaInputFragment(JNIEnv* env, jobject jfragment) {
                         .reference_timezone = reference_timezone};
   }
 
+  // .getBoundingBoxHeight()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_bounding_box_height,
+                       JniHelper::GetMethodID(env, fragment_class.get(),
+                                              "getBoundingBoxHeight", "()F"));
+  TC3_ASSIGN_OR_RETURN(
+      float bounding_box_height,
+      JniHelper::CallFloatMethod(env, jfragment, get_bounding_box_height));
+
+  fragment.bounding_box_height = bounding_box_height;
+
+  // .getBoundingBoxTop()
+  TC3_ASSIGN_OR_RETURN(jmethodID get_bounding_box_top,
+                       JniHelper::GetMethodID(env, fragment_class.get(),
+                                              "getBoundingBoxTop", "()F"));
+  TC3_ASSIGN_OR_RETURN(
+      float bounding_box_top,
+      JniHelper::CallFloatMethod(env, jfragment, get_bounding_box_top));
+  fragment.bounding_box_top = bounding_box_top;
   return fragment;
 }
 }  // namespace libtextclassifier3

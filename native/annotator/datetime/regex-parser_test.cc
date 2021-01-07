@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "annotator/datetime/parser.h"
+#include "annotator/datetime/regex-parser.h"
 
 #include <time.h>
 
@@ -24,8 +24,11 @@
 #include <string>
 
 #include "annotator/annotator.h"
+#include "annotator/datetime/testing/base-parser-test.h"
+#include "annotator/datetime/testing/datetime-component-builder.h"
 #include "annotator/model_generated.h"
 #include "annotator/types-test-util.h"
+#include "utils/i18n/locale-list.h"
 #include "utils/jvm-test-utils.h"
 #include "utils/test-data-test-utils.h"
 #include "utils/testing/annotator.h"
@@ -33,48 +36,9 @@
 #include "gtest/gtest.h"
 
 using std::vector;
-using testing::ElementsAreArray;
 
 namespace libtextclassifier3 {
 namespace {
-// Builder class to construct the DatetimeComponents and make the test readable.
-class DatetimeComponentsBuilder {
- public:
-  DatetimeComponentsBuilder Add(DatetimeComponent::ComponentType type,
-                                int value) {
-    DatetimeComponent component;
-    component.component_type = type;
-    component.value = value;
-    return AddComponent(component);
-  }
-
-  DatetimeComponentsBuilder Add(
-      DatetimeComponent::ComponentType type, int value,
-      DatetimeComponent::RelativeQualifier relative_qualifier,
-      int relative_count) {
-    DatetimeComponent component;
-    component.component_type = type;
-    component.value = value;
-    component.relative_qualifier = relative_qualifier;
-    component.relative_count = relative_count;
-    return AddComponent(component);
-  }
-
-  std::vector<DatetimeComponent> Build() {
-    std::vector<DatetimeComponent> result(datetime_components_);
-    datetime_components_.clear();
-    return result;
-  }
-
- private:
-  DatetimeComponentsBuilder AddComponent(
-      const DatetimeComponent& datetime_component) {
-    datetime_components_.push_back(datetime_component);
-    return *this;
-  }
-  std::vector<DatetimeComponent> datetime_components_;
-};
-
 std::string GetModelPath() { return GetTestDataPath("annotator/test_data/"); }
 
 std::string ReadFile(const std::string& file_name) {
@@ -82,7 +46,7 @@ std::string ReadFile(const std::string& file_name) {
   return std::string(std::istreambuf_iterator<char>(file_stream), {});
 }
 
-class DateTimeParserTest : public testing::Test {
+class RegexDatetimeParserTest : public DateTimeParserTest {
  public:
   void SetUp() override {
     // Loads default unmodified model. Individual tests can call LoadModel to
@@ -104,139 +68,12 @@ class DateTimeParserTest : public testing::Test {
     TC3_CHECK(parser_);
   }
 
-  bool HasNoResult(const std::string& text, bool anchor_start_end = false,
-                   const std::string& timezone = "Europe/Zurich",
-                   AnnotationUsecase annotation_usecase =
-                       AnnotationUsecase_ANNOTATION_USECASE_SMART) {
-    std::vector<DatetimeParseResultSpan> results;
-    if (!parser_->Parse(text, 0, timezone, /*locales=*/"", ModeFlag_ANNOTATION,
-                        annotation_usecase, anchor_start_end, &results)) {
-      TC3_LOG(ERROR) << text;
-      TC3_CHECK(false);
-    }
-    return results.empty();
+  // Exposes the date time parser for tests and evaluations.
+  const DatetimeParser* DatetimeParserForTests() const override {
+    return classifier_->DatetimeParserForTests();
   }
 
-  bool ParsesCorrectly(const std::string& marked_text,
-                       const vector<int64>& expected_ms_utcs,
-                       DatetimeGranularity expected_granularity,
-                       vector<vector<DatetimeComponent>> datetime_components,
-                       bool anchor_start_end = false,
-                       const std::string& timezone = "Europe/Zurich",
-                       const std::string& locales = "en-US",
-                       AnnotationUsecase annotation_usecase =
-                           AnnotationUsecase_ANNOTATION_USECASE_SMART) {
-    const UnicodeText marked_text_unicode =
-        UTF8ToUnicodeText(marked_text, /*do_copy=*/false);
-    auto brace_open_it =
-        std::find(marked_text_unicode.begin(), marked_text_unicode.end(), '{');
-    auto brace_end_it =
-        std::find(marked_text_unicode.begin(), marked_text_unicode.end(), '}');
-    TC3_CHECK(brace_open_it != marked_text_unicode.end());
-    TC3_CHECK(brace_end_it != marked_text_unicode.end());
-
-    std::string text;
-    text +=
-        UnicodeText::UTF8Substring(marked_text_unicode.begin(), brace_open_it);
-    text += UnicodeText::UTF8Substring(std::next(brace_open_it), brace_end_it);
-    text += UnicodeText::UTF8Substring(std::next(brace_end_it),
-                                       marked_text_unicode.end());
-
-    std::vector<DatetimeParseResultSpan> results;
-
-    if (!parser_->Parse(text, 0, timezone, locales, ModeFlag_ANNOTATION,
-                        annotation_usecase, anchor_start_end, &results)) {
-      TC3_LOG(ERROR) << text;
-      TC3_CHECK(false);
-    }
-    if (results.empty()) {
-      TC3_LOG(ERROR) << "No results.";
-      return false;
-    }
-
-    const int expected_start_index =
-        std::distance(marked_text_unicode.begin(), brace_open_it);
-    // The -1 below is to account for the opening bracket character.
-    const int expected_end_index =
-        std::distance(marked_text_unicode.begin(), brace_end_it) - 1;
-
-    std::vector<DatetimeParseResultSpan> filtered_results;
-    for (const DatetimeParseResultSpan& result : results) {
-      if (SpansOverlap(result.span,
-                       {expected_start_index, expected_end_index})) {
-        filtered_results.push_back(result);
-      }
-    }
-    std::vector<DatetimeParseResultSpan> expected{
-        {{expected_start_index, expected_end_index},
-         {},
-         /*target_classification_score=*/1.0,
-         /*priority_score=*/1.0}};
-    expected[0].data.resize(expected_ms_utcs.size());
-    for (int i = 0; i < expected_ms_utcs.size(); i++) {
-      expected[0].data[i] = {expected_ms_utcs[i], expected_granularity,
-                             datetime_components[i]};
-    }
-
-    const bool matches =
-        testing::Matches(ElementsAreArray(expected))(filtered_results);
-    if (!matches) {
-      TC3_LOG(ERROR) << "Expected: " << expected[0];
-      if (filtered_results.empty()) {
-        TC3_LOG(ERROR) << "But got no results.";
-      }
-      TC3_LOG(ERROR) << "Actual: " << filtered_results[0];
-    }
-
-    return matches;
-  }
-
-  bool ParsesCorrectly(const std::string& marked_text,
-                       const int64 expected_ms_utc,
-                       DatetimeGranularity expected_granularity,
-                       vector<vector<DatetimeComponent>> datetime_components,
-                       bool anchor_start_end = false,
-                       const std::string& timezone = "Europe/Zurich",
-                       const std::string& locales = "en-US",
-                       AnnotationUsecase annotation_usecase =
-                           AnnotationUsecase_ANNOTATION_USECASE_SMART) {
-    return ParsesCorrectly(marked_text, vector<int64>{expected_ms_utc},
-                           expected_granularity, datetime_components,
-                           anchor_start_end, timezone, locales,
-                           annotation_usecase);
-  }
-
-  bool ParsesCorrectlyGerman(
-      const std::string& marked_text, const vector<int64>& expected_ms_utcs,
-      DatetimeGranularity expected_granularity,
-      vector<vector<DatetimeComponent>> datetime_components) {
-    return ParsesCorrectly(marked_text, expected_ms_utcs, expected_granularity,
-                           datetime_components,
-                           /*anchor_start_end=*/false,
-                           /*timezone=*/"Europe/Zurich", /*locales=*/"de");
-  }
-
-  bool ParsesCorrectlyGerman(
-      const std::string& marked_text, const int64 expected_ms_utc,
-      DatetimeGranularity expected_granularity,
-      vector<vector<DatetimeComponent>> datetime_components) {
-    return ParsesCorrectly(marked_text, expected_ms_utc, expected_granularity,
-                           datetime_components,
-                           /*anchor_start_end=*/false,
-                           /*timezone=*/"Europe/Zurich", /*locales=*/"de");
-  }
-
-  bool ParsesCorrectlyChinese(
-      const std::string& marked_text, const int64 expected_ms_utc,
-      DatetimeGranularity expected_granularity,
-      vector<vector<DatetimeComponent>> datetime_components) {
-    return ParsesCorrectly(marked_text, expected_ms_utc, expected_granularity,
-                           datetime_components,
-                           /*anchor_start_end=*/false,
-                           /*timezone=*/"Europe/Zurich", /*locales=*/"zh");
-  }
-
- protected:
+ private:
   std::string model_buffer_;
   std::unique_ptr<Annotator> classifier_;
   const DatetimeParser* parser_;
@@ -245,7 +82,7 @@ class DateTimeParserTest : public testing::Test {
 };
 
 // Test with just a few cases to make debugging of general failures easier.
-TEST_F(DateTimeParserTest, ParseShort) {
+TEST_F(RegexDatetimeParserTest, ParseShort) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -255,7 +92,7 @@ TEST_F(DateTimeParserTest, ParseShort) {
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest, Parse) {
+TEST_F(RegexDatetimeParserTest, Parse) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -696,7 +533,7 @@ TEST_F(DateTimeParserTest, Parse) {
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 }
 
-TEST_F(DateTimeParserTest, ParseWithAnchor) {
+TEST_F(RegexDatetimeParserTest, ParseWithAnchor) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988}", 567990000000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -725,7 +562,7 @@ TEST_F(DateTimeParserTest, ParseWithAnchor) {
                           /*anchor_start_end=*/true));
 }
 
-TEST_F(DateTimeParserTest, ParseWithRawUsecase) {
+TEST_F(RegexDatetimeParserTest, ParseWithRawUsecase) {
   // Annotated for RAW usecase.
   EXPECT_TRUE(ParsesCorrectly(
       "{tomorrow}", 82800000, GRANULARITY_DAY,
@@ -784,7 +621,7 @@ TEST_F(DateTimeParserTest, ParseWithRawUsecase) {
 }
 
 // For details please see b/155437137
-TEST_F(DateTimeParserTest, PastRelativeDatetime) {
+TEST_F(RegexDatetimeParserTest, PastRelativeDatetime) {
   EXPECT_TRUE(ParsesCorrectly(
       "called you {last Saturday}",
       -432000000 /* Fri 1969-12-26 16:00:00 PST */, GRANULARITY_DAY,
@@ -830,7 +667,7 @@ TEST_F(DateTimeParserTest, PastRelativeDatetime) {
       /*annotation_usecase=*/AnnotationUsecase_ANNOTATION_USECASE_RAW));
 }
 
-TEST_F(DateTimeParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
+TEST_F(RegexDatetimeParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
   // ParsesCorrectly uses 0 as the reference time, which corresponds to:
   // "Thu Jan 01 1970 01:00:00" Zurich time. So if we pass "0:30" here, it means
   // it is in the past, and so the parser should move this to the next day ->
@@ -845,7 +682,7 @@ TEST_F(DateTimeParserTest, AddsADayWhenTimeInThePastAndDayNotSpecified) {
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest,
+TEST_F(RegexDatetimeParserTest,
        DoesNotAddADayWhenTimeInThePastAndDayNotSpecifiedDisabled) {
   // ParsesCorrectly uses 0 as the reference time, which corresponds to:
   // "Thu Jan 01 1970 01:00:00" Zurich time. So if we pass "0:30" here, it means
@@ -868,7 +705,7 @@ TEST_F(DateTimeParserTest,
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest, ParsesNoonAndMidnightCorrectly) {
+TEST_F(RegexDatetimeParserTest, ParsesNoonAndMidnightCorrectly) {
   EXPECT_TRUE(ParsesCorrectly(
       "{January 1, 1988 12:30am}", 567991800000, GRANULARITY_MINUTE,
       {DatetimeComponentsBuilder()
@@ -900,7 +737,7 @@ TEST_F(DateTimeParserTest, ParsesNoonAndMidnightCorrectly) {
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest, ParseGerman) {
+TEST_F(RegexDatetimeParserTest, ParseGerman) {
   EXPECT_TRUE(ParsesCorrectlyGerman(
       "{Januar 1 2018}", 1514761200000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -1310,7 +1147,7 @@ TEST_F(DateTimeParserTest, ParseGerman) {
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest, ParseChinese) {
+TEST_F(RegexDatetimeParserTest, ParseChinese) {
   EXPECT_TRUE(ParsesCorrectlyChinese(
       "{明天 7 上午}", 108000000, GRANULARITY_HOUR,
       {DatetimeComponentsBuilder()
@@ -1321,7 +1158,7 @@ TEST_F(DateTimeParserTest, ParseChinese) {
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest, ParseNonUs) {
+TEST_F(RegexDatetimeParserTest, ParseNonUs) {
   auto first_may_2015 =
       DatetimeComponentsBuilder()
           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 1)
@@ -1340,7 +1177,7 @@ TEST_F(DateTimeParserTest, ParseNonUs) {
                               /*timezone=*/"Europe/Zurich", /*locales=*/"en"));
 }
 
-TEST_F(DateTimeParserTest, ParseUs) {
+TEST_F(RegexDatetimeParserTest, ParseUs) {
   auto five_january_2015 =
       DatetimeComponentsBuilder()
           .Add(DatetimeComponent::ComponentType::DAY_OF_MONTH, 5)
@@ -1360,7 +1197,7 @@ TEST_F(DateTimeParserTest, ParseUs) {
                               /*locales=*/"es-US"));
 }
 
-TEST_F(DateTimeParserTest, ParseUnknownLanguage) {
+TEST_F(RegexDatetimeParserTest, ParseUnknownLanguage) {
   EXPECT_TRUE(ParsesCorrectly(
       "bylo to {31. 12. 2015} v 6 hodin", 1451516400000, GRANULARITY_DAY,
       {DatetimeComponentsBuilder()
@@ -1372,7 +1209,7 @@ TEST_F(DateTimeParserTest, ParseUnknownLanguage) {
       /*timezone=*/"Europe/Zurich", /*locales=*/"xx"));
 }
 
-TEST_F(DateTimeParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
+TEST_F(RegexDatetimeParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
   LoadModel([](ModelT* model) {
     model->datetime_model->generate_alternative_interpretations_when_ambiguous =
         true;
@@ -1423,7 +1260,7 @@ TEST_F(DateTimeParserTest, WhenAlternativesEnabledGeneratesAlternatives) {
            .Build()}));
 }
 
-TEST_F(DateTimeParserTest,
+TEST_F(RegexDatetimeParserTest,
        WhenAlternativesDisabledDoesNotGenerateAlternatives) {
   LoadModel([](ModelT* model) {
     model->datetime_model->generate_alternative_interpretations_when_ambiguous =
@@ -1492,19 +1329,19 @@ void ParserLocaleTest::SetUp() {
   unilib_ = CreateUniLibForTesting();
   calendarlib_ = CreateCalendarLibForTesting();
   parser_ =
-      DatetimeParser::Instance(model_fb, unilib_.get(), calendarlib_.get(),
-                               /*decompressor=*/nullptr);
+      RegexDatetimeParser::Instance(model_fb, unilib_.get(), calendarlib_.get(),
+                                    /*decompressor=*/nullptr);
   ASSERT_TRUE(parser_);
 }
 
 bool ParserLocaleTest::HasResult(const std::string& input,
                                  const std::string& locales) {
-  std::vector<DatetimeParseResultSpan> results;
-  EXPECT_TRUE(parser_->Parse(
+  StatusOr<std::vector<DatetimeParseResultSpan>> results = parser_->Parse(
       input, /*reference_time_ms_utc=*/0,
-      /*reference_timezone=*/"", locales, ModeFlag_ANNOTATION,
-      AnnotationUsecase_ANNOTATION_USECASE_SMART, false, &results));
-  return results.size() == 1;
+      /*reference_timezone=*/"", LocaleList::ParseFrom(locales),
+      ModeFlag_ANNOTATION, AnnotationUsecase_ANNOTATION_USECASE_SMART, false);
+  EXPECT_TRUE(results.ok());
+  return results.ValueOrDie().size() == 1;
 }
 
 TEST_F(ParserLocaleTest, English) {

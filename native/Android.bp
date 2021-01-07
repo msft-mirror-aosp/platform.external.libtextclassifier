@@ -215,6 +215,7 @@ cc_test_library {
     defaults: ["libtextclassifier_defaults"],
     srcs: [
         ":libtextclassifier_java_test_sources",
+        "annotator/datetime/testing/*.cc",
         "actions/test-utils.cc",
         "utils/testing/annotator.cc",
         "utils/testing/logging_event_listener.cc",

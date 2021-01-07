@@ -14,16 +14,16 @@
 // limitations under the License.
 //
 
-include "annotator/model.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
-include "utils/intents/intent-config.fbs";
+include "utils/codepoint-range.fbs";
 include "utils/normalization.fbs";
-include "utils/tokenizer.fbs";
+include "utils/intents/intent-config.fbs";
+include "annotator/model.fbs";
 include "utils/resources.fbs";
 include "utils/zlib/buffer.fbs";
-include "utils/codepoint-range.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
 include "actions/actions-entity-data.fbs";
 include "utils/grammar/rules.fbs";
+include "utils/tokenizer.fbs";
 
 file_identifier "TC3A";
 

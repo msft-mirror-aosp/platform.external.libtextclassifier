@@ -2955,5 +2955,23 @@ TEST_F(AnnotatorTest, RegressionTestOnlyUseLineWithClickLastLine) {
                                /*duration_ms=*/3 * 60 * 60 * 1000)));
 }
 
+TEST_F(AnnotatorTest, DoesntProcessInvalidUtf8) {
+  const std::string test_model = ReadFile(GetTestModelPath());
+  const std::string invalid_utf8_text_with_phone_number =
+      "(857) 225-3556 \xed\xa0\x80\xed\xa0\x80\xed\xa0\x80\xed\xa0\x80";
+
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromString(test_model, unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+  EXPECT_THAT(classifier->Annotate(invalid_utf8_text_with_phone_number),
+              IsEmpty());
+  EXPECT_THAT(
+      classifier->SuggestSelection(invalid_utf8_text_with_phone_number, {1, 4}),
+      Eq(CodepointSpan{1, 4}));
+  EXPECT_THAT(
+      classifier->ClassifyText(invalid_utf8_text_with_phone_number, {0, 14}),
+      IsEmpty());
+}
+
 }  // namespace test_internal
 }  // namespace libtextclassifier3

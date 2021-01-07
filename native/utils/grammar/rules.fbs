@@ -14,9 +14,9 @@
 // limitations under the License.
 //
 
-include "utils/i18n/language-tag.fbs";
-include "utils/zlib/buffer.fbs";
 include "utils/grammar/semantics/expression.fbs";
+include "utils/zlib/buffer.fbs";
+include "utils/i18n/language-tag.fbs";
 
 // The terminal rules map as sorted strings table.
 // The sorted terminal strings table is represented as offsets into the
