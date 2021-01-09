@@ -20,7 +20,8 @@ import android.provider.DeviceConfig;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.TextClassifier;
 import androidx.annotation.NonNull;
-import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
+import com.android.textclassifier.ModelFileManager.ModelType;
+import com.android.textclassifier.ModelFileManager.ModelType.ModelTypeDef;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
@@ -44,6 +45,7 @@ import javax.annotation.Nullable;
  * @see android.provider.DeviceConfig#NAMESPACE_TEXTCLASSIFIER
  */
 public final class TextClassifierSettings {
+  private static final String TAG = "TextClassifierSettings";
   public static final String NAMESPACE = DeviceConfig.NAMESPACE_TEXTCLASSIFIER;
 
   private static final String DELIMITER = ":";
@@ -109,6 +111,9 @@ public final class TextClassifierSettings {
   /** Whether to enable model downloading with ModelDownloadManager */
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_MANAGER_ENABLED = "model_download_manager_enabled";
+  /** Type of network to download model manifest. A String value of androidx.work.NetworkType. */
+  private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE =
+      "manifest_download_required_network_type";
   /** Max attempts allowed for a single ModelDownloader downloading task. */
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_MAX_ATTEMPTS = "model_download_max_attempts";
@@ -196,6 +201,8 @@ public final class TextClassifierSettings {
   private static final boolean TRANSLATE_IN_CLASSIFICATION_ENABLED_DEFAULT = true;
   private static final boolean DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT = true;
   private static final boolean MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT = false;
+  // Manifest files are usually small, default to any network type
+  private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT = "NOT_ROAMING";
   private static final int MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 5;
   private static final String ANNOTATOR_URL_PREFIX_DEFAULT =
       "https://www.gstatic.com/android/text_classifier/";
@@ -360,7 +367,7 @@ public final class TextClassifierSettings {
         NAMESPACE, MODEL_DOWNLOAD_MAX_ATTEMPTS, MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT);
   }
 
-  public String getModelURLPrefix(@ModelType.ModelTypeDef String modelType) {
+  public String getModelURLPrefix(@ModelTypeDef String modelType) {
     switch (modelType) {
       case ModelType.ANNOTATOR:
         return deviceConfig.getString(
@@ -375,7 +382,7 @@ public final class TextClassifierSettings {
     }
   }
 
-  public String getPrimaryModelURLSuffix(@ModelType.ModelTypeDef String modelType) {
+  public String getPrimaryModelURLSuffix(@ModelTypeDef String modelType) {
     switch (modelType) {
       case ModelType.ANNOTATOR:
         return deviceConfig.getString(

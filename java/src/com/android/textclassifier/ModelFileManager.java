@@ -17,13 +17,15 @@
 package com.android.textclassifier;
 
 import android.content.Context;
+import android.content.res.AssetFileDescriptor;
+import android.content.res.AssetManager;
 import android.os.LocaleList;
 import android.os.ParcelFileDescriptor;
-import android.text.TextUtils;
+import android.util.ArraySet;
 import androidx.annotation.GuardedBy;
 import androidx.annotation.StringDef;
-import com.android.textclassifier.ModelFileManager.ModelFile;
-import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
+import androidx.collection.ArrayMap;
+import com.android.textclassifier.ModelFileManager.ModelType.ModelTypeDef;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
 import com.android.textclassifier.utils.IndentingPrintWriter;
@@ -31,64 +33,104 @@ import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.LangIdModel;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-// TODO(licha): Support garbage collection to delete unused model files
+// TODO(licha): Consider making this a singleton class
+// TODO(licha): Check whether this is thread-safe
 /**
  * Manages all model files in storage. {@link TextClassifierImpl} depends on this class to get the
  * model files to load.
  */
 final class ModelFileManager {
+
   private static final String TAG = "ModelFileManager";
+
   private static final String DOWNLOAD_SUB_DIR_NAME = "textclassifier/downloads/models/";
+  private static final File CONFIG_UPDATER_DIR = new File("/data/misc/textclassifier/");
+  private static final String ASSETS_DIR = "textclassifier";
 
-  private final File downloadModelDir;
-  private final ImmutableMap<String, Supplier<ImmutableList<ModelFile>>> modelFileSuppliers;
+  private final List<ModelFileLister> modelFileListers;
+  private final File modelDownloaderDir;
 
-  /** Create a ModelFileManager based on hardcoded model file locations. */
   public ModelFileManager(Context context, TextClassifierSettings settings) {
     Preconditions.checkNotNull(context);
     Preconditions.checkNotNull(settings);
-    this.downloadModelDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
-    if (!downloadModelDir.exists()) {
-      downloadModelDir.mkdirs();
-    }
 
-    ImmutableMap.Builder<String, Supplier<ImmutableList<ModelFile>>> suppliersBuilder =
-        ImmutableMap.builder();
-    for (String modelType : ModelType.values()) {
-      suppliersBuilder.put(
-          modelType, new ModelFileSupplierImpl(settings, modelType, downloadModelDir));
-    }
-    this.modelFileSuppliers = suppliersBuilder.build();
+    AssetManager assetManager = context.getAssets();
+    this.modelDownloaderDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
+    modelFileListers =
+        ImmutableList.of(
+            // Annotator models.
+            new RegularFilePatternMatchLister(
+                ModelType.ANNOTATOR,
+                this.modelDownloaderDir,
+                "annotator\\.(.*)\\.model",
+                settings::isModelDownloadManagerEnabled),
+            new RegularFileFullMatchLister(
+                ModelType.ANNOTATOR,
+                new File(CONFIG_UPDATER_DIR, "textclassifier.model"),
+                /* isEnabled= */ () -> true),
+            new AssetFilePatternMatchLister(
+                assetManager,
+                ModelType.ANNOTATOR,
+                ASSETS_DIR,
+                "annotator\\.(.*)\\.model",
+                /* isEnabled= */ () -> true),
+            // Actions models.
+            new RegularFilePatternMatchLister(
+                ModelType.ACTIONS_SUGGESTIONS,
+                this.modelDownloaderDir,
+                "actions_suggestions\\.(.*)\\.model",
+                settings::isModelDownloadManagerEnabled),
+            new RegularFileFullMatchLister(
+                ModelType.ACTIONS_SUGGESTIONS,
+                new File(CONFIG_UPDATER_DIR, "actions_suggestions.model"),
+                /* isEnabled= */ () -> true),
+            new AssetFilePatternMatchLister(
+                assetManager,
+                ModelType.ACTIONS_SUGGESTIONS,
+                ASSETS_DIR,
+                "actions_suggestions\\.(.*)\\.model",
+                /* isEnabled= */ () -> true),
+            // LangID models.
+            new RegularFilePatternMatchLister(
+                ModelType.LANG_ID,
+                this.modelDownloaderDir,
+                "lang_id\\.(.*)\\.model",
+                settings::isModelDownloadManagerEnabled),
+            new RegularFileFullMatchLister(
+                ModelType.LANG_ID,
+                new File(CONFIG_UPDATER_DIR, "lang_id.model"),
+                /* isEnabled= */ () -> true),
+            new AssetFilePatternMatchLister(
+                assetManager,
+                ModelType.LANG_ID,
+                ASSETS_DIR,
+                "lang_id.model",
+                /* isEnabled= */ () -> true));
   }
 
   @VisibleForTesting
-  ModelFileManager(
-      File downloadModelDir,
-      ImmutableMap<String, Supplier<ImmutableList<ModelFile>>> modelFileSuppliers) {
-    this.downloadModelDir = Preconditions.checkNotNull(downloadModelDir);
-    this.modelFileSuppliers = Preconditions.checkNotNull(modelFileSuppliers);
+  ModelFileManager(Context context, List<ModelFileLister> modelFileListers) {
+    this.modelDownloaderDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
+    this.modelFileListers = ImmutableList.copyOf(modelFileListers);
   }
 
   /**
@@ -96,27 +138,203 @@ final class ModelFileManager {
    *
    * @param modelType which type of model files to look for
    */
-  public ImmutableList<ModelFile> listModelFiles(@ModelType.ModelTypeDef String modelType) {
-    if (modelFileSuppliers.containsKey(modelType)) {
-      return modelFileSuppliers.get(modelType).get();
+  public ImmutableList<ModelFile> listModelFiles(@ModelTypeDef String modelType) {
+    Preconditions.checkNotNull(modelType);
+
+    ImmutableList.Builder<ModelFile> modelFiles = new ImmutableList.Builder<>();
+    for (ModelFileLister modelFileLister : modelFileListers) {
+      modelFiles.addAll(modelFileLister.list(modelType));
     }
-    return ImmutableList.of();
+    return modelFiles.build();
+  }
+
+  /** Lists model files. */
+  public interface ModelFileLister {
+    List<ModelFile> list(@ModelTypeDef String modelType);
+  }
+
+  /** Lists model files by performing full match on file path. */
+  public static class RegularFileFullMatchLister implements ModelFileLister {
+    private final String modelType;
+    private final File targetFile;
+    private final Supplier<Boolean> isEnabled;
+
+    /**
+     * @param modelType the type of the model
+     * @param targetFile the expected model file
+     * @param isEnabled whether this lister is enabled
+     */
+    public RegularFileFullMatchLister(
+        @ModelTypeDef String modelType, File targetFile, Supplier<Boolean> isEnabled) {
+      this.modelType = Preconditions.checkNotNull(modelType);
+      this.targetFile = Preconditions.checkNotNull(targetFile);
+      this.isEnabled = Preconditions.checkNotNull(isEnabled);
+    }
+
+    @Override
+    public ImmutableList<ModelFile> list(@ModelTypeDef String modelType) {
+      if (!this.modelType.equals(modelType)) {
+        return ImmutableList.of();
+      }
+      if (!isEnabled.get()) {
+        return ImmutableList.of();
+      }
+      if (!targetFile.exists()) {
+        return ImmutableList.of();
+      }
+      try {
+        return ImmutableList.of(ModelFile.createFromRegularFile(targetFile, modelType));
+      } catch (IOException e) {
+        TcLog.e(
+            TAG, "Failed to call createFromRegularFile with: " + targetFile.getAbsolutePath(), e);
+      }
+      return ImmutableList.of();
+    }
+  }
+
+  /** Lists model file in a specified folder by doing pattern matching on file names. */
+  public static class RegularFilePatternMatchLister implements ModelFileLister {
+    private final String modelType;
+    private final File folder;
+    private final Pattern fileNamePattern;
+    private final Supplier<Boolean> isEnabled;
+
+    /**
+     * @param modelType the type of the model
+     * @param folder the folder to list files
+     * @param fileNameRegex the regex to match the file name in the specified folder
+     * @param isEnabled whether the lister is enabled
+     */
+    public RegularFilePatternMatchLister(
+        @ModelTypeDef String modelType,
+        File folder,
+        String fileNameRegex,
+        Supplier<Boolean> isEnabled) {
+      this.modelType = Preconditions.checkNotNull(modelType);
+      this.folder = Preconditions.checkNotNull(folder);
+      this.fileNamePattern = Pattern.compile(Preconditions.checkNotNull(fileNameRegex));
+      this.isEnabled = Preconditions.checkNotNull(isEnabled);
+    }
+
+    @Override
+    public ImmutableList<ModelFile> list(@ModelTypeDef String modelType) {
+      if (!this.modelType.equals(modelType)) {
+        return ImmutableList.of();
+      }
+      if (!isEnabled.get()) {
+        return ImmutableList.of();
+      }
+      if (!folder.isDirectory()) {
+        return ImmutableList.of();
+      }
+      File[] files = folder.listFiles();
+      if (files == null) {
+        return ImmutableList.of();
+      }
+      ImmutableList.Builder<ModelFile> modelFilesBuilder = ImmutableList.builder();
+      for (File file : files) {
+        final Matcher matcher = fileNamePattern.matcher(file.getName());
+        if (!matcher.matches() || !file.isFile()) {
+          continue;
+        }
+        try {
+          modelFilesBuilder.add(ModelFile.createFromRegularFile(file, modelType));
+        } catch (IOException e) {
+          TcLog.w(TAG, "Failed to call createFromRegularFile with: " + file.getAbsolutePath());
+        }
+      }
+      return modelFilesBuilder.build();
+    }
+  }
+
+  /** Lists the model files preloaded in the APK file. */
+  public static class AssetFilePatternMatchLister implements ModelFileLister {
+    private final AssetManager assetManager;
+    private final String modelType;
+    private final String pathToList;
+    private final Pattern fileNamePattern;
+    private final Supplier<Boolean> isEnabled;
+    private final Object lock = new Object();
+    // Assets won't change without updating the app, so cache the result for performance reason.
+    @GuardedBy("lock")
+    private final Map<String, ImmutableList<ModelFile>> resultCache;
+
+    /**
+     * @param modelType the type of the model.
+     * @param pathToList the folder to list files
+     * @param fileNameRegex the regex to match the file name in the specified folder
+     * @param isEnabled whether this lister is enabled
+     */
+    public AssetFilePatternMatchLister(
+        AssetManager assetManager,
+        @ModelTypeDef String modelType,
+        String pathToList,
+        String fileNameRegex,
+        Supplier<Boolean> isEnabled) {
+      this.assetManager = Preconditions.checkNotNull(assetManager);
+      this.modelType = Preconditions.checkNotNull(modelType);
+      this.pathToList = Preconditions.checkNotNull(pathToList);
+      this.fileNamePattern = Pattern.compile(Preconditions.checkNotNull(fileNameRegex));
+      this.isEnabled = Preconditions.checkNotNull(isEnabled);
+      resultCache = new ArrayMap<>();
+    }
+
+    @Override
+    public ImmutableList<ModelFile> list(@ModelTypeDef String modelType) {
+      if (!this.modelType.equals(modelType)) {
+        return ImmutableList.of();
+      }
+      if (!isEnabled.get()) {
+        return ImmutableList.of();
+      }
+      synchronized (lock) {
+        if (resultCache.get(modelType) != null) {
+          return resultCache.get(modelType);
+        }
+        String[] fileNames = null;
+        try {
+          fileNames = assetManager.list(pathToList);
+        } catch (IOException e) {
+          TcLog.e(TAG, "Failed to list assets", e);
+        }
+        if (fileNames == null) {
+          return ImmutableList.of();
+        }
+        ImmutableList.Builder<ModelFile> modelFilesBuilder = ImmutableList.builder();
+        for (String fileName : fileNames) {
+          final Matcher matcher = fileNamePattern.matcher(fileName);
+          if (!matcher.matches()) {
+            continue;
+          }
+          String absolutePath =
+              new StringBuilder(pathToList).append('/').append(fileName).toString();
+          try {
+            modelFilesBuilder.add(ModelFile.createFromAsset(assetManager, absolutePath, modelType));
+          } catch (IOException e) {
+            TcLog.w(TAG, "Failed to call createFromAsset with: " + absolutePath);
+          }
+        }
+        ImmutableList<ModelFile> result = modelFilesBuilder.build();
+        resultCache.put(modelType, result);
+        return result;
+      }
+    }
   }
 
   /**
    * Returns the best model file for the given localelist, {@code null} if nothing is found.
    *
    * @param modelType the type of model to look up (e.g. annotator, lang_id, etc.)
-   * @param localeList an ordered list of user preferences for locales, use {@code null} if there is
-   *     no preference.
+   * @param localePreferences an ordered list of user preferences for locales, use {@code null} if
+   *     there is no preference.
    */
   @Nullable
   public ModelFile findBestModelFile(
-      @ModelType.ModelTypeDef String modelType, @Nullable LocaleList localeList) {
+      @ModelTypeDef String modelType, @Nullable LocaleList localePreferences) {
     final String languages =
-        localeList == null || localeList.isEmpty()
+        localePreferences == null || localePreferences.isEmpty()
             ? LocaleList.getDefault().toLanguageTags()
-            : localeList.toLanguageTags();
+            : localePreferences.toLanguageTags();
     final List<Locale.LanguageRange> languageRangeList = Locale.LanguageRange.parse(languages);
 
     ModelFile bestModel = null;
@@ -131,6 +349,34 @@ final class ModelFileManager {
   }
 
   /**
+   * Deletes model files that are not preferred for any locales in user's preference.
+   *
+   * <p>This method will be invoked as a clean-up after we download a new model successfully. Race
+   * conditions are hard to avoid because we do not hold locks for files. But it should rarely cause
+   * any issues since it's safe to delete a model file in use (b/c we mmap it to memory).
+   */
+  public void deleteUnusedModelFiles() {
+    TcLog.d(TAG, "Start to delete unused model files.");
+    LocaleList localeList = LocaleList.getDefault();
+    for (@ModelTypeDef String modelType : ModelType.values()) {
+      ArraySet<ModelFile> allModelFiles = new ArraySet<>(listModelFiles(modelType));
+      for (int i = 0; i < localeList.size(); i++) {
+        // If a model file is preferred for any local in locale list, then keep it
+        ModelFile bestModel = findBestModelFile(modelType, new LocaleList(localeList.get(i)));
+        allModelFiles.remove(bestModel);
+      }
+      for (ModelFile modelFile : allModelFiles) {
+        if (modelFile.canWrite()) {
+          TcLog.d(TAG, "Deleting model: " + modelFile);
+          if (!modelFile.delete()) {
+            TcLog.w(TAG, "Failed to delete model: " + modelFile);
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Returns a {@link File} that represents the destination to download a model.
    *
    * <p>Each model file's name is uniquely formatted based on its unique remote manifest URL.
@@ -140,9 +386,9 @@ final class ModelFileManager {
    * @param modelType the type of the model image to download
    * @param manifestUrl the unique remote url of the model manifest
    */
-  public File getDownloadTargetFile(@ModelType.ModelTypeDef String modelType, String manifestUrl) {
+  public File getDownloadTargetFile(@ModelTypeDef String modelType, String manifestUrl) {
     String fileName = String.format("%s.%d.model", modelType, manifestUrl.hashCode());
-    return new File(downloadModelDir, fileName);
+    return new File(modelDownloaderDir, fileName);
   }
 
   /**
@@ -153,7 +399,7 @@ final class ModelFileManager {
   public void dump(IndentingPrintWriter printWriter) {
     printWriter.println("ModelFileManager:");
     printWriter.increaseIndent();
-    for (@ModelType.ModelTypeDef String modelType : ModelType.values()) {
+    for (@ModelTypeDef String modelType : ModelType.values()) {
       printWriter.println(modelType + " model file(s):");
       printWriter.increaseIndent();
       for (ModelFile modelFile : listModelFiles(modelType)) {
@@ -164,260 +410,102 @@ final class ModelFileManager {
     printWriter.decreaseIndent();
   }
 
-  /** Default implementation of the model file supplier. */
-  @VisibleForTesting
-  static final class ModelFileSupplierImpl implements Supplier<ImmutableList<ModelFile>> {
-    private static final String FACTORY_MODEL_DIR = "/etc/textclassifier/";
+  /** Fetch metadata of a model file. */
+  private static class ModelInfoFetcher {
+    private final Function<AssetFileDescriptor, Integer> versionFetcher;
+    private final Function<AssetFileDescriptor, String> supportedLocalesFetcher;
 
-    private static final class ModelFileInfo {
-      private final String modelNameRegex;
-      private final String configUpdaterModelPath;
-      private final Function<Integer, Integer> versionSupplier;
-      private final Function<Integer, String> supportedLocalesSupplier;
-
-      public ModelFileInfo(
-          String modelNameRegex,
-          String configUpdaterModelPath,
-          Function<Integer, Integer> versionSupplier,
-          Function<Integer, String> supportedLocalesSupplier) {
-        this.modelNameRegex = Preconditions.checkNotNull(modelNameRegex);
-        this.configUpdaterModelPath = Preconditions.checkNotNull(configUpdaterModelPath);
-        this.versionSupplier = Preconditions.checkNotNull(versionSupplier);
-        this.supportedLocalesSupplier = Preconditions.checkNotNull(supportedLocalesSupplier);
-      }
-
-      public String getModelNameRegex() {
-        return modelNameRegex;
-      }
-
-      public String getConfigUpdaterModelPath() {
-        return configUpdaterModelPath;
-      }
-
-      public Function<Integer, Integer> getVersionSupplier() {
-        return versionSupplier;
-      }
-
-      public Function<Integer, String> getSupportedLocalesSupplier() {
-        return supportedLocalesSupplier;
-      }
+    private ModelInfoFetcher(
+        Function<AssetFileDescriptor, Integer> versionFetcher,
+        Function<AssetFileDescriptor, String> supportedLocalesFetcher) {
+      this.versionFetcher = versionFetcher;
+      this.supportedLocalesFetcher = supportedLocalesFetcher;
     }
 
-    private static final ImmutableMap<String, ModelFileInfo> MODEL_FILE_INFO_MAP =
-        ImmutableMap.<String, ModelFileInfo>builder()
-            .put(
-                ModelType.ANNOTATOR,
-                new ModelFileInfo(
-                    "(annotator|textclassifier)\\.(.*)\\.model",
-                    "/data/misc/textclassifier/textclassifier.model",
-                    AnnotatorModel::getVersion,
-                    AnnotatorModel::getLocales))
-            .put(
-                ModelType.LANG_ID,
-                new ModelFileInfo(
-                    "lang_id.model",
-                    "/data/misc/textclassifier/lang_id.model",
-                    LangIdModel::getVersion,
-                    fd -> ModelFile.LANGUAGE_INDEPENDENT))
-            .put(
-                ModelType.ACTIONS_SUGGESTIONS,
-                new ModelFileInfo(
-                    "actions_suggestions\\.(.*)\\.model",
-                    "/data/misc/textclassifier/actions_suggestions.model",
-                    ActionsSuggestionsModel::getVersion,
-                    ActionsSuggestionsModel::getLocales))
-            .build();
-
-    private final TextClassifierSettings settings;
-    @ModelType.ModelTypeDef private final String modelType;
-    private final File configUpdaterModelFile;
-    private final File downloaderModelDir;
-    private final File factoryModelDir;
-    private final Pattern modelFilenamePattern;
-    private final Function<Integer, Integer> versionSupplier;
-    private final Function<Integer, String> supportedLocalesSupplier;
-    private final Object lock = new Object();
-
-    @GuardedBy("lock")
-    private ImmutableList<ModelFile> factoryModels;
-
-    public ModelFileSupplierImpl(
-        TextClassifierSettings settings,
-        @ModelType.ModelTypeDef String modelType,
-        File downloaderModelDir) {
-      this(
-          settings,
-          modelType,
-          new File(FACTORY_MODEL_DIR),
-          MODEL_FILE_INFO_MAP.get(modelType).getModelNameRegex(),
-          new File(MODEL_FILE_INFO_MAP.get(modelType).getConfigUpdaterModelPath()),
-          downloaderModelDir,
-          MODEL_FILE_INFO_MAP.get(modelType).getVersionSupplier(),
-          MODEL_FILE_INFO_MAP.get(modelType).getSupportedLocalesSupplier());
+    int getVersion(AssetFileDescriptor assetFileDescriptor) {
+      return versionFetcher.apply(assetFileDescriptor);
     }
 
-    @VisibleForTesting
-    ModelFileSupplierImpl(
-        TextClassifierSettings settings,
-        @ModelType.ModelTypeDef String modelType,
-        File factoryModelDir,
-        String modelFileNameRegex,
-        File configUpdaterModelFile,
-        File downloaderModelDir,
-        Function<Integer, Integer> versionSupplier,
-        Function<Integer, String> supportedLocalesSupplier) {
-      this.settings = Preconditions.checkNotNull(settings);
-      this.modelType = Preconditions.checkNotNull(modelType);
-      this.factoryModelDir = Preconditions.checkNotNull(factoryModelDir);
-      this.modelFilenamePattern = Pattern.compile(Preconditions.checkNotNull(modelFileNameRegex));
-      this.configUpdaterModelFile = Preconditions.checkNotNull(configUpdaterModelFile);
-      this.downloaderModelDir = Preconditions.checkNotNull(downloaderModelDir);
-      this.versionSupplier = Preconditions.checkNotNull(versionSupplier);
-      this.supportedLocalesSupplier = Preconditions.checkNotNull(supportedLocalesSupplier);
+    String getSupportedLocales(AssetFileDescriptor assetFileDescriptor) {
+      return supportedLocalesFetcher.apply(assetFileDescriptor);
     }
 
-    @Override
-    public ImmutableList<ModelFile> get() {
-      final List<ModelFile> modelFiles = new ArrayList<>();
-      // The dwonloader and config updater model have higher precedences.
-      if (downloaderModelDir.exists() && settings.isModelDownloadManagerEnabled()) {
-        modelFiles.addAll(getMatchedModelFiles(downloaderModelDir));
+    static ModelInfoFetcher create(@ModelTypeDef String modelType) {
+      switch (modelType) {
+        case ModelType.ANNOTATOR:
+          return new ModelInfoFetcher(AnnotatorModel::getVersion, AnnotatorModel::getLocales);
+        case ModelType.ACTIONS_SUGGESTIONS:
+          return new ModelInfoFetcher(
+              ActionsSuggestionsModel::getVersion, ActionsSuggestionsModel::getLocales);
+        case ModelType.LANG_ID:
+          return new ModelInfoFetcher(
+              LangIdModel::getVersion, afd -> ModelFile.LANGUAGE_INDEPENDENT);
+        default: // fall out
       }
-      if (configUpdaterModelFile.exists()) {
-        final ModelFile updatedModel = createModelFile(configUpdaterModelFile);
-        if (updatedModel != null) {
-          modelFiles.add(updatedModel);
-        }
-      }
-      // Factory models should never have overlapping locales, so the order doesn't matter.
-      synchronized (lock) {
-        if (factoryModels == null) {
-          factoryModels = getMatchedModelFiles(factoryModelDir);
-        }
-        modelFiles.addAll(factoryModels);
-      }
-      return ImmutableList.copyOf(modelFiles);
-    }
-
-    private ImmutableList<ModelFile> getMatchedModelFiles(File parentDir) {
-      ImmutableList.Builder<ModelFile> modelFilesBuilder = ImmutableList.builder();
-      if (parentDir.exists() && parentDir.isDirectory()) {
-        final File[] files = parentDir.listFiles();
-        for (File file : files) {
-          final Matcher matcher = modelFilenamePattern.matcher(file.getName());
-          if (matcher.matches() && file.isFile()) {
-            final ModelFile model = createModelFile(file);
-            if (model != null) {
-              modelFilesBuilder.add(model);
-            }
-          }
-        }
-      }
-      return modelFilesBuilder.build();
-    }
-
-    /** Returns null if the path did not point to a compatible model. */
-    @Nullable
-    private ModelFile createModelFile(File file) {
-      if (!file.exists()) {
-        return null;
-      }
-      ParcelFileDescriptor modelFd = null;
-      try {
-        modelFd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
-        if (modelFd == null) {
-          return null;
-        }
-        final int modelFdInt = modelFd.getFd();
-        final int version = versionSupplier.apply(modelFdInt);
-        final String supportedLocalesStr = supportedLocalesSupplier.apply(modelFdInt);
-        if (supportedLocalesStr.isEmpty()) {
-          TcLog.d(TAG, "Ignoring " + file.getAbsolutePath());
-          return null;
-        }
-        final List<Locale> supportedLocales = new ArrayList<>();
-        for (String langTag : Splitter.on(',').split(supportedLocalesStr)) {
-          supportedLocales.add(Locale.forLanguageTag(langTag));
-        }
-        return new ModelFile(
-            modelType,
-            file,
-            version,
-            supportedLocales,
-            supportedLocalesStr,
-            ModelFile.LANGUAGE_INDEPENDENT.equals(supportedLocalesStr));
-      } catch (FileNotFoundException e) {
-        TcLog.e(TAG, "Failed to find " + file.getAbsolutePath(), e);
-        return null;
-      } finally {
-        maybeCloseAndLogError(modelFd);
-      }
-    }
-
-    /** Closes the ParcelFileDescriptor, if non-null, and logs any errors that occur. */
-    private static void maybeCloseAndLogError(@Nullable ParcelFileDescriptor fd) {
-      if (fd == null) {
-        return;
-      }
-      try {
-        fd.close();
-      } catch (IOException e) {
-        TcLog.e(TAG, "Error closing file.", e);
-      }
+      throw new IllegalStateException("Unsupported model types");
     }
   }
 
   /** Describes TextClassifier model files on disk. */
-  public static final class ModelFile {
-    public static final String LANGUAGE_INDEPENDENT = "*";
+  public static class ModelFile {
+    @VisibleForTesting static final String LANGUAGE_INDEPENDENT = "*";
 
-    @ModelType.ModelTypeDef private final String modelType;
-    private final File file;
-    private final int version;
-    private final List<Locale> supportedLocales;
-    private final String supportedLocalesStr;
-    private final boolean languageIndependent;
+    @ModelTypeDef public final String modelType;
+    public final String absolutePath;
+    public final int version;
+    public final LocaleList supportedLocales;
+    public final boolean languageIndependent;
+    public final boolean isAsset;
 
-    public ModelFile(
-        @ModelType.ModelTypeDef String modelType,
-        File file,
+    public static ModelFile createFromRegularFile(File file, @ModelTypeDef String modelType)
+        throws IOException {
+      ParcelFileDescriptor pfd =
+          ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+      try (AssetFileDescriptor afd = new AssetFileDescriptor(pfd, 0, file.length())) {
+        return createFromAssetFileDescriptor(
+            file.getAbsolutePath(), modelType, afd, /* isAsset= */ false);
+      }
+    }
+
+    public static ModelFile createFromAsset(
+        AssetManager assetManager, String absolutePath, @ModelTypeDef String modelType)
+        throws IOException {
+      try (AssetFileDescriptor assetFileDescriptor = assetManager.openFd(absolutePath)) {
+        return createFromAssetFileDescriptor(
+            absolutePath, modelType, assetFileDescriptor, /* isAsset= */ true);
+      }
+    }
+
+    private static ModelFile createFromAssetFileDescriptor(
+        String absolutePath,
+        @ModelTypeDef String modelType,
+        AssetFileDescriptor assetFileDescriptor,
+        boolean isAsset) {
+      ModelInfoFetcher modelInfoFetcher = ModelInfoFetcher.create(modelType);
+      return new ModelFile(
+          modelType,
+          absolutePath,
+          modelInfoFetcher.getVersion(assetFileDescriptor),
+          modelInfoFetcher.getSupportedLocales(assetFileDescriptor),
+          isAsset);
+    }
+
+    @VisibleForTesting
+    ModelFile(
+        @ModelTypeDef String modelType,
+        String absolutePath,
         int version,
-        List<Locale> supportedLocales,
-        String supportedLocalesStr,
-        boolean languageIndependent) {
-      this.modelType = Preconditions.checkNotNull(modelType);
-      this.file = Preconditions.checkNotNull(file);
+        String supportedLocaleTags,
+        boolean isAsset) {
+      this.modelType = modelType;
+      this.absolutePath = absolutePath;
       this.version = version;
-      this.supportedLocales = Preconditions.checkNotNull(supportedLocales);
-      this.supportedLocalesStr = Preconditions.checkNotNull(supportedLocalesStr);
-      this.languageIndependent = languageIndependent;
-    }
-
-    /** Returns the type of this model, defined in {@link ModelType}. */
-    @ModelType.ModelTypeDef
-    public String getModelType() {
-      return modelType;
-    }
-
-    /** Returns the absolute path to the model file. */
-    public String getPath() {
-      return file.getAbsolutePath();
-    }
-
-    /** Returns a name to use for id generation, effectively the name of the model file. */
-    public String getName() {
-      return file.getName();
-    }
-
-    /** Returns the version tag in the model's metadata. */
-    public int getVersion() {
-      return version;
-    }
-
-    /** Returns whether the language supports any language in the given ranges. */
-    public boolean isAnyLanguageSupported(List<Locale.LanguageRange> languageRanges) {
-      Preconditions.checkNotNull(languageRanges);
-      return languageIndependent || Locale.lookup(languageRanges, supportedLocales) != null;
+      this.languageIndependent = LANGUAGE_INDEPENDENT.equals(supportedLocaleTags);
+      this.supportedLocales =
+          languageIndependent
+              ? LocaleList.getEmptyLocaleList()
+              : LocaleList.forLanguageTags(supportedLocaleTags);
+      this.isAsset = isAsset;
     }
 
     /** Returns if this model file is preferred to the given one. */
@@ -437,70 +525,111 @@ final class ModelFileManager {
       }
 
       // A higher-version model is preferred.
-      if (version > model.getVersion()) {
+      if (version > model.version) {
         return true;
       }
       return false;
+    }
+
+    /** Returns whether the language supports any language in the given ranges. */
+    public boolean isAnyLanguageSupported(List<Locale.LanguageRange> languageRanges) {
+      Preconditions.checkNotNull(languageRanges);
+      if (languageIndependent) {
+        return true;
+      }
+      List<String> supportedLocaleTags =
+          Arrays.asList(supportedLocales.toLanguageTags().split(","));
+      return Locale.lookupTag(languageRanges, supportedLocaleTags) != null;
+    }
+
+    public AssetFileDescriptor open(AssetManager assetManager) throws IOException {
+      if (isAsset) {
+        return assetManager.openFd(absolutePath);
+      }
+      File file = new File(absolutePath);
+      ParcelFileDescriptor parcelFileDescriptor =
+          ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+      return new AssetFileDescriptor(parcelFileDescriptor, 0, file.length());
+    }
+
+    public boolean canWrite() {
+      if (isAsset) {
+        return false;
+      }
+      return new File(absolutePath).canWrite();
+    }
+
+    public boolean delete() {
+      if (isAsset) {
+        throw new IllegalStateException("asset is read-only, deleting it is not allowed.");
+      }
+      return new File(absolutePath).delete();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      }
+      if (!(o instanceof ModelFile)) {
+        return false;
+      }
+      ModelFile modelFile = (ModelFile) o;
+      return version == modelFile.version
+          && languageIndependent == modelFile.languageIndependent
+          && isAsset == modelFile.isAsset
+          && Objects.equals(modelType, modelFile.modelType)
+          && Objects.equals(absolutePath, modelFile.absolutePath)
+          && Objects.equals(supportedLocales, modelFile.supportedLocales);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(getPath());
-    }
-
-    @Override
-    public boolean equals(Object other) {
-      if (this == other) {
-        return true;
-      }
-      if (other instanceof ModelFile) {
-        final ModelFile otherModel = (ModelFile) other;
-        return TextUtils.equals(getPath(), otherModel.getPath());
-      }
-      return false;
+      return Objects.hash(
+          modelType, absolutePath, version, supportedLocales, languageIndependent, isAsset);
     }
 
     public ModelInfo toModelInfo() {
-      return new ModelInfo(getVersion(), supportedLocalesStr);
+      return new ModelInfo(version, supportedLocales.toLanguageTags());
     }
 
     @Override
     public String toString() {
       return String.format(
           Locale.US,
-          "ModelFile { type=%s path=%s name=%s version=%d locales=%s }",
+          "ModelFile { type=%s path=%s version=%d locales=%s isAsset=%b}",
           modelType,
-          getPath(),
-          getName(),
+          absolutePath,
           version,
-          supportedLocalesStr);
+          languageIndependent ? LANGUAGE_INDEPENDENT : supportedLocales.toLanguageTags(),
+          isAsset);
     }
 
     public static ImmutableList<Optional<ModelInfo>> toModelInfos(
-        Optional<ModelFile>... modelFiles) {
+        Optional<ModelFileManager.ModelFile>... modelFiles) {
       return Arrays.stream(modelFiles)
-          .map(modelFile -> modelFile.transform(ModelFile::toModelInfo))
+          .map(modelFile -> modelFile.transform(ModelFileManager.ModelFile::toModelInfo))
           .collect(Collectors.collectingAndThen(Collectors.toList(), ImmutableList::copyOf));
     }
+  }
 
-    /** Effectively an enum class to represent types of models. */
-    public static final class ModelType {
-      @Retention(RetentionPolicy.SOURCE)
-      @StringDef({ANNOTATOR, LANG_ID, ACTIONS_SUGGESTIONS})
-      public @interface ModelTypeDef {}
+  /** Effectively an enum class to represent types of models. */
+  public static final class ModelType {
+    @Retention(RetentionPolicy.SOURCE)
+    @StringDef({ANNOTATOR, LANG_ID, ACTIONS_SUGGESTIONS})
+    @interface ModelTypeDef {}
 
-      public static final String ANNOTATOR = "annotator";
-      public static final String LANG_ID = "lang_id";
-      public static final String ACTIONS_SUGGESTIONS = "actions_suggestions";
+    public static final String ANNOTATOR = "annotator";
+    public static final String LANG_ID = "lang_id";
+    public static final String ACTIONS_SUGGESTIONS = "actions_suggestions";
 
-      public static final ImmutableList<String> VALUES =
-          ImmutableList.of(ANNOTATOR, LANG_ID, ACTIONS_SUGGESTIONS);
+    public static final ImmutableList<String> VALUES =
+        ImmutableList.of(ANNOTATOR, LANG_ID, ACTIONS_SUGGESTIONS);
 
-      public static ImmutableList<String> values() {
-        return VALUES;
-      }
-
-      private ModelType() {}
+    public static ImmutableList<String> values() {
+      return VALUES;
     }
+
+    private ModelType() {}
   }
 }

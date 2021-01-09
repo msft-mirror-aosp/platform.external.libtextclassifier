@@ -527,5 +527,22 @@ TEST_F(UniLibTest, DoubleParseNotNumber) {
       UTF8ToUnicodeText("Information", /*do_copy=*/false), &result));
 }
 
+TEST_F(UniLibTest, Length) {
+  EXPECT_EQ(unilib_->Length(UTF8ToUnicodeText("hello", /*do_copy=*/false))
+                .ValueOrDie(),
+            5);
+  EXPECT_EQ(unilib_->Length(UTF8ToUnicodeText("ěščřž", /*do_copy=*/false))
+                .ValueOrDie(),
+            5);
+  // Test Invalid UTF8.
+  // This testing condition needs to be != 1, as Apple character counting seems
+  // to return 0 when the input is invalid UTF8, while ICU will treat the
+  // invalid codepoint as 3 separate bytes.
+  EXPECT_NE(
+      unilib_->Length(UTF8ToUnicodeText("\xed\xa0\x80", /*do_copy=*/false))
+          .ValueOrDie(),
+      1);
+}
+
 }  // namespace test_internal
 }  // namespace libtextclassifier3

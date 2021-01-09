@@ -16,7 +16,10 @@
 
 package com.android.textclassifier;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.CancellationSignal;
 import android.service.textclassifier.TextClassifierService;
 import android.view.textclassifier.ConversationActions;
@@ -55,6 +58,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   private TextClassifierImpl textClassifier;
   private TextClassifierSettings settings;
   private ModelFileManager modelFileManager;
+  private BroadcastReceiver localeChangedReceiver;
 
   public DefaultTextClassifierService() {
     this.injector = new InjectorImpl(this);
@@ -76,14 +80,20 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     normPriorityExecutor = injector.createNormPriorityExecutor();
     lowPriorityExecutor = injector.createLowPriorityExecutor();
     textClassifier = injector.createTextClassifierImpl(settings, modelFileManager);
+    localeChangedReceiver = new LocaleChangedReceiver(modelFileManager);
 
     textClassifierApiUsageLogger =
         injector.createTextClassifierApiUsageLogger(settings, lowPriorityExecutor);
+
+    injector
+        .getContext()
+        .registerReceiver(localeChangedReceiver, new IntentFilter(Intent.ACTION_LOCALE_CHANGED));
   }
 
   @Override
   public void onDestroy() {
     super.onDestroy();
+    injector.getContext().unregisterReceiver(localeChangedReceiver);
   }
 
   @Override
@@ -221,6 +231,22 @@ public final class DefaultTextClassifierService extends TextClassifierService {
         MoreExecutors.directExecutor());
   }
 
+  /**
+   * Receiver listening to locale change event. Ask ModelFileManager to do clean-up upon receiving.
+   */
+  static class LocaleChangedReceiver extends BroadcastReceiver {
+    private final ModelFileManager modelFileManager;
+
+    LocaleChangedReceiver(ModelFileManager modelFileManager) {
+      this.modelFileManager = modelFileManager;
+    }
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      modelFileManager.deleteUnusedModelFiles();
+    }
+  }
+
   // Do not call any of these methods, except the constructor, before Service.onCreate is called.
   private static class InjectorImpl implements Injector {
     // Do not access the context object before Service.onCreate is invoked.
@@ -228,6 +254,11 @@ public final class DefaultTextClassifierService extends TextClassifierService {
 
     private InjectorImpl(Context context) {
       this.context = Preconditions.checkNotNull(context);
+    }
+
+    @Override
+    public Context getContext() {
+      return context;
     }
 
     @Override
@@ -280,6 +311,8 @@ public final class DefaultTextClassifierService extends TextClassifierService {
    * class testable.
    */
   interface Injector {
+    Context getContext();
+
     ModelFileManager createModelFileManager(TextClassifierSettings settings);
 
     TextClassifierSettings createTextClassifierSettings();

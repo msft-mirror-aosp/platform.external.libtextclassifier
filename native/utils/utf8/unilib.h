@@ -152,6 +152,31 @@ class UniLib : public UniLibBase {
   bool IsLetter(char32 codepoint) const {
     return libtextclassifier3::IsLetter(codepoint);
   }
+
+  bool IsValidUtf8(const UnicodeText& text) const {
+    // Basic check of structural validity of UTF8.
+    if (!text.is_valid()) {
+      return false;
+    }
+    // In addition to that, we declare that a valid UTF8 is when the number of
+    // codepoints in the string as measured by ICU is the same as the number of
+    // codepoints as measured by UnicodeText. Because if we don't do this check,
+    // the indices might differ, and cause trouble, because the assumption
+    // throughout the code is that ICU indices and UnicodeText indices are the
+    // same.
+    // NOTE: This is not perfect, as this doesn't check the alignment of the
+    // codepoints, but for the practical purposes should be enough.
+    const StatusOr<int32> icu_length = Length(text);
+    if (!icu_length.ok()) {
+      return false;
+    }
+
+    if (icu_length.ValueOrDie() != text.size_codepoints()) {
+      return false;
+    }
+
+    return true;
+  }
 };
 
 }  // namespace libtextclassifier3

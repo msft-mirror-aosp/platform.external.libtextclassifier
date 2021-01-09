@@ -20,7 +20,9 @@
 #define LIBTEXTCLASSIFIER_LANG_ID_LANG_ID_JNI_H_
 
 #include <jni.h>
+
 #include <string>
+
 #include "utils/java/jni-base.h"
 
 #ifndef TC3_LANG_ID_CLASS_NAME
@@ -62,6 +64,9 @@ TC3_JNI_METHOD(jfloat, TC3_LANG_ID_CLASS_NAME, nativeGetLangIdNoiseThreshold)
 
 TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetMinTextSizeInBytes)
 (JNIEnv* env, jobject thizz, jlong ptr);
+
+TC3_JNI_METHOD(jint, TC3_LANG_ID_CLASS_NAME, nativeGetVersionWithOffset)
+(JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size);
 
 #ifdef __cplusplus
 }

@@ -97,6 +97,20 @@ TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidInput) {
   EXPECT_THAT(response.actions, IsEmpty());
 }
 
+TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidUtf8) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
+
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1,
+             "(857) 225-3556 \xed\xa0\x80\xed\xa0\x80\xed\xa0\x80\xed\xa0\x80",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{}, /*locales=*/"en"}}});
+  EXPECT_THAT(response.actions, IsEmpty());
+}
+
 TEST_F(ActionsSuggestionsTest, SuggestsActions) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       LoadTestModel(kModelFileName);
