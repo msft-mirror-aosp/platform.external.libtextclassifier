@@ -16,63 +16,44 @@
 
 package com.android.textclassifier;
 
-import com.android.textclassifier.ModelFileManager.ModelFile;
-import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
+import android.content.Context;
+import com.android.textclassifier.ModelFileManager.ModelType;
+import com.android.textclassifier.ModelFileManager.RegularFileFullMatchLister;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
-import java.util.Locale;
-import java.util.function.Supplier;
 
 /** Utils to access test data files. */
 public final class TestDataUtils {
-  private static final ImmutableMap<String, Supplier<ImmutableList<ModelFile>>>
-      MODEL_FILES_SUPPLIER =
-          new ImmutableMap.Builder<String, Supplier<ImmutableList<ModelFile>>>()
-              .put(
-                  ModelType.ANNOTATOR,
-                  () ->
-                      ImmutableList.of(
-                          new ModelFile(
-                              ModelType.ANNOTATOR,
-                              new File(
-                                  TestDataUtils.getTestDataFolder(), "testdata/annotator.model"),
-                              711,
-                              ImmutableList.of(Locale.ENGLISH),
-                              "en",
-                              false)))
-              .put(
-                  ModelType.ACTIONS_SUGGESTIONS,
-                  () ->
-                      ImmutableList.of(
-                          new ModelFile(
-                              ModelType.ACTIONS_SUGGESTIONS,
-                              new File(TestDataUtils.getTestDataFolder(), "testdata/actions.model"),
-                              104,
-                              ImmutableList.of(Locale.ENGLISH),
-                              "en",
-                              false)))
-              .put(
-                  ModelType.LANG_ID,
-                  () ->
-                      ImmutableList.of(
-                          new ModelFile(
-                              ModelType.LANG_ID,
-                              new File(TestDataUtils.getTestDataFolder(), "testdata/langid.model"),
-                              1,
-                              ImmutableList.of(),
-                              "*",
-                              true)))
-              .build();
+  private static final String TEST_ANNOTATOR_MODEL_PATH = "testdata/annotator.model";
+  private static final String TEST_ACTIONS_MODEL_PATH = "testdata/actions.model";
+  private static final String TEST_LANGID_MODEL_PATH = "testdata/langid.model";
 
   /** Returns the root folder that contains the test data. */
   public static File getTestDataFolder() {
     return new File("/data/local/tmp/TextClassifierServiceTest/");
   }
 
-  public static ModelFileManager createModelFileManagerForTesting() {
+  public static File getTestAnnotatorModelFile() {
+    return new File(getTestDataFolder(), TEST_ANNOTATOR_MODEL_PATH);
+  }
+
+  public static File getTestActionsModelFile() {
+    return new File(getTestDataFolder(), TEST_ACTIONS_MODEL_PATH);
+  }
+
+  public static File getLangIdModelFile() {
+    return new File(getTestDataFolder(), TEST_LANGID_MODEL_PATH);
+  }
+
+  public static ModelFileManager createModelFileManagerForTesting(Context context) {
     return new ModelFileManager(
-        /* downloadModelDir= */ TestDataUtils.getTestDataFolder(), MODEL_FILES_SUPPLIER);
+        context,
+        ImmutableList.of(
+            new RegularFileFullMatchLister(
+                ModelType.ANNOTATOR, getTestAnnotatorModelFile(), () -> true),
+            new RegularFileFullMatchLister(
+                ModelType.ACTIONS_SUGGESTIONS, getTestActionsModelFile(), () -> true),
+            new RegularFileFullMatchLister(ModelType.LANG_ID, getLangIdModelFile(), () -> true)));
   }
 
   private TestDataUtils() {}

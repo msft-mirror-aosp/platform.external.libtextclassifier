@@ -25,6 +25,7 @@
 #include "utils/base/logging.h"
 #include "utils/base/statusor.h"
 #include "utils/java/jni-base.h"
+#include "utils/java/jni-helper.h"
 #include "utils/utf8/unicodetext.h"
 
 namespace libtextclassifier3 {
@@ -79,6 +80,20 @@ char32 UniLibBase::GetPairedBracket(char32 codepoint) const {
 // -----------------------------------------------------------------------------
 // Implementations that call out to JVM. Behold the beauty.
 // -----------------------------------------------------------------------------
+
+StatusOr<int32> UniLibBase::Length(const UnicodeText& text) const {
+  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> text_java,
+                       jni_cache_->ConvertToJavaString(text));
+
+  JNIEnv* jenv = jni_cache_->GetEnv();
+  TC3_ASSIGN_OR_RETURN(int utf16_length,
+                       JniHelper::CallIntMethod(jenv, text_java.get(),
+                                                jni_cache_->string_length));
+
+  return JniHelper::CallIntMethod(jenv, text_java.get(),
+                                  jni_cache_->string_code_point_count, 0,
+                                  utf16_length);
+}
 
 bool UniLibBase::ParseInt32(const UnicodeText& text, int32* result) const {
   return ParseInt(text, result);

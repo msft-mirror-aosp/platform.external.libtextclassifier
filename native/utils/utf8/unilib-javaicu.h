@@ -57,6 +57,8 @@ class UniLibBase {
   char32 ToUpper(char32 codepoint) const;
   char32 GetPairedBracket(char32 codepoint) const;
 
+  StatusOr<int32> Length(const UnicodeText& text) const;
+
   // Forward declaration for friend.
   class RegexPattern;
 

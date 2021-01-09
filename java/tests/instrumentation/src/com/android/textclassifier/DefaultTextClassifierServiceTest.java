@@ -43,7 +43,6 @@ import com.android.textclassifier.common.statsd.StatsdTestUtils;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.util.List;
@@ -190,7 +189,7 @@ public class DefaultTextClassifierServiceTest {
   @Test
   public void missingModelFile_onFailureShouldBeCalled() throws Exception {
     testInjector.setModelFileManager(
-        new ModelFileManager(TestDataUtils.getTestDataFolder(), ImmutableMap.of()));
+        new ModelFileManager(ApplicationProvider.getApplicationContext(), ImmutableList.of()));
     defaultTextClassifierService.onCreate();
 
     TextClassification.Request request = new TextClassification.Request.Builder("hi", 0, 2).build();
@@ -231,9 +230,14 @@ public class DefaultTextClassifierServiceTest {
     }
 
     @Override
+    public Context getContext() {
+      return context;
+    }
+
+    @Override
     public ModelFileManager createModelFileManager(TextClassifierSettings settings) {
       if (modelFileManager == null) {
-        return TestDataUtils.createModelFileManagerForTesting();
+        return TestDataUtils.createModelFileManagerForTesting(context);
       }
       return modelFileManager;
     }
