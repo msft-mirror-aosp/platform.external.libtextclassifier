@@ -14,33 +14,36 @@
  * limitations under the License.
  */
 
-#include "annotator/datetime/parser.h"
+#include "annotator/datetime/regex-parser.h"
 
+#include <iterator>
 #include <set>
 #include <unordered_set>
 
 #include "annotator/datetime/extractor.h"
 #include "annotator/datetime/utils.h"
+#include "utils/base/statusor.h"
 #include "utils/calendar/calendar.h"
 #include "utils/i18n/locale.h"
 #include "utils/strings/split.h"
 #include "utils/zlib/zlib_regex.h"
 
 namespace libtextclassifier3 {
-std::unique_ptr<DatetimeParser> DatetimeParser::Instance(
+std::unique_ptr<DatetimeParser> RegexDatetimeParser::Instance(
     const DatetimeModel* model, const UniLib* unilib,
     const CalendarLib* calendarlib, ZlibDecompressor* decompressor) {
-  std::unique_ptr<DatetimeParser> result(
-      new DatetimeParser(model, unilib, calendarlib, decompressor));
+  std::unique_ptr<RegexDatetimeParser> result(
+      new RegexDatetimeParser(model, unilib, calendarlib, decompressor));
   if (!result->initialized_) {
     result.reset();
   }
   return result;
 }
 
-DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib* unilib,
-                               const CalendarLib* calendarlib,
-                               ZlibDecompressor* decompressor)
+RegexDatetimeParser::RegexDatetimeParser(const DatetimeModel* model,
+                                         const UniLib* unilib,
+                                         const CalendarLib* calendarlib,
+                                         ZlibDecompressor* decompressor)
     : unilib_(*unilib), calendarlib_(*calendarlib) {
   initialized_ = false;
 
@@ -113,23 +116,24 @@ DatetimeParser::DatetimeParser(const DatetimeModel* model, const UniLib* unilib,
   initialized_ = true;
 }
 
-bool DatetimeParser::Parse(
+StatusOr<std::vector<DatetimeParseResultSpan>> RegexDatetimeParser::Parse(
     const std::string& input, const int64 reference_time_ms_utc,
-    const std::string& reference_timezone, const std::string& locales,
-    ModeFlag mode, AnnotationUsecase annotation_usecase, bool anchor_start_end,
-    std::vector<DatetimeParseResultSpan>* results) const {
+    const std::string& reference_timezone, const LocaleList& locale_list,
+    ModeFlag mode, AnnotationUsecase annotation_usecase,
+    bool anchor_start_end) const {
   return Parse(UTF8ToUnicodeText(input, /*do_copy=*/false),
-               reference_time_ms_utc, reference_timezone, locales, mode,
-               annotation_usecase, anchor_start_end, results);
+               reference_time_ms_utc, reference_timezone, locale_list, mode,
+               annotation_usecase, anchor_start_end);
 }
 
-bool DatetimeParser::FindSpansUsingLocales(
+StatusOr<std::vector<DatetimeParseResultSpan>>
+RegexDatetimeParser::FindSpansUsingLocales(
     const std::vector<int>& locale_ids, const UnicodeText& input,
     const int64 reference_time_ms_utc, const std::string& reference_timezone,
     ModeFlag mode, AnnotationUsecase annotation_usecase, bool anchor_start_end,
     const std::string& reference_locale,
-    std::unordered_set<int>* executed_rules,
-    std::vector<DatetimeParseResultSpan>* found_spans) const {
+    std::unordered_set<int>* executed_rules) const {
+  std::vector<DatetimeParseResultSpan> found_spans;
   for (const int locale_id : locale_ids) {
     auto rules_it = locale_to_rules_.find(locale_id);
     if (rules_it == locale_to_rules_.end()) {
@@ -152,34 +156,33 @@ bool DatetimeParser::FindSpansUsingLocales(
       }
 
       executed_rules->insert(rule_id);
-
-      if (!ParseWithRule(rules_[rule_id], input, reference_time_ms_utc,
-                         reference_timezone, reference_locale, locale_id,
-                         anchor_start_end, found_spans)) {
-        return false;
-      }
+      TC3_ASSIGN_OR_RETURN(
+          const std::vector<DatetimeParseResultSpan>& found_spans_per_rule,
+          ParseWithRule(rules_[rule_id], input, reference_time_ms_utc,
+                        reference_timezone, reference_locale, locale_id,
+                        anchor_start_end));
+      found_spans.insert(std::end(found_spans),
+                         std::begin(found_spans_per_rule),
+                         std::end(found_spans_per_rule));
     }
   }
-  return true;
+  return found_spans;
 }
 
-bool DatetimeParser::Parse(
+StatusOr<std::vector<DatetimeParseResultSpan>> RegexDatetimeParser::Parse(
     const UnicodeText& input, const int64 reference_time_ms_utc,
-    const std::string& reference_timezone, const std::string& locales,
-    ModeFlag mode, AnnotationUsecase annotation_usecase, bool anchor_start_end,
-    std::vector<DatetimeParseResultSpan>* results) const {
-  std::vector<DatetimeParseResultSpan> found_spans;
+    const std::string& reference_timezone, const LocaleList& locale_list,
+    ModeFlag mode, AnnotationUsecase annotation_usecase,
+    bool anchor_start_end) const {
   std::unordered_set<int> executed_rules;
-  std::string reference_locale;
   const std::vector<int> requested_locales =
-      ParseAndExpandLocales(locales, &reference_locale);
-  if (!FindSpansUsingLocales(requested_locales, input, reference_time_ms_utc,
-                             reference_timezone, mode, annotation_usecase,
-                             anchor_start_end, reference_locale,
-                             &executed_rules, &found_spans)) {
-    return false;
-  }
-
+      ParseAndExpandLocales(locale_list.GetLocaleTags());
+  TC3_ASSIGN_OR_RETURN(
+      const std::vector<DatetimeParseResultSpan>& found_spans,
+      FindSpansUsingLocales(requested_locales, input, reference_time_ms_utc,
+                            reference_timezone, mode, annotation_usecase,
+                            anchor_start_end, locale_list.GetReferenceLocale(),
+                            &executed_rules));
   std::vector<std::pair<DatetimeParseResultSpan, int>> indexed_found_spans;
   indexed_found_spans.reserve(found_spans.size());
   for (int i = 0; i < found_spans.size(); i++) {
@@ -200,39 +203,46 @@ bool DatetimeParser::Parse(
               }
             });
 
-  found_spans.clear();
+  std::vector<DatetimeParseResultSpan> results;
+  std::vector<DatetimeParseResultSpan> resolved_found_spans;
+  resolved_found_spans.reserve(indexed_found_spans.size());
   for (auto& span_index_pair : indexed_found_spans) {
-    found_spans.push_back(span_index_pair.first);
+    resolved_found_spans.push_back(span_index_pair.first);
   }
 
   std::set<int, std::function<bool(int, int)>> chosen_indices_set(
-      [&found_spans](int a, int b) {
-        return found_spans[a].span.first < found_spans[b].span.first;
+      [&resolved_found_spans](int a, int b) {
+        return resolved_found_spans[a].span.first <
+               resolved_found_spans[b].span.first;
       });
-  for (int i = 0; i < found_spans.size(); ++i) {
-    if (!DoesCandidateConflict(i, found_spans, chosen_indices_set)) {
+  for (int i = 0; i < resolved_found_spans.size(); ++i) {
+    if (!DoesCandidateConflict(i, resolved_found_spans, chosen_indices_set)) {
       chosen_indices_set.insert(i);
-      results->push_back(found_spans[i]);
+      results.push_back(resolved_found_spans[i]);
     }
   }
-
-  return true;
+  return results;
 }
 
-bool DatetimeParser::HandleParseMatch(
-    const CompiledRule& rule, const UniLib::RegexMatcher& matcher,
-    int64 reference_time_ms_utc, const std::string& reference_timezone,
-    const std::string& reference_locale, int locale_id,
-    std::vector<DatetimeParseResultSpan>* result) const {
+StatusOr<std::vector<DatetimeParseResultSpan>>
+RegexDatetimeParser::HandleParseMatch(const CompiledRule& rule,
+                                      const UniLib::RegexMatcher& matcher,
+                                      int64 reference_time_ms_utc,
+                                      const std::string& reference_timezone,
+                                      const std::string& reference_locale,
+                                      int locale_id) const {
+  std::vector<DatetimeParseResultSpan> results;
   int status = UniLib::RegexMatcher::kNoError;
   const int start = matcher.Start(&status);
   if (status != UniLib::RegexMatcher::kNoError) {
-    return false;
+    return Status(StatusCode::INTERNAL,
+                  "Failed to gets the start offset of the last match.");
   }
 
   const int end = matcher.End(&status);
   if (status != UniLib::RegexMatcher::kNoError) {
-    return false;
+    return Status(StatusCode::INTERNAL,
+                  "Failed to gets the end offset of the last match.");
   }
 
   DatetimeParseResultSpan parse_result;
@@ -240,7 +250,7 @@ bool DatetimeParser::HandleParseMatch(
   if (!ExtractDatetime(rule, matcher, reference_time_ms_utc, reference_timezone,
                        reference_locale, locale_id, &alternatives,
                        &parse_result.span)) {
-    return false;
+    return Status(StatusCode::INTERNAL, "Failed to extract Datetime.");
   }
 
   if (!use_extractors_for_locating_) {
@@ -257,49 +267,44 @@ bool DatetimeParser::HandleParseMatch(
       parse_result.data.push_back(alternative);
     }
   }
-  result->push_back(parse_result);
-  return true;
+  results.push_back(parse_result);
+  return results;
 }
 
-bool DatetimeParser::ParseWithRule(
-    const CompiledRule& rule, const UnicodeText& input,
-    const int64 reference_time_ms_utc, const std::string& reference_timezone,
-    const std::string& reference_locale, const int locale_id,
-    bool anchor_start_end, std::vector<DatetimeParseResultSpan>* result) const {
+StatusOr<std::vector<DatetimeParseResultSpan>>
+RegexDatetimeParser::ParseWithRule(const CompiledRule& rule,
+                                   const UnicodeText& input,
+                                   const int64 reference_time_ms_utc,
+                                   const std::string& reference_timezone,
+                                   const std::string& reference_locale,
+                                   const int locale_id,
+                                   bool anchor_start_end) const {
+  std::vector<DatetimeParseResultSpan> results;
   std::unique_ptr<UniLib::RegexMatcher> matcher =
       rule.compiled_regex->Matcher(input);
   int status = UniLib::RegexMatcher::kNoError;
   if (anchor_start_end) {
     if (matcher->Matches(&status) && status == UniLib::RegexMatcher::kNoError) {
-      if (!HandleParseMatch(rule, *matcher, reference_time_ms_utc,
-                            reference_timezone, reference_locale, locale_id,
-                            result)) {
-        return false;
-      }
+      return HandleParseMatch(rule, *matcher, reference_time_ms_utc,
+                              reference_timezone, reference_locale, locale_id);
     }
   } else {
     while (matcher->Find(&status) && status == UniLib::RegexMatcher::kNoError) {
-      if (!HandleParseMatch(rule, *matcher, reference_time_ms_utc,
-                            reference_timezone, reference_locale, locale_id,
-                            result)) {
-        return false;
-      }
+      TC3_ASSIGN_OR_RETURN(
+          const std::vector<DatetimeParseResultSpan>& pattern_occurrence,
+          HandleParseMatch(rule, *matcher, reference_time_ms_utc,
+                           reference_timezone, reference_locale, locale_id));
+      results.insert(std::end(results), std::begin(pattern_occurrence),
+                     std::end(pattern_occurrence));
     }
   }
-  return true;
+  return results;
 }
 
-std::vector<int> DatetimeParser::ParseAndExpandLocales(
-    const std::string& locales, std::string* reference_locale) const {
-  std::vector<StringPiece> split_locales = strings::Split(locales, ',');
-  if (!split_locales.empty()) {
-    *reference_locale = split_locales[0].ToString();
-  } else {
-    *reference_locale = "";
-  }
-
+std::vector<int> RegexDatetimeParser::ParseAndExpandLocales(
+    const std::vector<StringPiece>& locales) const {
   std::vector<int> result;
-  for (const StringPiece& locale_str : split_locales) {
+  for (const StringPiece& locale_str : locales) {
     auto locale_it = locale_string_to_id_.find(locale_str.ToString());
     if (locale_it != locale_string_to_id_.end()) {
       result.push_back(locale_it->second);
@@ -348,14 +353,12 @@ std::vector<int> DatetimeParser::ParseAndExpandLocales(
   return result;
 }
 
-bool DatetimeParser::ExtractDatetime(const CompiledRule& rule,
-                                     const UniLib::RegexMatcher& matcher,
-                                     const int64 reference_time_ms_utc,
-                                     const std::string& reference_timezone,
-                                     const std::string& reference_locale,
-                                     int locale_id,
-                                     std::vector<DatetimeParseResult>* results,
-                                     CodepointSpan* result_span) const {
+bool RegexDatetimeParser::ExtractDatetime(
+    const CompiledRule& rule, const UniLib::RegexMatcher& matcher,
+    const int64 reference_time_ms_utc, const std::string& reference_timezone,
+    const std::string& reference_locale, int locale_id,
+    std::vector<DatetimeParseResult>* results,
+    CodepointSpan* result_span) const {
   DatetimeParsedData parse;
   DatetimeExtractor extractor(rule, matcher, locale_id, &unilib_,
                               extractor_rules_,

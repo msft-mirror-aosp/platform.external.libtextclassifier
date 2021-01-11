@@ -22,6 +22,7 @@ import android.app.PendingIntent;
 import android.app.RemoteAction;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetFileDescriptor;
 import android.icu.util.ULocale;
 import android.os.Bundle;
 import android.os.LocaleList;
@@ -42,7 +43,7 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.WorkerThread;
 import androidx.core.util.Pair;
 import com.android.textclassifier.ModelFileManager.ModelFile;
-import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
+import com.android.textclassifier.ModelFileManager.ModelType;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.intent.LabeledIntent;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
@@ -61,6 +62,7 @@ import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -123,7 +125,7 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextSelection suggestSelection(TextSelection.Request request) {
+  TextSelection suggestSelection(TextSelection.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     final int rangeLength = request.getEndIndex() - request.getStartIndex();
@@ -182,7 +184,7 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextClassification classifyText(TextClassification.Request request) {
+  TextClassification classifyText(TextClassification.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     LangIdModel langId = getLangIdImpl();
@@ -222,7 +224,7 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextLinks generateLinks(TextLinks.Request request) {
+  TextLinks generateLinks(TextLinks.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     Preconditions.checkArgument(
         request.getText().length() <= getMaxGenerateLinksTextLength(),
@@ -332,7 +334,7 @@ final class TextClassifierImpl {
         TextClassifierEventConverter.fromPlatform(event));
   }
 
-  TextLanguage detectLanguage(TextLanguage.Request request) {
+  TextLanguage detectLanguage(TextLanguage.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     final TextLanguage.Builder builder = new TextLanguage.Builder();
@@ -345,7 +347,8 @@ final class TextClassifierImpl {
     return builder.build();
   }
 
-  ConversationActions suggestConversationActions(ConversationActions.Request request) {
+  ConversationActions suggestConversationActions(ConversationActions.Request request)
+      throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     ActionsSuggestionsModel actionsImpl = getActionsImpl();
@@ -431,7 +434,7 @@ final class TextClassifierImpl {
     return request.getTypeConfig().resolveEntityListModifications(defaultActionTypes);
   }
 
-  private AnnotatorModel getAnnotatorImpl(LocaleList localeList) {
+  private AnnotatorModel getAnnotatorImpl(LocaleList localeList) throws IOException {
     synchronized (lock) {
       localeList = localeList == null ? LocaleList.getDefault() : localeList;
       final ModelFileManager.ModelFile bestModel =
@@ -444,31 +447,35 @@ final class TextClassifierImpl {
         // The current annotator model may be still used by another thread / model.
         // Do not call close() here, and let the GC to clean it up when no one else
         // is using it.
-        annotatorImpl = new AnnotatorModel(bestModel.getPath());
-        annotatorImpl.setLangIdModel(getLangIdImpl());
-        annotatorModelInUse = bestModel;
+        try (AssetFileDescriptor afd = bestModel.open(context.getAssets())) {
+          annotatorImpl = new AnnotatorModel(afd);
+          annotatorImpl.setLangIdModel(getLangIdImpl());
+          annotatorModelInUse = bestModel;
+        }
       }
       return annotatorImpl;
     }
   }
 
-  private LangIdModel getLangIdImpl() {
+  private LangIdModel getLangIdImpl() throws IOException {
     synchronized (lock) {
       final ModelFileManager.ModelFile bestModel =
-          modelFileManager.findBestModelFile(ModelType.LANG_ID, /* localeList= */ null);
+          modelFileManager.findBestModelFile(ModelType.LANG_ID, /* localePreferences= */ null);
       if (bestModel == null) {
         throw new IllegalStateException("Failed to find the best LangID model.");
       }
       if (langIdImpl == null || !Objects.equals(langIdModelInUse, bestModel)) {
         TcLog.d(TAG, "Loading " + bestModel);
-        langIdImpl = new LangIdModel(bestModel.getPath());
-        langIdModelInUse = bestModel;
+        try (AssetFileDescriptor afd = bestModel.open(context.getAssets())) {
+          langIdImpl = new LangIdModel(afd);
+          langIdModelInUse = bestModel;
+        }
       }
       return langIdImpl;
     }
   }
 
-  private ActionsSuggestionsModel getActionsImpl() {
+  private ActionsSuggestionsModel getActionsImpl() throws IOException {
     synchronized (lock) {
       // TODO: Use LangID to determine the locale we should use here?
       final ModelFileManager.ModelFile bestModel =
@@ -479,8 +486,10 @@ final class TextClassifierImpl {
       }
       if (actionsImpl == null || !Objects.equals(actionModelInUse, bestModel)) {
         TcLog.d(TAG, "Loading " + bestModel);
-        actionsImpl = new ActionsSuggestionsModel(bestModel.getPath());
-        actionModelInUse = bestModel;
+        try (AssetFileDescriptor afd = bestModel.open(context.getAssets())) {
+          actionsImpl = new ActionsSuggestionsModel(afd);
+          actionModelInUse = bestModel;
+        }
       }
       return actionsImpl;
     }

@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "annotator/collections.h"
+#include "annotator/datetime/regex-parser.h"
 #include "annotator/flatbuffer-utils.h"
 #include "annotator/knowledge/knowledge-engine-types.h"
 #include "annotator/model_generated.h"
@@ -34,7 +35,9 @@
 #include "utils/base/logging.h"
 #include "utils/base/status.h"
 #include "utils/base/statusor.h"
+#include "utils/calendar/calendar.h"
 #include "utils/checksum.h"
+#include "utils/i18n/locale-list.h"
 #include "utils/i18n/locale.h"
 #include "utils/math/softmax.h"
 #include "utils/normalization.h"
@@ -106,12 +109,8 @@ const CalendarLib* MaybeCreateCalendarlib(
 }
 
 // Returns whether the provided input is valid:
-//   * Valid utf8 text.
 //   * Sane span indices.
 bool IsValidSpanInput(const UnicodeText& context, const CodepointSpan& span) {
-  if (!context.is_valid()) {
-    return false;
-  }
   return (span.first >= 0 && span.first < span.second &&
           span.second <= context.size_codepoints());
 }
@@ -418,7 +417,7 @@ void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
   }
 
   if (model_->datetime_model()) {
-    datetime_parser_ = DatetimeParser::Instance(
+    datetime_parser_ = RegexDatetimeParser::Instance(
         model_->datetime_model(), unilib_, calendarlib_, decompressor.get());
     if (!datetime_parser_) {
       TC3_LOG(ERROR) << "Could not initialize datetime parser.";
@@ -848,6 +847,11 @@ CodepointSpan Annotator::SuggestSelection(
 
   const UnicodeText context_unicode = UTF8ToUnicodeText(context,
                                                         /*do_copy=*/false);
+
+  if (!unilib_->IsValidUtf8(context_unicode)) {
+    TC3_LOG(ERROR) << "Rejecting input, invalid UTF8.";
+    return original_click_indices;
+  }
 
   if (!IsValidSpanInput(context_unicode, click_indices)) {
     TC3_VLOG(1)
@@ -1671,20 +1675,20 @@ bool Annotator::DatetimeClassifyText(
       UTF8ToUnicodeText(context, /*do_copy=*/false)
           .UTF8Substring(selection_indices.first, selection_indices.second);
 
-  std::vector<DatetimeParseResultSpan> datetime_spans;
-
-  if (datetime_parser_) {
-    if (!datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
-                                 options.reference_timezone, options.locales,
-                                 ModeFlag_CLASSIFICATION,
-                                 options.annotation_usecase,
-                                 /*anchor_start_end=*/true, &datetime_spans)) {
-      TC3_LOG(ERROR) << "Error during parsing datetime.";
-      return false;
-    }
+  LocaleList locale_list = LocaleList::ParseFrom(options.locales);
+  StatusOr<std::vector<DatetimeParseResultSpan>> result_status =
+      datetime_parser_->Parse(selection_text, options.reference_time_ms_utc,
+                              options.reference_timezone, locale_list,
+                              ModeFlag_CLASSIFICATION,
+                              options.annotation_usecase,
+                              /*anchor_start_end=*/true);
+  if (!result_status.ok()) {
+    TC3_LOG(ERROR) << "Error during parsing datetime.";
+    return false;
   }
 
-  for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {
+  for (const DatetimeParseResultSpan& datetime_span :
+       result_status.ValueOrDie()) {
     // Only consider the result valid if the selection and extracted datetime
     // spans exactly match.
     if (CodepointSpan(datetime_span.span.first + selection_indices.first,
@@ -1740,8 +1744,15 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     return {};
   }
 
-  if (!IsValidSpanInput(UTF8ToUnicodeText(context, /*do_copy=*/false),
-                        selection_indices)) {
+  const UnicodeText context_unicode =
+      UTF8ToUnicodeText(context, /*do_copy=*/false);
+
+  if (!unilib_->IsValidUtf8(context_unicode)) {
+    TC3_LOG(ERROR) << "Rejecting input, invalid UTF8.";
+    return {};
+  }
+
+  if (!IsValidSpanInput(context_unicode, selection_indices)) {
     TC3_VLOG(1) << "Trying to run ClassifyText with invalid input: "
                 << selection_indices.first << " " << selection_indices.second;
     return {};
@@ -1814,9 +1825,6 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, std::move(datetime_results)});
     candidates.back().source = AnnotatedSpan::Source::DATETIME;
   }
-
-  const UnicodeText context_unicode =
-      UTF8ToUnicodeText(context, /*do_copy=*/false);
 
   // Try the number annotator.
   // TODO(b/126579108): Propagate error status.
@@ -2105,10 +2113,6 @@ Status Annotator::AnnotateSingleInput(
 
   const UnicodeText context_unicode =
       UTF8ToUnicodeText(context, /*do_copy=*/false);
-  if (!context_unicode.is_valid()) {
-    return Status(StatusCode::INVALID_ARGUMENT,
-                  "Context string isn't valid UTF8.");
-  }
 
   std::vector<Locale> detected_text_language_tags;
   if (!ParseLocales(options.detected_text_language_tags,
@@ -2328,15 +2332,21 @@ StatusOr<Annotations> Annotator::AnnotateStructuredInput(
 
   std::vector<std::string> text_to_annotate;
   text_to_annotate.reserve(string_fragments.size());
+  std::vector<FragmentMetadata> fragment_metadata;
+  fragment_metadata.reserve(string_fragments.size());
   for (const auto& string_fragment : string_fragments) {
     text_to_annotate.push_back(string_fragment.text);
+    fragment_metadata.push_back(
+        {.relative_bounding_box_top = string_fragment.bounding_box_top,
+         .relative_bounding_box_height = string_fragment.bounding_box_height});
   }
 
   // KnowledgeEngine is special, because it supports annotation of multiple
   // fragments at once.
   if (knowledge_engine_ &&
       !knowledge_engine_
-           ->ChunkMultipleSpans(text_to_annotate, options.annotation_usecase,
+           ->ChunkMultipleSpans(text_to_annotate, fragment_metadata,
+                                options.annotation_usecase,
                                 options.location_context, options.permissions,
                                 options.annotate_mode, &annotation_candidates)
            .ok()) {
@@ -2391,6 +2401,13 @@ std::vector<AnnotatedSpan> Annotator::Annotate(
     const std::string& context, const AnnotationOptions& options) const {
   if (context.size() > std::numeric_limits<int>::max()) {
     TC3_LOG(ERROR) << "Rejecting too long input.";
+    return {};
+  }
+
+  const UnicodeText context_unicode =
+      UTF8ToUnicodeText(context, /*do_copy=*/false);
+  if (!unilib_->IsValidUtf8(context_unicode)) {
+    TC3_LOG(ERROR) << "Rejecting input, invalid UTF8.";
     return {};
   }
 
@@ -3066,18 +3083,21 @@ bool Annotator::DatetimeChunk(const UnicodeText& context_unicode,
                               AnnotationUsecase annotation_usecase,
                               bool is_serialized_entity_data_enabled,
                               std::vector<AnnotatedSpan>* result) const {
-  std::vector<DatetimeParseResultSpan> datetime_spans;
-
-  if (datetime_parser_) {
-    if (!datetime_parser_->Parse(context_unicode, reference_time_ms_utc,
-                                 reference_timezone, locales, mode,
-                                 annotation_usecase,
-                                 /*anchor_start_end=*/false, &datetime_spans)) {
-      return false;
-    }
+  if (!datetime_parser_) {
+    return true;
+  }
+  LocaleList locale_list = LocaleList::ParseFrom(locales);
+  StatusOr<std::vector<DatetimeParseResultSpan>> result_status =
+      datetime_parser_->Parse(context_unicode, reference_time_ms_utc,
+                              reference_timezone, locale_list, mode,
+                              annotation_usecase,
+                              /*anchor_start_end=*/false);
+  if (!result_status.ok()) {
+    return false;
   }
 
-  for (const DatetimeParseResultSpan& datetime_span : datetime_spans) {
+  for (const DatetimeParseResultSpan& datetime_span :
+       result_status.ValueOrDie()) {
     AnnotatedSpan annotated_span;
     annotated_span.span = datetime_span.span;
     for (const DatetimeParseResult& parse_result : datetime_span.data) {

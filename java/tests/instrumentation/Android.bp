@@ -55,5 +55,5 @@ android_test {
 
     instrumentation_for: "TextClassifierService",
 
-    data: ["testdata/*"]
+    data: ["testdata/*"],
 }

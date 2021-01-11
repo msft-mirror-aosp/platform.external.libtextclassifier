@@ -14,18 +14,28 @@
  * limitations under the License.
  */
 
-#ifndef LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_
-#define LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_
+package com.android.textclassifier.testing;
 
-namespace libtextclassifier3 {
+import android.os.LocaleList;
+import org.junit.rules.ExternalResource;
 
-enum AnnotateMode { kEntityAnnotation, kEntityAndTopicalityAnnotation };
+public class SetDefaultLocalesRule extends ExternalResource {
 
-struct FragmentMetadata {
-  float relative_bounding_box_top;
-  float relative_bounding_box_height;
-};
+  private LocaleList originalValue;
 
-}  // namespace libtextclassifier3
+  @Override
+  protected void before() throws Throwable {
+    super.before();
+    originalValue = LocaleList.getDefault();
+  }
 
-#endif  // LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_
+  public void set(LocaleList newValue) {
+    LocaleList.setDefault(newValue);
+  }
+
+  @Override
+  protected void after() {
+    super.after();
+    LocaleList.setDefault(originalValue);
+  }
+}

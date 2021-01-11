@@ -45,6 +45,7 @@
 #include "annotator/zlib-utils.h"
 #include "utils/base/status.h"
 #include "utils/base/statusor.h"
+#include "utils/calendar/calendar.h"
 #include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/mutable.h"
 #include "utils/i18n/locale.h"

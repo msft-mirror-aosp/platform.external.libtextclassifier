@@ -431,7 +431,8 @@ struct ClassificationResult {
   std::string serialized_knowledge_result;
   ContactPointer contact_pointer;
   std::string contact_name, contact_given_name, contact_family_name,
-      contact_nickname, contact_email_address, contact_phone_number, contact_id;
+      contact_nickname, contact_email_address, contact_phone_number,
+      contact_account_type, contact_account_name, contact_id;
   std::string app_name, app_package_name;
   int64 numeric_value;
   double numeric_double_value;
@@ -684,6 +685,8 @@ struct Annotations {
 
 struct InputFragment {
   std::string text;
+  float bounding_box_top;
+  float bounding_box_height;
 
   // If present will override the AnnotationOptions reference time and timezone
   // when annotating this specific string fragment.
