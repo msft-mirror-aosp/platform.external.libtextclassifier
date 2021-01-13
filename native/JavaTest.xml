@@ -21,10 +21,17 @@
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="libtextclassifier_java_tests.apk" />
     </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="push" value="actions->/data/local/tmp/actions" />
+        <option name="push" value="annotator->/data/local/tmp/annotator" />
+        <option name="push" value="utils->/data/local/tmp/utils" />
+    </target_preparer>
 
     <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.google.android.textclassifier.tests" />
         <option name="runner" value="androidx.test.runner.AndroidJUnitRunner" />
+        <option name="device-listeners" value="com.android.textclassifier.testing.TextClassifierInstrumentationListener" />
     </test>
 
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">

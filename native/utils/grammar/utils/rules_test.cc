@@ -180,6 +180,27 @@ TEST(SerializeRulesTest, ResolvesAnchorsAndFillers) {
   EXPECT_THAT(frozen_rules.lhs, IsEmpty());
 }
 
+TEST(SerializeRulesTest, HandlesFillers) {
+  Rules rules;
+  rules.Add("<test>", {"<filler>?", "a", "test"});
+  const Ir ir = rules.Finalize();
+  RulesSetT frozen_rules;
+  ir.Serialize(/*include_debug_information=*/false, &frozen_rules);
+
+  EXPECT_THAT(frozen_rules.rules, SizeIs(1));
+  EXPECT_EQ(frozen_rules.terminals, std::string("a\0test\0", 7));
+
+  // Expect removal of anchors and fillers in this case.
+  // The rule above is equivalent to: <code> ::= this is a test, binarized into
+  // <tmp_0>  ::= <filler> a
+  // <test>   ::= <tmp_0> test
+  // <test>   ::= a test
+  // <filler> ::= <token> <filler>
+  EXPECT_THAT(frozen_rules.rules.front()->binary_rules, SizeIs(4));
+  // <filler> ::= <token>
+  EXPECT_THAT(frozen_rules.rules.front()->unary_rules, SizeIs(1));
+}
+
 TEST(SerializeRulesTest, HandlesAnnotations) {
   Rules rules;
   rules.AddAnnotation("phone");
