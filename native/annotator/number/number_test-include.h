@@ -18,33 +18,8 @@
 #define LIBTEXTCLASSIFIER_ANNOTATOR_NUMBER_NUMBER_TEST_INCLUDE_H_
 
 #include "annotator/number/number.h"
+#include "utils/jvm-test-utils.h"
 #include "gtest/gtest.h"
-
-// Include the version of UniLib depending on the macro.
-#if defined TC3_UNILIB_ICU
-#include "utils/utf8/unilib-icu.h"
-
-#define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()
-
-#elif defined TC3_UNILIB_JAVAICU
-#include <jni.h>
-
-#include "utils/utf8/unilib-javaicu.h"
-
-extern JNIEnv* g_jenv;
-
-#define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR(JniCache::Create(g_jenv))
-
-#elif defined TC3_UNILIB_APPLE
-#include "utils/utf8/unilib-apple.h"
-
-#define TC3_TESTING_CREATE_UNILIB_INSTANCE(VAR) VAR()
-
-#else
-
-#error Unsupported configuration.
-
-#endif
 
 namespace libtextclassifier3 {
 namespace test_internal {
@@ -52,12 +27,12 @@ namespace test_internal {
 class NumberAnnotatorTest : public ::testing::Test {
  protected:
   NumberAnnotatorTest()
-      : TC3_TESTING_CREATE_UNILIB_INSTANCE(unilib_),
-        number_annotator_(TestingNumberAnnotatorOptions(), &unilib_) {}
+      : unilib_(CreateUniLibForTesting()),
+        number_annotator_(TestingNumberAnnotatorOptions(), unilib_.get()) {}
 
   const NumberAnnotatorOptions* TestingNumberAnnotatorOptions();
 
-  UniLib unilib_;
+  std::unique_ptr<UniLib> unilib_;
   NumberAnnotator number_annotator_;
 };
 

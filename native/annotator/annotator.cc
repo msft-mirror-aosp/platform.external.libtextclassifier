@@ -190,8 +190,32 @@ std::unique_ptr<Annotator> Annotator::FromUnownedBuffer(
     return nullptr;
   }
 
-  auto classifier =
-      std::unique_ptr<Annotator>(new Annotator(model, unilib, calendarlib));
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  unilib = MaybeCreateUnilib(unilib, &classifier->owned_unilib_);
+  calendarlib =
+      MaybeCreateCalendarlib(calendarlib, &classifier->owned_calendarlib_);
+  classifier->ValidateAndInitialize(model, unilib, calendarlib);
+  if (!classifier->IsInitialized()) {
+    return nullptr;
+  }
+
+  return classifier;
+}
+
+std::unique_ptr<Annotator> Annotator::FromString(
+    const std::string& buffer, const UniLib* unilib,
+    const CalendarLib* calendarlib) {
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  classifier->owned_buffer_ = buffer;
+  const Model* model = LoadAndVerifyModel(classifier->owned_buffer_.data(),
+                                          classifier->owned_buffer_.size());
+  if (model == nullptr) {
+    return nullptr;
+  }
+  unilib = MaybeCreateUnilib(unilib, &classifier->owned_unilib_);
+  calendarlib =
+      MaybeCreateCalendarlib(calendarlib, &classifier->owned_calendarlib_);
+  classifier->ValidateAndInitialize(model, unilib, calendarlib);
   if (!classifier->IsInitialized()) {
     return nullptr;
   }
@@ -214,8 +238,12 @@ std::unique_ptr<Annotator> Annotator::FromScopedMmap(
     return nullptr;
   }
 
-  auto classifier = std::unique_ptr<Annotator>(
-      new Annotator(mmap, model, unilib, calendarlib));
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  classifier->mmap_ = std::move(*mmap);
+  unilib = MaybeCreateUnilib(unilib, &classifier->owned_unilib_);
+  calendarlib =
+      MaybeCreateCalendarlib(calendarlib, &classifier->owned_calendarlib_);
+  classifier->ValidateAndInitialize(model, unilib, calendarlib);
   if (!classifier->IsInitialized()) {
     return nullptr;
   }
@@ -238,8 +266,12 @@ std::unique_ptr<Annotator> Annotator::FromScopedMmap(
     return nullptr;
   }
 
-  auto classifier = std::unique_ptr<Annotator>(
-      new Annotator(mmap, model, std::move(unilib), std::move(calendarlib)));
+  auto classifier = std::unique_ptr<Annotator>(new Annotator());
+  classifier->mmap_ = std::move(*mmap);
+  classifier->owned_unilib_ = std::move(unilib);
+  classifier->owned_calendarlib_ = std::move(calendarlib);
+  classifier->ValidateAndInitialize(model, classifier->owned_unilib_.get(),
+                                    classifier->owned_calendarlib_.get());
   if (!classifier->IsInitialized()) {
     return nullptr;
   }
@@ -288,40 +320,12 @@ std::unique_ptr<Annotator> Annotator::FromPath(
   return FromScopedMmap(&mmap, std::move(unilib), std::move(calendarlib));
 }
 
-Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-                     const UniLib* unilib, const CalendarLib* calendarlib)
-    : model_(model),
-      mmap_(std::move(*mmap)),
-      owned_unilib_(nullptr),
-      unilib_(MaybeCreateUnilib(unilib, &owned_unilib_)),
-      owned_calendarlib_(nullptr),
-      calendarlib_(MaybeCreateCalendarlib(calendarlib, &owned_calendarlib_)) {
-  ValidateAndInitialize();
-}
+void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
+                                      const CalendarLib* calendarlib) {
+  model_ = model;
+  unilib_ = unilib;
+  calendarlib_ = calendarlib;
 
-Annotator::Annotator(std::unique_ptr<ScopedMmap>* mmap, const Model* model,
-                     std::unique_ptr<UniLib> unilib,
-                     std::unique_ptr<CalendarLib> calendarlib)
-    : model_(model),
-      mmap_(std::move(*mmap)),
-      owned_unilib_(std::move(unilib)),
-      unilib_(owned_unilib_.get()),
-      owned_calendarlib_(std::move(calendarlib)),
-      calendarlib_(owned_calendarlib_.get()) {
-  ValidateAndInitialize();
-}
-
-Annotator::Annotator(const Model* model, const UniLib* unilib,
-                     const CalendarLib* calendarlib)
-    : model_(model),
-      owned_unilib_(nullptr),
-      unilib_(MaybeCreateUnilib(unilib, &owned_unilib_)),
-      owned_calendarlib_(nullptr),
-      calendarlib_(MaybeCreateCalendarlib(calendarlib, &owned_calendarlib_)) {
-  ValidateAndInitialize();
-}
-
-void Annotator::ValidateAndInitialize() {
   initialized_ = false;
 
   if (model_ == nullptr) {
@@ -512,9 +516,19 @@ void Annotator::ValidateAndInitialize() {
         unilib_, model_->grammar_model(), entity_data_builder_.get()));
   }
 
+  // The following #ifdef is here to aid quality evaluation of a situation, when
+  // a POD NER kill switch in AiAi is invoked, when a model that has POD NER in
+  // it.
+#if !defined(TC3_DISABLE_POD_NER)
   if (model_->pod_ner_model()) {
     pod_ner_annotator_ =
         PodNerAnnotator::Create(model_->pod_ner_model(), *unilib_);
+  }
+#endif
+
+  if (model_->vocab_model()) {
+    vocab_annotator_ = VocabAnnotator::Create(
+        model_->vocab_model(), *selection_feature_processor_, *unilib_);
   }
 
   if (model_->entity_data_schema()) {
@@ -709,7 +723,6 @@ bool Annotator::InitializeExperimentalAnnotators() {
   if (ExperimentalAnnotator::IsEnabled()) {
     experimental_annotator_.reset(new ExperimentalAnnotator(
         model_->experimental_model(), *selection_feature_processor_, *unilib_));
-
     return true;
   }
   return false;
@@ -1891,6 +1904,15 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
     candidates.push_back({selection_indices, {pod_ner_annotator_result}});
   }
 
+  ClassificationResult vocab_annotator_result;
+  if (vocab_annotator_ &&
+      vocab_annotator_->ClassifyText(
+          context_unicode, selection_indices, detected_text_language_tags,
+          options.trigger_dictionary_on_beginner_words,
+          &vocab_annotator_result)) {
+    candidates.push_back({selection_indices, {vocab_annotator_result}});
+  }
+
   if (experimental_annotator_) {
     experimental_annotator_->ClassifyText(context_unicode, selection_indices,
                                           candidates);
@@ -2219,6 +2241,14 @@ Status Annotator::AnnotateSingleInput(
   if (pod_ner_annotator_ != nullptr && options.use_pod_ner &&
       !pod_ner_annotator_->Annotate(context_unicode, candidates)) {
     return Status(StatusCode::INTERNAL, "Couldn't run POD NER annotator.");
+  }
+
+  // Annotate with the vocab annotator.
+  if (vocab_annotator_ != nullptr &&
+      !vocab_annotator_->Annotate(context_unicode, detected_text_language_tags,
+                                  options.trigger_dictionary_on_beginner_words,
+                                  candidates)) {
+    return Status(StatusCode::INTERNAL, "Couldn't run vocab annotator.");
   }
 
   // Annotate with the experimental annotator.
@@ -2638,13 +2668,16 @@ bool Annotator::ParseAndFillInMoneyAmount(
     std::string quantity;
     GetMoneyQuantityFromCapturingGroup(match, config, context_unicode,
                                        &quantity, &quantity_exponent);
-    if (quantity_exponent != 0) {
+    if ((quantity_exponent > 0 && quantity_exponent < 9) ||
+        (quantity_exponent == 9 && data->money->amount_whole_part <= 2)) {
       data->money->amount_whole_part =
           data->money->amount_whole_part * pow(10, quantity_exponent) +
           data->money->nanos / pow(10, 9 - quantity_exponent);
       data->money->nanos = data->money->nanos %
                            static_cast<int>(pow(10, 9 - quantity_exponent)) *
                            pow(10, quantity_exponent);
+    }
+    if (quantity_exponent > 0) {
       data->money->unnormalized_amount = strings::JoinStrings(
           " ", {data->money->unnormalized_amount, quantity});
     }

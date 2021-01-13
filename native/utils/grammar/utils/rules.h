@@ -216,6 +216,9 @@ class Rules {
   bool IsNonterminalOfName(const RhsElement& element,
                            const std::string& nonterminal) const;
 
+  // Checks whether the fillers are used in any active rule.
+  bool UsesFillers() const;
+
   const int num_shards_;
 
   // Non-terminal to id map.
