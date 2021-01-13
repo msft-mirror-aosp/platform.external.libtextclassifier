@@ -76,6 +76,16 @@ const reflection::Object* TypeForName(const reflection::Schema* schema,
   return nullptr;
 }
 
+Optional<int> TypeIdForObject(const reflection::Schema* schema,
+                              const reflection::Object* type) {
+  for (int i = 0; i < schema->objects()->size(); i++) {
+    if (schema->objects()->Get(i) == type) {
+      return Optional<int>(i);
+    }
+  }
+  return Optional<int>();
+}
+
 Optional<int> TypeIdForName(const reflection::Schema* schema,
                             const StringPiece type_name) {
   for (int i = 0; i < schema->objects()->size(); i++) {
@@ -114,6 +124,44 @@ bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
     }
   }
   return true;
+}
+
+Variant ParseEnumValue(const reflection::Schema* schema,
+                       const reflection::Type* type, StringPiece value) {
+  TC3_DCHECK(IsEnum(type));
+  TC3_CHECK_NE(schema->enums(), nullptr);
+  const auto* enum_values = schema->enums()->Get(type->index())->values();
+  if (enum_values == nullptr) {
+    TC3_LOG(ERROR) << "Enum has no specified values.";
+    return Variant();
+  }
+  for (const reflection::EnumVal* enum_value : *enum_values) {
+    if (value.Equals(StringPiece(enum_value->name()->c_str(),
+                                 enum_value->name()->size()))) {
+      const int64 value = enum_value->value();
+      switch (type->base_type()) {
+        case reflection::BaseType::Byte:
+          return Variant(static_cast<int8>(value));
+        case reflection::BaseType::UByte:
+          return Variant(static_cast<uint8>(value));
+        case reflection::BaseType::Short:
+          return Variant(static_cast<int16>(value));
+        case reflection::BaseType::UShort:
+          return Variant(static_cast<uint16>(value));
+        case reflection::BaseType::Int:
+          return Variant(static_cast<int32>(value));
+        case reflection::BaseType::UInt:
+          return Variant(static_cast<uint32>(value));
+        case reflection::BaseType::Long:
+          return Variant(value);
+        case reflection::BaseType::ULong:
+          return Variant(static_cast<uint64>(value));
+        default:
+          break;
+      }
+    }
+  }
+  return Variant();
 }
 
 }  // namespace libtextclassifier3

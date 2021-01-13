@@ -36,6 +36,7 @@ android_test {
         "TextClassifierServiceLib",
         "statsdprotolite",
         "textclassifierprotoslite",
+        "TextClassifierCoverageLib"
     ],
 
     jni_libs: [
@@ -48,9 +49,11 @@ android_test {
     ],
 
     plugins: ["androidx.room_room-compiler-plugin",],
-    platform_apis: true,
+    sdk_version: "system_current",
     use_embedded_native_libs: true,
     compile_multilib: "both",
 
     instrumentation_for: "TextClassifierService",
+
+    data: ["testdata/*"]
 }

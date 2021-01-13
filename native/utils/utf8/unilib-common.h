@@ -35,6 +35,8 @@ bool IsSlash(char32 codepoint);
 bool IsMinus(char32 codepoint);
 bool IsNumberSign(char32 codepoint);
 bool IsDot(char32 codepoint);
+bool IsApostrophe(char32 codepoint);
+bool IsQuotation(char32 codepoint);
 
 bool IsLatinLetter(char32 codepoint);
 bool IsArabicLetter(char32 codepoint);

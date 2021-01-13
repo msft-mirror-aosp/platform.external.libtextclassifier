@@ -261,6 +261,16 @@ StatusOr<ClassificationOptions> FromJavaClassificationOptions(
       classifier_options.user_familiar_language_tags,
       JStringToUtf8String(env, user_familiar_language_tags.get()));
 
+  // .getTriggerDictionaryOnBeginnerWords()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_trigger_dictionary_on_beginner_words,
+      JniHelper::GetMethodID(env, options_class.get(),
+                             "getTriggerDictionaryOnBeginnerWords", "()Z"));
+  TC3_ASSIGN_OR_RETURN(
+      classifier_options.trigger_dictionary_on_beginner_words,
+      JniHelper::CallBooleanMethod(env, joptions,
+                                   get_trigger_dictionary_on_beginner_words));
+
   return classifier_options;
 }
 
@@ -335,6 +345,16 @@ StatusOr<AnnotationOptions> FromJavaAnnotationOptions(JNIEnv* env,
   annotation_options.permissions.has_personalization_permission =
       has_personalization_permission;
   annotation_options.annotate_mode = static_cast<AnnotateMode>(annotate_mode);
+
+  // .getTriggerDictionaryOnBeginnerWords()
+  TC3_ASSIGN_OR_RETURN(
+      jmethodID get_trigger_dictionary_on_beginner_words,
+      JniHelper::GetMethodID(env, options_class.get(),
+                             "getTriggerDictionaryOnBeginnerWords", "()Z"));
+  TC3_ASSIGN_OR_RETURN(
+      annotation_options.trigger_dictionary_on_beginner_words,
+      JniHelper::CallBooleanMethod(env, joptions,
+                                   get_trigger_dictionary_on_beginner_words));
   return annotation_options;
 }
 
