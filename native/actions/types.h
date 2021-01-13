@@ -75,7 +75,7 @@ struct ActionSuggestion {
   // Extras information.
   std::string serialized_entity_data;
 
-  const ActionsEntityData* entity_data() {
+  const ActionsEntityData* entity_data() const {
     return LoadAndVerifyFlatbuffer<ActionsEntityData>(
         serialized_entity_data.data(), serialized_entity_data.size());
   }

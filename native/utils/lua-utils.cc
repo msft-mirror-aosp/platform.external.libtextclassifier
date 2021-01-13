@@ -81,6 +81,8 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
   const reflection::BaseType field_type = field->type()->base_type();
   switch (field_type) {
     case reflection::Bool:
+      Push(table->GetField<bool>(field->offset(), field->default_integer()));
+      break;
     case reflection::UByte:
       Push(table->GetField<uint8>(field->offset(), field->default_integer()));
       break;
@@ -92,12 +94,6 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
       break;
     case reflection::UInt:
       Push(table->GetField<uint32>(field->offset(), field->default_integer()));
-      break;
-    case reflection::Short:
-      Push(table->GetField<int16>(field->offset(), field->default_integer()));
-      break;
-    case reflection::UShort:
-      Push(table->GetField<uint16>(field->offset(), field->default_integer()));
       break;
     case reflection::Long:
       Push(table->GetField<int64>(field->offset(), field->default_integer()));
@@ -139,6 +135,9 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
       }
       switch (field->type()->element()) {
         case reflection::Bool:
+          PushRepeatedField(table->GetPointer<const flatbuffers::Vector<bool>*>(
+              field->offset()));
+          break;
         case reflection::UByte:
           PushRepeatedField(
               table->GetPointer<const flatbuffers::Vector<uint8>*>(
@@ -156,16 +155,6 @@ int LuaEnvironment::GetField(const reflection::Schema* schema,
         case reflection::UInt:
           PushRepeatedField(
               table->GetPointer<const flatbuffers::Vector<uint32>*>(
-                  field->offset()));
-          break;
-        case reflection::Short:
-          PushRepeatedField(
-              table->GetPointer<const flatbuffers::Vector<int16>*>(
-                  field->offset()));
-          break;
-        case reflection::UShort:
-          PushRepeatedField(
-              table->GetPointer<const flatbuffers::Vector<uint16>*>(
                   field->offset()));
           break;
         case reflection::Long:

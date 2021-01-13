@@ -19,6 +19,8 @@ package com.android.textclassifier;
 import android.provider.DeviceConfig;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.TextClassifier;
+import androidx.annotation.NonNull;
+import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
@@ -42,6 +44,8 @@ import javax.annotation.Nullable;
  * @see android.provider.DeviceConfig#NAMESPACE_TEXTCLASSIFIER
  */
 public final class TextClassifierSettings {
+  public static final String NAMESPACE = DeviceConfig.NAMESPACE_TEXTCLASSIFIER;
+
   private static final String DELIMITER = ":";
 
   /** Whether the user language profile feature is enabled. */
@@ -101,6 +105,27 @@ public final class TextClassifierSettings {
    */
   private static final String DETECT_LANGUAGES_FROM_TEXT_ENABLED =
       "detect_languages_from_text_enabled";
+
+  /** Whether to enable model downloading with ModelDownloadManager */
+  @VisibleForTesting
+  static final String MODEL_DOWNLOAD_MANAGER_ENABLED = "model_download_manager_enabled";
+  /** The prefix of the URL to download models. E.g. https://www.gstatic.com/android/ */
+  @VisibleForTesting static final String ANNOTATOR_URL_PREFIX = "annotator_url_prefix";
+
+  @VisibleForTesting static final String LANG_ID_URL_PREFIX = "lang_id_url_prefix";
+
+  @VisibleForTesting
+  static final String ACTIONS_SUGGESTIONS_URL_PREFIX = "actions_suggestions_url_prefix";
+  /** The suffix of the URL to download models. E.g. q/711/en.fb */
+  @VisibleForTesting
+  static final String PRIMARY_ANNOTATOR_URL_SUFFIX = "primary_annotator_url_suffix";
+
+  @VisibleForTesting static final String PRIMARY_LANG_ID_URL_SUFFIX = "primary_lang_id_url_suffix";
+
+  @VisibleForTesting
+  static final String PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX =
+      "primary_actions_suggestions_url_suffix";
+
   /**
    * A colon(:) separated string that specifies the configuration to use when including surrounding
    * context text in language detection queries.
@@ -164,34 +189,96 @@ public final class TextClassifierSettings {
   private static final boolean TEMPLATE_INTENT_FACTORY_ENABLED_DEFAULT = true;
   private static final boolean TRANSLATE_IN_CLASSIFICATION_ENABLED_DEFAULT = true;
   private static final boolean DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT = true;
+  private static final boolean MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT = false;
+  private static final String ANNOTATOR_URL_PREFIX_DEFAULT =
+      "https://www.gstatic.com/android/text_classifier/";
+  private static final String LANG_ID_URL_PREFIX_DEFAULT =
+      "https://www.gstatic.com/android/text_classifier/langid/";
+  private static final String ACTIONS_SUGGESTIONS_URL_PREFIX_DEFAULT =
+      "https://www.gstatic.com/android/text_classifier/actions/";
+  private static final String PRIMARY_ANNOTATOR_URL_SUFFIX_DEFAULT = "";
+  private static final String PRIMARY_LANG_ID_URL_SUFFIX_DEFAULT = "";
+  private static final String PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
 
+  @VisibleForTesting
+  interface IDeviceConfig {
+    default int getInt(@NonNull String namespace, @NonNull String name, @NonNull int defaultValue) {
+      return defaultValue;
+    }
+
+    default float getFloat(
+        @NonNull String namespace, @NonNull String name, @NonNull float defaultValue) {
+      return defaultValue;
+    }
+
+    default String getString(
+        @NonNull String namespace, @NonNull String name, @Nullable String defaultValue) {
+      return defaultValue;
+    }
+
+    default boolean getBoolean(
+        @NonNull String namespace, @NonNull String name, boolean defaultValue) {
+      return defaultValue;
+    }
+  }
+
+  private static final IDeviceConfig DEFAULT_DEVICE_CONFIG =
+      new IDeviceConfig() {
+        @Override
+        public int getInt(
+            @NonNull String namespace, @NonNull String name, @NonNull int defaultValue) {
+          return DeviceConfig.getInt(namespace, name, defaultValue);
+        }
+
+        @Override
+        public float getFloat(
+            @NonNull String namespace, @NonNull String name, @NonNull float defaultValue) {
+          return DeviceConfig.getFloat(namespace, name, defaultValue);
+        }
+
+        @Override
+        public String getString(
+            @NonNull String namespace, @NonNull String name, @NonNull String defaultValue) {
+          return DeviceConfig.getString(namespace, name, defaultValue);
+        }
+
+        @Override
+        public boolean getBoolean(
+            @NonNull String namespace, @NonNull String name, @NonNull boolean defaultValue) {
+          return DeviceConfig.getBoolean(namespace, name, defaultValue);
+        }
+      };
+
+  private final IDeviceConfig deviceConfig;
+
+  public TextClassifierSettings() {
+    this(DEFAULT_DEVICE_CONFIG);
+  }
+
+  @VisibleForTesting
+  TextClassifierSettings(IDeviceConfig deviceConfig) {
+    this.deviceConfig = deviceConfig;
+  }
+
   public int getSuggestSelectionMaxRangeLength() {
-    return DeviceConfig.getInt(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        SUGGEST_SELECTION_MAX_RANGE_LENGTH,
-        SUGGEST_SELECTION_MAX_RANGE_LENGTH_DEFAULT);
+    return deviceConfig.getInt(
+        NAMESPACE, SUGGEST_SELECTION_MAX_RANGE_LENGTH, SUGGEST_SELECTION_MAX_RANGE_LENGTH_DEFAULT);
   }
 
   public int getClassifyTextMaxRangeLength() {
-    return DeviceConfig.getInt(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        CLASSIFY_TEXT_MAX_RANGE_LENGTH,
-        CLASSIFY_TEXT_MAX_RANGE_LENGTH_DEFAULT);
+    return deviceConfig.getInt(
+        NAMESPACE, CLASSIFY_TEXT_MAX_RANGE_LENGTH, CLASSIFY_TEXT_MAX_RANGE_LENGTH_DEFAULT);
   }
 
   public int getGenerateLinksMaxTextLength() {
-    return DeviceConfig.getInt(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        GENERATE_LINKS_MAX_TEXT_LENGTH,
-        GENERATE_LINKS_MAX_TEXT_LENGTH_DEFAULT);
+    return deviceConfig.getInt(
+        NAMESPACE, GENERATE_LINKS_MAX_TEXT_LENGTH, GENERATE_LINKS_MAX_TEXT_LENGTH_DEFAULT);
   }
 
   public int getGenerateLinksLogSampleRate() {
-    return DeviceConfig.getInt(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        GENERATE_LINKS_LOG_SAMPLE_RATE,
-        GENERATE_LINKS_LOG_SAMPLE_RATE_DEFAULT);
+    return deviceConfig.getInt(
+        NAMESPACE, GENERATE_LINKS_LOG_SAMPLE_RATE, GENERATE_LINKS_LOG_SAMPLE_RATE_DEFAULT);
   }
 
   public List<String> getEntityListDefault() {
@@ -217,49 +304,77 @@ public final class TextClassifierSettings {
   }
 
   public float getLangIdThresholdOverride() {
-    return DeviceConfig.getFloat(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        LANG_ID_THRESHOLD_OVERRIDE,
-        LANG_ID_THRESHOLD_OVERRIDE_DEFAULT);
+    return deviceConfig.getFloat(
+        NAMESPACE, LANG_ID_THRESHOLD_OVERRIDE, LANG_ID_THRESHOLD_OVERRIDE_DEFAULT);
   }
 
   public float getTranslateActionThreshold() {
-    return DeviceConfig.getFloat(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        TRANSLATE_ACTION_THRESHOLD,
-        TRANSLATE_ACTION_THRESHOLD_DEFAULT);
+    return deviceConfig.getFloat(
+        NAMESPACE, TRANSLATE_ACTION_THRESHOLD, TRANSLATE_ACTION_THRESHOLD_DEFAULT);
   }
 
   public boolean isUserLanguageProfileEnabled() {
-    return DeviceConfig.getBoolean(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        USER_LANGUAGE_PROFILE_ENABLED,
-        USER_LANGUAGE_PROFILE_ENABLED_DEFAULT);
+    return deviceConfig.getBoolean(
+        NAMESPACE, USER_LANGUAGE_PROFILE_ENABLED, USER_LANGUAGE_PROFILE_ENABLED_DEFAULT);
   }
 
   public boolean isTemplateIntentFactoryEnabled() {
-    return DeviceConfig.getBoolean(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        TEMPLATE_INTENT_FACTORY_ENABLED,
-        TEMPLATE_INTENT_FACTORY_ENABLED_DEFAULT);
+    return deviceConfig.getBoolean(
+        NAMESPACE, TEMPLATE_INTENT_FACTORY_ENABLED, TEMPLATE_INTENT_FACTORY_ENABLED_DEFAULT);
   }
 
   public boolean isTranslateInClassificationEnabled() {
-    return DeviceConfig.getBoolean(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
+    return deviceConfig.getBoolean(
+        NAMESPACE,
         TRANSLATE_IN_CLASSIFICATION_ENABLED,
         TRANSLATE_IN_CLASSIFICATION_ENABLED_DEFAULT);
   }
 
   public boolean isDetectLanguagesFromTextEnabled() {
-    return DeviceConfig.getBoolean(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-        DETECT_LANGUAGES_FROM_TEXT_ENABLED,
-        DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT);
+    return deviceConfig.getBoolean(
+        NAMESPACE, DETECT_LANGUAGES_FROM_TEXT_ENABLED, DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT);
   }
 
   public float[] getLangIdContextSettings() {
     return getDeviceConfigFloatArray(LANG_ID_CONTEXT_SETTINGS, LANG_ID_CONTEXT_SETTINGS_DEFAULT);
+  }
+
+  public boolean isModelDownloadManagerEnabled() {
+    return deviceConfig.getBoolean(
+        NAMESPACE, MODEL_DOWNLOAD_MANAGER_ENABLED, MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT);
+  }
+
+  public String getModelURLPrefix(@ModelType.ModelTypeDef String modelType) {
+    switch (modelType) {
+      case ModelType.ANNOTATOR:
+        return deviceConfig.getString(
+            NAMESPACE, ANNOTATOR_URL_PREFIX, ANNOTATOR_URL_PREFIX_DEFAULT);
+      case ModelType.LANG_ID:
+        return deviceConfig.getString(NAMESPACE, LANG_ID_URL_PREFIX, LANG_ID_URL_PREFIX_DEFAULT);
+      case ModelType.ACTIONS_SUGGESTIONS:
+        return deviceConfig.getString(
+            NAMESPACE, ACTIONS_SUGGESTIONS_URL_PREFIX, ACTIONS_SUGGESTIONS_URL_PREFIX_DEFAULT);
+      default:
+        return "";
+    }
+  }
+
+  public String getPrimaryModelURLSuffix(@ModelType.ModelTypeDef String modelType) {
+    switch (modelType) {
+      case ModelType.ANNOTATOR:
+        return deviceConfig.getString(
+            NAMESPACE, PRIMARY_ANNOTATOR_URL_SUFFIX, PRIMARY_ANNOTATOR_URL_SUFFIX_DEFAULT);
+      case ModelType.LANG_ID:
+        return deviceConfig.getString(
+            NAMESPACE, PRIMARY_LANG_ID_URL_SUFFIX, PRIMARY_LANG_ID_URL_SUFFIX_DEFAULT);
+      case ModelType.ACTIONS_SUGGESTIONS:
+        return deviceConfig.getString(
+            NAMESPACE,
+            PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX,
+            PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX_DEFAULT);
+      default:
+        return "";
+    }
   }
 
   void dump(IndentingPrintWriter pw) {
@@ -282,17 +397,26 @@ public final class TextClassifierSettings {
     pw.printPair("user_language_profile_enabled", isUserLanguageProfileEnabled());
     pw.printPair("template_intent_factory_enabled", isTemplateIntentFactoryEnabled());
     pw.printPair("translate_in_classification_enabled", isTranslateInClassificationEnabled());
+    pw.printPair("model_download_manager_enabled", isModelDownloadManagerEnabled());
+    pw.printPair("annotator_url_prefix", getModelURLPrefix(ModelType.ANNOTATOR));
+    pw.printPair("lang_id_url_prefix", getModelURLPrefix(ModelType.LANG_ID));
+    pw.printPair(
+        "actions_suggestions_url_prefix", getModelURLPrefix(ModelType.ACTIONS_SUGGESTIONS));
+    pw.decreaseIndent();
+    pw.printPair("primary_annotator_url_suffix", getPrimaryModelURLSuffix(ModelType.ANNOTATOR));
+    pw.printPair("primary_lang_id_url_suffix", getPrimaryModelURLSuffix(ModelType.LANG_ID));
+    pw.printPair(
+        "primary_actions_suggestions_url_suffix",
+        getPrimaryModelURLSuffix(ModelType.ACTIONS_SUGGESTIONS));
     pw.decreaseIndent();
   }
 
-  private static List<String> getDeviceConfigStringList(String key, List<String> defaultValue) {
-    return parse(
-        DeviceConfig.getString(DeviceConfig.NAMESPACE_TEXTCLASSIFIER, key, null), defaultValue);
+  private List<String> getDeviceConfigStringList(String key, List<String> defaultValue) {
+    return parse(deviceConfig.getString(NAMESPACE, key, null), defaultValue);
   }
 
-  private static float[] getDeviceConfigFloatArray(String key, float[] defaultValue) {
-    return parse(
-        DeviceConfig.getString(DeviceConfig.NAMESPACE_TEXTCLASSIFIER, key, null), defaultValue);
+  private float[] getDeviceConfigFloatArray(String key, float[] defaultValue) {
+    return parse(deviceConfig.getString(NAMESPACE, key, null), defaultValue);
   }
 
   private static List<String> parse(@Nullable String listStr, List<String> defaultValue) {

@@ -115,17 +115,6 @@ class ActionsSuggestions {
 
   static constexpr int kLocalUserId = 0;
 
-  // Should be in sync with those defined in Android.
-  // android/frameworks/base/core/java/android/view/textclassifier/ConversationActions.java
-  static const std::string& kViewCalendarType;
-  static const std::string& kViewMapType;
-  static const std::string& kTrackFlightType;
-  static const std::string& kOpenUrlType;
-  static const std::string& kSendSmsType;
-  static const std::string& kCallPhoneType;
-  static const std::string& kSendEmailType;
-  static const std::string& kShareLocation;
-
  protected:
   // Exposed for testing.
   bool EmbedTokenId(const int32 token_id, std::vector<float>* embedding) const;
@@ -297,6 +286,72 @@ ReturnType VisitActionsModel(const std::string& path, Func function) {
       ViewActionsModel(mmap.handle().start(), mmap.handle().num_bytes());
   return function(model);
 }
+
+class ActionsSuggestionsTypes {
+ public:
+  // Should be in sync with those defined in Android.
+  // android/frameworks/base/core/java/android/view/textclassifier/ConversationActions.java
+  static const std::string& ViewCalendar() {
+    static const std::string& value =
+        *[]() { return new std::string("view_calendar"); }();
+    return value;
+  }
+  static const std::string& ViewMap() {
+    static const std::string& value =
+        *[]() { return new std::string("view_map"); }();
+    return value;
+  }
+  static const std::string& TrackFlight() {
+    static const std::string& value =
+        *[]() { return new std::string("track_flight"); }();
+    return value;
+  }
+  static const std::string& OpenUrl() {
+    static const std::string& value =
+        *[]() { return new std::string("open_url"); }();
+    return value;
+  }
+  static const std::string& SendSms() {
+    static const std::string& value =
+        *[]() { return new std::string("send_sms"); }();
+    return value;
+  }
+  static const std::string& CallPhone() {
+    static const std::string& value =
+        *[]() { return new std::string("call_phone"); }();
+    return value;
+  }
+  static const std::string& SendEmail() {
+    static const std::string& value =
+        *[]() { return new std::string("send_email"); }();
+    return value;
+  }
+  static const std::string& ShareLocation() {
+    static const std::string& value =
+        *[]() { return new std::string("share_location"); }();
+    return value;
+  }
+  static const std::string& CreateReminder() {
+    static const std::string& value =
+        *[]() { return new std::string("create_reminder"); }();
+    return value;
+  }
+  static const std::string& TextReply() {
+    static const std::string& value =
+        *[]() { return new std::string("text_reply"); }();
+    return value;
+  }
+  static const std::string& AddContact() {
+    static const std::string& value =
+        *[]() { return new std::string("add_contact"); }();
+    return value;
+  }
+  static const std::string& Copy() {
+    static const std::string& value =
+        *[]() { return new std::string("copy"); }();
+    return value;
+  }
+};
 
 }  // namespace libtextclassifier3
 
