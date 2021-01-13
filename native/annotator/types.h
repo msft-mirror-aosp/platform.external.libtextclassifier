@@ -83,7 +83,8 @@ struct CodepointSpan {
   }
 
   bool IsValid() const {
-    return this->first != kInvalidIndex && this->second != kInvalidIndex;
+    return this->first != kInvalidIndex && this->second != kInvalidIndex &&
+           this->first <= this->second && this->first >= 0;
   }
 
   bool IsEmpty() const { return this->first == this->second; }
@@ -282,9 +283,9 @@ struct DatetimeComponent {
     SECOND = 8,
     // Meridiem field where 0 == AM, 1 == PM.
     MERIDIEM = 9,
-    // Number of hours offset from UTC this date time is in.
+    // Offset in number of minutes from UTC this date time is in.
     ZONE_OFFSET = 10,
-    // Number of hours offest for DST.
+    // Offset in number of hours for DST.
     DST_OFFSET = 11,
   };
 
@@ -430,7 +431,8 @@ struct ClassificationResult {
   std::string serialized_knowledge_result;
   ContactPointer contact_pointer;
   std::string contact_name, contact_given_name, contact_family_name,
-      contact_nickname, contact_email_address, contact_phone_number, contact_id;
+      contact_nickname, contact_email_address, contact_phone_number,
+      contact_account_type, contact_account_name, contact_id;
   std::string app_name, app_package_name;
   int64 numeric_value;
   double numeric_double_value;
@@ -524,6 +526,10 @@ struct BaseOptions {
   // If true, the POD NER annotator is used.
   bool use_pod_ner = true;
 
+  // If true and the model file supports that, the new vocab annotator is used
+  // to annotate "Dictionary". Otherwise, we use the FFModel to do so.
+  bool use_vocab_annotator = true;
+
   bool operator==(const BaseOptions& other) const {
     bool location_context_equality = this->location_context.has_value() ==
                                      other.location_context.has_value();
@@ -536,7 +542,9 @@ struct BaseOptions {
            this->annotation_usecase == other.annotation_usecase &&
            this->detected_text_language_tags ==
                other.detected_text_language_tags &&
-           location_context_equality;
+           location_context_equality &&
+           this->use_pod_ner == other.use_pod_ner &&
+           this->use_vocab_annotator == other.use_vocab_annotator;
   }
 };
 
@@ -677,6 +685,8 @@ struct Annotations {
 
 struct InputFragment {
   std::string text;
+  float bounding_box_top;
+  float bounding_box_height;
 
   // If present will override the AnnotationOptions reference time and timezone
   // when annotating this specific string fragment.
