@@ -711,6 +711,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final float userLocationAccuracyMeters;
     private final String userFamiliarLanguageTags;
     private final boolean usePodNer;
+    private final boolean triggerDictionaryOnBeginnerWords;
 
     private ClassificationOptions(
         long referenceTimeMsUtc,
@@ -722,7 +723,8 @@ public final class AnnotatorModel implements AutoCloseable {
         double userLocationLng,
         float userLocationAccuracyMeters,
         String userFamiliarLanguageTags,
-        boolean usePodNer) {
+        boolean usePodNer,
+        boolean triggerDictionaryOnBeginnerWords) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
       this.locales = locales;
@@ -733,6 +735,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.userLocationAccuracyMeters = userLocationAccuracyMeters;
       this.userFamiliarLanguageTags = userFamiliarLanguageTags;
       this.usePodNer = usePodNer;
+      this.triggerDictionaryOnBeginnerWords = triggerDictionaryOnBeginnerWords;
     }
 
     /** Can be used to build a ClassificationOptions instance. */
@@ -747,6 +750,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private float userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
       private String userFamiliarLanguageTags = "";
       private boolean usePodNer = true;
+      private boolean triggerDictionaryOnBeginnerWords = false;
 
       public Builder setReferenceTimeMsUtc(long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;
@@ -798,6 +802,12 @@ public final class AnnotatorModel implements AutoCloseable {
         return this;
       }
 
+      public Builder setTrigerringDictionaryOnBeginnerWords(
+          boolean triggerDictionaryOnBeginnerWords) {
+        this.triggerDictionaryOnBeginnerWords = triggerDictionaryOnBeginnerWords;
+        return this;
+      }
+
       public ClassificationOptions build() {
         return new ClassificationOptions(
             referenceTimeMsUtc,
@@ -809,7 +819,8 @@ public final class AnnotatorModel implements AutoCloseable {
             userLocationLng,
             userLocationAccuracyMeters,
             userFamiliarLanguageTags,
-            usePodNer);
+            usePodNer,
+            triggerDictionaryOnBeginnerWords);
       }
     }
 
@@ -859,6 +870,10 @@ public final class AnnotatorModel implements AutoCloseable {
     public boolean getUsePodNer() {
       return usePodNer;
     }
+
+    public boolean getTriggerDictionaryOnBeginnerWords() {
+      return triggerDictionaryOnBeginnerWords;
+    }
   }
 
   /** Represents options for the annotate call. */
@@ -877,6 +892,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final double userLocationLng;
     private final float userLocationAccuracyMeters;
     private final boolean usePodNer;
+    private final boolean triggerDictionaryOnBeginnerWords;
 
     private AnnotationOptions(
         long referenceTimeMsUtc,
@@ -892,7 +908,8 @@ public final class AnnotatorModel implements AutoCloseable {
         double userLocationLat,
         double userLocationLng,
         float userLocationAccuracyMeters,
-        boolean usePodNer) {
+        boolean usePodNer,
+        boolean triggerDictionaryOnBeginnerWords) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
       this.locales = locales;
@@ -907,6 +924,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.hasLocationPermission = hasLocationPermission;
       this.hasPersonalizationPermission = hasPersonalizationPermission;
       this.usePodNer = usePodNer;
+      this.triggerDictionaryOnBeginnerWords = triggerDictionaryOnBeginnerWords;
     }
 
     /** Can be used to build an AnnotationOptions instance. */
@@ -925,6 +943,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private double userLocationLng = INVALID_LONGITUDE;
       private float userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
       private boolean usePodNer = true;
+      private boolean triggerDictionaryOnBeginnerWords = false;
 
       public Builder setReferenceTimeMsUtc(long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;
@@ -996,6 +1015,11 @@ public final class AnnotatorModel implements AutoCloseable {
         return this;
       }
 
+      public Builder setTriggerDictionaryOnBeginnerWords(boolean triggerDictionaryOnBeginnerWords) {
+        this.triggerDictionaryOnBeginnerWords = triggerDictionaryOnBeginnerWords;
+        return this;
+      }
+
       public AnnotationOptions build() {
         return new AnnotationOptions(
             referenceTimeMsUtc,
@@ -1011,7 +1035,8 @@ public final class AnnotatorModel implements AutoCloseable {
             userLocationLat,
             userLocationLng,
             userLocationAccuracyMeters,
-            usePodNer);
+            usePodNer,
+            triggerDictionaryOnBeginnerWords);
       }
     }
 
@@ -1076,6 +1101,10 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public boolean getUsePodNer() {
       return usePodNer;
+    }
+
+    public boolean getTriggerDictionaryOnBeginnerWords() {
+      return triggerDictionaryOnBeginnerWords;
     }
   }
 

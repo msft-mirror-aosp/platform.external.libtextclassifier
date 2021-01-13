@@ -172,6 +172,7 @@ cc_library_headers {
     name: "libtextclassifier_flatbuffer_headers",
     stl: "libc++_static",
     sdk_version: "current",
+    min_sdk_version: "30",
     apex_available: [
         "//apex_available:platform",
         "com.android.extservices",

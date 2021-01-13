@@ -395,6 +395,18 @@ constexpr int kNumNumberSign = ARRAYSIZE(kNumberSign);
 constexpr char32 kDots[] = {0x002e, 0xfe52, 0xff0e};
 constexpr int kNumDots = ARRAYSIZE(kDots);
 
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=Apostrophe
+constexpr char32 kApostrophe[] = {0x0027, 0x02BC, 0x02EE, 0x055A,
+                                  0x07F4, 0x07F5, 0xFF07};
+constexpr int kNumApostrophe = ARRAYSIZE(kApostrophe);
+
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=Quotation
+constexpr char32 kQuotation[] = {
+    0x0022, 0x00AB, 0x00BB, 0x2018, 0x2019, 0x201A, 0x201B, 0x201C,
+    0x201D, 0x201E, 0x201F, 0x2039, 0x203A, 0x275B, 0x275C, 0x275D,
+    0x275E, 0x276E, 0x276F, 0x2E42, 0x301D, 0x301E, 0x301F, 0xFF02};
+constexpr int kNumQuotation = ARRAYSIZE(kQuotation);
+
 #undef ARRAYSIZE
 
 static_assert(kNumOpeningBrackets == kNumClosingBrackets,
@@ -574,6 +586,14 @@ bool IsNumberSign(char32 codepoint) {
 
 bool IsDot(char32 codepoint) {
   return GetMatchIndex(kDots, kNumDots, codepoint) >= 0;
+}
+
+bool IsApostrophe(char32 codepoint) {
+  return GetMatchIndex(kApostrophe, kNumApostrophe, codepoint) >= 0;
+}
+
+bool IsQuotation(char32 codepoint) {
+  return GetMatchIndex(kQuotation, kNumQuotation, codepoint) >= 0;
 }
 
 bool IsLatinLetter(char32 codepoint) {
