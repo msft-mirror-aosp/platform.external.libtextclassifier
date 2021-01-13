@@ -10,6 +10,9 @@
     },
     {
       "name": "libtextclassifier_tests"
+    },
+    {
+      "name": "libtextclassifier_java_tests"
     }
   ]
 }

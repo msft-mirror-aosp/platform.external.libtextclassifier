@@ -175,9 +175,6 @@ class MutableFlatbuffer {
   const reflection::Object* type() const { return type_; }
 
  private:
-  // Parses an enum value.
-  Variant ParseEnumValue(const reflection::Type* type, StringPiece value) const;
-
   // Helper function for merging given repeated field from given flatbuffer
   // table. Appends the elements.
   template <typename T>

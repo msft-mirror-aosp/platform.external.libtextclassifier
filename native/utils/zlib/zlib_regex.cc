@@ -48,7 +48,7 @@ std::unique_ptr<UniLib::RegexPattern> UncompressMakeRegexPattern(
     }
     unicode_regex_pattern =
         UTF8ToUnicodeText(uncompressed_pattern->c_str(),
-                          uncompressed_pattern->Length(), /*do_copy=*/false);
+                          uncompressed_pattern->size(), /*do_copy=*/false);
   }
 
   if (result_pattern_text != nullptr) {
