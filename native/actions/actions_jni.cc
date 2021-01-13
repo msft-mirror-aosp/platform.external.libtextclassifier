@@ -524,3 +524,12 @@ TC3_JNI_METHOD(jint, TC3_ACTIONS_CLASS_NAME, nativeGetVersionWithOffset)
       new libtextclassifier3::ScopedMmap(fd, offset, size));
   return libtextclassifier3::GetVersionFromMmap(env, mmap.get());
 }
+
+TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeGetNativeModelPtr)
+(JNIEnv* env, jobject thiz, jlong ptr) {
+  if (!ptr) {
+    return 0L;
+  }
+  return reinterpret_cast<jlong>(
+      reinterpret_cast<ActionsSuggestionsJniContext*>(ptr)->model());
+}

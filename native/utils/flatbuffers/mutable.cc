@@ -137,50 +137,12 @@ const reflection::Field* MutableFlatbuffer::GetFieldOrNull(
   return libtextclassifier3::GetFieldOrNull(type_, field_offset);
 }
 
-Variant MutableFlatbuffer::ParseEnumValue(const reflection::Type* type,
-                                          StringPiece value) const {
-  TC3_DCHECK(IsEnum(type));
-  TC3_CHECK_NE(schema_->enums(), nullptr);
-  const auto* enum_values = schema_->enums()->Get(type->index())->values();
-  if (enum_values == nullptr) {
-    TC3_LOG(ERROR) << "Enum has no specified values.";
-    return Variant();
-  }
-  for (const reflection::EnumVal* enum_value : *enum_values) {
-    if (value.Equals(StringPiece(enum_value->name()->c_str(),
-                                 enum_value->name()->size()))) {
-      const int64 value = enum_value->value();
-      switch (type->base_type()) {
-        case reflection::BaseType::Byte:
-          return Variant(static_cast<int8>(value));
-        case reflection::BaseType::UByte:
-          return Variant(static_cast<uint8>(value));
-        case reflection::BaseType::Short:
-          return Variant(static_cast<int16>(value));
-        case reflection::BaseType::UShort:
-          return Variant(static_cast<uint16>(value));
-        case reflection::BaseType::Int:
-          return Variant(static_cast<int32>(value));
-        case reflection::BaseType::UInt:
-          return Variant(static_cast<uint32>(value));
-        case reflection::BaseType::Long:
-          return Variant(value);
-        case reflection::BaseType::ULong:
-          return Variant(static_cast<uint64>(value));
-        default:
-          break;
-      }
-    }
-  }
-  return Variant();
-}
-
 bool MutableFlatbuffer::SetFromEnumValueName(const reflection::Field* field,
                                              StringPiece value_name) {
   if (!IsEnum(field->type())) {
     return false;
   }
-  Variant variant_value = ParseEnumValue(field->type(), value_name);
+  Variant variant_value = ParseEnumValue(schema_, field->type(), value_name);
   if (!variant_value.HasValue()) {
     return false;
   }
@@ -271,7 +233,6 @@ MutableFlatbuffer* MutableFlatbuffer::Mutable(const StringPiece field_name) {
 
 MutableFlatbuffer* MutableFlatbuffer::Mutable(const reflection::Field* field) {
   if (field->type()->base_type() != reflection::Obj) {
-    TC3_LOG(ERROR) << "Field is not of type Object.";
     return nullptr;
   }
   const auto entry = children_.find(field);

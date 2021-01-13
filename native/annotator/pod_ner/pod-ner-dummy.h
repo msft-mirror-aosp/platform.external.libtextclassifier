@@ -47,7 +47,7 @@ class PodNerAnnotator {
 
   bool ClassifyText(const UnicodeText &context, CodepointSpan click,
                     ClassificationResult *result) const {
-    return true;
+    return false;
   }
 };
 
