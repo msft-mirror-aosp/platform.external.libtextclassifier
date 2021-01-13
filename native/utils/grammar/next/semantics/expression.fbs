@@ -23,6 +23,7 @@ union Expression {
   ComposeExpression,
   SpanAsStringExpression,
   ParseNumberExpression,
+  MergeValueExpression,
 }
 
 // A semantic expression.
@@ -90,5 +91,14 @@ table ParseNumberExpression {
   base_type:int;
 
   value:SemanticExpression;
+}
+
+// Merge the semantic expressions.
+namespace libtextclassifier3.grammar.next;
+table MergeValueExpression {
+  // The id of the type of the result.
+  type:int;
+
+  values:[SemanticExpression];
 }
 

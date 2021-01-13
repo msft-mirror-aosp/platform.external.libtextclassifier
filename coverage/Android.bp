@@ -1,0 +1,12 @@
+android_library {
+    name: "TextClassifierCoverageLib",
+
+    srcs: ["src/**/*.java"],
+
+    static_libs: [
+        "androidx.test.ext.junit",
+        "androidx.test.rules",
+    ],
+
+    sdk_version: "current",
+}
