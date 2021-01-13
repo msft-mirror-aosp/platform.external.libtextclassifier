@@ -23,15 +23,13 @@
 #include "utils/intents/intent-generator.h"
 #include "utils/intents/remote-action-template.h"
 #include "utils/java/jni-helper.h"
+#include "utils/jvm-test-utils.h"
 #include "utils/resources_generated.h"
 #include "utils/testing/logging_event_listener.h"
 #include "utils/variant.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "flatbuffers/reflection.h"
-
-extern JNIEnv* g_jenv;
-extern jobject g_context;
 
 namespace libtextclassifier3 {
 namespace {
@@ -119,7 +117,7 @@ flatbuffers::DetachedBuffer BuildTestResources() {
 class IntentGeneratorTest : public testing::Test {
  protected:
   explicit IntentGeneratorTest()
-      : jni_cache_(JniCache::Create(g_jenv)),
+      : jni_cache_(JniCache::Create(GetJenv())),
         resource_buffer_(BuildTestResources()),
         resources_(
             flatbuffers::GetRoot<ResourcePool>(resource_buffer_.data())) {}
@@ -152,7 +150,7 @@ TEST_F(IntentGeneratorTest, FailsGracefully) {
       BuildTestIntentFactoryModel("test", R"lua(
 return {
   {
-    -- Should fail, as no app g_context is provided.
+    -- Should fail, as no app GetAndroidContext() is provided.
     data = external.android.package_name,
   }
 })lua");
@@ -162,7 +160,7 @@ return {
   ClassificationResult classification = {"test", 1.0};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_FALSE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(),
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
       classification,
       /*reference_time_ms_utc=*/0, "test", {0, 4}, /*context=*/nullptr,
       /*annotations_entity_data_schema=*/nullptr, &intents));
@@ -188,16 +186,17 @@ return {
   ClassificationResult classification = {"address", 1.0};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(),
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
       classification,
-      /*reference_time_ms_utc=*/0, "333 E Wonderview Ave", {0, 20}, g_context,
+      /*reference_time_ms_utc=*/0, "333 E Wonderview Ave", {0, 20},
+      GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
   EXPECT_EQ(intents[0].title_without_entity.value(), "Map");
   EXPECT_EQ(intents[0].title_with_entity.value(), "333 E Wonderview Ave");
   EXPECT_EQ(intents[0].description.value(), "Locate selected address");
   EXPECT_EQ(intents[0].action.value(), "android.intent.action.VIEW");
-  EXPECT_EQ(intents[0].data.value(), "geo:0,0?q=333+E+Wonderview+Ave");
+  EXPECT_EQ(intents[0].data.value(), "geo:0,0?q=333%20E%20Wonderview%20Ave");
 }
 
 TEST_F(IntentGeneratorTest, HandlesCallbacks) {
@@ -230,12 +229,13 @@ return {
   ClassificationResult classification = {"test", 1.0};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(),
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
       classification,
-      /*reference_time_ms_utc=*/0, "this is a test", {0, 14}, g_context,
+      /*reference_time_ms_utc=*/0, "this is a test", {0, 14},
+      GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
-  EXPECT_EQ(intents[0].data.value(), "encoded=this+is+a+test");
+  EXPECT_EQ(intents[0].data.value(), "encoded=this%20is%20a%20test");
   EXPECT_THAT(intents[0].category, ElementsAre("test_category"));
   EXPECT_THAT(intents[0].extra, SizeIs(6));
   EXPECT_EQ(intents[0].extra["package"].ConstRefValue<std::string>(),
@@ -282,8 +282,8 @@ return {
                                  {annotation}};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(), suggestion,
-      conversation, g_context,
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
+      suggestion, conversation, GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr,
       /*actions_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
@@ -323,8 +323,8 @@ return {
                                  {}};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(), suggestion,
-      conversation, g_context,
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
+      suggestion, conversation, GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr,
       /*actions_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
@@ -372,8 +372,8 @@ return {
                                  {location_annotation, time_annotation}};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(), suggestion,
-      conversation, g_context,
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
+      suggestion, conversation, GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr,
       /*actions_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
@@ -418,8 +418,8 @@ return {
                                  {from_annotation, to_annotation}};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(), suggestion,
-      conversation, g_context,
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
+      suggestion, conversation, GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr,
       /*actions_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
@@ -446,15 +446,16 @@ return {
   ClassificationResult classification = {"address", 1.0};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "de-DE").ValueOrDie().get(),
+      JniHelper::NewStringUTF(GetJenv(), "de-DE").ValueOrDie().get(),
       classification,
-      /*reference_time_ms_utc=*/0, "333 E Wonderview Ave", {0, 20}, g_context,
+      /*reference_time_ms_utc=*/0, "333 E Wonderview Ave", {0, 20},
+      GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
   EXPECT_EQ(intents[0].title_without_entity.value(), "Karte");
   EXPECT_EQ(intents[0].description.value(), "Ausgewählte Adresse finden");
   EXPECT_EQ(intents[0].action.value(), "android.intent.action.VIEW");
-  EXPECT_EQ(intents[0].data.value(), "geo:0,0?q=333+E+Wonderview+Ave");
+  EXPECT_EQ(intents[0].data.value(), "geo:0,0?q=333%20E%20Wonderview%20Ave");
 }
 
 TEST_F(IntentGeneratorTest, HandlesIteration) {
@@ -491,8 +492,8 @@ return {{ extra = extra }})lua");
                                  {location_annotation, greeting_annotation}};
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(), suggestion,
-      conversation, g_context,
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
+      suggestion, conversation, GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr,
       /*actions_entity_data_schema=*/nullptr, &intents));
   EXPECT_THAT(intents, SizeIs(1));
@@ -597,15 +598,15 @@ return {
 
   std::vector<RemoteActionTemplate> intents;
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(),
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
       classification,
-      /*reference_time_ms_utc=*/0, "highground", {0, 10}, g_context,
+      /*reference_time_ms_utc=*/0, "highground", {0, 10}, GetAndroidContext(),
       /*annotations_entity_data_schema=*/entity_data_schema, &intents));
   EXPECT_THAT(intents, SizeIs(1));
   EXPECT_THAT(intents[0].extra, SizeIs(3));
   EXPECT_EQ(intents[0].extra["name"].ConstRefValue<std::string>(), "kenobi");
   EXPECT_EQ(intents[0].extra["encoded_phone"].ConstRefValue<std::string>(),
-            "1+800+HIGHGROUND");
+            "1%20800%20HIGHGROUND");
   EXPECT_EQ(intents[0].extra["age"].Value<int>(), 38);
 }
 
@@ -635,9 +636,9 @@ TEST_F(IntentGeneratorTest, ReadExtras) {
   std::vector<RemoteActionTemplate> intents;
 
   EXPECT_TRUE(generator->GenerateIntents(
-      JniHelper::NewStringUTF(g_jenv, "en-US").ValueOrDie().get(),
+      JniHelper::NewStringUTF(GetJenv(), "en-US").ValueOrDie().get(),
       classification,
-      /*reference_time_ms_utc=*/0, "test", {0, 4}, g_context,
+      /*reference_time_ms_utc=*/0, "test", {0, 4}, GetAndroidContext(),
       /*annotations_entity_data_schema=*/nullptr, &intents));
 
   EXPECT_THAT(intents, SizeIs(1));

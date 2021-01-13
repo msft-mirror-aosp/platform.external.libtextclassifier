@@ -18,13 +18,17 @@
 
 #include <memory>
 
+#if !defined(TC3_DISABLE_LUA)
 #include "actions/lua-actions.h"
+#endif
 #include "actions/types.h"
 #include "actions/utils.h"
 #include "actions/zlib-utils.h"
 #include "annotator/collections.h"
 #include "utils/base/logging.h"
+#if !defined(TC3_DISABLE_LUA)
 #include "utils/lua-utils.h"
+#endif
 #include "utils/normalization.h"
 #include "utils/optional.h"
 #include "utils/strings/split.h"
@@ -34,23 +38,6 @@
 #include "tensorflow/lite/string_util.h"
 
 namespace libtextclassifier3 {
-
-const std::string& ActionsSuggestions::kViewCalendarType =
-    *[]() { return new std::string("view_calendar"); }();
-const std::string& ActionsSuggestions::kViewMapType =
-    *[]() { return new std::string("view_map"); }();
-const std::string& ActionsSuggestions::kTrackFlightType =
-    *[]() { return new std::string("track_flight"); }();
-const std::string& ActionsSuggestions::kOpenUrlType =
-    *[]() { return new std::string("open_url"); }();
-const std::string& ActionsSuggestions::kSendSmsType =
-    *[]() { return new std::string("send_sms"); }();
-const std::string& ActionsSuggestions::kCallPhoneType =
-    *[]() { return new std::string("call_phone"); }();
-const std::string& ActionsSuggestions::kSendEmailType =
-    *[]() { return new std::string("send_email"); }();
-const std::string& ActionsSuggestions::kShareLocation =
-    *[]() { return new std::string("share_location"); }();
 
 constexpr float kDefaultFloat = 0.0;
 constexpr bool kDefaultBool = false;
@@ -317,6 +304,7 @@ bool ActionsSuggestions::ValidateAndInitialize() {
     }
   }
 
+#if !defined(TC3_DISABLE_LUA)
   std::string actions_script;
   if (GetUncompressedString(model_->lua_actions_script(),
                             model_->compressed_lua_actions_script(),
@@ -327,6 +315,7 @@ bool ActionsSuggestions::ValidateAndInitialize() {
       return false;
     }
   }
+#endif  // TC3_DISABLE_LUA
 
   if (!(ranker_ = ActionsSuggestionsRanker::CreateActionsSuggestionsRanker(
             model_->ranking_options(), decompressor.get(),
@@ -1193,6 +1182,7 @@ std::vector<int> ActionsSuggestions::DeduplicateAnnotations(
   return result;
 }
 
+#if !defined(TC3_DISABLE_LUA)
 bool ActionsSuggestions::SuggestActionsFromLua(
     const Conversation& conversation, const TfLiteModelExecutor* model_executor,
     const tflite::Interpreter* interpreter,
@@ -1211,6 +1201,15 @@ bool ActionsSuggestions::SuggestActionsFromLua(
   }
   return lua_actions->SuggestActions(actions);
 }
+#else
+bool ActionsSuggestions::SuggestActionsFromLua(
+    const Conversation& conversation, const TfLiteModelExecutor* model_executor,
+    const tflite::Interpreter* interpreter,
+    const reflection::Schema* annotation_entity_data_schema,
+    std::vector<ActionSuggestion>* actions) const {
+  return true;
+}
+#endif
 
 bool ActionsSuggestions::GatherActionsSuggestions(
     const Conversation& conversation, const Annotator* annotator,

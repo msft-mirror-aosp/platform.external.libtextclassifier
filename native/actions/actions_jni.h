@@ -67,6 +67,9 @@ TC3_JNI_METHOD(jint, TC3_ACTIONS_CLASS_NAME, nativeGetVersion)
 TC3_JNI_METHOD(jint, TC3_ACTIONS_CLASS_NAME, nativeGetVersionWithOffset)
 (JNIEnv* env, jobject clazz, jint fd, jlong offset, jlong size);
 
+TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeGetNativeModelPtr)
+(JNIEnv* env, jobject thiz, jlong ptr);
+
 #ifdef __cplusplus
 }
 #endif

@@ -22,6 +22,7 @@
 #include "utils/flatbuffers/flatbuffers_generated.h"
 #include "utils/optional.h"
 #include "utils/strings/stringpiece.h"
+#include "utils/variant.h"
 #include "flatbuffers/reflection.h"
 #include "flatbuffers/reflection_generated.h"
 
@@ -116,6 +117,10 @@ const reflection::Object* TypeForName(const reflection::Schema* schema,
 Optional<int> TypeIdForName(const reflection::Schema* schema,
                             const StringPiece type_name);
 
+// Gets the type id for a type.
+Optional<int> TypeIdForObject(const reflection::Schema* schema,
+                              const reflection::Object* type);
+
 // Resolves field lookups by name to the concrete field offsets.
 bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
                                     FlatbufferFieldPathT* path);
@@ -124,6 +129,10 @@ bool SwapFieldNamesForOffsetsInPath(const reflection::Schema* schema,
 inline bool IsEnum(const reflection::Type* type) {
   return flatbuffers::IsInteger(type->base_type()) && type->index() >= 0;
 }
+
+// Parses an enum value.
+Variant ParseEnumValue(const reflection::Schema* schema,
+                       const reflection::Type* type, StringPiece value);
 
 }  // namespace libtextclassifier3
 

@@ -245,7 +245,7 @@ int JniLuaEnvironment::HandleUrlEncode() {
     return 0;
   }
 
-  // Call Java URL encoder.
+  // Call Java Uri encode.
   const StatusOr<ScopedLocalRef<jstring>> status_or_input_str =
       jni_cache_->ConvertToJavaString(input);
   if (!status_or_input_str.ok()) {
@@ -254,12 +254,11 @@ int JniLuaEnvironment::HandleUrlEncode() {
   }
   StatusOr<ScopedLocalRef<jstring>> status_or_encoded_str =
       JniHelper::CallStaticObjectMethod<jstring>(
-          jenv_, jni_cache_->urlencoder_class.get(),
-          jni_cache_->urlencoder_encode, status_or_input_str.ValueOrDie().get(),
-          jni_cache_->string_utf8.get());
+          jenv_, jni_cache_->uri_class.get(), jni_cache_->uri_encode,
+          status_or_input_str.ValueOrDie().get());
 
   if (!status_or_encoded_str.ok()) {
-    TC3_LOG(ERROR) << "Error calling UrlEncoder.encode";
+    TC3_LOG(ERROR) << "Error calling Uri.encode";
     lua_error(state_);
     return 0;
   }
