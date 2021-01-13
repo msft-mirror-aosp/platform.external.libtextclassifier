@@ -19,38 +19,17 @@
 
 #ifndef LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_TEST_INCLUDE_H_
 #define LIBTEXTCLASSIFIER_UTILS_CALENDAR_CALENDAR_TEST_INCLUDE_H_
-
+#include "utils/jvm-test-utils.h"
 #include "gtest/gtest.h"
-
-#if defined TC3_CALENDAR_ICU
-#include "utils/calendar/calendar-icu.h"
-#define TC3_TESTING_CREATE_CALENDARLIB_INSTANCE(VAR) VAR()
-#elif defined TC3_CALENDAR_APPLE
-#include "utils/calendar/calendar-apple.h"
-#define TC3_TESTING_CREATE_CALENDARLIB_INSTANCE(VAR) VAR()
-#elif defined TC3_CALENDAR_JAVAICU
-#include <jni.h>
-extern JNIEnv* g_jenv;
-#define TC3_TESTING_CREATE_CALENDARLIB_INSTANCE(VAR) \
-  VAR(JniCache::Create(g_jenv))
-#include "utils/calendar/calendar-javaicu.h"
-#else
-#error Unsupported calendar implementation.
-#endif
-
-// This can get overridden in the javaicu version which needs to pass an JNIEnv*
-// argument to the constructor.
-#ifndef TC3_TESTING_CREATE_CALENDARLIB_INSTANCE
-
-#endif
 
 namespace libtextclassifier3 {
 namespace test_internal {
 
 class CalendarTest : public ::testing::Test {
  protected:
-  CalendarTest() : TC3_TESTING_CREATE_CALENDARLIB_INSTANCE(calendarlib_) {}
-  CalendarLib calendarlib_;
+  CalendarTest()
+      : calendarlib_(libtextclassifier3::CreateCalendarLibForTesting()) {}
+  std::unique_ptr<CalendarLib> calendarlib_;
 };
 
 }  // namespace test_internal

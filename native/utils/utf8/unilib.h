@@ -108,6 +108,14 @@ class UniLib : public UniLibBase {
     return libtextclassifier3::IsDot(codepoint);
   }
 
+  bool IsApostrophe(char32 codepoint) const {
+    return libtextclassifier3::IsApostrophe(codepoint);
+  }
+
+  bool IsQuotation(char32 codepoint) const {
+    return libtextclassifier3::IsQuotation(codepoint);
+  }
+
   bool IsLatinLetter(char32 codepoint) const {
     return libtextclassifier3::IsLatinLetter(codepoint);
   }
