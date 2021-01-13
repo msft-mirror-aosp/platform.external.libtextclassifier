@@ -121,7 +121,8 @@ public final class TextClassifierApiUsageLogger {
                           .TEXT_CLASSIFIER_API_USAGE_REPORTED__RESULT_TYPE__SUCCESS
                       : TextClassifierStatsLog
                           .TEXT_CLASSIFIER_API_USAGE_REPORTED__RESULT_TYPE__FAIL,
-                  latencyInMillis));
+                  latencyInMillis,
+                  ""));
     }
   }
 
