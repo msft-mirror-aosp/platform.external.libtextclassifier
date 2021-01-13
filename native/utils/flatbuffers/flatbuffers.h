@@ -103,6 +103,8 @@ class OwnedFlatbuffer {
   // Cast as flatbuffer type.
   const T* get() const { return flatbuffers::GetRoot<T>(buffer_.data()); }
 
+  const B& buffer() const { return buffer_; }
+
   const T* operator->() const {
     return flatbuffers::GetRoot<T>(buffer_.data());
   }
