@@ -60,6 +60,7 @@ using CodepointIndex = int;
 struct CodepointSpan {
   static const CodepointSpan kInvalid;
 
+  CodepointSpan() : first(kInvalidIndex), second(kInvalidIndex) {}
 
   CodepointSpan(CodepointIndex start, CodepointIndex end)
       : first(start), second(end) {}
@@ -560,10 +561,14 @@ struct ClassificationOptions : public BaseOptions, public DatetimeOptions {
   // Comma-separated list of language tags which the user can read and
   // understand (BCP 47).
   std::string user_familiar_language_tags;
+  // If true, trigger dictionary on words that are of beginner level.
+  bool trigger_dictionary_on_beginner_words = false;
 
   bool operator==(const ClassificationOptions& other) const {
     return this->user_familiar_language_tags ==
                other.user_familiar_language_tags &&
+           this->trigger_dictionary_on_beginner_words ==
+               other.trigger_dictionary_on_beginner_words &&
            BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
   }
 };
@@ -594,12 +599,17 @@ struct AnnotationOptions : public BaseOptions, public DatetimeOptions {
 
   AnnotateMode annotate_mode = AnnotateMode::kEntityAnnotation;
 
+  // If true, trigger dictionary on words that are of beginner level.
+  bool trigger_dictionary_on_beginner_words = false;
+
   bool operator==(const AnnotationOptions& other) const {
     return this->is_serialized_entity_data_enabled ==
                other.is_serialized_entity_data_enabled &&
            this->permissions == other.permissions &&
            this->entity_types == other.entity_types &&
            this->annotate_mode == other.annotate_mode &&
+           this->trigger_dictionary_on_beginner_words ==
+               other.trigger_dictionary_on_beginner_words &&
            BaseOptions::operator==(other) && DatetimeOptions::operator==(other);
   }
 };

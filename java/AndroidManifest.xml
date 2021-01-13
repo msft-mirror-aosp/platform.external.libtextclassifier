@@ -30,6 +30,8 @@
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="29"/>
 
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
     <application android:label="@string/tcs_app_name"
                  android:icon="@drawable/tcs_app_icon"
