@@ -106,7 +106,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
         () -> textClassifier.suggestSelection(request),
         callback,
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_SUGGEST_SELECTION),
+            TextClassifierApiUsageLogger.API_TYPE_SUGGEST_SELECTION, sessionId),
         cancellationSignal);
   }
 
@@ -120,7 +120,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
         () -> textClassifier.classifyText(request),
         callback,
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT),
+            TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT, sessionId),
         cancellationSignal);
   }
 
@@ -134,7 +134,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
         () -> textClassifier.generateLinks(request),
         callback,
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_GENERATE_LINKS),
+            TextClassifierApiUsageLogger.API_TYPE_GENERATE_LINKS, sessionId),
         cancellationSignal);
   }
 
@@ -148,7 +148,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
         () -> textClassifier.suggestConversationActions(request),
         callback,
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_SUGGEST_CONVERSATION_ACTIONS),
+            TextClassifierApiUsageLogger.API_TYPE_SUGGEST_CONVERSATION_ACTIONS, sessionId),
         cancellationSignal);
   }
 
@@ -162,7 +162,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
         () -> textClassifier.detectLanguage(request),
         callback,
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_DETECT_LANGUAGES),
+            TextClassifierApiUsageLogger.API_TYPE_DETECT_LANGUAGES, sessionId),
         cancellationSignal);
   }
 

@@ -19,7 +19,9 @@ package com.android.textclassifier.common.statsd;
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 import android.os.SystemClock;
+import android.view.textclassifier.TextClassificationSessionId;
 import androidx.annotation.IntDef;
+import androidx.annotation.Nullable;
 import com.android.textclassifier.common.base.TcLog;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
@@ -74,17 +76,20 @@ public final class TextClassifierApiUsageLogger {
     this.random = new Random();
   }
 
-  public Session createSession(@ApiType int apiType) {
-    return new Session(apiType);
+  public Session createSession(
+      @ApiType int apiType, @Nullable TextClassificationSessionId sessionId) {
+    return new Session(apiType, sessionId);
   }
 
   /** A session to log an API invocation. Creates a new session for each API call. */
   public final class Session {
     @ApiType private final int apiType;
+    @Nullable private final TextClassificationSessionId sessionId;
     private final long beginElapsedRealTime;
 
-    private Session(@ApiType int apiType) {
+    private Session(@ApiType int apiType, @Nullable TextClassificationSessionId sessionId) {
       this.apiType = apiType;
+      this.sessionId = sessionId;
       beginElapsedRealTime = SystemClock.elapsedRealtime();
     }
 
@@ -122,7 +127,7 @@ public final class TextClassifierApiUsageLogger {
                       : TextClassifierStatsLog
                           .TEXT_CLASSIFIER_API_USAGE_REPORTED__RESULT_TYPE__FAIL,
                   latencyInMillis,
-                  ""));
+                  sessionId == null ? "" : sessionId.getValue()));
     }
   }
 
