@@ -18,16 +18,21 @@
 
 #ifndef LIBTEXTCLASSIFIER_UTILS_TEST_DATA_TEST_UTILS_H_
 #define LIBTEXTCLASSIFIER_UTILS_TEST_DATA_TEST_UTILS_H_
+#include <fstream>
 
 #include "gtest/gtest.h"
-#include "android-base/file.h"
 
 namespace libtextclassifier3 {
 
 // Get the file path to the test data.
 inline std::string GetTestDataPath(const std::string& relative_path) {
-  return android::base::GetExecutableDirectory() + "/" +
-      relative_path;
+  return "/data/local/tmp/" + relative_path;
+}
+
+inline std::string GetTestFileContent(const std::string& relative_path) {
+  const std::string full_path = GetTestDataPath(relative_path);
+  std::ifstream file_stream(full_path);
+  return std::string(std::istreambuf_iterator<char>(file_stream), {});
 }
 
 }  // namespace  libtextclassifier3

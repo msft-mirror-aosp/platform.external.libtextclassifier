@@ -14,8 +14,6 @@
 // limitations under the License.
 //
 
-include "utils/container/bit-vector.fbs";
-
 namespace libtextclassifier3;
 table ExperimentalModel {
 }
