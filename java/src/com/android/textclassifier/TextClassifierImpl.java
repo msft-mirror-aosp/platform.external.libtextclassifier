@@ -43,6 +43,7 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.WorkerThread;
 import androidx.core.util.Pair;
 import com.android.textclassifier.ModelFileManager.ModelFile;
+import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.intent.LabeledIntent;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
@@ -84,25 +85,8 @@ final class TextClassifierImpl {
 
   private static final String TAG = "TextClassifierImpl";
 
-  private static final File FACTORY_MODEL_DIR = new File("/etc/textclassifier/");
-  // Annotator
-  private static final String ANNOTATOR_FACTORY_MODEL_FILENAME_REGEX =
-      "textclassifier\\.(.*)\\.model";
-  private static final File ANNOTATOR_UPDATED_MODEL_FILE =
-      new File("/data/misc/textclassifier/textclassifier.model");
-
-  // LangIdModel
-  private static final String LANG_ID_FACTORY_MODEL_FILENAME_REGEX = "lang_id.model";
-  private static final File UPDATED_LANG_ID_MODEL_FILE =
-      new File("/data/misc/textclassifier/lang_id.model");
-
-  // Actions
-  private static final String ACTIONS_FACTORY_MODEL_FILENAME_REGEX =
-      "actions_suggestions\\.(.*)\\.model";
-  private static final File UPDATED_ACTIONS_MODEL =
-      new File("/data/misc/textclassifier/actions_suggestions.model");
-
   private final Context context;
+  private final ModelFileManager modelFileManager;
   private final TextClassifier fallback;
   private final GenerateLinksLogger generateLinksLogger;
 
@@ -131,46 +115,25 @@ final class TextClassifierImpl {
 
   private final TextClassifierSettings settings;
 
-  private final ModelFileManager annotatorModelFileManager;
-  private final ModelFileManager langIdModelFileManager;
-  private final ModelFileManager actionsModelFileManager;
   private final TemplateIntentFactory templateIntentFactory;
 
-  TextClassifierImpl(Context context, TextClassifierSettings settings, TextClassifier fallback) {
+  TextClassifierImpl(
+      Context context,
+      TextClassifierSettings settings,
+      ModelFileManager modelFileManager,
+      TextClassifier fallback) {
     this.context = Preconditions.checkNotNull(context);
-    this.fallback = Preconditions.checkNotNull(fallback);
     this.settings = Preconditions.checkNotNull(settings);
-    generateLinksLogger = new GenerateLinksLogger(this.settings.getGenerateLinksLogSampleRate());
-    annotatorModelFileManager =
-        new ModelFileManager(
-            new ModelFileManager.ModelFileSupplierImpl(
-                FACTORY_MODEL_DIR,
-                ANNOTATOR_FACTORY_MODEL_FILENAME_REGEX,
-                ANNOTATOR_UPDATED_MODEL_FILE,
-                AnnotatorModel::getVersion,
-                AnnotatorModel::getLocales));
-    langIdModelFileManager =
-        new ModelFileManager(
-            new ModelFileManager.ModelFileSupplierImpl(
-                FACTORY_MODEL_DIR,
-                LANG_ID_FACTORY_MODEL_FILENAME_REGEX,
-                UPDATED_LANG_ID_MODEL_FILE,
-                LangIdModel::getVersion,
-                fd -> ModelFileManager.ModelFile.LANGUAGE_INDEPENDENT));
-    actionsModelFileManager =
-        new ModelFileManager(
-            new ModelFileManager.ModelFileSupplierImpl(
-                FACTORY_MODEL_DIR,
-                ACTIONS_FACTORY_MODEL_FILENAME_REGEX,
-                UPDATED_ACTIONS_MODEL,
-                ActionsSuggestionsModel::getVersion,
-                ActionsSuggestionsModel::getLocales));
+    this.modelFileManager = Preconditions.checkNotNull(modelFileManager);
+    this.fallback = Preconditions.checkNotNull(fallback);
 
+    generateLinksLogger = new GenerateLinksLogger(this.settings.getGenerateLinksLogSampleRate());
     templateIntentFactory = new TemplateIntentFactory();
   }
 
-  TextClassifierImpl(Context context, TextClassifierSettings settings) {
-    this(context, settings, TextClassifier.NO_OP);
+  TextClassifierImpl(
+      Context context, TextClassifierSettings settings, ModelFileManager modelFileManager) {
+    this(context, settings, modelFileManager, TextClassifier.NO_OP);
   }
 
   @WorkerThread
@@ -214,6 +177,7 @@ final class TextClassifierImpl {
                       .setReferenceTimezone(refTime.getZone().getId())
                       .setLocales(localesString)
                       .setDetectedTextLanguageTags(detectLanguageTags)
+                      .setUserFamiliarLanguageTags(LocaleList.getDefault().toLanguageTags())
                       .build(),
                   // Passing null here to suppress intent generation
                   // TODO: Use an explicit flag to suppress it.
@@ -522,7 +486,7 @@ final class TextClassifierImpl {
     synchronized (lock) {
       localeList = localeList == null ? LocaleList.getDefault() : localeList;
       final ModelFileManager.ModelFile bestModel =
-          annotatorModelFileManager.findBestModelFile(localeList);
+          modelFileManager.findBestModelFile(ModelType.ANNOTATOR, localeList);
       if (bestModel == null) {
         throw new FileNotFoundException("No annotator model for " + localeList.toLanguageTags());
       }
@@ -553,7 +517,8 @@ final class TextClassifierImpl {
 
   private Optional<LangIdModel> getLangIdImpl() {
     synchronized (lock) {
-      final ModelFileManager.ModelFile bestModel = langIdModelFileManager.findBestModelFile(null);
+      final ModelFileManager.ModelFile bestModel =
+          modelFileManager.findBestModelFile(ModelType.LANG_ID, /* localeList= */ null);
       if (bestModel == null) {
         return Optional.absent();
       }
@@ -586,7 +551,8 @@ final class TextClassifierImpl {
     synchronized (lock) {
       // TODO: Use LangID to determine the locale we should use here?
       final ModelFileManager.ModelFile bestModel =
-          actionsModelFileManager.findBestModelFile(LocaleList.getDefault());
+          modelFileManager.findBestModelFile(
+              ModelType.ACTIONS_SUGGESTIONS, LocaleList.getDefault());
       if (bestModel == null) {
         return null;
       }
@@ -765,27 +731,12 @@ final class TextClassifierImpl {
   void dump(IndentingPrintWriter printWriter) {
     synchronized (lock) {
       printWriter.println("TextClassifierImpl:");
+
       printWriter.increaseIndent();
-      printWriter.println("Annotator model file(s):");
-      printWriter.increaseIndent();
-      for (ModelFileManager.ModelFile modelFile : annotatorModelFileManager.listModelFiles()) {
-        printWriter.println(modelFile.toString());
-      }
-      printWriter.decreaseIndent();
-      printWriter.println("LangID model file(s):");
-      printWriter.increaseIndent();
-      for (ModelFileManager.ModelFile modelFile : langIdModelFileManager.listModelFiles()) {
-        printWriter.println(modelFile.toString());
-      }
-      printWriter.decreaseIndent();
-      printWriter.println("Actions model file(s):");
-      printWriter.increaseIndent();
-      for (ModelFileManager.ModelFile modelFile : actionsModelFileManager.listModelFiles()) {
-        printWriter.println(modelFile.toString());
-      }
-      printWriter.decreaseIndent();
+      modelFileManager.dump(printWriter);
       printWriter.printPair("mFallback", fallback);
       printWriter.decreaseIndent();
+
       printWriter.println();
       settings.dump(printWriter);
     }
