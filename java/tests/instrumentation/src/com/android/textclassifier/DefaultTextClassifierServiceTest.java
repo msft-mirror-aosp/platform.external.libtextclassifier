@@ -20,11 +20,14 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.verify;
 
 import android.content.Context;
+import android.os.Binder;
 import android.os.CancellationSignal;
+import android.os.Parcel;
 import android.service.textclassifier.TextClassifierService;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.TextClassification;
+import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
@@ -64,6 +67,8 @@ public class DefaultTextClassifierServiceTest {
   private static final long CONFIG_ID = 689777;
 
   private static final long SHORT_TIMEOUT_MS = 1000;
+
+  private static final String SESSION_ID = "abcdef";
 
   private TestInjector testInjector;
   private DefaultTextClassifierService defaultTextClassifierService;
@@ -106,7 +111,10 @@ public class DefaultTextClassifierServiceTest {
         new TextClassification.Request.Builder(text, 0, text.length()).build();
 
     defaultTextClassifierService.onClassifyText(
-        /* sessionId= */ null, request, new CancellationSignal(), textClassificationCallback);
+        createTextClassificationSessionId(),
+        request,
+        new CancellationSignal(),
+        textClassificationCallback);
 
     ArgumentCaptor<TextClassification> captor = ArgumentCaptor.forClass(TextClassification.class);
     verify(textClassificationCallback).onSuccess(captor.capture());
@@ -125,7 +133,10 @@ public class DefaultTextClassifierServiceTest {
     TextSelection.Request request = new TextSelection.Request.Builder(text, start, end).build();
 
     defaultTextClassifierService.onSuggestSelection(
-        /* sessionId= */ null, request, new CancellationSignal(), textSelectionCallback);
+        createTextClassificationSessionId(),
+        request,
+        new CancellationSignal(),
+        textSelectionCallback);
 
     ArgumentCaptor<TextSelection> captor = ArgumentCaptor.forClass(TextSelection.class);
     verify(textSelectionCallback).onSuccess(captor.capture());
@@ -140,7 +151,7 @@ public class DefaultTextClassifierServiceTest {
     TextLinks.Request request = new TextLinks.Request.Builder(text).build();
 
     defaultTextClassifierService.onGenerateLinks(
-        /* sessionId= */ null, request, new CancellationSignal(), textLinksCallback);
+        createTextClassificationSessionId(), request, new CancellationSignal(), textLinksCallback);
 
     ArgumentCaptor<TextLinks> captor = ArgumentCaptor.forClass(TextLinks.class);
     verify(textLinksCallback).onSuccess(captor.capture());
@@ -157,7 +168,10 @@ public class DefaultTextClassifierServiceTest {
     TextLanguage.Request request = new TextLanguage.Request.Builder(text).build();
 
     defaultTextClassifierService.onDetectLanguage(
-        /* sessionId= */ null, request, new CancellationSignal(), textLanguageCallback);
+        createTextClassificationSessionId(),
+        request,
+        new CancellationSignal(),
+        textLanguageCallback);
 
     ArgumentCaptor<TextLanguage> captor = ArgumentCaptor.forClass(TextLanguage.class);
     verify(textLanguageCallback).onSuccess(captor.capture());
@@ -176,7 +190,10 @@ public class DefaultTextClassifierServiceTest {
         new ConversationActions.Request.Builder(ImmutableList.of(message)).build();
 
     defaultTextClassifierService.onSuggestConversationActions(
-        /* sessionId= */ null, request, new CancellationSignal(), conversationActionsCallback);
+        createTextClassificationSessionId(),
+        request,
+        new CancellationSignal(),
+        conversationActionsCallback);
 
     ArgumentCaptor<ConversationActions> captor = ArgumentCaptor.forClass(ConversationActions.class);
     verify(conversationActionsCallback).onSuccess(captor.capture());
@@ -194,7 +211,10 @@ public class DefaultTextClassifierServiceTest {
 
     TextClassification.Request request = new TextClassification.Request.Builder("hi", 0, 2).build();
     defaultTextClassifierService.onClassifyText(
-        /* sessionId= */ null, request, new CancellationSignal(), textClassificationCallback);
+        createTextClassificationSessionId(),
+        request,
+        new CancellationSignal(),
+        textClassificationCallback);
 
     verify(textClassificationCallback).onFailure(Mockito.anyString());
     verifyApiUsageLog(ApiType.CLASSIFY_TEXT, ResultType.FAIL);
@@ -215,6 +235,16 @@ public class DefaultTextClassifierServiceTest {
     assertThat(loggedEvent.getLatencyMillis()).isGreaterThan(0);
     assertThat(loggedEvent.getApiType()).isEqualTo(expectedApiType);
     assertThat(loggedEvent.getResultType()).isEqualTo(expectedResultApiType);
+    assertThat(loggedEvent.getSessionId()).isEqualTo(SESSION_ID);
+  }
+
+  private static TextClassificationSessionId createTextClassificationSessionId() {
+    // Used a hack to create TextClassificationSessionId because its constructor is @hide.
+    Parcel parcel = Parcel.obtain();
+    parcel.writeString(SESSION_ID);
+    parcel.writeStrongBinder(new Binder());
+    parcel.setDataPosition(0);
+    return TextClassificationSessionId.CREATOR.createFromParcel(parcel);
   }
 
   private static final class TestInjector implements DefaultTextClassifierService.Injector {
