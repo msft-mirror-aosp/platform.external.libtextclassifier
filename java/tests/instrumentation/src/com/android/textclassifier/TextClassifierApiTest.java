@@ -19,6 +19,8 @@ package com.android.textclassifier;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.app.UiAutomation;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.icu.util.ULocale;
 import android.provider.DeviceConfig;
 import android.view.textclassifier.ConversationAction;
@@ -149,6 +151,8 @@ public class TextClassifierApiTest {
   private static class ExtServicesTextClassifierRule extends ExternalResource {
     private static final String CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE =
         "textclassifier_service_package_override";
+    private static final String PKG_NAME_GOOGLE_EXTSERVICES = "com.google.android.ext.services";
+    private static final String PKG_NAME_AOSP_EXTSERVICES = "android.ext.services";
 
     private String textClassifierServiceOverrideFlagOldValue;
 
@@ -165,7 +169,7 @@ public class TextClassifierApiTest {
         DeviceConfig.setProperty(
             DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
             CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
-            "com.google.android.ext.services",
+            getExtServicesPackageName(),
             /* makeDefault= */ false);
       } finally {
         uiAutomation.dropShellPermissionIdentity();
@@ -184,6 +188,17 @@ public class TextClassifierApiTest {
             /* makeDefault= */ false);
       } finally {
         uiAutomation.dropShellPermissionIdentity();
+      }
+    }
+
+    private static String getExtServicesPackageName() {
+      PackageManager packageManager =
+          ApplicationProvider.getApplicationContext().getPackageManager();
+      try {
+        packageManager.getApplicationInfo(PKG_NAME_GOOGLE_EXTSERVICES, /* flags= */ 0);
+        return PKG_NAME_GOOGLE_EXTSERVICES;
+      } catch (NameNotFoundException e) {
+        return PKG_NAME_AOSP_EXTSERVICES;
       }
     }
 
