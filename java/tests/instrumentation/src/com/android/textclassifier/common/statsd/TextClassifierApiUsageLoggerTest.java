@@ -18,6 +18,9 @@ package com.android.textclassifier.common.statsd;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.os.Binder;
+import android.os.Parcel;
+import android.view.textclassifier.TextClassificationSessionId;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
@@ -43,6 +46,8 @@ public class TextClassifierApiUsageLoggerTest {
 
   private static final long SHORT_TIMEOUT_MS = 1000;
 
+  private static final String SESSION_ID = "abcdef";
+
   @Before
   public void setup() throws Exception {
     StatsdTestUtils.cleanup(CONFIG_ID);
@@ -67,7 +72,8 @@ public class TextClassifierApiUsageLoggerTest {
             /* sampleRateSupplier= */ () -> 1, MoreExecutors.directExecutor());
     Session session =
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_SUGGEST_SELECTION);
+            TextClassifierApiUsageLogger.API_TYPE_SUGGEST_SELECTION,
+            createTextClassificationSessionId());
     // so that the latency we log is greater than 0.
     Thread.sleep(10);
     session.reportSuccess();
@@ -85,6 +91,7 @@ public class TextClassifierApiUsageLoggerTest {
     assertThat(event.getApiType()).isEqualTo(ApiType.SUGGEST_SELECTION);
     assertThat(event.getResultType()).isEqualTo(ResultType.SUCCESS);
     assertThat(event.getLatencyMillis()).isGreaterThan(0);
+    assertThat(event.getSessionId()).isEqualTo(SESSION_ID);
   }
 
   @Test
@@ -94,7 +101,8 @@ public class TextClassifierApiUsageLoggerTest {
             /* sampleRateSupplier= */ () -> 1, MoreExecutors.directExecutor());
     Session session =
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT);
+            TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT,
+            createTextClassificationSessionId());
     // so that the latency we log is greater than 0.
     Thread.sleep(10);
     session.reportFailure();
@@ -112,6 +120,7 @@ public class TextClassifierApiUsageLoggerTest {
     assertThat(event.getApiType()).isEqualTo(ApiType.CLASSIFY_TEXT);
     assertThat(event.getResultType()).isEqualTo(ResultType.FAIL);
     assertThat(event.getLatencyMillis()).isGreaterThan(0);
+    assertThat(event.getSessionId()).isEqualTo(SESSION_ID);
   }
 
   @Test
@@ -121,7 +130,8 @@ public class TextClassifierApiUsageLoggerTest {
             /* sampleRateSupplier= */ () -> 0, MoreExecutors.directExecutor());
     Session session =
         textClassifierApiUsageLogger.createSession(
-            TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT);
+            TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT,
+            createTextClassificationSessionId());
     session.reportSuccess();
 
     ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID, SHORT_TIMEOUT_MS);
@@ -133,5 +143,14 @@ public class TextClassifierApiUsageLoggerTest {
                 .collect(Collectors.toList()));
 
     assertThat(loggedEvents).isEmpty();
+  }
+
+  private static TextClassificationSessionId createTextClassificationSessionId() {
+    // Used a hack to create TextClassificationSessionId because its constructor is @hide.
+    Parcel parcel = Parcel.obtain();
+    parcel.writeString(SESSION_ID);
+    parcel.writeStrongBinder(new Binder());
+    parcel.setDataPosition(0);
+    return TextClassificationSessionId.CREATOR.createFromParcel(parcel);
   }
 }
