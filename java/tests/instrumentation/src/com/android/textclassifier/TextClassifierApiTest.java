@@ -99,7 +99,7 @@ public class TextClassifierApiTest {
     assertThat(classification.getEntityCount()).isGreaterThan(0);
     assertThat(classification.getEntity(0)).isEqualTo(TextClassifier.TYPE_EMAIL);
     assertThat(classification.getText()).isEqualTo(classifiedText);
-    assertThat(classification.getActions().size()).isGreaterThan(1);
+    assertThat(classification.getActions()).isNotEmpty();
   }
 
   @Test
