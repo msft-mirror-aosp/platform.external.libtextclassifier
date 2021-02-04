@@ -89,7 +89,7 @@ cc_defaults {
         "-DTC3_UNILIB_JAVAICU",
         "-DTC3_CALENDAR_JAVAICU",
         "-DTC3_AOSP",
-        "-DTC3_VOCAB_ANNOTATOR_DUMMY"
+        "-DTC3_VOCAB_ANNOTATOR_DUMMY",
     ],
 
     product_variables: {
@@ -204,8 +204,6 @@ cc_test {
     ],
 
     compile_multilib: "prefer32",
-
-    sdk_variant_only: true
 }
 
 // ------------------------------------
@@ -216,6 +214,7 @@ cc_test_library {
     defaults: ["libtextclassifier_defaults"],
     srcs: [
         ":libtextclassifier_java_test_sources",
+        "annotator/datetime/testing/*.cc",
         "actions/test-utils.cc",
         "utils/testing/annotator.cc",
         "utils/testing/logging_event_listener.cc",
@@ -250,6 +249,7 @@ android_test {
     ],
     jni_uses_sdk_apis: true,
     data: [
+        "**/*.bfbs",
         "**/test_data/*",
     ],
     test_config: "JavaTest.xml",

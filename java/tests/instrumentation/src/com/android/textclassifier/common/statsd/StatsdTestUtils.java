@@ -46,7 +46,6 @@ import javax.annotation.Nullable;
 /** Util functions to make statsd testing easier by using adb shell cmd stats commands. */
 public class StatsdTestUtils {
   private static final String TAG = "StatsdTestUtils";
-  private static final long LONG_WAIT_MS = 5000;
 
   private StatsdTestUtils() {}
 
@@ -74,9 +73,10 @@ public class StatsdTestUtils {
   /**
    * Extracts logged atoms from the report, sorted by logging time, and deletes the saved report.
    */
-  public static ImmutableList<Atom> getLoggedAtoms(long configId) throws Exception {
+  public static ImmutableList<Atom> getLoggedAtoms(long configId, long timeoutMillis)
+      throws Exception {
     // There is no callback to notify us the log is collected. So we do a wait here.
-    Thread.sleep(LONG_WAIT_MS);
+    Thread.sleep(timeoutMillis);
 
     ConfigMetricsReportList reportList = getAndRemoveReportList(configId);
     assertThat(reportList.getReportsCount()).isEqualTo(1);
