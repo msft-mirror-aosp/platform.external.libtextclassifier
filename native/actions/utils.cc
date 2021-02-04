@@ -77,13 +77,18 @@ UnicodeText NormalizeMatchText(
     const UniLib& unilib,
     const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
     StringPiece match_text) {
-  UnicodeText normalized_match_text =
-      UTF8ToUnicodeText(match_text, /*do_copy=*/false);
-  if (group->normalization_options() != nullptr) {
-    normalized_match_text = NormalizeText(
-        unilib, group->normalization_options(), normalized_match_text);
+  return NormalizeMatchText(unilib, group,
+                            UTF8ToUnicodeText(match_text, /*do_copy=*/false));
+}
+
+UnicodeText NormalizeMatchText(
+    const UniLib& unilib,
+    const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
+    const UnicodeText match_text) {
+  if (group->normalization_options() == nullptr) {
+    return match_text;
   }
-  return normalized_match_text;
+  return NormalizeText(unilib, group->normalization_options(), match_text);
 }
 
 bool FillAnnotationFromCapturingMatch(

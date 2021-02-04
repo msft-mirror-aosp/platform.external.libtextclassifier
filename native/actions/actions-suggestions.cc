@@ -1341,7 +1341,13 @@ ActionsSuggestionsResponse ActionsSuggestions::SuggestActions(
 
   // Check that messages are valid utf8.
   for (const ConversationMessage& message : conversation.messages) {
-    if (!IsValidUTF8(message.text.data(), message.text.size())) {
+    if (message.text.size() > std::numeric_limits<int>::max()) {
+      TC3_LOG(ERROR) << "Rejecting too long input: " << message.text.size();
+      return {};
+    }
+
+    if (!unilib_->IsValidUtf8(UTF8ToUnicodeText(
+            message.text.data(), message.text.size(), /*do_copy=*/false))) {
       TC3_LOG(ERROR) << "Not valid utf8 provided.";
       return response;
     }

@@ -58,6 +58,9 @@ TEST_F(UniLibTest, CharacterClassesAscii) {
   EXPECT_TRUE(unilib_->IsApostrophe(u'ߴ'));
   EXPECT_TRUE(unilib_->IsQuotation(u'"'));
   EXPECT_TRUE(unilib_->IsQuotation(u'”'));
+  EXPECT_TRUE(unilib_->IsAmpersand(u'&'));
+  EXPECT_TRUE(unilib_->IsAmpersand(u'﹠'));
+  EXPECT_TRUE(unilib_->IsAmpersand(u'＆'));
 
   EXPECT_TRUE(unilib_->IsLatinLetter('A'));
   EXPECT_TRUE(unilib_->IsArabicLetter(u'ب'));  // ARABIC LETTER BEH
@@ -360,6 +363,12 @@ TEST_F(UniLibTest, Integer32ParseLongNumber) {
   EXPECT_EQ(result, 1000000000);
 }
 
+TEST_F(UniLibTest, Integer32ParseOverflowNumber) {
+  int32 result;
+  EXPECT_FALSE(unilib_->ParseInt32(
+      UTF8ToUnicodeText("9123456789", /*do_copy=*/false), &result));
+}
+
 TEST_F(UniLibTest, Integer32ParseEmptyString) {
   int result;
   EXPECT_FALSE(
@@ -516,6 +525,23 @@ TEST_F(UniLibTest, DoubleParseNotNumber) {
   // Strings starting with "inf" are not numbers
   EXPECT_FALSE(unilib_->ParseDouble(
       UTF8ToUnicodeText("Information", /*do_copy=*/false), &result));
+}
+
+TEST_F(UniLibTest, Length) {
+  EXPECT_EQ(unilib_->Length(UTF8ToUnicodeText("hello", /*do_copy=*/false))
+                .ValueOrDie(),
+            5);
+  EXPECT_EQ(unilib_->Length(UTF8ToUnicodeText("ěščřž", /*do_copy=*/false))
+                .ValueOrDie(),
+            5);
+  // Test Invalid UTF8.
+  // This testing condition needs to be != 1, as Apple character counting seems
+  // to return 0 when the input is invalid UTF8, while ICU will treat the
+  // invalid codepoint as 3 separate bytes.
+  EXPECT_NE(
+      unilib_->Length(UTF8ToUnicodeText("\xed\xa0\x80", /*do_copy=*/false))
+          .ValueOrDie(),
+      1);
 }
 
 }  // namespace test_internal

@@ -141,7 +141,7 @@ public final class GenerateLinksLogger {
     String annotatorModelName = annotatorModel.transform(ModelInfo::toModelName).or("");
     String langIdModelName = langIdModel.transform(ModelInfo::toModelName).or("");
     TextClassifierStatsLog.write(
-        TextClassifierEventLogger.TEXT_LINKIFY_EVENT_ATOM_ID,
+        TextClassifierStatsLog.TEXT_LINKIFY_EVENT,
         callId,
         TextClassifierEvent.TYPE_LINKS_GENERATED,
         annotatorModelName,
