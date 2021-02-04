@@ -25,6 +25,7 @@
 #include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/mutable.h"
 #include "utils/grammar/rules_generated.h"
+#include "utils/grammar/types.h"
 #include "utils/grammar/utils/rules.h"
 #include "utils/jvm-test-utils.h"
 #include "gmock/gmock.h"
@@ -67,14 +68,6 @@ class GrammarActionsTest : public testing::Test {
     action_grammar_rules->tokenizer_options->type = TokenizationType_ICU;
     action_grammar_rules->tokenizer_options->icu_preserve_whitespace_tokens =
         false;
-  }
-
-  flatbuffers::DetachedBuffer PackRules(
-      const RulesModel_::GrammarRulesT& action_grammar_rules) const {
-    flatbuffers::FlatBufferBuilder builder;
-    builder.Finish(
-        RulesModel_::GrammarRules::Pack(builder, &action_grammar_rules));
-    return builder.Release();
   }
 
   int AddActionSpec(const std::string& type, const std::string& response_text,
@@ -156,19 +149,16 @@ TEST_F(GrammarActionsTest, ProducesSmartReplies) {
   rules.Add(
       "<knock>", {"<^>", "knock", "knock", ".?", "<$>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(
-          GrammarActions::Callback::kActionRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleMatch({AddSmartReplySpec("Who's there?", &action_grammar_rules),
                     AddSmartReplySpec("Yes?", &action_grammar_rules)},
                    &action_grammar_rules));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()));
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get());
 
   std::vector<ActionSuggestion> result;
   EXPECT_TRUE(grammar_actions.SuggestActions(
@@ -186,15 +176,15 @@ TEST_F(GrammarActionsTest, ProducesSmartRepliesFromCapturingMatches) {
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
   grammar::Rules rules;
 
-  rules.Add("<scripted_reply>",
-            {"<^>", "text", "<captured_reply>", "to", "<command>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/
-            AddRuleMatch({AddCapturingMatchSmartReplySpec(
-                             /*match_id=*/0, &action_grammar_rules)},
-                         &action_grammar_rules));
+  rules.Add(
+      "<scripted_reply>",
+      {"<^>", "text", "<captured_reply>", "to", "<command>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/
+      AddRuleMatch({AddCapturingMatchSmartReplySpec(
+                       /*match_id=*/0, &action_grammar_rules)},
+                   &action_grammar_rules));
 
   // <command> ::= unsubscribe | cancel | confirm | receive
   rules.Add("<command>", {"unsubscribe"});
@@ -212,11 +202,9 @@ TEST_F(GrammarActionsTest, ProducesSmartRepliesFromCapturingMatches) {
 
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()));
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get());
 
   {
     std::vector<ActionSuggestion> result;
@@ -248,8 +236,7 @@ TEST_F(GrammarActionsTest, ProducesAnnotationsForActions) {
   rules.Add(
       "<call_phone>", {"please", "dial", "<phone>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(
-          GrammarActions::Callback::kActionRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleMatch({AddActionSpec("call_phone", /*response_text=*/"",
                                   /*annotations=*/{{0 /*value*/, "phone"}},
@@ -262,11 +249,9 @@ TEST_F(GrammarActionsTest, ProducesAnnotationsForActions) {
                         /*value=*/0);
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()));
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get());
 
   std::vector<ActionSuggestion> result;
   EXPECT_TRUE(grammar_actions.SuggestActions(
@@ -289,16 +274,14 @@ TEST_F(GrammarActionsTest, HandlesLocales) {
   rules.Add(
       "<knock>", {"<^>", "knock", "knock", ".?", "<$>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(
-          GrammarActions::Callback::kActionRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleMatch({AddSmartReplySpec("Who's there?", &action_grammar_rules)},
                    &action_grammar_rules));
   rules.Add(
       "<toc>", {"<knock>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(
-          GrammarActions::Callback::kActionRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleMatch({AddSmartReplySpec("Qui est là?", &action_grammar_rules)},
                    &action_grammar_rules),
@@ -312,11 +295,9 @@ TEST_F(GrammarActionsTest, HandlesLocales) {
       new LanguageTagT);
   action_grammar_rules.rules->rules.back()->locale.back()->language = "fr";
 
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()));
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get());
 
   // Check default.
   {
@@ -367,8 +348,7 @@ TEST_F(GrammarActionsTest, HandlesAssertions) {
   rules.Add(
       "<track_flight>", {"<flight>", "<context_assertion>?"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(
-          GrammarActions::Callback::kActionRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleMatch({AddActionSpec("track_flight", /*response_text=*/"",
                                   /*annotations=*/{{0 /*value*/, "flight"}},
@@ -382,11 +362,9 @@ TEST_F(GrammarActionsTest, HandlesAssertions) {
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
 
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()));
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get());
 
   std::vector<ActionSuggestion> result;
   EXPECT_TRUE(grammar_actions.SuggestActions(
@@ -424,20 +402,18 @@ TEST_F(GrammarActionsTest, SetsFixedEntityData) {
   action_grammar_rules.actions[spec_id]->action->entity_data->text =
       "I have the high ground.";
 
-  rules.Add("<greeting>", {"<^>", "hello", "there", "<$>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/
-            AddRuleMatch({spec_id}, &action_grammar_rules));
+  rules.Add(
+      "<greeting>", {"<^>", "hello", "there", "<$>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/
+      AddRuleMatch({spec_id}, &action_grammar_rules));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()),
-      entity_data_builder_.get());
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get(),
+                                     entity_data_builder_.get());
 
   std::vector<ActionSuggestion> result;
   EXPECT_TRUE(grammar_actions.SuggestActions(
@@ -505,20 +481,18 @@ TEST_F(GrammarActionsTest, SetsEntityDataFromCapturingMatches) {
                         /*value=*/location_match_id);
   rules.AddValueMapping("<greeting>", {"hello", "<captured_location>"},
                         /*value=*/greeting_match_id);
-  rules.Add("<test>", {"<^>", "<greeting>", "<$>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/
-            AddRuleMatch({spec_id}, &action_grammar_rules));
+  rules.Add(
+      "<test>", {"<^>", "<greeting>", "<$>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/
+      AddRuleMatch({spec_id}, &action_grammar_rules));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()),
-      entity_data_builder_.get());
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get(),
+                                     entity_data_builder_.get());
 
   std::vector<ActionSuggestion> result;
   EXPECT_TRUE(grammar_actions.SuggestActions(
@@ -563,20 +537,18 @@ TEST_F(GrammarActionsTest, SetsFixedEntityDataFromCapturingGroups) {
 
   rules.AddValueMapping("<greeting>", {"<^>", "hello", "there", "<$>"},
                         /*value=*/0);
-  rules.Add("<test>", {"<greeting>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/
-            AddRuleMatch({spec_id}, &action_grammar_rules));
+  rules.Add(
+      "<test>", {"<greeting>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/
+      AddRuleMatch({spec_id}, &action_grammar_rules));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()),
-      entity_data_builder_.get());
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get(),
+                                     entity_data_builder_.get());
 
   std::vector<ActionSuggestion> result;
   EXPECT_TRUE(grammar_actions.SuggestActions(
@@ -601,17 +573,17 @@ TEST_F(GrammarActionsTest, ProducesActionsWithAnnotations) {
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
   grammar::Rules rules;
-  rules.Add("<call_phone>", {"please", "dial", "<phone>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/
-            AddRuleMatch({AddActionSpec("call_phone", /*response_text=*/"",
-                                        /*annotations=*/
-                                        {{0 /*value*/, "phone",
-                                          /*use_annotation_match=*/true}},
-                                        &action_grammar_rules)},
-                         &action_grammar_rules));
+  rules.Add(
+      "<call_phone>", {"please", "dial", "<phone>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/
+      AddRuleMatch({AddActionSpec("call_phone", /*response_text=*/"",
+                                  /*annotations=*/
+                                  {{0 /*value*/, "phone",
+                                    /*use_annotation_match=*/true}},
+                                  &action_grammar_rules)},
+                   &action_grammar_rules));
   rules.AddValueMapping("<phone>", {"<phone_annotation>"},
                         /*value=*/0);
 
@@ -627,11 +599,9 @@ TEST_F(GrammarActionsTest, ProducesActionsWithAnnotations) {
   action_grammar_rules.rules->nonterminals->annotation_nt.back()->value =
       ir.GetNonterminalForName("<phone_annotation>");
 
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()));
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get());
 
   std::vector<ActionSuggestion> result;
 
@@ -667,25 +637,23 @@ TEST_F(GrammarActionsTest, HandlesExclusions) {
   rules.AddWithExclusion("<tokens_but_not_excluded>", {"<token>", "<token>"},
                          /*excluded_nonterminal=*/"<excluded>");
 
-  rules.Add("<set_reminder>",
-            {"do", "not", "forget", "to", "<tokens_but_not_excluded>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/
-            AddRuleMatch({AddActionSpec("set_reminder", /*response_text=*/"",
-                                        /*annotations=*/
-                                        {}, &action_grammar_rules)},
-                         &action_grammar_rules));
+  rules.Add(
+      "<set_reminder>",
+      {"do", "not", "forget", "to", "<tokens_but_not_excluded>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/
+      AddRuleMatch({AddActionSpec("set_reminder", /*response_text=*/"",
+                                  /*annotations=*/
+                                  {}, &action_grammar_rules)},
+                   &action_grammar_rules));
 
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules.rules.get());
-  flatbuffers::DetachedBuffer serialized_rules =
-      PackRules(action_grammar_rules);
-  TestGrammarActions grammar_actions(
-      unilib_.get(),
-      flatbuffers::GetRoot<RulesModel_::GrammarRules>(serialized_rules.data()),
-      entity_data_builder_.get());
+  OwnedFlatbuffer<RulesModel_::GrammarRules, std::string> model(
+      PackFlatbuffer<RulesModel_::GrammarRules>(&action_grammar_rules));
+  TestGrammarActions grammar_actions(unilib_.get(), model.get(),
+                                     entity_data_builder_.get());
 
   {
     std::vector<ActionSuggestion> result;

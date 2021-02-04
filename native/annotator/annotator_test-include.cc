@@ -22,9 +22,11 @@
 #include <type_traits>
 
 #include "annotator/annotator.h"
+#include "annotator/collections.h"
 #include "annotator/model_generated.h"
 #include "annotator/test-utils.h"
 #include "annotator/types-test-util.h"
+#include "annotator/types.h"
 #include "utils/grammar/utils/rules.h"
 #include "utils/testing/annotator.h"
 #include "lang_id/fb_model/lang-id-from-fb.h"
@@ -42,41 +44,8 @@ using ::testing::UnorderedElementsAreArray;
 
 std::string GetTestModelPath() { return GetModelPath() + "test_model.fb"; }
 
-std::string GetModelWithGrammarPath() {
-  return GetModelPath() + "test_grammar_model.fb";
-}
-
-void FillDatetimeAnnotationOptionsToModel(
-    ModelT* unpacked_model, const DateAnnotationOptions& options) {
-  unpacked_model->grammar_datetime_model->annotation_options.reset(
-      new GrammarDatetimeModel_::AnnotationOptionsT);
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->enable_date_range = options.enable_date_range;
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->include_preposition = options.include_preposition;
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->merge_adjacent_components = options.merge_adjacent_components;
-  unpacked_model->grammar_datetime_model->annotation_options
-      ->enable_special_day_offset = options.enable_special_day_offset;
-  for (const auto& extra_dates_rule_id : options.extra_requested_dates) {
-    unpacked_model->grammar_datetime_model->annotation_options
-        ->extra_requested_dates.push_back(extra_dates_rule_id);
-  }
-}
-
-std::string GetGrammarModel(const DateAnnotationOptions& options) {
-  const std::string test_model = ReadFile(GetModelWithGrammarPath());
-  std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
-  FillDatetimeAnnotationOptionsToModel(unpacked_model.get(), options);
-  flatbuffers::FlatBufferBuilder builder;
-  FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
-  return std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
-                     builder.GetSize());
-}
-
-std::string GetGrammarModel() {
-  DateAnnotationOptions options;
-  return GetGrammarModel(options);
+std::string GetModelWithVocabPath() {
+  return GetModelPath() + "test_vocab_model.fb";
 }
 
 void ExpectFirstEntityIsMoney(const std::vector<AnnotatedSpan>& result,
@@ -150,30 +119,56 @@ TEST_F(AnnotatorTest, ClassifyText) {
   VerifyClassifyText(classifier.get());
 }
 
-TEST_F(AnnotatorTest, ClassifyTextWithGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyText(std::move(classifier.get()));
-}
-
 TEST_F(AnnotatorTest, ClassifyTextLocalesAndDictionary) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
   ASSERT_TRUE(classifier);
 
-  EXPECT_EQ("other", FirstResult(classifier->ClassifyText("isotope", {0, 6})));
+  EXPECT_EQ("other", FirstResult(classifier->ClassifyText("isotope", {0, 7})));
 
   ClassificationOptions classification_options;
   classification_options.detected_text_language_tags = "en";
   EXPECT_EQ("dictionary", FirstResult(classifier->ClassifyText(
-                              "isotope", {0, 6}, classification_options)));
+                              "isotope", {0, 7}, classification_options)));
 
   classification_options.detected_text_language_tags = "uz";
   EXPECT_EQ("other", FirstResult(classifier->ClassifyText(
-                         "isotope", {0, 6}, classification_options)));
+                         "isotope", {0, 7}, classification_options)));
 }
+
+TEST_F(AnnotatorTest, ClassifyTextUseVocabAnnotatorWithoutVocabModel) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+
+  ClassificationOptions classification_options;
+  classification_options.detected_text_language_tags = "en";
+  classification_options.use_vocab_annotator = true;
+
+  EXPECT_EQ("dictionary", FirstResult(classifier->ClassifyText(
+                              "isotope", {0, 7}, classification_options)));
+}
+
+#ifdef TC3_VOCAB_ANNOTATOR_IMPL
+TEST_F(AnnotatorTest, ClassifyTextWithVocabModel) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetModelWithVocabPath(), unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+
+  ClassificationOptions classification_options;
+  classification_options.detected_text_language_tags = "en";
+
+  // The FFModel model does not annotate "integrity" as "dictionary", but the
+  // vocab annotator does. So we can use that to check if the vocab annotator is
+  // in use.
+  classification_options.use_vocab_annotator = true;
+  EXPECT_EQ("dictionary", FirstResult(classifier->ClassifyText(
+                              "integrity", {0, 9}, classification_options)));
+  classification_options.use_vocab_annotator = false;
+  EXPECT_EQ("other", FirstResult(classifier->ClassifyText(
+                         "integrity", {0, 9}, classification_options)));
+}
+#endif  // TC3_VOCAB_ANNOTATOR_IMPL
 
 TEST_F(AnnotatorTest, ClassifyTextDisabledFail) {
   const std::string test_model = ReadFile(GetTestModelPath());
@@ -1296,13 +1291,6 @@ TEST_F(AnnotatorTest, AnnotatesDurationsInRawMode) {
   VerifyAnnotatesDurationsInRawMode(classifier.get());
 }
 
-TEST_F(AnnotatorTest, AnnotatesDurationsInRawModeWithDatetimeGrammar) {
-  const std::string test_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
-  VerifyAnnotatesDurationsInRawMode(classifier.get());
-}
-
 TEST_F(AnnotatorTest, DurationAndRelativeTimeCanOverlapInRawMode) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
@@ -1602,14 +1590,6 @@ TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezone) {
   VerifyClassifyTextDateInZurichTimezone(classifier.get());
 }
 
-TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezoneWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextDateInZurichTimezone(classifier.get());
-}
-
 void VerifyClassifyTextDateInLATimezone(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   ClassificationOptions options;
@@ -1626,14 +1606,6 @@ void VerifyClassifyTextDateInLATimezone(const Annotator* classifier) {
 TEST_F(AnnotatorTest, ClassifyTextDateInLATimezone) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextDateInLATimezone(classifier.get());
-}
-
-TEST_F(AnnotatorTest, ClassifyTextDateInLATimezoneWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
   VerifyClassifyTextDateInLATimezone(classifier.get());
 }
 
@@ -1658,14 +1630,6 @@ TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLine) {
   VerifyClassifyTextDateOnAotherLine(classifier.get());
 }
 
-TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLineWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextDateOnAotherLine(classifier.get());
-}
-
 void VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(
     const Annotator* classifier) {
   EXPECT_TRUE(classifier);
@@ -1685,15 +1649,6 @@ void VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(
 TEST_F(AnnotatorTest, ClassifyTextWhenLocaleUSParsesDateAsMonthDay) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(classifier.get());
-}
-
-TEST_F(AnnotatorTest,
-       ClassifyTextWhenLocaleUSParsesDateAsMonthDayWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
   VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(classifier.get());
 }
 
@@ -1795,7 +1750,7 @@ TEST_F(AnnotatorTest, AnnotatesWithGrammarModel) {
   rules.Add(
       "<famous_person>", {"<tv_detective>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/0 /* rule classification result */);
 
   // Set result.
@@ -1837,10 +1792,11 @@ TEST_F(AnnotatorTest, ResolveConflictsTrivial) {
       {MakeAnnotatedSpan({0, 1}, "phone", 1.0)}};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales,
-                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0}));
 }
@@ -1857,10 +1813,11 @@ TEST_F(AnnotatorTest, ResolveConflictsSequence) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales,
-                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 1, 2, 3, 4}));
 }
@@ -1875,10 +1832,11 @@ TEST_F(AnnotatorTest, ResolveConflictsThreeSpans) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales,
-                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 2}));
 }
@@ -1893,10 +1851,11 @@ TEST_F(AnnotatorTest, ResolveConflictsThreeSpansReversed) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales,
-                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({1}));
 }
@@ -1912,10 +1871,11 @@ TEST_F(AnnotatorTest, DoesNotPrioritizeLongerSpanWhenDoingConflictResolution) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales,
-                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   // Picks the first and the last annotations because they do not overlap.
   EXPECT_THAT(chosen, ElementsAreArray({0, 3}));
@@ -1947,10 +1907,11 @@ TEST_F(AnnotatorTest, PrioritizeLongerSpanWhenDoingConflictResolution) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier->ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                               locales,
-                               AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                               locales, options,
                                /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({2}));
 }
@@ -1967,10 +1928,11 @@ TEST_F(AnnotatorTest, ResolveConflictsFiveSpans) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_SMART;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales,
-                              AnnotationUsecase_ANNOTATION_USECASE_SMART,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 2, 4}));
 }
@@ -1985,9 +1947,11 @@ TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsAllowedKnowledgeFirst) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
 }
@@ -2002,9 +1966,11 @@ TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsAllowedKnowledgeSecond) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
 }
@@ -2020,9 +1986,11 @@ TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsAllowedBothKnowledge) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
 }
@@ -2036,9 +2004,11 @@ TEST_F(AnnotatorTest, ResolveConflictsRawModeOverlapsNotAllowed) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0}));
 }
@@ -2058,9 +2028,11 @@ TEST_F(AnnotatorTest, ResolveConflictsRawModeGeneralOverlapsAllowed) {
   }};
   std::vector<Locale> locales = {Locale::FromBCP47("en")};
 
+  BaseOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
   std::vector<int> chosen;
   classifier.ResolveConflicts(candidates, /*context=*/"", /*cached_tokens=*/{},
-                              locales, AnnotationUsecase_ANNOTATION_USECASE_RAW,
+                              locales, options,
                               /*interpreter_manager=*/nullptr, &chosen);
   EXPECT_THAT(chosen, ElementsAreArray({0, 1}));
 }
@@ -2095,13 +2067,6 @@ void VerifyLongInput(const Annotator* classifier) {
 TEST_F(AnnotatorTest, LongInput) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyLongInput(classifier.get());
-}
-
-TEST_F(AnnotatorTest, LongInputWithDatetimeGrammar) {
-  const std::string test_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
   VerifyLongInput(classifier.get());
 }
 
@@ -2551,15 +2516,6 @@ TEST_F(AnnotatorTest, ClassifyTextOutputsDatetimeEntityData) {
   VerifyClassifyTextOutputsDatetimeEntityData(classifier.get());
 }
 
-TEST_F(AnnotatorTest,
-       ClassifyTextOutputsDatetimeEntityDataWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-  VerifyClassifyTextOutputsDatetimeEntityData(classifier.get());
-}
-
 void VerifyAnnotateOutputsDatetimeEntityData(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   std::vector<AnnotatedSpan> result;
@@ -2609,14 +2565,6 @@ void VerifyAnnotateOutputsDatetimeEntityData(const Annotator* classifier) {
 TEST_F(AnnotatorTest, AnnotateOutputsDatetimeEntityData) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
-  VerifyAnnotateOutputsDatetimeEntityData(classifier.get());
-}
-
-TEST_F(AnnotatorTest, AnnotateOutputsDatetimeEntityDataWithDatetimeGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
   VerifyAnnotateOutputsDatetimeEntityData(classifier.get());
 }
 
@@ -2864,42 +2812,6 @@ void AddDummyRegexDatetimeModel(ModelT* unpacked_model) {
 }
 }  // namespace
 
-TEST_F(AnnotatorTest, WorksWithBothRegexAndGrammarDatetimeAtOnce) {
-  // This creates a model that has both regex and grammar datetime. The regex
-  // one is broken, and only matches strings "THIS_MATCHES_IN_REGEX_MODEL",
-  // so that we can use it for testing that both models are used correctly.
-  const std::string test_model = ReadFile(GetModelWithGrammarPath());
-  std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
-  TC3_CHECK(libtextclassifier3::DecompressModel(unpacked_model.get()));
-  AddDummyRegexDatetimeModel(unpacked_model.get());
-  flatbuffers::FlatBufferBuilder builder;
-  FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
-
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      reinterpret_cast<const char*>(builder.GetBufferPointer()),
-      builder.GetSize(), unilib_.get(), calendarlib_.get());
-
-  ASSERT_TRUE(classifier);
-  EXPECT_THAT(classifier->Annotate("THIS_MATCHES_IN_REGEX_MODEL, and this in "
-                                   "grammars: February 2, 2020"),
-              ElementsAreArray({
-                  // Regex model match
-                  IsAnnotatedSpan(0, 27, "date"),
-                  // Grammar model match
-                  IsAnnotatedSpan(51, 67, "date"),
-              }));
-  EXPECT_EQ(
-      FirstResult(classifier->ClassifyText(
-          "THIS_MATCHES_IN_REGEX_MODEL, and this in grammars: February 2, 2020",
-          {0, 27})),
-      "date");
-  EXPECT_EQ(
-      FirstResult(classifier->ClassifyText(
-          "THIS_MATCHES_IN_REGEX_MODEL, and this in grammars: February 2, 2020",
-          {51, 67})),
-      "date");
-}
-
 TEST_F(AnnotatorTest, AnnotateFiltersOutExactDuplicates) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
@@ -2920,83 +2832,87 @@ TEST_F(AnnotatorTest, AnnotateFiltersOutExactDuplicates) {
   EXPECT_EQ(num_phones, 1);
 }
 
-TEST_F(AnnotatorTest, AnnotateUsingGrammar) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
+// This test tests the optimizations in Annotator, which make some of the
+// annotators not run in the RAW mode when not requested. We test here that the
+// results indeed don't contain such annotations. However, this is a bick hacky,
+// since one could also add post-filtering, in which case these tests would
+// trivially pass.
+TEST_F(AnnotatorTest, RawModeOptimizationWorks) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
   ASSERT_TRUE(classifier);
 
-  const std::string test_string =
-      "& saw Barack Obama today .. 350 Third Street, Cambridge\nand my phone "
-      "number is 853 225 3556";
-  EXPECT_THAT(classifier->Annotate(test_string),
-              ElementsAreArray({
-                  IsAnnotatedSpan(19, 24, "date"),
-                  IsAnnotatedSpan(28, 55, "address"),
-                  IsAnnotatedSpan(79, 91, "phone"),
-              }));
+  AnnotationOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
+  // Requesting a non-existing type to avoid overlap with existing types.
+  options.entity_types.insert("some_unknown_entity_type");
+
+  // Normally, the following command would produce the following annotations:
+  //   Span(19, 24, date, 1.000000),
+  //   Span(53, 56, number, 1.000000),
+  //   Span(53, 80, address, 1.000000),
+  //   Span(128, 142, phone, 1.000000),
+  //   Span(129, 132, number, 1.000000),
+  //   Span(192, 200, phone, 1.000000),
+  //   Span(192, 206, datetime, 1.000000),
+  //   Span(246, 253, number, 1.000000),
+  //   Span(246, 253, phone, 1.000000),
+  //   Span(292, 293, number, 1.000000),
+  //   Span(292, 301, duration, 1.000000) }
+  // But because of the optimizations, it doesn't produce anything, since
+  // we didn't request any of these entities.
+  EXPECT_THAT(classifier->Annotate(R"--(I saw Barack Obama today
+                            350 Third Street, Cambridge
+                            my phone number is (853) 225-3556
+                            this is when we met: 1.9.2021 13:00
+                            my number: 1234567
+                            duration: 3 minutes
+                            )--",
+                                   options),
+              IsEmpty());
 }
 
-TEST_F(AnnotatorTest, AnnotateGrammarPriority) {
-  const std::string grammar_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier =
-      Annotator::FromUnownedBuffer(grammar_model.c_str(), grammar_model.size(),
-                                   unilib_.get(), calendarlib_.get());
-
+TEST_F(AnnotatorTest, AnnotateSupportsPointwiseCollectionFilteringInRawMode) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
   ASSERT_TRUE(classifier);
+  struct Example {
+    std::string collection;
+    std::string text;
+  };
 
-  // "May 8, 2015, 545" have two annotation
-  // 1) {May 8, 2015}, 545 -> Datetime (High Priority Score)
-  // 2) May 8, {2015, 545} -> phone number (Low Priority Score)
-  const std::string test_string =
-      "May 8, 2015, 545, shares Comment Now that Joss Whedon";
-  EXPECT_THAT(classifier->Annotate(test_string),
-              ElementsAreArray({IsAnnotatedSpan(0, 11, "date")}));
-}
+  // These examples contain one example per annotator, to check that each of
+  // the annotators can work in the RAW mode on its own.
+  //
+  // WARNING: This list doesn't contain yet entries for the app, contact, and
+  // person annotators. Hopefully this won't be needed once b/155214735 is
+  // fixed and the piping shared across annotators.
+  std::vector<Example> examples{
+      // ML Model.
+      {.collection = Collections::Address(),
+       .text = "... 350 Third Street, Cambridge ..."},
+      // Datetime annotator.
+      {.collection = Collections::DateTime(), .text = "... 1.9.2020 10:00 ..."},
+      // Duration annotator.
+      {.collection = Collections::Duration(),
+       .text = "... 3 hours and 9 seconds ..."},
+      // Regex annotator.
+      {.collection = Collections::Email(),
+       .text = "... platypus@theanimal.org ..."},
+      // Number annotator.
+      {.collection = Collections::Number(), .text = "... 100 ..."},
+  };
 
-TEST_F(AnnotatorTest, AnnotateGrammarDatetimeRangesDisable) {
-  const std::string test_model = GetGrammarModel();
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
-  ASSERT_TRUE(classifier);
+  for (const Example& example : examples) {
+    AnnotationOptions options;
+    options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
+    options.entity_types.insert(example.collection);
 
-  EXPECT_THAT(classifier->Annotate("11 Jan to 3 Feb"),
-              ElementsAreArray({IsAnnotatedSpan(0, 6, "date"),
-                                IsAnnotatedSpan(10, 15, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("11 - 14 of Feb"),
-              ElementsAreArray({IsAnnotatedSpan(5, 14, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("Monday 10 - 11pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 6, "date"),
-                                IsAnnotatedSpan(12, 16, "datetime")}));
-
-  EXPECT_THAT(classifier->Annotate("7:20am - 8:00pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 6, "datetime"),
-                                IsAnnotatedSpan(9, 15, "datetime")}));
-}
-
-TEST_F(AnnotatorTest, AnnotateGrammarDatetimeRangesEnable) {
-  DateAnnotationOptions options;
-  options.enable_date_range = true;
-  options.merge_adjacent_components = true;
-  const std::string test_model = GetGrammarModel(options);
-  std::unique_ptr<Annotator> classifier = Annotator::FromUnownedBuffer(
-      test_model.c_str(), test_model.size(), unilib_.get(), calendarlib_.get());
-  ASSERT_TRUE(classifier);
-
-  EXPECT_THAT(classifier->Annotate("11 Jan to 3 Feb"),
-              ElementsAreArray({IsAnnotatedSpan(0, 15, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("11 - 14 of Feb"),
-              ElementsAreArray({IsAnnotatedSpan(0, 14, "date")}));
-
-  EXPECT_THAT(classifier->Annotate("Monday 10 - 11pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 16, "datetime")}));
-
-  EXPECT_THAT(classifier->Annotate("7:20am - 8:00pm"),
-              ElementsAreArray({IsAnnotatedSpan(0, 15, "datetime")}));
+    EXPECT_THAT(classifier->Annotate(example.text, options),
+                Contains(IsAnnotationWithType(example.collection)))
+        << " text: '" << example.text
+        << "', collection: " << example.collection;
+  }
 }
 
 TEST_F(AnnotatorTest, InitializeFromString) {
@@ -3006,6 +2922,55 @@ TEST_F(AnnotatorTest, InitializeFromString) {
       Annotator::FromString(test_model, unilib_.get(), calendarlib_.get());
   ASSERT_TRUE(classifier);
   EXPECT_THAT(classifier->Annotate("(857) 225-3556"), Not(IsEmpty()));
+}
+
+// Regression test for cl/338280366. Enabling only_use_line_with_click had
+// the effect, that some annotators in the previous code releases would
+// receive only the last line of the input text. This test has the entity on the
+// first line (duration).
+TEST_F(AnnotatorTest, RegressionTestOnlyUseLineWithClickLastLine) {
+  const std::string test_model = ReadFile(GetTestModelPath());
+  std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
+
+  std::unique_ptr<Annotator> classifier;
+
+  // With unrestricted number of tokens should behave normally.
+  unpacked_model->selection_feature_options->only_use_line_with_click = true;
+
+  flatbuffers::FlatBufferBuilder builder;
+  FinishModelBuffer(builder, Model::Pack(builder, unpacked_model.get()));
+  classifier = Annotator::FromUnownedBuffer(
+      reinterpret_cast<const char*>(builder.GetBufferPointer()),
+      builder.GetSize(), unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+
+  AnnotationOptions options;
+  options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
+
+  const std::vector<AnnotatedSpan> annotations =
+      classifier->Annotate("let's meet in 3 hours\nbut not now", options);
+
+  EXPECT_THAT(annotations, Contains(IsDurationSpan(
+                               /*start=*/14, /*end=*/21,
+                               /*duration_ms=*/3 * 60 * 60 * 1000)));
+}
+
+TEST_F(AnnotatorTest, DoesntProcessInvalidUtf8) {
+  const std::string test_model = ReadFile(GetTestModelPath());
+  const std::string invalid_utf8_text_with_phone_number =
+      "(857) 225-3556 \xed\xa0\x80\xed\xa0\x80\xed\xa0\x80\xed\xa0\x80";
+
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromString(test_model, unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+  EXPECT_THAT(classifier->Annotate(invalid_utf8_text_with_phone_number),
+              IsEmpty());
+  EXPECT_THAT(
+      classifier->SuggestSelection(invalid_utf8_text_with_phone_number, {1, 4}),
+      Eq(CodepointSpan{1, 4}));
+  EXPECT_THAT(
+      classifier->ClassifyText(invalid_utf8_text_with_phone_number, {0, 14}),
+      IsEmpty());
 }
 
 }  // namespace test_internal

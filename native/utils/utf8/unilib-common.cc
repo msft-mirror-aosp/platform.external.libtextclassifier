@@ -407,6 +407,10 @@ constexpr char32 kQuotation[] = {
     0x275E, 0x276E, 0x276F, 0x2E42, 0x301D, 0x301E, 0x301F, 0xFF02};
 constexpr int kNumQuotation = ARRAYSIZE(kQuotation);
 
+// Source: https://unicode-search.net/unicode-namesearch.pl?term=ampersand
+constexpr char32 kAmpersand[] = {0x0026, 0xFE60, 0xFF06, 0x1F674, 0x1F675};
+constexpr int kNumAmpersand = ARRAYSIZE(kAmpersand);
+
 #undef ARRAYSIZE
 
 static_assert(kNumOpeningBrackets == kNumClosingBrackets,
@@ -594,6 +598,10 @@ bool IsApostrophe(char32 codepoint) {
 
 bool IsQuotation(char32 codepoint) {
   return GetMatchIndex(kQuotation, kNumQuotation, codepoint) >= 0;
+}
+
+bool IsAmpersand(char32 codepoint) {
+  return GetMatchIndex(kAmpersand, kNumAmpersand, codepoint) >= 0;
 }
 
 bool IsLatinLetter(char32 codepoint) {
