@@ -43,20 +43,6 @@ genrule {
 }
 
 genrule {
-    name: "libtextclassifier_fbgen_annotator_grammar_dates_timezone-code",
-    srcs: ["annotator/grammar/dates/timezone-code.fbs"],
-    out: ["annotator/grammar/dates/timezone-code_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
-    name: "libtextclassifier_fbgen_annotator_grammar_dates_dates",
-    srcs: ["annotator/grammar/dates/dates.fbs"],
-    out: ["annotator/grammar/dates/dates_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
     name: "libtextclassifier_fbgen_annotator_model",
     srcs: ["annotator/model.fbs"],
     out: ["annotator/model_generated.h"],
@@ -78,6 +64,13 @@ genrule {
 }
 
 genrule {
+    name: "libtextclassifier_fbgen_annotator_datetime_datetime",
+    srcs: ["annotator/datetime/datetime.fbs"],
+    out: ["annotator/datetime/datetime_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
     name: "libtextclassifier_fbgen_annotator_entity-data",
     srcs: ["annotator/entity-data.fbs"],
     out: ["annotator/entity-data_generated.h"],
@@ -85,9 +78,16 @@ genrule {
 }
 
 genrule {
-    name: "libtextclassifier_fbgen_utils_grammar_next_semantics_expression",
-    srcs: ["utils/grammar/next/semantics/expression.fbs"],
-    out: ["utils/grammar/next/semantics/expression_generated.h"],
+    name: "libtextclassifier_fbgen_utils_grammar_testing_value",
+    srcs: ["utils/grammar/testing/value.fbs"],
+    out: ["utils/grammar/testing/value_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
+    name: "libtextclassifier_fbgen_utils_grammar_semantics_expression",
+    srcs: ["utils/grammar/semantics/expression.fbs"],
+    out: ["utils/grammar/semantics/expression_generated.h"],
     defaults: ["fbgen"],
 }
 
@@ -182,13 +182,13 @@ cc_library_headers {
         "libtextclassifier_fbgen_lang_id_common_flatbuffers_embedding-network",
         "libtextclassifier_fbgen_actions_actions_model",
         "libtextclassifier_fbgen_actions_actions-entity-data",
-        "libtextclassifier_fbgen_annotator_grammar_dates_timezone-code",
-        "libtextclassifier_fbgen_annotator_grammar_dates_dates",
         "libtextclassifier_fbgen_annotator_model",
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
+        "libtextclassifier_fbgen_annotator_datetime_datetime",
         "libtextclassifier_fbgen_annotator_entity-data",
-        "libtextclassifier_fbgen_utils_grammar_next_semantics_expression",
+        "libtextclassifier_fbgen_utils_grammar_testing_value",
+        "libtextclassifier_fbgen_utils_grammar_semantics_expression",
         "libtextclassifier_fbgen_utils_grammar_rules",
         "libtextclassifier_fbgen_utils_normalization",
         "libtextclassifier_fbgen_utils_resources",
@@ -206,13 +206,13 @@ cc_library_headers {
         "libtextclassifier_fbgen_lang_id_common_flatbuffers_embedding-network",
         "libtextclassifier_fbgen_actions_actions_model",
         "libtextclassifier_fbgen_actions_actions-entity-data",
-        "libtextclassifier_fbgen_annotator_grammar_dates_timezone-code",
-        "libtextclassifier_fbgen_annotator_grammar_dates_dates",
         "libtextclassifier_fbgen_annotator_model",
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
+        "libtextclassifier_fbgen_annotator_datetime_datetime",
         "libtextclassifier_fbgen_annotator_entity-data",
-        "libtextclassifier_fbgen_utils_grammar_next_semantics_expression",
+        "libtextclassifier_fbgen_utils_grammar_testing_value",
+        "libtextclassifier_fbgen_utils_grammar_semantics_expression",
         "libtextclassifier_fbgen_utils_grammar_rules",
         "libtextclassifier_fbgen_utils_normalization",
         "libtextclassifier_fbgen_utils_resources",

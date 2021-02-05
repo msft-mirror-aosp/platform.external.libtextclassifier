@@ -54,7 +54,7 @@ TEST_F(GrammarAnnotatorTest, AnnotesWithGrammarRules) {
   rules.Add(
       "<flight>", {"<carrier>", "<flight_code>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight", ModeFlag_ALL, 1.0, &grammar_model));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
@@ -90,7 +90,7 @@ TEST_F(GrammarAnnotatorTest, HandlesAssertions) {
   rules.Add(
       "<flight>", {"<carrier>", "<flight_code>", "<context_assertion>?"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight", ModeFlag_ALL, 1.0, &grammar_model));
 
@@ -136,7 +136,7 @@ TEST_F(GrammarAnnotatorTest, HandlesCapturingGroups) {
   rules.Add(
       "<phone>", {"please", "call", "<low_confidence_phone>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/classification_result_id);
 
   rules.Finalize().Serialize(/*include_debug_information=*/false,
@@ -166,7 +166,7 @@ TEST_F(GrammarAnnotatorTest, ClassifiesTextWithGrammarRules) {
   rules.Add(
       "<flight>", {"<carrier>", "<flight_code>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight", ModeFlag_ALL, 1.0, &grammar_model));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
@@ -209,7 +209,7 @@ TEST_F(GrammarAnnotatorTest, ClassifiesTextWithAssertions) {
   rules.Add(
       "<flight>", {"<flight_selection>", "<context_assertion>?"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       classification_result_id);
 
@@ -271,7 +271,7 @@ TEST_F(GrammarAnnotatorTest, ClassifiesTextWithContext) {
       "<parcel_tracking>",
       {"<parcel_tracking_trigger>", "<captured_tracking_number>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       classification_result_id);
 
@@ -315,7 +315,7 @@ TEST_F(GrammarAnnotatorTest, SuggestsTextSelection) {
   rules.Add(
       "<flight>", {"<carrier>", "<flight_code>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight", ModeFlag_ALL, 1.0, &grammar_model));
   rules.Finalize().Serialize(/*include_debug_information=*/false,
@@ -344,7 +344,7 @@ TEST_F(GrammarAnnotatorTest, SetsFixedEntityData) {
   rules.Add(
       "<person>", {"barack", "obama"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/person_result);
 
   // Add test entity data.
@@ -393,7 +393,7 @@ TEST_F(GrammarAnnotatorTest, SetsEntityDataFromCapturingMatches) {
   rules.Add(
       "<test>", {"<captured_person>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/person_result);
 
   // Set capturing group entity data information.
@@ -451,13 +451,13 @@ TEST_F(GrammarAnnotatorTest, RespectsRuleModes) {
   rules.Add(
       "<flight>", {"<annotation_carrier>", "<flight_code>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight", ModeFlag_ALL, 1.0, &grammar_model));
   rules.Add(
       "<flight>", {"<selection_carrier>", "<flight_code>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight",
                                   ModeFlag_CLASSIFICATION_AND_SELECTION, 1.0,
@@ -465,7 +465,7 @@ TEST_F(GrammarAnnotatorTest, RespectsRuleModes) {
   rules.Add(
       "<flight>", {"<classification_carrier>", "<flight_code>"},
       /*callback=*/
-      static_cast<grammar::CallbackId>(GrammarAnnotator::Callback::kRuleMatch),
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
       /*callback_param=*/
       AddRuleClassificationResult("flight", ModeFlag_CLASSIFICATION, 1.0,
                                   &grammar_model));
