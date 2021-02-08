@@ -144,6 +144,11 @@ class MutableFlatbuffer {
   RepeatedField* Repeated(StringPiece field_name);
   RepeatedField* Repeated(const reflection::Field* field);
 
+  // Gets a repeated field specified by path.
+  // Returns nullptr if the field was not found, or the field
+  // type was not a repeated field.
+  RepeatedField* Repeated(const FlatbufferFieldPath* path);
+
   // Serializes the flatbuffer.
   flatbuffers::uoffset_t Serialize(
       flatbuffers::FlatBufferBuilder* builder) const;
@@ -273,10 +278,17 @@ class RepeatedField {
     }
   }
 
+  bool Extend(const flatbuffers::Table* from);
+
   flatbuffers::uoffset_t Serialize(
       flatbuffers::FlatBufferBuilder* builder) const;
 
+  std::string ToTextProto() const;
+
  private:
+  template <typename T>
+  bool AppendFromVector(const flatbuffers::Table* from);
+
   flatbuffers::uoffset_t SerializeString(
       flatbuffers::FlatBufferBuilder* builder) const;
   flatbuffers::uoffset_t SerializeObject(
@@ -314,7 +326,8 @@ bool MutableFlatbuffer::Set(const reflection::Field* field, T value) {
   Variant variant_value(value);
   if (!IsMatchingType<T>(field->type()->base_type())) {
     TC3_LOG(ERROR) << "Type mismatch for field `" << field->name()->str()
-                   << "`, expected: " << field->type()->base_type()
+                   << "`, expected: "
+                   << EnumNameBaseType(field->type()->base_type())
                    << ", got: " << variant_value.GetType();
     return false;
   }
@@ -366,17 +379,47 @@ bool RepeatedField::Add(const T value) {
 }
 
 template <typename T>
-bool MutableFlatbuffer::AppendFromVector(const flatbuffers::Table* from,
-                                         const reflection::Field* field) {
-  const flatbuffers::Vector<T>* from_vector =
-      from->GetPointer<const flatbuffers::Vector<T>*>(field->offset());
-  if (from_vector == nullptr) {
+bool RepeatedField::AppendFromVector(const flatbuffers::Table* from) {
+  const flatbuffers::Vector<T>* values =
+      from->GetPointer<const flatbuffers::Vector<T>*>(field_->offset());
+  if (values == nullptr) {
     return false;
   }
+  for (const T element : *values) {
+    Add(element);
+  }
+  return true;
+}
 
-  RepeatedField* to_repeated = Repeated(field);
-  for (const T element : *from_vector) {
-    to_repeated->Add(element);
+template <>
+inline bool RepeatedField::AppendFromVector<std::string>(
+    const flatbuffers::Table* from) {
+  auto* values = from->GetPointer<
+      const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(
+      field_->offset());
+  if (values == nullptr) {
+    return false;
+  }
+  for (const flatbuffers::String* element : *values) {
+    Add(element->str());
+  }
+  return true;
+}
+
+template <>
+inline bool RepeatedField::AppendFromVector<MutableFlatbuffer>(
+    const flatbuffers::Table* from) {
+  auto* values = from->GetPointer<const flatbuffers::Vector<
+      flatbuffers::Offset<const flatbuffers::Table>>*>(field_->offset());
+  if (values == nullptr) {
+    return false;
+  }
+  for (const flatbuffers::Table* const from_element : *values) {
+    MutableFlatbuffer* to_element = Add();
+    if (to_element == nullptr) {
+      return false;
+    }
+    to_element->MergeFrom(from_element);
   }
   return true;
 }

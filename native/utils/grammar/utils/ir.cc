@@ -192,15 +192,6 @@ Nonterm Ir::AddToSet(const Lhs& lhs, LhsSet* lhs_set) {
       continue;
     }
 
-    // If either callback is a filter, we can't share as we must always run
-    // both filters.
-    if ((lhs.callback.id != kNoCallback &&
-         filters_.find(lhs.callback.id) != filters_.end()) ||
-        (candidate->callback.id != kNoCallback &&
-         filters_.find(candidate->callback.id) != filters_.end())) {
-      continue;
-    }
-
     // If the nonterminal is already defined, it must match for sharing.
     if (lhs.nonterminal != kUnassignedNonterm &&
         lhs.nonterminal != candidate->nonterminal) {
@@ -406,13 +397,6 @@ void Ir::SerializeTerminalRules(
 
 void Ir::Serialize(const bool include_debug_information,
                    RulesSetT* output) const {
-  // Set callback information.
-  for (const CallbackId filter_callback_id : filters_) {
-    output->callback.push_back(RulesSet_::CallbackEntry(
-        filter_callback_id, RulesSet_::Callback(/*is_filter=*/true)));
-  }
-  SortStructsForBinarySearchLookup(&output->callback);
-
   // Add information about predefined nonterminal classes.
   output->nonterminals.reset(new RulesSet_::NonterminalsT);
   output->nonterminals->start_nt = GetNonterminalForName(kStartNonterm);
