@@ -19,6 +19,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <string>
 
 #include "actions/actions_model_generated.h"
 #include "actions/test-utils.h"
@@ -30,6 +31,7 @@
 #include "utils/flatbuffers/mutable.h"
 #include "utils/grammar/utils/rules.h"
 #include "utils/hash/farmhash.h"
+#include "utils/jvm-test-utils.h"
 #include "utils/test-data-test-utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -46,6 +48,8 @@ using ::testing::NotNull;
 using ::testing::SizeIs;
 
 constexpr char kModelFileName[] = "actions_suggestions_test.model";
+constexpr char kModelGrammarFileName[] =
+    "actions_suggestions_grammar_test.model";
 constexpr char kMultiTaskModelFileName[] =
     "actions_suggestions_test.multi_task_9heads.model";
 constexpr char kHashGramModelFileName[] =
@@ -60,28 +64,30 @@ std::string GetModelPath() { return GetTestDataPath("actions/test_data/"); }
 
 class ActionsSuggestionsTest : public testing::Test {
  protected:
-  ActionsSuggestionsTest() : INIT_UNILIB_FOR_TESTING(unilib_) {}
-  std::unique_ptr<ActionsSuggestions> LoadTestModel() {
-    return ActionsSuggestions::FromPath(GetModelPath() + kModelFileName,
-                                        &unilib_);
+  explicit ActionsSuggestionsTest() : unilib_(CreateUniLibForTesting()) {}
+  std::unique_ptr<ActionsSuggestions> LoadTestModel(
+      const std::string model_file_name) {
+    return ActionsSuggestions::FromPath(GetModelPath() + model_file_name,
+                                        unilib_.get());
   }
   std::unique_ptr<ActionsSuggestions> LoadHashGramTestModel() {
     return ActionsSuggestions::FromPath(GetModelPath() + kHashGramModelFileName,
-                                        &unilib_);
+                                        unilib_.get());
   }
   std::unique_ptr<ActionsSuggestions> LoadMultiTaskTestModel() {
     return ActionsSuggestions::FromPath(
-        GetModelPath() + kMultiTaskModelFileName, &unilib_);
+        GetModelPath() + kMultiTaskModelFileName, unilib_.get());
   }
-  UniLib unilib_;
+  std::unique_ptr<UniLib> unilib_;
 };
 
 TEST_F(ActionsSuggestionsTest, InstantiateActionSuggestions) {
-  EXPECT_THAT(LoadTestModel(), NotNull());
+  EXPECT_THAT(LoadTestModel(kModelFileName), NotNull());
 }
 
 TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidInput) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
           {{{/*user_id=*/1, "Where are you?\xf0\x9f",
@@ -91,8 +97,23 @@ TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidInput) {
   EXPECT_THAT(response.actions, IsEmpty());
 }
 
+TEST_F(ActionsSuggestionsTest, ProducesEmptyResponseOnInvalidUtf8) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
+
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1,
+             "(857) 225-3556 \xed\xa0\x80\xed\xa0\x80\xed\xa0\x80\xed\xa0\x80",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{}, /*locales=*/"en"}}});
+  EXPECT_THAT(response.actions, IsEmpty());
+}
+
 TEST_F(ActionsSuggestionsTest, SuggestsActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
           {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
@@ -102,7 +123,8 @@ TEST_F(ActionsSuggestionsTest, SuggestsActions) {
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsNoActionsForUnknownLocale) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
           {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
@@ -112,7 +134,8 @@ TEST_F(ActionsSuggestionsTest, SuggestsNoActionsForUnknownLocale) {
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsFromAnnotations) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan annotation;
   annotation.span = {11, 15};
   annotation.classification = {ClassificationResult("address", 1.0)};
@@ -156,7 +179,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsFromAnnotationsWithEntityData) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   AnnotatedSpan annotation;
   annotation.span = {11, 15};
@@ -213,7 +236,7 @@ TEST_F(ActionsSuggestionsTest,
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   AnnotatedSpan annotation;
   annotation.span = {11, 15};
@@ -239,7 +262,8 @@ TEST_F(ActionsSuggestionsTest,
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsFromDuplicatedAnnotations) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan flight_annotation;
   flight_annotation.span = {11, 15};
   flight_annotation.classification = {ClassificationResult("flight", 2.5)};
@@ -280,7 +304,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsAnnotationsWithNoDeduplication) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
   AnnotatedSpan flight_annotation;
   flight_annotation.span = {11, 15};
   flight_annotation.classification = {ClassificationResult("flight", 2.5)};
@@ -380,7 +404,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithAnnotationsOnlyLastMessage) {
         actions_model->annotation_actions_spec->max_history_from_last_person =
             1;
       },
-      &unilib_);
+      unilib_.get());
   EXPECT_THAT(response.actions, SizeIs(1));
   EXPECT_EQ(response.actions[0].type, "track_flight");
 }
@@ -395,7 +419,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithAnnotationsOnlyLastPerson) {
         actions_model->annotation_actions_spec->max_history_from_last_person =
             3;
       },
-      &unilib_);
+      unilib_.get());
   EXPECT_THAT(response.actions, SizeIs(2));
   EXPECT_EQ(response.actions[0].type, "track_flight");
   EXPECT_EQ(response.actions[1].type, "send_email");
@@ -411,7 +435,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithAnnotationsFromAny) {
         actions_model->annotation_actions_spec->max_history_from_last_person =
             1;
       },
-      &unilib_);
+      unilib_.get());
   EXPECT_THAT(response.actions, SizeIs(2));
   EXPECT_EQ(response.actions[0].type, "track_flight");
   EXPECT_EQ(response.actions[1].type, "send_email");
@@ -428,7 +452,7 @@ TEST_F(ActionsSuggestionsTest,
         actions_model->annotation_actions_spec->max_history_from_last_person =
             1;
       },
-      &unilib_);
+      unilib_.get());
   EXPECT_THAT(response.actions, SizeIs(3));
   EXPECT_EQ(response.actions[0].type, "track_flight");
   EXPECT_EQ(response.actions[1].type, "send_email");
@@ -446,7 +470,7 @@ TEST_F(ActionsSuggestionsTest,
         actions_model->annotation_actions_spec->max_history_from_last_person =
             1;
       },
-      &unilib_);
+      unilib_.get());
   EXPECT_THAT(response.actions, SizeIs(3));
   EXPECT_EQ(response.actions[0].type, "track_flight");
   EXPECT_EQ(response.actions[1].type, "send_email");
@@ -464,7 +488,7 @@ TEST_F(ActionsSuggestionsTest,
         actions_model->annotation_actions_spec->max_history_from_last_person =
             1;
       },
-      &unilib_);
+      unilib_.get());
   EXPECT_THAT(response.actions, SizeIs(4));
   EXPECT_EQ(response.actions[0].type, "track_flight");
   EXPECT_EQ(response.actions[1].type, "send_email");
@@ -503,7 +527,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithTriggeringScore) {
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->min_smart_reply_triggering_score = 1.0;
       },
-      &unilib_,
+      unilib_.get(),
       /*expected_size=*/1 /*no smart reply, only actions*/
   );
 }
@@ -513,7 +537,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithMinReplyScore) {
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->min_reply_score_threshold = 1.0;
       },
-      &unilib_,
+      unilib_.get(),
       /*expected_size=*/1 /*no smart reply, only actions*/
   );
 }
@@ -523,7 +547,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithSensitiveTopicScore) {
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->max_sensitive_topic_score = 0.0;
       },
-      &unilib_,
+      unilib_.get(),
       /*expected_size=*/4 /* no sensitive prediction in test model*/);
 }
 
@@ -532,7 +556,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithMaxInputLength) {
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->max_input_length = 0;
       },
-      &unilib_);
+      unilib_.get());
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsWithMinInputLength) {
@@ -540,7 +564,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithMinInputLength) {
       [](ActionsModelT* actions_model) {
         actions_model->preconditions->min_input_length = 100;
       },
-      &unilib_);
+      unilib_.get());
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsWithPreconditionsOverwrite) {
@@ -551,7 +575,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithPreconditionsOverwrite) {
       TriggeringPreconditions::Pack(builder, &preconditions_overwrite));
   TestSuggestActionsWithThreshold(
       // Keep model untouched.
-      [](ActionsModelT* actions_model) {}, &unilib_,
+      [](ActionsModelT* actions_model) {}, unilib_.get(),
       /*expected_size=*/0,
       std::string(reinterpret_cast<const char*>(builder.GetBufferPointer()),
                   builder.GetSize()));
@@ -568,7 +592,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsLowConfidence) {
         actions_model->low_confidence_rules->regex_rule.back()->pattern =
             "low-ground";
       },
-      &unilib_);
+      unilib_.get());
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsLowConfidenceInputOutput) {
@@ -617,7 +641,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsLowConfidenceInputOutput) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
   ASSERT_TRUE(actions_suggestions);
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
@@ -686,7 +710,7 @@ TEST_F(ActionsSuggestionsTest,
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_, serialize_preconditions);
+          builder.GetSize(), unilib_.get(), serialize_preconditions);
 
   ASSERT_TRUE(actions_suggestions);
   const ActionsSuggestionsResponse response =
@@ -719,7 +743,7 @@ TEST_F(ActionsSuggestionsTest, SuppressActionsFromAnnotationsOnSensitiveTopic) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
   AnnotatedSpan annotation;
   annotation.span = {11, 15};
   annotation.classification = {
@@ -749,7 +773,7 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithLongerConversation) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
   AnnotatedSpan annotation;
   annotation.span = {11, 15};
   annotation.classification = {
@@ -770,8 +794,31 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithLongerConversation) {
   EXPECT_EQ(response.actions[0].score, 1.0);
 }
 
+TEST_F(ActionsSuggestionsTest, SuggestsActionsFromPhoneGrammarAnnotations) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelGrammarFileName);
+  AnnotatedSpan annotation;
+  annotation.span = {11, 15};
+  annotation.classification = {ClassificationResult("phone", 0.0)};
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "Contact us at: *1234",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{annotation},
+             /*locales=*/"en"}}});
+  ASSERT_GE(response.actions.size(), 1);
+  EXPECT_EQ(response.actions.front().type, "call_phone");
+  EXPECT_EQ(response.actions.front().score, 0.0);
+  EXPECT_EQ(response.actions.front().priority_score, 0.0);
+  EXPECT_EQ(response.actions.front().annotations.size(), 1);
+  EXPECT_EQ(response.actions.front().annotations.front().span.span.first, 15);
+  EXPECT_EQ(response.actions.front().annotations.front().span.span.second, 20);
+}
+
 TEST_F(ActionsSuggestionsTest, CreateActionsFromClassificationResult) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan annotation;
   annotation.span = {8, 12};
   annotation.classification = {
@@ -849,7 +896,7 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRules) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
@@ -913,7 +960,7 @@ TEST_F(ActionsSuggestionsTest, CreateActionsFromRulesWithNormalization) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
@@ -963,7 +1010,7 @@ TEST_F(ActionsSuggestionsTest, CreatesTextRepliesFromRules) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
@@ -996,11 +1043,11 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsFromGrammarRules) {
   // Setup test rules.
   action_grammar_rules->rules.reset(new grammar::RulesSetT);
   grammar::Rules rules;
-  rules.Add("<knock>", {"<^>", "ventura", "!?", "<$>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/0);
+  rules.Add(
+      "<knock>", {"<^>", "ventura", "!?", "<$>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/0);
   rules.Finalize().Serialize(/*include_debug_information=*/false,
                              action_grammar_rules->rules.get());
   action_grammar_rules->actions.emplace_back(new RulesModel_::RuleActionSpecT);
@@ -1021,7 +1068,7 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsFromGrammarRules) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
@@ -1036,7 +1083,7 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsFromGrammarRules) {
 #if defined(TC3_UNILIB_ICU) && !defined(TEST_NO_DATETIME)
 TEST_F(ActionsSuggestionsTest, CreatesActionsWithAnnotationsFromGrammarRules) {
   std::unique_ptr<Annotator> annotator =
-      Annotator::FromPath(GetModelPath() + "en.fb", &unilib_);
+      Annotator::FromPath(GetModelPath() + "en.fb", unilib_.get());
   const std::string actions_model_string =
       ReadFile(GetModelPath() + kModelFileName);
   std::unique_ptr<ActionsModelT> actions_model =
@@ -1056,11 +1103,11 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsWithAnnotationsFromGrammarRules) {
   // Setup test rules.
   action_grammar_rules->rules.reset(new grammar::RulesSetT);
   grammar::Rules rules;
-  rules.Add("<event>", {"it", "is", "at", "<time>"},
-            /*callback=*/
-            static_cast<grammar::CallbackId>(
-                GrammarActions::Callback::kActionRuleMatch),
-            /*callback_param=*/0);
+  rules.Add(
+      "<event>", {"it", "is", "at", "<time>"},
+      /*callback=*/
+      static_cast<grammar::CallbackId>(grammar::DefaultCallback::kRootRule),
+      /*callback_param=*/0);
   rules.BindAnnotation("<time>", "time");
   rules.AddAnnotation("datetime");
   rules.Finalize().Serialize(/*include_debug_information=*/false,
@@ -1082,7 +1129,7 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsWithAnnotationsFromGrammarRules) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
       ActionsSuggestions::FromUnownedBuffer(
           reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-          builder.GetSize(), &unilib_);
+          builder.GetSize(), unilib_.get());
 
   const ActionsSuggestionsResponse response =
       actions_suggestions->SuggestActions(
@@ -1097,7 +1144,8 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsWithAnnotationsFromGrammarRules) {
 #endif
 
 TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   ActionsSuggestionsResponse response = actions_suggestions->SuggestActions(
       {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
          /*reference_timezone=*/"Europe/Zurich",
@@ -1139,7 +1187,7 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
                            ActionsModel::Pack(builder, actions_model.get()));
   actions_suggestions = ActionsSuggestions::FromUnownedBuffer(
       reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-      builder.GetSize(), &unilib_);
+      builder.GetSize(), unilib_.get());
 
   response = actions_suggestions->SuggestActions(
       {{{/*user_id=*/1, "Where are you?", /*reference_time_ms_utc=*/0,
@@ -1149,7 +1197,8 @@ TEST_F(ActionsSuggestionsTest, DeduplicateActions) {
 }
 
 TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   AnnotatedSpan annotation;
   annotation.span = {7, 11};
   annotation.classification = {
@@ -1195,7 +1244,7 @@ TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
                            ActionsModel::Pack(builder, actions_model.get()));
   actions_suggestions = ActionsSuggestions::FromUnownedBuffer(
       reinterpret_cast<const uint8_t*>(builder.GetBufferPointer()),
-      builder.GetSize(), &unilib_);
+      builder.GetSize(), unilib_.get());
 
   response = actions_suggestions->SuggestActions(
       {{{/*user_id=*/1, "I'm on LX38",
@@ -1209,7 +1258,8 @@ TEST_F(ActionsSuggestionsTest, DeduplicateConflictingActions) {
 #endif
 
 TEST_F(ActionsSuggestionsTest, RanksActions) {
-  std::unique_ptr<ActionsSuggestions> actions_suggestions = LoadTestModel();
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kModelFileName);
   std::vector<AnnotatedSpan> annotations(2);
   annotations[0].span = {11, 15};
   annotations[0].classification = {ClassificationResult("address", 1.0)};
@@ -1308,15 +1358,15 @@ class TestingMessageEmbedder : private ActionsSuggestions {
     }
   };
 
-  const UniLib unilib_;
+  std::unique_ptr<UniLib> unilib_;
 };
 
 TestingMessageEmbedder::TestingMessageEmbedder(const ActionsModel* model)
-    : INIT_UNILIB_FOR_TESTING(unilib_) {
+    : unilib_(CreateUniLibForTesting()) {
   model_ = model;
   const ActionsTokenFeatureProcessorOptions* options =
       model->feature_processor_options();
-  feature_processor_.reset(new ActionsFeatureProcessor(options, &unilib_));
+  feature_processor_.reset(new ActionsFeatureProcessor(options, unilib_.get()));
   embedding_executor_.reset(new FakeEmbeddingExecutor());
   EXPECT_TRUE(
       EmbedTokenId(options->padding_token_id(), &embedded_padding_token_));

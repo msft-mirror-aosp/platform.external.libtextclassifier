@@ -50,6 +50,11 @@ UnicodeText NormalizeMatchText(
     const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
     StringPiece match_text);
 
+UnicodeText NormalizeMatchText(
+    const UniLib& unilib,
+    const RulesModel_::RuleActionSpec_::RuleCapturingGroup* group,
+    const UnicodeText match_text);
+
 // Fills the fields in an annotation from a capturing match.
 bool FillAnnotationFromCapturingMatch(
     const CodepointSpan& span,
