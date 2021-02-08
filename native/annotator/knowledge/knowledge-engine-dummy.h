@@ -52,12 +52,13 @@ class KnowledgeEngine {
     return true;
   }
 
-  Status ChunkMultipleSpans(const std::vector<std::string>& text_fragments,
-                            AnnotationUsecase annotation_usecase,
-                            const Optional<LocationContext>& location_context,
-                            const Permissions& permissions,
-                            const AnnotateMode annotate_mode,
-                            Annotations* results) const {
+  Status ChunkMultipleSpans(
+      const std::vector<std::string>& text_fragments,
+      const std::vector<FragmentMetadata>& fragment_metadata,
+      AnnotationUsecase annotation_usecase,
+      const Optional<LocationContext>& location_context,
+      const Permissions& permissions, const AnnotateMode annotate_mode,
+      Annotations* results) const {
     return Status::OK;
   }
 
