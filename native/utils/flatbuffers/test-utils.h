@@ -22,9 +22,8 @@
 #include <fstream>
 #include <string>
 
+#include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/flatbuffers_generated.h"
-#include "utils/strings/split.h"
-#include "utils/strings/stringpiece.h"
 #include "utils/test-data-test-utils.h"
 #include "gtest/gtest.h"
 
@@ -38,14 +37,21 @@ inline std::string LoadTestMetadata() {
 }
 
 // Creates a flatbuffer field path from a dot separated field path string.
-inline std::unique_ptr<FlatbufferFieldPathT> CreateFieldPath(
-    const StringPiece path) {
-  std::unique_ptr<FlatbufferFieldPathT> field_path(new FlatbufferFieldPathT);
-  for (const StringPiece field : strings::Split(path, '.')) {
-    field_path->field.emplace_back(new FlatbufferFieldT);
-    field_path->field.back()->field_name = field.ToString();
+inline std::unique_ptr<FlatbufferFieldPathT> CreateUnpackedFieldPath(
+    const std::vector<std::string>& fields) {
+  std::unique_ptr<FlatbufferFieldPathT> path(new FlatbufferFieldPathT);
+  for (const std::string& field : fields) {
+    path->field.emplace_back(new FlatbufferFieldT);
+    path->field.back()->field_name = field;
   }
-  return field_path;
+  return path;
+}
+
+inline OwnedFlatbuffer<FlatbufferFieldPath, std::string> CreateFieldPath(
+    const std::vector<std::string>& fields) {
+  std::unique_ptr<FlatbufferFieldPathT> path = CreateUnpackedFieldPath(fields);
+  return OwnedFlatbuffer<FlatbufferFieldPath, std::string>(
+      PackFlatbuffer<FlatbufferFieldPath>(path.get()));
 }
 
 }  // namespace libtextclassifier3
