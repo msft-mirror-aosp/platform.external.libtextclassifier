@@ -205,6 +205,22 @@ StatusOr<ScopedLocalRef<jobject>> ClassificationResultWithIntentsToJObject(
             env, classification_result.contact_phone_number.c_str()));
   }
 
+  ScopedLocalRef<jstring> contact_account_type;
+  if (!classification_result.contact_account_type.empty()) {
+    TC3_ASSIGN_OR_RETURN(
+        contact_account_type,
+        JniHelper::NewStringUTF(
+            env, classification_result.contact_account_type.c_str()));
+  }
+
+  ScopedLocalRef<jstring> contact_account_name;
+  if (!classification_result.contact_account_name.empty()) {
+    TC3_ASSIGN_OR_RETURN(
+        contact_account_name,
+        JniHelper::NewStringUTF(
+            env, classification_result.contact_account_name.c_str()));
+  }
+
   ScopedLocalRef<jstring> contact_id;
   if (!classification_result.contact_id.empty()) {
     TC3_ASSIGN_OR_RETURN(
@@ -275,7 +291,8 @@ StatusOr<ScopedLocalRef<jobject>> ClassificationResultWithIntentsToJObject(
       row_datetime_parse.get(), serialized_knowledge_result.get(),
       contact_name.get(), contact_given_name.get(), contact_family_name.get(),
       contact_nickname.get(), contact_email_address.get(),
-      contact_phone_number.get(), contact_id.get(), app_name.get(),
+      contact_phone_number.get(), contact_account_type.get(),
+      contact_account_name.get(), contact_id.get(), app_name.get(),
       app_package_name.get(), extras.get(), serialized_entity_data.get(),
       remote_action_templates_result.get(), classification_result.duration_ms,
       classification_result.numeric_value,
@@ -304,13 +321,23 @@ ClassificationResultsWithIntentsToJObjectArray(
       JniHelper::GetMethodID(
           env, result_class.get(), "<init>",
           "(Ljava/lang/String;FL" TC3_PACKAGE_PATH TC3_ANNOTATOR_CLASS_NAME_STR
-          "$DatetimeResult;[BLjava/lang/String;Ljava/lang/String;Ljava/lang/"
-          "String;"
-          "Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/"
-          "String;"
-          "Ljava/lang/String;Ljava/lang/String;[L" TC3_PACKAGE_PATH
-          "" TC3_NAMED_VARIANT_CLASS_NAME_STR ";[B[L" TC3_PACKAGE_PATH
-          "" TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";JJD)V"));
+          "$DatetimeResult;"
+          "[B"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "Ljava/lang/String;"
+          "[L" TC3_PACKAGE_PATH "" TC3_NAMED_VARIANT_CLASS_NAME_STR ";"
+          "[B"
+          "[L" TC3_PACKAGE_PATH "" TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR ";"
+          "JJD)V"));
   TC3_ASSIGN_OR_RETURN(const jmethodID datetime_parse_class_constructor,
                        JniHelper::GetMethodID(env, datetime_parse_class.get(),
                                               "<init>", "(JI)V"));
