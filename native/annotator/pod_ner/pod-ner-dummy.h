@@ -40,8 +40,8 @@ class PodNerAnnotator {
     return true;
   }
 
-  AnnotatedSpan SuggestSelection(const UnicodeText &context,
-                                 CodepointSpan click) const {
+  bool SuggestSelection(const UnicodeText &context, CodepointSpan click,
+                        AnnotatedSpan *result) const {
     return {};
   }
 
@@ -49,6 +49,8 @@ class PodNerAnnotator {
                     ClassificationResult *result) const {
     return false;
   }
+
+  std::vector<std::string> GetSupportedCollections() const { return {}; }
 };
 
 }  // namespace libtextclassifier3
