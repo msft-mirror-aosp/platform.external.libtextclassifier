@@ -342,6 +342,8 @@ public final class AnnotatorModel implements AutoCloseable {
     @Nullable private final String contactNickname;
     @Nullable private final String contactEmailAddress;
     @Nullable private final String contactPhoneNumber;
+    @Nullable private final String contactAccountType;
+    @Nullable private final String contactAccountName;
     @Nullable private final String contactId;
     @Nullable private final String appName;
     @Nullable private final String appPackageName;
@@ -363,6 +365,8 @@ public final class AnnotatorModel implements AutoCloseable {
         @Nullable String contactNickname,
         @Nullable String contactEmailAddress,
         @Nullable String contactPhoneNumber,
+        @Nullable String contactAccountType,
+        @Nullable String contactAccountName,
         @Nullable String contactId,
         @Nullable String appName,
         @Nullable String appPackageName,
@@ -382,6 +386,8 @@ public final class AnnotatorModel implements AutoCloseable {
       this.contactNickname = contactNickname;
       this.contactEmailAddress = contactEmailAddress;
       this.contactPhoneNumber = contactPhoneNumber;
+      this.contactAccountType = contactAccountType;
+      this.contactAccountName = contactAccountName;
       this.contactId = contactId;
       this.appName = appName;
       this.appPackageName = appPackageName;
@@ -441,6 +447,16 @@ public final class AnnotatorModel implements AutoCloseable {
     @Nullable
     public String getContactPhoneNumber() {
       return contactPhoneNumber;
+    }
+
+    @Nullable
+    public String getContactAccountType() {
+      return contactAccountType;
+    }
+
+    @Nullable
+    public String getContactAccountName() {
+      return contactAccountName;
     }
 
     @Nullable
@@ -550,20 +566,38 @@ public final class AnnotatorModel implements AutoCloseable {
     public InputFragment(String text) {
       this.text = text;
       this.datetimeOptionsNullable = null;
+      this.boundingBoxTop = 0;
+      this.boundingBoxHeight = 0;
     }
 
-    public InputFragment(String text, DatetimeOptions datetimeOptions) {
+    public InputFragment(
+        String text,
+        DatetimeOptions datetimeOptions,
+        float boundingBoxTop,
+        float boundingBoxHeight) {
       this.text = text;
       this.datetimeOptionsNullable = datetimeOptions;
+      this.boundingBoxTop = boundingBoxTop;
+      this.boundingBoxHeight = boundingBoxHeight;
     }
 
     private final String text;
     // The DatetimeOptions can't be Optional because the _api16 build of the TCLib SDK does not
     // support java.util.Optional.
     private final DatetimeOptions datetimeOptionsNullable;
+    private final float boundingBoxTop;
+    private final float boundingBoxHeight;
 
     public String getText() {
       return text;
+    }
+
+    public float getBoundingBoxTop() {
+      return boundingBoxTop;
+    }
+
+    public float getBoundingBoxHeight() {
+      return boundingBoxHeight;
     }
 
     public boolean hasDatetimeOptions() {
@@ -588,6 +622,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final double userLocationLng;
     private final float userLocationAccuracyMeters;
     private final boolean usePodNer;
+    private final boolean useVocabAnnotator;
 
     private SelectionOptions(
         @Nullable String locales,
@@ -596,7 +631,8 @@ public final class AnnotatorModel implements AutoCloseable {
         double userLocationLat,
         double userLocationLng,
         float userLocationAccuracyMeters,
-        boolean usePodNer) {
+        boolean usePodNer,
+        boolean useVocabAnnotator) {
       this.locales = locales;
       this.detectedTextLanguageTags = detectedTextLanguageTags;
       this.annotationUsecase = annotationUsecase;
@@ -604,6 +640,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.userLocationLng = userLocationLng;
       this.userLocationAccuracyMeters = userLocationAccuracyMeters;
       this.usePodNer = usePodNer;
+      this.useVocabAnnotator = useVocabAnnotator;
     }
 
     /** Can be used to build a SelectionsOptions instance. */
@@ -615,6 +652,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private double userLocationLng = INVALID_LONGITUDE;
       private float userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
       private boolean usePodNer = true;
+      private boolean useVocabAnnotator = true;
 
       public Builder setLocales(@Nullable String locales) {
         this.locales = locales;
@@ -651,6 +689,11 @@ public final class AnnotatorModel implements AutoCloseable {
         return this;
       }
 
+      public Builder setUseVocabAnnotator(boolean useVocabAnnotator) {
+        this.useVocabAnnotator = useVocabAnnotator;
+        return this;
+      }
+
       public SelectionOptions build() {
         return new SelectionOptions(
             locales,
@@ -659,7 +702,8 @@ public final class AnnotatorModel implements AutoCloseable {
             userLocationLat,
             userLocationLng,
             userLocationAccuracyMeters,
-            usePodNer);
+            usePodNer,
+            useVocabAnnotator);
       }
     }
 
@@ -697,6 +741,10 @@ public final class AnnotatorModel implements AutoCloseable {
     public boolean getUsePodNer() {
       return usePodNer;
     }
+
+    public boolean getUseVocabAnnotator() {
+      return useVocabAnnotator;
+    }
   }
 
   /** Represents options for the classifyText call. */
@@ -712,6 +760,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final String userFamiliarLanguageTags;
     private final boolean usePodNer;
     private final boolean triggerDictionaryOnBeginnerWords;
+    private final boolean useVocabAnnotator;
 
     private ClassificationOptions(
         long referenceTimeMsUtc,
@@ -724,7 +773,8 @@ public final class AnnotatorModel implements AutoCloseable {
         float userLocationAccuracyMeters,
         String userFamiliarLanguageTags,
         boolean usePodNer,
-        boolean triggerDictionaryOnBeginnerWords) {
+        boolean triggerDictionaryOnBeginnerWords,
+        boolean useVocabAnnotator) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
       this.locales = locales;
@@ -736,6 +786,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.userFamiliarLanguageTags = userFamiliarLanguageTags;
       this.usePodNer = usePodNer;
       this.triggerDictionaryOnBeginnerWords = triggerDictionaryOnBeginnerWords;
+      this.useVocabAnnotator = useVocabAnnotator;
     }
 
     /** Can be used to build a ClassificationOptions instance. */
@@ -751,6 +802,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private String userFamiliarLanguageTags = "";
       private boolean usePodNer = true;
       private boolean triggerDictionaryOnBeginnerWords = false;
+      private boolean useVocabAnnotator = true;
 
       public Builder setReferenceTimeMsUtc(long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;
@@ -808,6 +860,11 @@ public final class AnnotatorModel implements AutoCloseable {
         return this;
       }
 
+      public Builder setUseVocabAnnotator(boolean useVocabAnnotator) {
+        this.useVocabAnnotator = useVocabAnnotator;
+        return this;
+      }
+
       public ClassificationOptions build() {
         return new ClassificationOptions(
             referenceTimeMsUtc,
@@ -820,7 +877,8 @@ public final class AnnotatorModel implements AutoCloseable {
             userLocationAccuracyMeters,
             userFamiliarLanguageTags,
             usePodNer,
-            triggerDictionaryOnBeginnerWords);
+            triggerDictionaryOnBeginnerWords,
+            useVocabAnnotator);
       }
     }
 
@@ -874,6 +932,10 @@ public final class AnnotatorModel implements AutoCloseable {
     public boolean getTriggerDictionaryOnBeginnerWords() {
       return triggerDictionaryOnBeginnerWords;
     }
+
+    public boolean getUseVocabAnnotator() {
+      return useVocabAnnotator;
+    }
   }
 
   /** Represents options for the annotate call. */
@@ -893,6 +955,7 @@ public final class AnnotatorModel implements AutoCloseable {
     private final float userLocationAccuracyMeters;
     private final boolean usePodNer;
     private final boolean triggerDictionaryOnBeginnerWords;
+    private final boolean useVocabAnnotator;
 
     private AnnotationOptions(
         long referenceTimeMsUtc,
@@ -909,7 +972,8 @@ public final class AnnotatorModel implements AutoCloseable {
         double userLocationLng,
         float userLocationAccuracyMeters,
         boolean usePodNer,
-        boolean triggerDictionaryOnBeginnerWords) {
+        boolean triggerDictionaryOnBeginnerWords,
+        boolean useVocabAnnotator) {
       this.referenceTimeMsUtc = referenceTimeMsUtc;
       this.referenceTimezone = referenceTimezone;
       this.locales = locales;
@@ -925,6 +989,7 @@ public final class AnnotatorModel implements AutoCloseable {
       this.hasPersonalizationPermission = hasPersonalizationPermission;
       this.usePodNer = usePodNer;
       this.triggerDictionaryOnBeginnerWords = triggerDictionaryOnBeginnerWords;
+      this.useVocabAnnotator = useVocabAnnotator;
     }
 
     /** Can be used to build an AnnotationOptions instance. */
@@ -944,6 +1009,7 @@ public final class AnnotatorModel implements AutoCloseable {
       private float userLocationAccuracyMeters = INVALID_LOCATION_ACCURACY_METERS;
       private boolean usePodNer = true;
       private boolean triggerDictionaryOnBeginnerWords = false;
+      private boolean useVocabAnnotator = true;
 
       public Builder setReferenceTimeMsUtc(long referenceTimeMsUtc) {
         this.referenceTimeMsUtc = referenceTimeMsUtc;
@@ -1020,6 +1086,11 @@ public final class AnnotatorModel implements AutoCloseable {
         return this;
       }
 
+      public Builder setUseVocabAnnotator(boolean useVocabAnnotator) {
+        this.useVocabAnnotator = useVocabAnnotator;
+        return this;
+      }
+
       public AnnotationOptions build() {
         return new AnnotationOptions(
             referenceTimeMsUtc,
@@ -1036,7 +1107,8 @@ public final class AnnotatorModel implements AutoCloseable {
             userLocationLng,
             userLocationAccuracyMeters,
             usePodNer,
-            triggerDictionaryOnBeginnerWords);
+            triggerDictionaryOnBeginnerWords,
+            useVocabAnnotator);
       }
     }
 
@@ -1105,6 +1177,10 @@ public final class AnnotatorModel implements AutoCloseable {
 
     public boolean getTriggerDictionaryOnBeginnerWords() {
       return triggerDictionaryOnBeginnerWords;
+    }
+
+    public boolean getUseVocabAnnotator() {
+      return useVocabAnnotator;
     }
   }
 

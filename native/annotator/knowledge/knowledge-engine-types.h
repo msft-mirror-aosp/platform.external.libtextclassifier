@@ -21,6 +21,11 @@ namespace libtextclassifier3 {
 
 enum AnnotateMode { kEntityAnnotation, kEntityAndTopicalityAnnotation };
 
+struct FragmentMetadata {
+  float relative_bounding_box_top;
+  float relative_bounding_box_height;
+};
+
 }  // namespace libtextclassifier3
 
 #endif  // LIBTEXTCLASSIFIER_ANNOTATOR_KNOWLEDGE_KNOWLEDGE_ENGINE_TYPES_H_
