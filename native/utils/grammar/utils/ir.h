@@ -96,9 +96,8 @@ class Ir {
     std::unordered_map<TwoNonterms, LhsSet, BinaryRuleHasher> binary_rules;
   };
 
-  explicit Ir(const std::unordered_set<CallbackId>& filters = {},
-              const int num_shards = 1)
-      : num_nonterminals_(0), filters_(filters), shards_(num_shards) {}
+  explicit Ir(const int num_shards = 1)
+      : num_nonterminals_(0), shards_(num_shards) {}
 
   // Adds a new non-terminal.
   Nonterm AddNonterminal(const std::string& name = "") {
@@ -224,9 +223,6 @@ class Ir {
   // The defined non-terminals.
   Nonterm num_nonterminals_;
   std::unordered_set<Nonterm> nonshareable_;
-
-  // The set of callbacks that should be treated as filters.
-  std::unordered_set<CallbackId> filters_;
 
   // The sharded rules.
   std::vector<RulesShard> shards_;
