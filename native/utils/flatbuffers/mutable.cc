@@ -295,6 +295,15 @@ RepeatedField* MutableFlatbuffer::Repeated(const reflection::Field* field) {
   return it->second.get();
 }
 
+RepeatedField* MutableFlatbuffer::Repeated(const FlatbufferFieldPath* path) {
+  MutableFlatbuffer* parent;
+  const reflection::Field* field;
+  if (!GetFieldWithParent(path, &parent, &field)) {
+    return nullptr;
+  }
+  return parent->Repeated(field);
+}
+
 flatbuffers::uoffset_t MutableFlatbuffer::Serialize(
     flatbuffers::FlatBufferBuilder* builder) const {
   // Build all children before we can start with this table.
@@ -391,43 +400,6 @@ std::string MutableFlatbuffer::Serialize() const {
                      builder.GetSize());
 }
 
-template <>
-bool MutableFlatbuffer::AppendFromVector<std::string>(
-    const flatbuffers::Table* from, const reflection::Field* field) {
-  auto* from_vector = from->GetPointer<
-      const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>*>(
-      field->offset());
-  if (from_vector == nullptr) {
-    return false;
-  }
-
-  RepeatedField* to_repeated = Repeated(field);
-  for (const flatbuffers::String* element : *from_vector) {
-    to_repeated->Add(element->str());
-  }
-  return true;
-}
-
-template <>
-bool MutableFlatbuffer::AppendFromVector<MutableFlatbuffer>(
-    const flatbuffers::Table* from, const reflection::Field* field) {
-  auto* from_vector = from->GetPointer<const flatbuffers::Vector<
-      flatbuffers::Offset<const flatbuffers::Table>>*>(field->offset());
-  if (from_vector == nullptr) {
-    return false;
-  }
-
-  RepeatedField* to_repeated = Repeated(field);
-  for (const flatbuffers::Table* const from_element : *from_vector) {
-    MutableFlatbuffer* to_element = to_repeated->Add();
-    if (to_element == nullptr) {
-      return false;
-    }
-    to_element->MergeFrom(from_element);
-  }
-  return true;
-}
-
 bool MutableFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
   // No fields to set.
   if (type_->fields() == nullptr) {
@@ -491,46 +463,13 @@ bool MutableFlatbuffer::MergeFrom(const flatbuffers::Table* from) {
           return false;
         }
         break;
-      case reflection::Vector:
-        switch (field->type()->element()) {
-          case reflection::Int:
-            AppendFromVector<int32>(from, field);
-            break;
-          case reflection::UInt:
-            AppendFromVector<uint>(from, field);
-            break;
-          case reflection::Long:
-            AppendFromVector<int64>(from, field);
-            break;
-          case reflection::ULong:
-            AppendFromVector<uint64>(from, field);
-            break;
-          case reflection::Byte:
-            AppendFromVector<int8_t>(from, field);
-            break;
-          case reflection::UByte:
-            AppendFromVector<uint8_t>(from, field);
-            break;
-          case reflection::String:
-            AppendFromVector<std::string>(from, field);
-            break;
-          case reflection::Obj:
-            AppendFromVector<MutableFlatbuffer>(from, field);
-            break;
-          case reflection::Double:
-            AppendFromVector<double>(from, field);
-            break;
-          case reflection::Float:
-            AppendFromVector<float>(from, field);
-            break;
-          default:
-            TC3_LOG(ERROR) << "Repeated unsupported type: "
-                           << field->type()->element()
-                           << " for field: " << field->name()->str();
-            return false;
-            break;
+      case reflection::Vector: {
+        if (RepeatedField* repeated_field = Repeated(field);
+            repeated_field == nullptr || !repeated_field->Extend(from)) {
+          return false;
         }
         break;
+      }
       default:
         TC3_LOG(ERROR) << "Unsupported type: " << type
                        << " for field: " << field->name()->str();
@@ -561,6 +500,22 @@ void MutableFlatbuffer::AsFlatMap(
   }
 }
 
+std::string RepeatedField::ToTextProto() const {
+  std::string result = " [";
+  std::string current_field_separator;
+  for (int index = 0; index < Size(); index++) {
+    if (is_primitive_) {
+      result.append(current_field_separator + items_.at(index).ToString());
+    } else {
+      result.append(current_field_separator + "{" +
+                    Get<MutableFlatbuffer*>(index)->ToTextProto() + "}");
+    }
+    current_field_separator = ", ";
+  }
+  result.append("] ");
+  return result;
+}
+
 std::string MutableFlatbuffer::ToTextProto() const {
   std::string result;
   std::string current_field_separator;
@@ -574,6 +529,14 @@ std::string MutableFlatbuffer::ToTextProto() const {
     }
     result.append(current_field_separator + field_name + ": " + quotes +
                   value.ToString() + quotes);
+    current_field_separator = ", ";
+  }
+
+  // Add repeated message
+  for (const auto& repeated_fb_pair : repeated_fields_) {
+    result.append(current_field_separator +
+                  repeated_fb_pair.first->name()->c_str() + ": " +
+                  repeated_fb_pair.second->ToTextProto());
     current_field_separator = ", ";
   }
 
@@ -617,6 +580,46 @@ flatbuffers::uoffset_t TypedSerialize(const std::vector<Variant>& values,
 }
 
 }  // namespace
+
+bool RepeatedField::Extend(const flatbuffers::Table* from) {
+  switch (field_->type()->element()) {
+    case reflection::Int:
+      AppendFromVector<int32>(from);
+      return true;
+    case reflection::UInt:
+      AppendFromVector<uint>(from);
+      return true;
+    case reflection::Long:
+      AppendFromVector<int64>(from);
+      return true;
+    case reflection::ULong:
+      AppendFromVector<uint64>(from);
+      return true;
+    case reflection::Byte:
+      AppendFromVector<int8_t>(from);
+      return true;
+    case reflection::UByte:
+      AppendFromVector<uint8_t>(from);
+      return true;
+    case reflection::String:
+      AppendFromVector<std::string>(from);
+      return true;
+    case reflection::Obj:
+      AppendFromVector<MutableFlatbuffer>(from);
+      return true;
+    case reflection::Double:
+      AppendFromVector<double>(from);
+      return true;
+    case reflection::Float:
+      AppendFromVector<float>(from);
+      return true;
+    default:
+      TC3_LOG(ERROR) << "Repeated unsupported type: "
+                     << field_->type()->element()
+                     << " for field: " << field_->name()->str();
+      return false;
+  }
+}
 
 flatbuffers::uoffset_t RepeatedField::Serialize(
     flatbuffers::FlatBufferBuilder* builder) const {

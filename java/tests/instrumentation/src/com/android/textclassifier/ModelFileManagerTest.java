@@ -16,29 +16,31 @@
 
 package com.android.textclassifier;
 
+import static com.android.textclassifier.ModelFileManager.ModelFile.LANGUAGE_INDEPENDENT;
 import static com.google.common.truth.Truth.assertThat;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
 
 import android.os.LocaleList;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.ModelFileManager.ModelFile;
+import com.android.textclassifier.ModelFileManager.ModelType;
+import com.android.textclassifier.ModelFileManager.ModelType.ModelTypeDef;
+import com.android.textclassifier.ModelFileManager.RegularFileFullMatchLister;
+import com.android.textclassifier.ModelFileManager.RegularFilePatternMatchLister;
 import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
+import com.android.textclassifier.testing.SetDefaultLocalesRule;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.io.Files;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -51,22 +53,16 @@ public final class ModelFileManagerTest {
   private static final String URL = "http://www.gstatic.com/android/text_classifier/q/711/en.fb";
   private static final String URL_2 = "http://www.gstatic.com/android/text_classifier/q/712/en.fb";
 
-  @ModelFile.ModelType.ModelTypeDef
-  private static final String MODEL_TYPE = ModelFile.ModelType.ANNOTATOR;
+  @ModelTypeDef private static final String MODEL_TYPE = ModelType.ANNOTATOR;
 
-  @ModelFile.ModelType.ModelTypeDef
-  private static final String MODEL_TYPE_2 = ModelFile.ModelType.LANG_ID;
+  @ModelTypeDef private static final String MODEL_TYPE_2 = ModelType.LANG_ID;
 
-  @Mock private Supplier<ImmutableList<ModelFile>> modelFileSupplier;
   @Mock private TextClassifierSettings.IDeviceConfig mockDeviceConfig;
 
-  private File rootTestDir;
-  private File factoryModelDir;
-  private File configUpdaterModelFile;
-  private File downloaderModelDir;
+  @Rule public final SetDefaultLocalesRule setDefaultLocalesRule = new SetDefaultLocalesRule();
 
+  private File rootTestDir;
   private ModelFileManager modelFileManager;
-  private ModelFileManager.ModelFileSupplierImpl modelFileSupplierImpl;
 
   @Before
   public void setup() {
@@ -74,28 +70,11 @@ public final class ModelFileManagerTest {
 
     rootTestDir =
         new File(ApplicationProvider.getApplicationContext().getCacheDir(), "rootTestDir");
-    factoryModelDir = new File(rootTestDir, "factory");
-    configUpdaterModelFile = new File(rootTestDir, "configupdater.model");
-    downloaderModelDir = new File(rootTestDir, "downloader");
-
-    modelFileManager =
-        new ModelFileManager(downloaderModelDir, ImmutableMap.of(MODEL_TYPE, modelFileSupplier));
-    modelFileSupplierImpl =
-        new ModelFileManager.ModelFileSupplierImpl(
-            new TextClassifierSettings(mockDeviceConfig),
-            MODEL_TYPE,
-            factoryModelDir,
-            "test\\d.model",
-            configUpdaterModelFile,
-            downloaderModelDir,
-            fd -> 1,
-            fd -> ModelFileManager.ModelFile.LANGUAGE_INDEPENDENT);
-
     rootTestDir.mkdirs();
-    factoryModelDir.mkdirs();
-    downloaderModelDir.mkdirs();
-
-    Locale.setDefault(DEFAULT_LOCALE);
+    modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            new TextClassifierSettings(mockDeviceConfig));
   }
 
   @After
@@ -104,100 +83,106 @@ public final class ModelFileManagerTest {
   }
 
   @Test
-  public void get() {
-    ModelFileManager.ModelFile modelFile =
-        new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 1, ImmutableList.of(), "", true);
-    when(modelFileSupplier.get()).thenReturn(ImmutableList.of(modelFile));
+  public void annotatorModelPreloaded() {
+    verifyModelPreloadedAsAsset(ModelType.ANNOTATOR, "textclassifier/annotator.universal.model");
+  }
 
-    List<ModelFileManager.ModelFile> modelFiles = modelFileManager.listModelFiles(MODEL_TYPE);
+  @Test
+  public void actionsModelPreloaded() {
+    verifyModelPreloadedAsAsset(
+        ModelType.ACTIONS_SUGGESTIONS, "textclassifier/actions_suggestions.universal.model");
+  }
 
-    assertThat(modelFiles).hasSize(1);
-    assertThat(modelFiles.get(0)).isEqualTo(modelFile);
+  @Test
+  public void langIdModelPreloaded() {
+    verifyModelPreloadedAsAsset(ModelType.LANG_ID, "textclassifier/lang_id.model");
+  }
+
+  private void verifyModelPreloadedAsAsset(
+      @ModelTypeDef String modelType, String expectedModelPath) {
+    List<ModelFileManager.ModelFile> modelFiles = modelFileManager.listModelFiles(modelType);
+    List<ModelFile> assetFiles =
+        modelFiles.stream().filter(modelFile -> modelFile.isAsset).collect(Collectors.toList());
+
+    assertThat(assetFiles).hasSize(1);
+    assertThat(assetFiles.get(0).absolutePath).isEqualTo(expectedModelPath);
   }
 
   @Test
   public void findBestModel_versionCode() {
     ModelFileManager.ModelFile olderModelFile =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 1, ImmutableList.of(), "", true);
-
+            MODEL_TYPE,
+            new File(rootTestDir, "a").getAbsolutePath(),
+            /* version= */ 1,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
     ModelFileManager.ModelFile newerModelFile =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/b"), 2, ImmutableList.of(), "", true);
-    when(modelFileSupplier.get()).thenReturn(ImmutableList.of(olderModelFile, newerModelFile));
+            MODEL_TYPE,
+            new File(rootTestDir, "b").getAbsolutePath(),
+            /* version= */ 2,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(modelType -> ImmutableList.of(olderModelFile, newerModelFile)));
 
-    ModelFileManager.ModelFile bestModelFile =
-        modelFileManager.findBestModelFile(MODEL_TYPE, LocaleList.getEmptyLocaleList());
-
+    ModelFile bestModelFile = modelFileManager.findBestModelFile(MODEL_TYPE, null);
     assertThat(bestModelFile).isEqualTo(newerModelFile);
   }
 
   @Test
   public void findBestModel_languageDependentModelIsPreferred() {
-    Locale locale = Locale.forLanguageTag("ja");
     ModelFileManager.ModelFile languageIndependentModelFile =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 1, ImmutableList.of(), "", true);
-
+            MODEL_TYPE,
+            new File(rootTestDir, "a").getAbsolutePath(),
+            /* version= */ 1,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
     ModelFileManager.ModelFile languageDependentModelFile =
         new ModelFileManager.ModelFile(
             MODEL_TYPE,
-            new File("/path/b"),
-            1,
-            Collections.singletonList(locale),
-            locale.toLanguageTag(),
-            false);
-    when(modelFileSupplier.get())
-        .thenReturn(ImmutableList.of(languageIndependentModelFile, languageDependentModelFile));
+            new File(rootTestDir, "b").getAbsolutePath(),
+            /* version= */ 2,
+            DEFAULT_LOCALE.toLanguageTag(),
+            /* isAsset= */ false);
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(
+                modelType ->
+                    ImmutableList.of(languageIndependentModelFile, languageDependentModelFile)));
 
-    ModelFileManager.ModelFile bestModelFile =
-        modelFileManager.findBestModelFile(
-            MODEL_TYPE, LocaleList.forLanguageTags(locale.toLanguageTag()));
+    ModelFile bestModelFile =
+        modelFileManager.findBestModelFile(MODEL_TYPE, new LocaleList(DEFAULT_LOCALE));
     assertThat(bestModelFile).isEqualTo(languageDependentModelFile);
   }
 
   @Test
   public void findBestModel_noMatchedLanguageModel() {
-    Locale locale = Locale.forLanguageTag("ja");
     ModelFileManager.ModelFile languageIndependentModelFile =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 1, ImmutableList.of(), "", true);
-
+            MODEL_TYPE,
+            new File(rootTestDir, "a").getAbsolutePath(),
+            /* version= */ 1,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
     ModelFileManager.ModelFile languageDependentModelFile =
         new ModelFileManager.ModelFile(
             MODEL_TYPE,
-            new File("/path/b"),
-            1,
-            Collections.singletonList(locale),
-            locale.toLanguageTag(),
-            false);
-
-    when(modelFileSupplier.get())
-        .thenReturn(ImmutableList.of(languageIndependentModelFile, languageDependentModelFile));
-
-    ModelFileManager.ModelFile bestModelFile =
-        modelFileManager.findBestModelFile(MODEL_TYPE, LocaleList.forLanguageTags("zh-hk"));
-    assertThat(bestModelFile).isEqualTo(languageIndependentModelFile);
-  }
-
-  @Test
-  public void findBestModel_noMatchedLanguageModel_defaultLocaleModelExists() {
-    ModelFileManager.ModelFile languageIndependentModelFile =
-        new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 1, ImmutableList.of(), "", true);
-
-    ModelFileManager.ModelFile languageDependentModelFile =
-        new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/b"),
-            1,
-            Collections.singletonList(DEFAULT_LOCALE),
+            new File(rootTestDir, "b").getAbsolutePath(),
+            /* version= */ 2,
             DEFAULT_LOCALE.toLanguageTag(),
-            false);
-
-    when(modelFileSupplier.get())
-        .thenReturn(ImmutableList.of(languageIndependentModelFile, languageDependentModelFile));
+            /* isAsset= */ false);
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(
+                modelType ->
+                    ImmutableList.of(languageIndependentModelFile, languageDependentModelFile)));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(MODEL_TYPE, LocaleList.forLanguageTags("zh-hk"));
@@ -209,23 +194,22 @@ public final class ModelFileManagerTest {
     ModelFileManager.ModelFile matchButOlderModel =
         new ModelFileManager.ModelFile(
             MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("fr")),
+            new File(rootTestDir, "a").getAbsolutePath(),
+            /* version= */ 1,
             "fr",
-            false);
-
+            /* isAsset= */ false);
     ModelFileManager.ModelFile mismatchButNewerModel =
         new ModelFileManager.ModelFile(
             MODEL_TYPE,
-            new File("/path/b"),
-            2,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
+            new File(rootTestDir, "b").getAbsolutePath(),
+            /* version= */ 1,
             "ja",
-            false);
-
-    when(modelFileSupplier.get())
-        .thenReturn(ImmutableList.of(matchButOlderModel, mismatchButNewerModel));
+            /* isAsset= */ false);
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(
+                modelType -> ImmutableList.of(matchButOlderModel, mismatchButNewerModel)));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(MODEL_TYPE, LocaleList.forLanguageTags("fr"));
@@ -233,21 +217,26 @@ public final class ModelFileManagerTest {
   }
 
   @Test
-  public void findBestModel_languageIsMoreImportantThanVersion_bestModelComesFirst() {
+  public void findBestModel_preferMatchedLocaleModel() {
     ModelFileManager.ModelFile matchLocaleModel =
         new ModelFileManager.ModelFile(
             MODEL_TYPE,
-            new File("/path/b"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
+            new File(rootTestDir, "a").getAbsolutePath(),
+            /* version= */ 1,
             "ja",
-            false);
-
+            /* isAsset= */ false);
     ModelFileManager.ModelFile languageIndependentModel =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 2, ImmutableList.of(), "", true);
-    when(modelFileSupplier.get())
-        .thenReturn(ImmutableList.of(matchLocaleModel, languageIndependentModel));
+            MODEL_TYPE,
+            new File(rootTestDir, "b").getAbsolutePath(),
+            /* version= */ 1,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(
+                modelType -> ImmutableList.of(matchLocaleModel, languageIndependentModel)));
 
     ModelFileManager.ModelFile bestModelFile =
         modelFileManager.findBestModelFile(MODEL_TYPE, LocaleList.forLanguageTags("ja"));
@@ -256,9 +245,135 @@ public final class ModelFileManagerTest {
   }
 
   @Test
+  public void deleteUnusedModelFiles_olderModelDeleted() throws Exception {
+    File model1 = new File(rootTestDir, "model1.fb");
+    model1.createNewFile();
+    File model2 = new File(rootTestDir, "model2.fb");
+    model2.createNewFile();
+    ModelFileManager.ModelFile modelFile1 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model1.getAbsolutePath(), /* version= */ 1, "ja", /* isAsset= */ false);
+    ModelFileManager.ModelFile modelFile2 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model2.getAbsolutePath(), /* version= */ 2, "ja", /* isAsset= */ false);
+    setDefaultLocalesRule.set(new LocaleList(Locale.forLanguageTag("ja")));
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(modelType -> ImmutableList.of(modelFile1, modelFile2)));
+
+    modelFileManager.deleteUnusedModelFiles();
+
+    assertThat(model1.exists()).isFalse();
+    assertThat(model2.exists()).isTrue();
+  }
+
+  @Test
+  public void deleteUnusedModelFiles_languageIndependentOlderModelDeleted() throws Exception {
+    File model1 = new File(rootTestDir, "model1.fb");
+    model1.createNewFile();
+    File model2 = new File(rootTestDir, "model2.fb");
+    model2.createNewFile();
+    ModelFileManager.ModelFile modelFile1 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE,
+            model1.getAbsolutePath(),
+            /* version= */ 1,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
+    ModelFileManager.ModelFile modelFile2 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE,
+            model2.getAbsolutePath(),
+            /* version= */ 2,
+            LANGUAGE_INDEPENDENT,
+            /* isAsset= */ false);
+    setDefaultLocalesRule.set(new LocaleList(Locale.forLanguageTag("ja")));
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(modelType -> ImmutableList.of(modelFile1, modelFile2)));
+
+    modelFileManager.deleteUnusedModelFiles();
+
+    assertThat(model1.exists()).isFalse();
+    assertThat(model2.exists()).isTrue();
+  }
+
+  @Test
+  public void deleteUnusedModelFiles_modelOnlySupportingLocalesNotInListDeleted() throws Exception {
+    File model1 = new File(rootTestDir, "model1.fb");
+    model1.createNewFile();
+    File model2 = new File(rootTestDir, "model2.fb");
+    model2.createNewFile();
+    ModelFileManager.ModelFile modelFile1 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model1.getAbsolutePath(), /* version= */ 1, "ja", /* isAsset= */ false);
+    ModelFileManager.ModelFile modelFile2 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model2.getAbsolutePath(), /* version= */ 1, "en", /* isAsset= */ false);
+    setDefaultLocalesRule.set(new LocaleList(Locale.forLanguageTag("ja")));
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(modelType -> ImmutableList.of(modelFile1, modelFile2)));
+
+    modelFileManager.deleteUnusedModelFiles();
+
+    assertThat(model1.exists()).isTrue();
+    assertThat(model2.exists()).isFalse();
+  }
+
+  @Test
+  public void deleteUnusedModelFiles_multiLocalesInLocaleList() throws Exception {
+    File model1 = new File(rootTestDir, "model1.fb");
+    model1.createNewFile();
+    File model2 = new File(rootTestDir, "model2.fb");
+    model2.createNewFile();
+    ModelFileManager.ModelFile modelFile1 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model1.getAbsolutePath(), /* version= */ 1, "ja", /* isAsset= */ false);
+    ModelFileManager.ModelFile modelFile2 =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model2.getAbsolutePath(), /* version= */ 2, "en", /* isAsset= */ false);
+    setDefaultLocalesRule.set(
+        new LocaleList(Locale.forLanguageTag("ja"), Locale.forLanguageTag("en")));
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(modelType -> ImmutableList.of(modelFile1, modelFile2)));
+    modelFileManager.deleteUnusedModelFiles();
+
+    assertThat(model1.exists()).isTrue();
+    assertThat(model2.exists()).isTrue();
+  }
+
+  @Test
+  public void deleteUnusedModelFiles_readOnlyModelsUntouched() throws Exception {
+    File readOnlyDir = new File(rootTestDir, "read_only/");
+    readOnlyDir.mkdirs();
+    File model1 = new File(readOnlyDir, "model1.fb");
+    model1.createNewFile();
+    readOnlyDir.setWritable(false);
+    ModelFileManager.ModelFile modelFile =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, model1.getAbsolutePath(), /* version= */ 1, "ja", /* isAsset= */ false);
+    ModelFileManager modelFileManager =
+        new ModelFileManager(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(modelType -> ImmutableList.of(modelFile)));
+    setDefaultLocalesRule.set(new LocaleList(Locale.forLanguageTag("ja")));
+
+    modelFileManager.deleteUnusedModelFiles();
+
+    assertThat(model1.exists()).isTrue();
+  }
+
+  @Test
   public void getDownloadTargetFile_targetFileInCorrectDir() {
     File targetFile = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
-    assertThat(targetFile.getParentFile()).isEqualTo(downloaderModelDir);
+    assertThat(targetFile.getAbsolutePath())
+        .startsWith(ApplicationProvider.getApplicationContext().getFilesDir().getAbsolutePath());
   }
 
   @Test
@@ -278,21 +393,11 @@ public final class ModelFileManagerTest {
   public void modelFileEquals() {
     ModelFileManager.ModelFile modelA =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
+            MODEL_TYPE, "/path/a", /* version= */ 1, "ja", /* isAsset= */ false);
 
     ModelFileManager.ModelFile modelB =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
+            MODEL_TYPE, "/path/a", /* version= */ 1, "ja", /* isAsset= */ false);
 
     assertThat(modelA).isEqualTo(modelB);
   }
@@ -301,67 +406,23 @@ public final class ModelFileManagerTest {
   public void modelFile_different() {
     ModelFileManager.ModelFile modelA =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
-
+            MODEL_TYPE, "/path/a", /* version= */ 1, "ja", /* isAsset= */ false);
     ModelFileManager.ModelFile modelB =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/b"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
+            MODEL_TYPE, "/path/b", /* version= */ 1, "ja", /* isAsset= */ false);
 
     assertThat(modelA).isNotEqualTo(modelB);
-  }
-
-  @Test
-  public void modelFile_getPath() {
-    ModelFileManager.ModelFile modelA =
-        new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
-
-    assertThat(modelA.getPath()).isEqualTo("/path/a");
-  }
-
-  @Test
-  public void modelFile_getName() {
-    ModelFileManager.ModelFile modelA =
-        new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
-
-    assertThat(modelA.getName()).isEqualTo("a");
   }
 
   @Test
   public void modelFile_isPreferredTo_languageDependentIsBetter() {
     ModelFileManager.ModelFile modelA =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            1,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
+            MODEL_TYPE, "/path/a", /* version= */ 1, "ja", /* isAsset= */ false);
 
     ModelFileManager.ModelFile modelB =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/b"), 2, ImmutableList.of(), "", true);
+            MODEL_TYPE, "/path/b", /* version= */ 2, LANGUAGE_INDEPENDENT, /* isAsset= */ false);
 
     assertThat(modelA.isPreferredTo(modelB)).isTrue();
   }
@@ -370,16 +431,11 @@ public final class ModelFileManagerTest {
   public void modelFile_isPreferredTo_version() {
     ModelFileManager.ModelFile modelA =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE,
-            new File("/path/a"),
-            2,
-            Collections.singletonList(Locale.forLanguageTag("ja")),
-            "ja",
-            false);
+            MODEL_TYPE, "/path/a", /* version= */ 2, "ja", /* isAsset= */ false);
 
     ModelFileManager.ModelFile modelB =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/b"), 1, ImmutableList.of(), "", false);
+            MODEL_TYPE, "/path/b", /* version= */ 1, "ja", /* isAsset= */ false);
 
     assertThat(modelA.isPreferredTo(modelB)).isTrue();
   }
@@ -388,7 +444,7 @@ public final class ModelFileManagerTest {
   public void modelFile_toModelInfo() {
     ModelFileManager.ModelFile modelFile =
         new ModelFileManager.ModelFile(
-            MODEL_TYPE, new File("/path/a"), 2, ImmutableList.of(Locale.JAPANESE), "ja", false);
+            MODEL_TYPE, "/path/a", /* version= */ 2, "ja", /* isAsset= */ false);
 
     ModelInfo modelInfo = modelFile.toModelInfo();
 
@@ -398,11 +454,9 @@ public final class ModelFileManagerTest {
   @Test
   public void modelFile_toModelInfos() {
     ModelFile englishModelFile =
-        new ModelFile(
-            MODEL_TYPE, new File("/path/a"), 1, ImmutableList.of(Locale.ENGLISH), "en", false);
+        new ModelFile(MODEL_TYPE, "/path/a", /* version= */ 1, "en", /* isAsset= */ false);
     ModelFile japaneseModelFile =
-        new ModelFile(
-            MODEL_TYPE, new File("/path/a"), 2, ImmutableList.of(Locale.JAPANESE), "ja", false);
+        new ModelFile(MODEL_TYPE, "/path/a", /* version= */ 2, "ja", /* isAsset= */ false);
 
     ImmutableList<Optional<ModelInfo>> modelInfos =
         ModelFileManager.ModelFile.toModelInfos(
@@ -417,64 +471,53 @@ public final class ModelFileManagerTest {
   }
 
   @Test
-  public void testFileSupplierImpl_updatedFileOnly() throws IOException {
-    when(mockDeviceConfig.getBoolean(
-            eq(TextClassifierSettings.NAMESPACE),
-            eq(TextClassifierSettings.MODEL_DOWNLOAD_MANAGER_ENABLED),
-            anyBoolean()))
-        .thenReturn(false);
-    configUpdaterModelFile.createNewFile();
-    File downloaderModelFile = new File(downloaderModelDir, "test0.model");
-    downloaderModelFile.createNewFile();
-    File model1 = new File(factoryModelDir, "test1.model");
-    model1.createNewFile();
-    File model2 = new File(factoryModelDir, "test2.model");
-    model2.createNewFile();
-    new File(factoryModelDir, "not_match_regex.model").createNewFile();
+  public void regularFileFullMatchLister() throws IOException {
+    File modelFile = new File(rootTestDir, "test.model");
+    Files.copy(TestDataUtils.getTestAnnotatorModelFile(), modelFile);
+    File wrongFile = new File(rootTestDir, "wrong.model");
+    Files.copy(TestDataUtils.getTestAnnotatorModelFile(), wrongFile);
 
-    List<ModelFileManager.ModelFile> modelFiles = modelFileSupplierImpl.get();
-    List<String> modelFilePaths =
-        modelFiles.stream().map(modelFile -> modelFile.getPath()).collect(Collectors.toList());
+    RegularFileFullMatchLister regularFileFullMatchLister =
+        new RegularFileFullMatchLister(MODEL_TYPE, modelFile, () -> true);
+    ImmutableList<ModelFile> listedModels = regularFileFullMatchLister.list(MODEL_TYPE);
 
-    assertThat(modelFiles).hasSize(3);
-    assertThat(modelFilePaths)
-        .containsExactly(
-            configUpdaterModelFile.getAbsolutePath(),
-            model1.getAbsolutePath(),
-            model2.getAbsolutePath());
+    assertThat(listedModels).hasSize(1);
+    assertThat(listedModels.get(0).absolutePath).isEqualTo(modelFile.getAbsolutePath());
+    assertThat(listedModels.get(0).isAsset).isFalse();
   }
 
   @Test
-  public void testFileSupplierImpl_includeDownloaderFile() throws IOException {
-    when(mockDeviceConfig.getBoolean(
-            eq(TextClassifierSettings.NAMESPACE),
-            eq(TextClassifierSettings.MODEL_DOWNLOAD_MANAGER_ENABLED),
-            anyBoolean()))
-        .thenReturn(true);
-    configUpdaterModelFile.createNewFile();
-    File downloaderModelFile = new File(downloaderModelDir, "test0.model");
-    downloaderModelFile.createNewFile();
-    File factoryModelFile = new File(factoryModelDir, "test1.model");
-    factoryModelFile.createNewFile();
+  public void regularFilePatternMatchLister() throws IOException {
+    File modelFile1 = new File(rootTestDir, "annotator.en.model");
+    Files.copy(TestDataUtils.getTestAnnotatorModelFile(), modelFile1);
+    File modelFile2 = new File(rootTestDir, "annotator.fr.model");
+    Files.copy(TestDataUtils.getTestAnnotatorModelFile(), modelFile2);
+    File mismatchedModelFile = new File(rootTestDir, "actions.en.model");
+    Files.copy(TestDataUtils.getTestAnnotatorModelFile(), mismatchedModelFile);
 
-    List<ModelFileManager.ModelFile> modelFiles = modelFileSupplierImpl.get();
-    List<String> modelFilePaths =
-        modelFiles.stream().map(ModelFile::getPath).collect(Collectors.toList());
+    RegularFilePatternMatchLister regularFilePatternMatchLister =
+        new RegularFilePatternMatchLister(
+            MODEL_TYPE, rootTestDir, "annotator\\.(.*)\\.model", () -> true);
+    ImmutableList<ModelFile> listedModels = regularFilePatternMatchLister.list(MODEL_TYPE);
 
-    assertThat(modelFiles).hasSize(3);
-    assertThat(modelFilePaths)
-        .containsExactly(
-            configUpdaterModelFile.getAbsolutePath(),
-            downloaderModelFile.getAbsolutePath(),
-            factoryModelFile.getAbsolutePath());
+    assertThat(listedModels).hasSize(2);
+    assertThat(listedModels.get(0).absolutePath).isEqualTo(modelFile1.getAbsolutePath());
+    assertThat(listedModels.get(0).isAsset).isFalse();
+    assertThat(listedModels.get(1).absolutePath).isEqualTo(modelFile2.getAbsolutePath());
+    assertThat(listedModels.get(1).isAsset).isFalse();
   }
 
   @Test
-  public void testFileSupplierImpl_empty() {
-    factoryModelDir.delete();
-    List<ModelFileManager.ModelFile> modelFiles = modelFileSupplierImpl.get();
+  public void regularFilePatternMatchLister_disabled() throws IOException {
+    File modelFile1 = new File(rootTestDir, "annotator.en.model");
+    Files.copy(TestDataUtils.getTestAnnotatorModelFile(), modelFile1);
 
-    assertThat(modelFiles).hasSize(0);
+    RegularFilePatternMatchLister regularFilePatternMatchLister =
+        new RegularFilePatternMatchLister(
+            MODEL_TYPE, rootTestDir, "annotator\\.(.*)\\.model", () -> false);
+    ImmutableList<ModelFile> listedModels = regularFilePatternMatchLister.list(MODEL_TYPE);
+
+    assertThat(listedModels).isEmpty();
   }
 
   private static void recursiveDelete(File f) {
