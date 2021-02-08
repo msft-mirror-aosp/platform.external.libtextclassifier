@@ -22,7 +22,7 @@ import android.provider.DeviceConfig;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
-import com.android.textclassifier.ModelFileManager.ModelFile.ModelType;
+import com.android.textclassifier.ModelFileManager.ModelType;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;

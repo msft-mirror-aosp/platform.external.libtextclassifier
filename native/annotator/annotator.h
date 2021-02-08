@@ -30,7 +30,6 @@
 #include "annotator/duration/duration.h"
 #include "annotator/experimental/experimental.h"
 #include "annotator/feature-processor.h"
-#include "annotator/grammar/dates/cfg-datetime-annotator.h"
 #include "annotator/grammar/grammar-annotator.h"
 #include "annotator/installed_app/installed-app-engine.h"
 #include "annotator/knowledge/knowledge-engine.h"
@@ -46,6 +45,7 @@
 #include "annotator/zlib-utils.h"
 #include "utils/base/status.h"
 #include "utils/base/statusor.h"
+#include "utils/calendar/calendar.h"
 #include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/mutable.h"
 #include "utils/i18n/locale.h"
@@ -174,7 +174,7 @@ class Annotator {
   bool InitializeExperimentalAnnotators();
 
   // Sets up the lang-id instance that should be used.
-  void SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id);
+  bool SetLangId(const libtextclassifier3::mobile::lang_id::LangId* lang_id);
 
   // Runs inference for given a context and current selection (i.e. index
   // of the first and one past last selected characters (utf8 codepoint
@@ -261,7 +261,7 @@ class Annotator {
                         const std::string& context,
                         const std::vector<Token>& cached_tokens,
                         const std::vector<Locale>& detected_text_language_tags,
-                        AnnotationUsecase annotation_usecase,
+                        const BaseOptions& options,
                         InterpreterManager* interpreter_manager,
                         std::vector<int>* result) const;
 
@@ -273,7 +273,7 @@ class Annotator {
                        const std::vector<AnnotatedSpan>& candidates,
                        const std::vector<Locale>& detected_text_language_tags,
                        int start_index, int end_index,
-                       AnnotationUsecase annotation_usecase,
+                       const BaseOptions& options,
                        InterpreterManager* interpreter_manager,
                        std::vector<int>* chosen_indices) const;
 
@@ -292,7 +292,7 @@ class Annotator {
   bool ModelClassifyText(
       const std::string& context, const std::vector<Token>& cached_tokens,
       const std::vector<Locale>& detected_text_language_tags,
-      const CodepointSpan& selection_indices,
+      const CodepointSpan& selection_indices, const BaseOptions& options,
       InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results,
@@ -302,7 +302,7 @@ class Annotator {
   bool ModelClassifyText(
       const std::string& context, const std::vector<Token>& cached_tokens,
       const std::vector<Locale>& detected_text_language_tags,
-      const CodepointSpan& selection_indices,
+      const CodepointSpan& selection_indices, const BaseOptions& options,
       InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
@@ -311,7 +311,7 @@ class Annotator {
   bool ModelClassifyText(
       const std::string& context,
       const std::vector<Locale>& detected_text_language_tags,
-      const CodepointSpan& selection_indices,
+      const CodepointSpan& selection_indices, const BaseOptions& options,
       InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
       std::vector<ClassificationResult>* classification_results) const;
@@ -342,6 +342,7 @@ class Annotator {
   // reuse.
   bool ModelAnnotate(const std::string& context,
                      const std::vector<Locale>& detected_text_language_tags,
+                     const BaseOptions& options,
                      InterpreterManager* interpreter_manager,
                      std::vector<Token>* tokens,
                      std::vector<AnnotatedSpan>* result) const;
@@ -440,8 +441,6 @@ class Annotator {
   std::unique_ptr<const FeatureProcessor> classification_feature_processor_;
 
   std::unique_ptr<const DatetimeParser> datetime_parser_;
-  std::unique_ptr<const dates::CfgDatetimeAnnotator> cfg_datetime_parser_;
-
   std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
   std::string owned_buffer_;
@@ -484,6 +483,18 @@ class Annotator {
                                           const UnicodeText& context_unicode,
                                           std::string* quantity,
                                           int* exponent) const;
+
+  // Returns true if any of the ff-model entity types is enabled.
+  bool IsAnyModelEntityTypeEnabled(
+      const EnabledEntityTypes& is_entity_type_enabled) const;
+
+  // Returns true if any of the regex entity types is enabled.
+  bool IsAnyRegexEntityTypeEnabled(
+      const EnabledEntityTypes& is_entity_type_enabled) const;
+
+  // Returns true if any of the POD NER entity types is enabled.
+  bool IsAnyPodNerEntityTypeEnabled(
+      const EnabledEntityTypes& is_entity_type_enabled) const;
 
   std::unique_ptr<ScopedMmap> mmap_;
   bool initialized_ = false;

@@ -33,6 +33,13 @@ MATCHER_P3(IsAnnotatedSpan, start, end, best_class, "") {
          Value(first_result, best_class);
 }
 
+MATCHER_P(IsAnnotationWithType, best_class, "") {
+  const std::string first_result = arg.classification.empty()
+                                       ? "<INVALID RESULTS>"
+                                       : arg.classification[0].collection;
+  return Value(first_result, best_class);
+}
+
 MATCHER_P2(IsDateResult, time_ms_utc, granularity, "") {
   return Value(arg.collection, "date") &&
          Value(arg.datetime_parse_result.time_ms_utc, time_ms_utc) &&
