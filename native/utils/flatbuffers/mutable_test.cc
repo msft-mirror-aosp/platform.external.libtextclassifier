@@ -96,22 +96,13 @@ TEST_F(MutableFlatbufferTest, HandlesUnknownFields) {
 }
 
 TEST_F(MutableFlatbufferTest, HandlesNestedFields) {
-  FlatbufferFieldPathT path;
-  path.field.emplace_back(new FlatbufferFieldT);
-  path.field.back()->field_name = "flight_number";
-  path.field.emplace_back(new FlatbufferFieldT);
-  path.field.back()->field_name = "carrier_code";
-  flatbuffers::FlatBufferBuilder path_builder;
-  path_builder.Finish(FlatbufferFieldPath::Pack(path_builder, &path));
-
+  OwnedFlatbuffer<FlatbufferFieldPath, std::string> path =
+      CreateFieldPath({"flight_number", "carrier_code"});
   std::unique_ptr<MutableFlatbuffer> buffer = builder_.NewRoot();
 
   MutableFlatbuffer* parent = nullptr;
   reflection::Field const* field = nullptr;
-  EXPECT_TRUE(
-      buffer->GetFieldWithParent(flatbuffers::GetRoot<FlatbufferFieldPath>(
-                                     path_builder.GetBufferPointer()),
-                                 &parent, &field));
+  EXPECT_TRUE(buffer->GetFieldWithParent(path.get(), &parent, &field));
   EXPECT_EQ(parent, buffer->Mutable("flight_number"));
   EXPECT_EQ(field,
             buffer->Mutable("flight_number")->GetFieldOrNull("carrier_code"));
@@ -245,10 +236,8 @@ TEST_F(MutableFlatbufferTest, MergesNestedFields) {
   std::unique_ptr<MutableFlatbuffer> buffer = builder_.NewRoot();
 
   // Set a multiply nested field.
-  std::unique_ptr<FlatbufferFieldPathT> field_path_t =
-      CreateFieldPath("nested.nestedb.nesteda.nestedb.nesteda");
-  OwnedFlatbuffer<FlatbufferFieldPath, std::string> field_path(
-      PackFlatbuffer<FlatbufferFieldPath>(field_path_t.get()));
+  OwnedFlatbuffer<FlatbufferFieldPath, std::string> field_path =
+      CreateFieldPath({"nested", "nestedb", "nesteda", "nestedb", "nesteda"});
   buffer->Mutable(field_path.get())->Set("value", "le value");
 
   std::unique_ptr<test::EntityDataT> entity_data =
@@ -283,9 +272,22 @@ TEST_F(MutableFlatbufferTest, ToTextProtoWorks) {
   flight_info->Set("carrier_code", "LX");
   flight_info->Set("flight_code", 38);
 
+  // Add non primitive type.
+  auto reminders = buffer->Repeated("reminders");
+  auto foo_reminder = reminders->Add();
+  foo_reminder->Set("title", "foo reminder");
+  auto bar_reminder = reminders->Add();
+  bar_reminder->Set("title", "bar reminder");
+
+  // Add primitive type.
+  EXPECT_TRUE(buffer->Repeated("numbers")->Add(static_cast<int>(111)));
+  EXPECT_TRUE(buffer->Repeated("numbers")->Add(static_cast<int>(222)));
+  EXPECT_TRUE(buffer->Repeated("numbers")->Add(static_cast<int>(333)));
+
   EXPECT_EQ(buffer->ToTextProto(),
-            "a_long_field: 84, an_int_field: 42, flight_number "
-            "{flight_code: 38, carrier_code: 'LX'}");
+            "a_long_field: 84, an_int_field: 42, numbers:  [111, 222, 333] , "
+            "reminders:  [{title: 'foo reminder'}, {title: 'bar reminder'}] , "
+            "flight_number {flight_code: 38, carrier_code: 'LX'}");
 }
 
 TEST_F(MutableFlatbufferTest, RepeatedFieldSetThroughReflectionCanBeRead) {
@@ -344,6 +346,21 @@ TEST_F(MutableFlatbufferTest, RepeatedFieldGetAndSizeMethods) {
   EXPECT_EQ(buffer->Repeated("numbers")->Get<int>(0), 1);
   EXPECT_EQ(buffer->Repeated("numbers")->Get<int>(1), 2);
   EXPECT_EQ(buffer->Repeated("numbers")->Get<int>(2), 3);
+}
+
+TEST_F(MutableFlatbufferTest, GetsRepeatedFieldFromPath) {
+  std::unique_ptr<MutableFlatbuffer> buffer = builder_.NewRoot();
+  OwnedFlatbuffer<FlatbufferFieldPath, std::string> notes =
+      CreateFieldPath({"nested", "repeated_str"});
+
+  EXPECT_TRUE(buffer->Repeated(notes.get())->Add("a"));
+  EXPECT_TRUE(buffer->Repeated(notes.get())->Add("test"));
+
+  std::unique_ptr<test::EntityDataT> entity_data =
+      LoadAndVerifyMutableFlatbuffer<test::EntityData>(buffer->Serialize());
+  ASSERT_NE(entity_data, nullptr);
+  EXPECT_THAT(entity_data->nested->repeated_str, SizeIs(2));
+  EXPECT_THAT(entity_data->nested->repeated_str, ElementsAre("a", "test"));
 }
 
 }  // namespace

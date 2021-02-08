@@ -85,6 +85,64 @@ template <>
 inline const reflection::BaseType flatbuffers_base_type<StringPiece>::value =
     reflection::String;
 
+template <reflection::BaseType>
+struct flatbuffers_cpp_type;
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Bool> {
+  using value = bool;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Byte> {
+  using value = int8;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::UByte> {
+  using value = uint8;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Short> {
+  using value = int16;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::UShort> {
+  using value = uint16;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Int> {
+  using value = int32;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::UInt> {
+  using value = uint32;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Long> {
+  using value = int64;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::ULong> {
+  using value = uint64;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Float> {
+  using value = float;
+};
+
+template <>
+struct flatbuffers_cpp_type<reflection::BaseType::Double> {
+  using value = double;
+};
+
 // Gets the field information for a field name, returns nullptr if the
 // field was not defined.
 const reflection::Field* GetFieldOrNull(const reflection::Object* type,

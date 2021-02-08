@@ -49,6 +49,8 @@ public class GenerateLinksLoggerTest {
   /** A statsd config ID, which is arbitrary. */
   private static final long CONFIG_ID = 689777;
 
+  private static final long SHORT_TIMEOUT_MS = 1000;
+
   private static final ModelInfo ANNOTATOR_MODEL =
       new ModelInfo(1, ImmutableList.of(Locale.ENGLISH));
   private static final ModelInfo LANGID_MODEL =
@@ -92,7 +94,7 @@ public class GenerateLinksLoggerTest {
         LATENCY_MS,
         Optional.of(ANNOTATOR_MODEL),
         Optional.of(LANGID_MODEL));
-    ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
+    ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID, SHORT_TIMEOUT_MS);
 
     ImmutableList<TextLinkifyEvent> loggedEvents =
         ImmutableList.copyOf(
@@ -157,7 +159,7 @@ public class GenerateLinksLoggerTest {
         LATENCY_MS,
         Optional.of(ANNOTATOR_MODEL),
         Optional.of(LANGID_MODEL));
-    ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID);
+    ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID, SHORT_TIMEOUT_MS);
 
     ImmutableList<TextLinkifyEvent> loggedEvents =
         ImmutableList.copyOf(

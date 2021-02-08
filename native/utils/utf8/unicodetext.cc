@@ -202,6 +202,14 @@ bool UnicodeText::is_valid() const {
   return IsValidUTF8(repr_.data_, repr_.size_);
 }
 
+std::vector<UnicodeText::const_iterator> UnicodeText::Codepoints() const {
+  std::vector<UnicodeText::const_iterator> codepoints;
+  for (auto it = begin(); it != end(); it++) {
+    codepoints.push_back(it);
+  }
+  return codepoints;
+}
+
 bool UnicodeText::operator==(const UnicodeText& other) const {
   if (repr_.size_ != other.repr_.size_) {
     return false;
