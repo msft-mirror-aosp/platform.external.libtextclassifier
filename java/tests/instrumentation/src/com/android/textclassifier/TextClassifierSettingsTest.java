@@ -139,7 +139,8 @@ public class TextClassifierSettingsTest {
             "url_suffix_lang_id_universal", "suffix:lang_id"),
         settings ->
             assertThat(settings.getLanguageTagsForManifestURLSuffix(ModelType.LANG_ID))
-                .containsExactlyElementsIn(ImmutableList.of("universal")));
+                .containsExactlyElementsIn(
+                    ImmutableList.of(ModelDownloadManager.UNIVERSAL_MODEL_LANGUAGE_TAG)));
 
     assertSettings(
         ImmutableMap.of(

@@ -30,6 +30,7 @@ import android.view.textclassifier.TextClassifierEvent;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
+import androidx.work.WorkManager;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
 import com.android.textclassifier.utils.IndentingPrintWriter;
@@ -46,6 +47,7 @@ import java.io.PrintWriter;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import javax.annotation.Nullable;
 
 /** An implementation of a TextClassifierService. */
 public final class DefaultTextClassifierService extends TextClassifierService {
@@ -55,6 +57,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   // TODO: Figure out do we need more concurrency.
   private ListeningExecutorService normPriorityExecutor;
   private ListeningExecutorService lowPriorityExecutor;
+
+  @Nullable private ModelDownloadManager modelDownloadManager;
+
   private TextClassifierImpl textClassifier;
   private TextClassifierSettings settings;
   private ModelFileManager modelFileManager;
@@ -81,6 +86,17 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     lowPriorityExecutor = injector.createLowPriorityExecutor();
     textClassifier = injector.createTextClassifierImpl(settings, modelFileManager);
     localeChangedReceiver = new LocaleChangedReceiver(modelFileManager);
+
+    if (settings.isModelDownloadManagerEnabled()) {
+      modelDownloadManager =
+          new ModelDownloadManager(
+              WorkManager.getInstance(this),
+              ManifestDownloadWorker.class,
+              modelFileManager,
+              settings,
+              lowPriorityExecutor);
+      modelDownloadManager.init();
+    }
 
     textClassifierApiUsageLogger =
         injector.createTextClassifierApiUsageLogger(settings, lowPriorityExecutor);

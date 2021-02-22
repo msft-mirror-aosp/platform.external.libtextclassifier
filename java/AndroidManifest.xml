@@ -33,9 +33,20 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- The INTERNET permission is restricted to the modelDownloaderServiceProcess -->
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <application>
+        <processes>
+            <process>
+                <deny-permission android:name="android.permission.INTERNET" />
+            </process>
+            <process android:process=":modelDownloaderServiceProcess">
+                <allow-permission android:name="android.permission.INTERNET" />
+            </process>
+        </processes>
+
         <service
             android:exported="true"
             android:name=".DefaultTextClassifierService"
@@ -44,6 +55,11 @@
                 <action android:name="android.service.textclassifier.TextClassifierService"/>
             </intent-filter>
         </service>
-
+        <service
+            android:exported="false"
+            android:name=".ModelDownloaderService"
+            android:process=":modelDownloaderServiceProcess">
+        </service>
     </application>
+
 </manifest>

@@ -21,7 +21,9 @@ import android.provider.DeviceConfig.Properties;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.TextClassifier;
 import androidx.annotation.NonNull;
+import androidx.work.NetworkType;
 import com.android.textclassifier.ModelFileManager.ModelType;
+import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
@@ -348,6 +350,21 @@ public final class TextClassifierSettings {
         NAMESPACE, MODEL_DOWNLOAD_MANAGER_ENABLED, MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT);
   }
 
+  public NetworkType getManifestDownloadRequiredNetworkType() {
+    String networkType =
+        deviceConfig.getString(
+            NAMESPACE,
+            MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE,
+            MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT);
+    try {
+      return NetworkType.valueOf(networkType);
+    } catch (IllegalArgumentException e) {
+      // In case the flag is not a valid enum value
+      TcLog.w(TAG, "Invalid manifest download required NetworkType: " + networkType);
+      return NetworkType.valueOf(MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT);
+    }
+  }
+
   public int getModelDownloadMaxAttempts() {
     return deviceConfig.getInt(
         NAMESPACE, MODEL_DOWNLOAD_MAX_ATTEMPTS, MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT);
@@ -382,7 +399,8 @@ public final class TextClassifierSettings {
     Properties properties = deviceConfig.getProperties(NAMESPACE);
     ImmutableList.Builder<String> variantsBuilder = ImmutableList.builder();
     for (String name : properties.getKeyset()) {
-      if (name.startsWith(urlSuffixFlagBaseName)) {
+      if (name.startsWith(urlSuffixFlagBaseName)
+          && properties.getString(name, /* defaultValue= */ null) != null) {
         variantsBuilder.add(name.substring(urlSuffixFlagBaseName.length()));
       }
     }

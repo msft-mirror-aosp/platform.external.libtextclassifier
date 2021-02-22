@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.expectThrows;
 
 import android.app.RemoteAction;
 import android.content.Context;
@@ -333,7 +333,7 @@ public class TextClassifierImplTest {
     char[] manySpaces = new char[classifier.getMaxGenerateLinksTextLength() + 1];
     Arrays.fill(manySpaces, ' ');
     TextLinks.Request request = new TextLinks.Request.Builder(new String(manySpaces)).build();
-    assertThrows(IllegalArgumentException.class, () -> classifier.generateLinks(request));
+    expectThrows(IllegalArgumentException.class, () -> classifier.generateLinks(request));
   }
 
   @Test

@@ -232,7 +232,7 @@ public class DefaultTextClassifierServiceTest {
                 .collect(Collectors.toList()));
     assertThat(loggedEvents).hasSize(1);
     TextClassifierApiUsageReported loggedEvent = loggedEvents.get(0);
-    assertThat(loggedEvent.getLatencyMillis()).isGreaterThan(0);
+    assertThat(loggedEvent.getLatencyMillis()).isGreaterThan(0L);
     assertThat(loggedEvent.getApiType()).isEqualTo(expectedApiType);
     assertThat(loggedEvent.getResultType()).isEqualTo(expectedResultApiType);
     assertThat(loggedEvent.getSessionId()).isEqualTo(SESSION_ID);
