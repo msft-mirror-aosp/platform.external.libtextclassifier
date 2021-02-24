@@ -38,7 +38,9 @@ TEST_F(AnalyzerTest, ParsesTextWithGrammar) {
                                       semantic_values_schema_.buffer().end());
 
   // Define rules and semantics.
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<month>", {"january"},
             static_cast<CallbackId>(DefaultCallback::kSemanticExpression),
             /*callback_param=*/model.semantic_expression.size());

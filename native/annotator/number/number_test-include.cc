@@ -23,7 +23,7 @@
 #include "annotator/model_generated.h"
 #include "annotator/types-test-util.h"
 #include "annotator/types.h"
-#include "utils/test-utils.h"
+#include "utils/tokenizer-utils.h"
 #include "utils/utf8/unicodetext.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
