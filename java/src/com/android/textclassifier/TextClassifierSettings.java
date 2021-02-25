@@ -17,11 +17,11 @@
 package com.android.textclassifier;
 
 import android.provider.DeviceConfig;
+import android.provider.DeviceConfig.Properties;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.TextClassifier;
 import androidx.annotation.NonNull;
 import com.android.textclassifier.ModelFileManager.ModelType;
-import com.android.textclassifier.ModelFileManager.ModelType.ModelTypeDef;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
@@ -117,23 +117,8 @@ public final class TextClassifierSettings {
   /** Max attempts allowed for a single ModelDownloader downloading task. */
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_MAX_ATTEMPTS = "model_download_max_attempts";
-  /** The prefix of the URL to download models. E.g. https://www.gstatic.com/android/ */
-  @VisibleForTesting static final String ANNOTATOR_URL_PREFIX = "annotator_url_prefix";
-
-  @VisibleForTesting static final String LANG_ID_URL_PREFIX = "lang_id_url_prefix";
-
-  @VisibleForTesting
-  static final String ACTIONS_SUGGESTIONS_URL_PREFIX = "actions_suggestions_url_prefix";
-  /** The suffix of the URL to download models. E.g. q/711/en.fb */
-  @VisibleForTesting
-  static final String PRIMARY_ANNOTATOR_URL_SUFFIX = "primary_annotator_url_suffix";
-
-  @VisibleForTesting static final String PRIMARY_LANG_ID_URL_SUFFIX = "primary_lang_id_url_suffix";
-
-  @VisibleForTesting
-  static final String PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX =
-      "primary_actions_suggestions_url_suffix";
-
+  /** Flag name for url suffix is dynamically formatted based on model type and model language. */
+  @VisibleForTesting static final String MANIFEST_URL_SUFFIX_TEMPLATE = "url_suffix_%s_%s";
   /** Sampling rate for TextClassifier API logging. */
   static final String TEXTCLASSIFIER_API_LOG_SAMPLE_RATE = "textclassifier_api_log_sample_rate";
 
@@ -204,15 +189,7 @@ public final class TextClassifierSettings {
   // Manifest files are usually small, default to any network type
   private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT = "NOT_ROAMING";
   private static final int MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 5;
-  private static final String ANNOTATOR_URL_PREFIX_DEFAULT =
-      "https://www.gstatic.com/android/text_classifier/";
-  private static final String LANG_ID_URL_PREFIX_DEFAULT =
-      "https://www.gstatic.com/android/text_classifier/langid/";
-  private static final String ACTIONS_SUGGESTIONS_URL_PREFIX_DEFAULT =
-      "https://www.gstatic.com/android/text_classifier/actions/";
-  private static final String PRIMARY_ANNOTATOR_URL_SUFFIX_DEFAULT = "";
-  private static final String PRIMARY_LANG_ID_URL_SUFFIX_DEFAULT = "";
-  private static final String PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX_DEFAULT = "";
+  private static final String MANIFEST_URL_SUFFIX_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
   /**
    * Sampling rate for API logging. For example, 100 means there is a 0.01 chance that the API call
@@ -221,6 +198,10 @@ public final class TextClassifierSettings {
   private static final int TEXTCLASSIFIER_API_LOG_SAMPLE_RATE_DEFAULT = 10;
 
   interface IDeviceConfig {
+    default Properties getProperties(@NonNull String namespace, @NonNull String... names) {
+      return new Properties.Builder(namespace).build();
+    }
+
     default int getInt(@NonNull String namespace, @NonNull String name, @NonNull int defaultValue) {
       return defaultValue;
     }
@@ -243,6 +224,11 @@ public final class TextClassifierSettings {
 
   private static final IDeviceConfig DEFAULT_DEVICE_CONFIG =
       new IDeviceConfig() {
+        @Override
+        public Properties getProperties(@NonNull String namespace, @NonNull String... names) {
+          return DeviceConfig.getProperties(namespace, names);
+        }
+
         @Override
         public int getInt(
             @NonNull String namespace, @NonNull String name, @NonNull int defaultValue) {
@@ -367,37 +353,40 @@ public final class TextClassifierSettings {
         NAMESPACE, MODEL_DOWNLOAD_MAX_ATTEMPTS, MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT);
   }
 
-  public String getModelURLPrefix(@ModelTypeDef String modelType) {
-    switch (modelType) {
-      case ModelType.ANNOTATOR:
-        return deviceConfig.getString(
-            NAMESPACE, ANNOTATOR_URL_PREFIX, ANNOTATOR_URL_PREFIX_DEFAULT);
-      case ModelType.LANG_ID:
-        return deviceConfig.getString(NAMESPACE, LANG_ID_URL_PREFIX, LANG_ID_URL_PREFIX_DEFAULT);
-      case ModelType.ACTIONS_SUGGESTIONS:
-        return deviceConfig.getString(
-            NAMESPACE, ACTIONS_SUGGESTIONS_URL_PREFIX, ACTIONS_SUGGESTIONS_URL_PREFIX_DEFAULT);
-      default:
-        return "";
-    }
+  /**
+   * Get model's manifest url suffix for given model type and language.
+   *
+   * @param modelType the type of model for the target url
+   * @param modelLanguageTag the language tag for the model (e.g. en), but can also be "universal"
+   * @return DeviceConfig configured url suffix or empty string if not set
+   */
+  public String getManifestURLSuffix(
+      @ModelType.ModelTypeDef String modelType, String modelLanguageTag) {
+    // Example: annotator_zh_url_suffix, lang_id_universal_url_suffix
+    String urlSuffixFlagName =
+        String.format(MANIFEST_URL_SUFFIX_TEMPLATE, modelType, modelLanguageTag);
+    return deviceConfig.getString(NAMESPACE, urlSuffixFlagName, MANIFEST_URL_SUFFIX_DEFAULT);
   }
 
-  public String getPrimaryModelURLSuffix(@ModelTypeDef String modelType) {
-    switch (modelType) {
-      case ModelType.ANNOTATOR:
-        return deviceConfig.getString(
-            NAMESPACE, PRIMARY_ANNOTATOR_URL_SUFFIX, PRIMARY_ANNOTATOR_URL_SUFFIX_DEFAULT);
-      case ModelType.LANG_ID:
-        return deviceConfig.getString(
-            NAMESPACE, PRIMARY_LANG_ID_URL_SUFFIX, PRIMARY_LANG_ID_URL_SUFFIX_DEFAULT);
-      case ModelType.ACTIONS_SUGGESTIONS:
-        return deviceConfig.getString(
-            NAMESPACE,
-            PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX,
-            PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX_DEFAULT);
-      default:
-        return "";
+  /**
+   * Gets all language variants configured for a specific ModelType.
+   *
+   * <p>For a specific language, there can be many variants: de-CH, de-LI, zh-Hans, zh-Hant. There
+   * is no easy way to hardcode the list in client. Therefore, we parse all configured flag's name
+   * in DeviceConfig, and let the client to choose the best variant to download.
+   */
+  public ImmutableList<String> getLanguageTagsForManifestURLSuffix(
+      @ModelType.ModelTypeDef String modelType) {
+    String urlSuffixFlagBaseName =
+        String.format(MANIFEST_URL_SUFFIX_TEMPLATE, modelType, /* language */ "");
+    Properties properties = deviceConfig.getProperties(NAMESPACE);
+    ImmutableList.Builder<String> variantsBuilder = ImmutableList.builder();
+    for (String name : properties.getKeyset()) {
+      if (name.startsWith(urlSuffixFlagBaseName)) {
+        variantsBuilder.add(name.substring(urlSuffixFlagBaseName.length()));
+      }
     }
+    return variantsBuilder.build();
   }
 
   public int getTextClassifierApiLogSampleRate() {
@@ -427,15 +416,7 @@ public final class TextClassifierSettings {
     pw.printPair(TRANSLATE_IN_CLASSIFICATION_ENABLED, isTranslateInClassificationEnabled());
     pw.printPair(MODEL_DOWNLOAD_MANAGER_ENABLED, isModelDownloadManagerEnabled());
     pw.printPair(MODEL_DOWNLOAD_MAX_ATTEMPTS, getModelDownloadMaxAttempts());
-    pw.printPair(ANNOTATOR_URL_PREFIX, getModelURLPrefix(ModelType.ANNOTATOR));
-    pw.printPair(LANG_ID_URL_PREFIX, getModelURLPrefix(ModelType.LANG_ID));
-    pw.printPair(ACTIONS_SUGGESTIONS_URL_PREFIX, getModelURLPrefix(ModelType.ACTIONS_SUGGESTIONS));
     pw.decreaseIndent();
-    pw.printPair(PRIMARY_ANNOTATOR_URL_SUFFIX, getPrimaryModelURLSuffix(ModelType.ANNOTATOR));
-    pw.printPair(PRIMARY_LANG_ID_URL_SUFFIX, getPrimaryModelURLSuffix(ModelType.LANG_ID));
-    pw.printPair(
-        PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX,
-        getPrimaryModelURLSuffix(ModelType.ACTIONS_SUGGESTIONS));
     pw.printPair(TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, getTextClassifierApiLogSampleRate());
     pw.decreaseIndent();
   }
