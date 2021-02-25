@@ -66,6 +66,11 @@ class KnowledgeEngine {
                     std::string* serialized_knowledge_result) const {
     return false;
   }
+
+  StatusOr<std::string> LookUpEntityProperty(
+      const std::string& mid_str, const std::string& property) const {
+    return Status(StatusCode::UNIMPLEMENTED, "Not implemented");
+  }
 };
 
 }  // namespace libtextclassifier3
