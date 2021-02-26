@@ -62,6 +62,15 @@ TfLiteRegistration* Register_WHERE();
 TfLiteRegistration* Register_ONE_HOT();
 TfLiteRegistration* Register_POW();
 TfLiteRegistration* Register_TANH();
+#ifndef TC3_AOSP
+TfLiteRegistration* Register_REDUCE_PROD();
+TfLiteRegistration* Register_SHAPE();
+TfLiteRegistration* Register_NOT_EQUAL();
+TfLiteRegistration* Register_CUMSUM();
+TfLiteRegistration* Register_EXPAND_DIMS();
+TfLiteRegistration* Register_FILL();
+TfLiteRegistration* Register_PADV2();
+#endif  // TC3_AOSP
 }  // namespace builtin
 }  // namespace ops
 }  // namespace tflite
@@ -70,6 +79,17 @@ TfLiteRegistration* Register_TANH();
 #include "utils/tflite/dist_diversification.h"
 #include "utils/tflite/text_encoder.h"
 #include "utils/tflite/token_encoder.h"
+#ifndef TC3_AOSP
+namespace tflite {
+namespace ops {
+namespace custom {
+TfLiteRegistration* Register_SENTENCEPIECE_TOKENIZER();
+TfLiteRegistration* Register_RAGGED_TENSOR_TO_TENSOR();
+TfLiteRegistration* Register_RAGGED_RANGE();
+}  // namespace custom
+}  // namespace ops
+}  // namespace tflite
+#endif  // TC3_AOSP
 
 void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
   resolver->AddBuiltin(tflite::BuiltinOperator_ADD,
@@ -191,6 +211,22 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_TANH(),
                        /*min_version=*/1,
                        /*max_version=*/1);
+#ifndef TC3_AOSP
+  resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_PROD,
+                       ::tflite::ops::builtin::Register_REDUCE_PROD());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_SHAPE,
+                       ::tflite::ops::builtin::Register_SHAPE());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_NOT_EQUAL,
+                       ::tflite::ops::builtin::Register_NOT_EQUAL());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_CUMSUM,
+                       ::tflite::ops::builtin::Register_CUMSUM());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_EXPAND_DIMS,
+                       ::tflite::ops::builtin::Register_EXPAND_DIMS());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_FILL,
+                       ::tflite::ops::builtin::Register_FILL());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_PADV2,
+                       ::tflite::ops::builtin::Register_PADV2());
+#endif  // TC3_AOSP
 }
 #else
 void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
@@ -222,6 +258,16 @@ std::unique_ptr<tflite::OpResolver> BuildOpResolver(
                       tflite::ops::custom::Register_TEXT_ENCODER());
   resolver->AddCustom("TokenEncoder",
                       tflite::ops::custom::Register_TOKEN_ENCODER());
+#ifndef TC3_AOSP
+  resolver->AddCustom(
+      "TFSentencepieceTokenizeOp",
+      ::tflite::ops::custom::Register_SENTENCEPIECE_TOKENIZER());
+  resolver->AddCustom("RaggedRange",
+                      ::tflite::ops::custom::Register_RAGGED_RANGE());
+  resolver->AddCustom(
+      "RaggedTensorToTensor",
+      ::tflite::ops::custom::Register_RAGGED_TENSOR_TO_TENSOR());
+#endif  // TC3_AOSP
 #endif  // TC3_WITH_ACTIONS_OPS
   customize_fn(resolver.get());
   return std::unique_ptr<tflite::OpResolver>(std::move(resolver));
