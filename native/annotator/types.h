@@ -101,6 +101,11 @@ inline bool SpansOverlap(const CodepointSpan& a, const CodepointSpan& b) {
   return a.first < b.second && b.first < a.second;
 }
 
+inline bool SpanContains(const CodepointSpan& span,
+                         const CodepointSpan& sub_span) {
+  return span.first <= sub_span.first && span.second >= sub_span.second;
+}
+
 template <typename T>
 bool DoesCandidateConflict(
     const int considered_candidate, const std::vector<T>& candidates,
@@ -609,6 +614,11 @@ struct AnnotationOptions : public BaseOptions, public DatetimeOptions {
 
   // If true, trigger dictionary on words that are of beginner level.
   bool trigger_dictionary_on_beginner_words = false;
+
+  // If true, enables an optimized code path for annotation.
+  // The optimization caused crashes previously, which is why we are rolling it
+  // out using this temporary flag. See: b/178503899
+  bool enable_optimization = false;
 
   bool operator==(const AnnotationOptions& other) const {
     return this->is_serialized_entity_data_enabled ==

@@ -64,13 +64,6 @@ genrule {
 }
 
 genrule {
-    name: "libtextclassifier_fbgen_annotator_datetime_datetime",
-    srcs: ["annotator/datetime/datetime.fbs"],
-    out: ["annotator/datetime/datetime_generated.h"],
-    defaults: ["fbgen"],
-}
-
-genrule {
     name: "libtextclassifier_fbgen_annotator_entity-data",
     srcs: ["annotator/entity-data.fbs"],
     out: ["annotator/entity-data_generated.h"],
@@ -185,7 +178,6 @@ cc_library_headers {
         "libtextclassifier_fbgen_annotator_model",
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
-        "libtextclassifier_fbgen_annotator_datetime_datetime",
         "libtextclassifier_fbgen_annotator_entity-data",
         "libtextclassifier_fbgen_utils_grammar_testing_value",
         "libtextclassifier_fbgen_utils_grammar_semantics_expression",
@@ -209,7 +201,6 @@ cc_library_headers {
         "libtextclassifier_fbgen_annotator_model",
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
-        "libtextclassifier_fbgen_annotator_datetime_datetime",
         "libtextclassifier_fbgen_annotator_entity-data",
         "libtextclassifier_fbgen_utils_grammar_testing_value",
         "libtextclassifier_fbgen_utils_grammar_semantics_expression",
