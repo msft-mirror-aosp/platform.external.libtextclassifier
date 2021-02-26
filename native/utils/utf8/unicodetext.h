@@ -178,6 +178,9 @@ class UnicodeText {
   // Returns an iterator for each codepoint.
   std::vector<const_iterator> Codepoints() const;
 
+  // Returns the list of codepoints of the UnicodeText.
+  std::vector<char32> CodepointsChar32() const;
+
   std::string ToUTF8String() const;
   std::string UTF8Substring(int begin_codepoint, int end_codepoint) const;
   static std::string UTF8Substring(const const_iterator& it_begin,

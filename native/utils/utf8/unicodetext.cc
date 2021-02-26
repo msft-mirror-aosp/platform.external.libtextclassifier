@@ -210,6 +210,14 @@ std::vector<UnicodeText::const_iterator> UnicodeText::Codepoints() const {
   return codepoints;
 }
 
+std::vector<char32> UnicodeText::CodepointsChar32() const {
+  std::vector<char32> codepoints;
+  for (auto it = begin(); it != end(); it++) {
+    codepoints.push_back(*it);
+  }
+  return codepoints;
+}
+
 bool UnicodeText::operator==(const UnicodeText& other) const {
   if (repr_.size_ != other.repr_.size_) {
     return false;

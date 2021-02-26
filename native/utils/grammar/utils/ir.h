@@ -25,6 +25,7 @@
 #include "utils/base/integral_types.h"
 #include "utils/grammar/rules_generated.h"
 #include "utils/grammar/types.h"
+#include "utils/grammar/utils/locale-shard-map.h"
 
 namespace libtextclassifier3::grammar {
 
@@ -96,8 +97,10 @@ class Ir {
     std::unordered_map<TwoNonterms, LhsSet, BinaryRuleHasher> binary_rules;
   };
 
-  explicit Ir(const int num_shards = 1)
-      : num_nonterminals_(0), shards_(num_shards) {}
+  explicit Ir(const LocaleShardMap& locale_shard_map)
+      : num_nonterminals_(0),
+        locale_shard_map_(locale_shard_map),
+        shards_(locale_shard_map_.GetNumberOfShards()) {}
 
   // Adds a new non-terminal.
   Nonterm AddNonterminal(const std::string& name = "") {
@@ -224,6 +227,8 @@ class Ir {
   Nonterm num_nonterminals_;
   std::unordered_set<Nonterm> nonshareable_;
 
+  // Locale information for Rules
+  const LocaleShardMap& locale_shard_map_;
   // The sharded rules.
   std::vector<RulesShard> shards_;
 
