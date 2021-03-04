@@ -12,9 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "external_libtextclassifier_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["external_libtextclassifier_license"],
+}
+
 cc_library_headers {
     name: "libtextclassifier_hash_headers",
     vendor_available: true,
+    host_supported: true,
     export_include_dirs: ["."],
     apex_available: [
         "//apex_available:platform",
@@ -25,6 +35,8 @@ cc_library_headers {
 
 cc_defaults {
     name: "libtextclassifier_hash_defaults",
+    vendor_available: true,
+    host_supported: true,
     srcs: [
         "utils/hash/farmhash.cc",
         "util/hash/hash.cc",
@@ -47,7 +59,6 @@ cc_library_shared {
 cc_library_static {
     name: "libtextclassifier_hash_static",
     defaults: ["libtextclassifier_hash_defaults"],
-    vendor_available: true,
     sdk_version: "current",
     stl: "libc++_static",
     apex_available: [
