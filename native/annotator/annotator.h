@@ -219,6 +219,10 @@ class Annotator {
   bool LookUpKnowledgeEntity(const std::string& id,
                              std::string* serialized_knowledge_result) const;
 
+  // Looks up an entity's property.
+  StatusOr<std::string> LookUpKnowledgeEntityProperty(
+      const std::string& mid_str, const std::string& property) const;
+
   const Model* model() const;
   const reflection::Schema* entity_data_schema() const;
 
@@ -342,7 +346,7 @@ class Annotator {
   // reuse.
   bool ModelAnnotate(const std::string& context,
                      const std::vector<Locale>& detected_text_language_tags,
-                     const BaseOptions& options,
+                     const AnnotationOptions& options,
                      InterpreterManager* interpreter_manager,
                      std::vector<Token>* tokens,
                      std::vector<AnnotatedSpan>* result) const;

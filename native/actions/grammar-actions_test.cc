@@ -37,6 +37,8 @@ namespace {
 using ::testing::ElementsAre;
 using ::testing::IsEmpty;
 
+using ::libtextclassifier3::grammar::LocaleShardMap;
+
 class TestGrammarActions : public GrammarActions {
  public:
   explicit TestGrammarActions(
@@ -140,12 +142,14 @@ class GrammarActionsTest : public testing::Test {
 };
 
 TEST_F(GrammarActionsTest, ProducesSmartReplies) {
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
+
   // Create test rules.
   // Rule: ^knock knock.?$ -> "Who's there?", "Yes?"
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
   rules.Add(
       "<knock>", {"<^>", "knock", "knock", ".?", "<$>"},
       /*callback=*/
@@ -174,7 +178,8 @@ TEST_F(GrammarActionsTest, ProducesSmartRepliesFromCapturingMatches) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
 
   rules.Add(
       "<scripted_reply>",
@@ -231,7 +236,8 @@ TEST_F(GrammarActionsTest, ProducesAnnotationsForActions) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
 
   rules.Add(
       "<call_phone>", {"please", "dial", "<phone>"},
@@ -270,7 +276,9 @@ TEST_F(GrammarActionsTest, HandlesLocales) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules(/*num_shards=*/2);
+  LocaleShardMap locale_shard_map =
+      LocaleShardMap::CreateLocaleShardMap({"", "fr-CH"});
+  grammar::Rules rules(locale_shard_map);
   rules.Add(
       "<knock>", {"<^>", "knock", "knock", ".?", "<$>"},
       /*callback=*/
@@ -333,7 +341,8 @@ TEST_F(GrammarActionsTest, HandlesAssertions) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -387,7 +396,8 @@ TEST_F(GrammarActionsTest, SetsFixedEntityData) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
 
   // Create smart reply and static entity data.
   const int spec_id =
@@ -440,7 +450,8 @@ TEST_F(GrammarActionsTest, SetsEntityDataFromCapturingMatches) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
 
   // Create smart reply and static entity data.
   const int spec_id =
@@ -522,7 +533,8 @@ TEST_F(GrammarActionsTest, SetsFixedEntityDataFromCapturingGroups) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
 
   // Create smart reply.
   const int spec_id =
@@ -572,7 +584,8 @@ TEST_F(GrammarActionsTest, ProducesActionsWithAnnotations) {
   RulesModel_::GrammarRulesT action_grammar_rules;
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add(
       "<call_phone>", {"please", "dial", "<phone>"},
       /*callback=*/
@@ -632,7 +645,8 @@ TEST_F(GrammarActionsTest, HandlesExclusions) {
   SetTokenizerOptions(&action_grammar_rules);
   action_grammar_rules.rules.reset(new grammar::RulesSetT);
 
-  grammar::Rules rules;
+  LocaleShardMap locale_shard_map = LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<excluded>", {"be", "safe"});
   rules.AddWithExclusion("<tokens_but_not_excluded>", {"<token>", "<token>"},
                          /*excluded_nonterminal=*/"<excluded>");

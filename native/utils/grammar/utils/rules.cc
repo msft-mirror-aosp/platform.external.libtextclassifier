@@ -414,7 +414,7 @@ bool Rules::UsesFillers() const {
 }
 
 Ir Rules::Finalize(const std::set<std::string>& predefined_nonterminals) const {
-  Ir rules(num_shards_);
+  Ir rules(locale_shard_map_);
   std::unordered_map<int, Nonterm> nonterminal_ids;
 
   // Pending rules to process.
