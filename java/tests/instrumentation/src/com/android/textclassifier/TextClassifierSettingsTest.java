@@ -23,6 +23,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.android.textclassifier.ModelFileManager.ModelType;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;
@@ -94,58 +98,82 @@ public class TextClassifierSettingsTest {
   }
 
   @Test
-  public void modelURLPrefixSetting() {
+  public void getManifestURLSuffixSetting() {
     assertSettings(
-        TextClassifierSettings.ANNOTATOR_URL_PREFIX,
-        "prefix:annotator",
+        "url_suffix_annotator_en",
+        "suffix:annotator",
         settings ->
-            assertThat(settings.getModelURLPrefix(ModelType.ANNOTATOR))
-                .isEqualTo("prefix:annotator"));
+            assertThat(settings.getManifestURLSuffix(ModelType.ANNOTATOR, "en"))
+                .isEqualTo("suffix:annotator"));
     assertSettings(
-        TextClassifierSettings.LANG_ID_URL_PREFIX,
-        "prefix:lang_id",
+        "url_suffix_lang_id_universal",
+        "suffix:lang_id",
         settings ->
-            assertThat(settings.getModelURLPrefix(ModelType.LANG_ID)).isEqualTo("prefix:lang_id"));
+            assertThat(settings.getManifestURLSuffix(ModelType.LANG_ID, "universal"))
+                .isEqualTo("suffix:lang_id"));
     assertSettings(
-        TextClassifierSettings.ACTIONS_SUGGESTIONS_URL_PREFIX,
-        "prefix:actions_suggestions",
+        "url_suffix_actions_suggestions_zh",
+        "suffix:actions_suggestions",
         settings ->
-            assertThat(settings.getModelURLPrefix(ModelType.ACTIONS_SUGGESTIONS))
-                .isEqualTo("prefix:actions_suggestions"));
+            assertThat(settings.getManifestURLSuffix(ModelType.ACTIONS_SUGGESTIONS, "zh"))
+                .isEqualTo("suffix:actions_suggestions"));
   }
 
   @Test
-  public void primaryModelURLSuffixSetting() {
+  public void getLanguageTagsForManifestURLSuffix() {
     assertSettings(
-        TextClassifierSettings.PRIMARY_ANNOTATOR_URL_SUFFIX,
-        "suffix:annotator",
+        ImmutableMap.of(
+            "url_suffix_annotator_en", "suffix:annotator-en",
+            "url_suffix_annotator_en-us", "suffix:annotator-en-us",
+            "url_suffix_annotator_zh-hant-hk", "suffix:annotator-zh",
+            "url_suffix_lang_id_universal", "suffix:lang_id"),
         settings ->
-            assertThat(settings.getPrimaryModelURLSuffix(ModelType.ANNOTATOR))
-                .isEqualTo("suffix:annotator"));
+            assertThat(settings.getLanguageTagsForManifestURLSuffix(ModelType.ANNOTATOR))
+                .containsExactly("en", "en-us", "zh-hant-hk"));
+
     assertSettings(
-        TextClassifierSettings.PRIMARY_LANG_ID_URL_SUFFIX,
-        "suffix:lang_id",
+        ImmutableMap.of(
+            "url_suffix_annotator_en", "suffix:annotator-en",
+            "url_suffix_annotator_en-us", "suffix:annotator-en-us",
+            "url_suffix_annotator_zh-hant-hk", "suffix:annotator-zh",
+            "url_suffix_lang_id_universal", "suffix:lang_id"),
         settings ->
-            assertThat(settings.getPrimaryModelURLSuffix(ModelType.LANG_ID))
-                .isEqualTo("suffix:lang_id"));
+            assertThat(settings.getLanguageTagsForManifestURLSuffix(ModelType.LANG_ID))
+                .containsExactlyElementsIn(ImmutableList.of("universal")));
+
     assertSettings(
-        TextClassifierSettings.PRIMARY_ACTIONS_SUGGESTIONS_URL_SUFFIX,
-        "suffix:actions_suggestions",
+        ImmutableMap.of(
+            "url_suffix_annotator_en", "suffix:annotator-en",
+            "url_suffix_annotator_en-us", "suffix:annotator-en-us",
+            "url_suffix_annotator_zh-hant-hk", "suffix:annotator-zh",
+            "url_suffix_lang_id_universal", "suffix:lang_id"),
         settings ->
-            assertThat(settings.getPrimaryModelURLSuffix(ModelType.ACTIONS_SUGGESTIONS))
-                .isEqualTo("suffix:actions_suggestions"));
+            assertThat(settings.getLanguageTagsForManifestURLSuffix(ModelType.ACTIONS_SUGGESTIONS))
+                .isEmpty());
   }
 
   private static void assertSettings(
       String key, String value, Consumer<TextClassifierSettings> settingsConsumer) {
-    final String originalValue =
-        DeviceConfig.getProperty(DeviceConfig.NAMESPACE_TEXTCLASSIFIER, key);
+    assertSettings(ImmutableMap.of(key, value), settingsConsumer);
+  }
+
+  private static void assertSettings(
+      Map<String, String> keyValueMap, Consumer<TextClassifierSettings> settingsConsumer) {
+    HashMap<String, String> keyOriginalValueMap = new HashMap<>();
+    for (String key : keyValueMap.keySet()) {
+      keyOriginalValueMap.put(
+          key, DeviceConfig.getProperty(DeviceConfig.NAMESPACE_TEXTCLASSIFIER, key));
+    }
     TextClassifierSettings settings = new TextClassifierSettings();
     try {
-      setDeviceConfig(key, value);
+      for (String key : keyValueMap.keySet()) {
+        setDeviceConfig(key, keyValueMap.get(key));
+      }
       settingsConsumer.accept(settings);
     } finally {
-      setDeviceConfig(key, originalValue);
+      for (String key : keyValueMap.keySet()) {
+        setDeviceConfig(key, keyOriginalValueMap.get(key));
+      }
     }
   }
 

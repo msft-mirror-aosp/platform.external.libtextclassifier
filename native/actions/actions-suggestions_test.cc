@@ -29,6 +29,7 @@
 #include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/flatbuffers_generated.h"
 #include "utils/flatbuffers/mutable.h"
+#include "utils/grammar/utils/locale-shard-map.h"
 #include "utils/grammar/utils/rules.h"
 #include "utils/hash/farmhash.h"
 #include "utils/jvm-test-utils.h"
@@ -1042,7 +1043,9 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsFromGrammarRules) {
 
   // Setup test rules.
   action_grammar_rules->rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add(
       "<knock>", {"<^>", "ventura", "!?", "<$>"},
       /*callback=*/
@@ -1102,7 +1105,9 @@ TEST_F(ActionsSuggestionsTest, CreatesActionsWithAnnotationsFromGrammarRules) {
 
   // Setup test rules.
   action_grammar_rules->rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add(
       "<event>", {"it", "is", "at", "<time>"},
       /*callback=*/

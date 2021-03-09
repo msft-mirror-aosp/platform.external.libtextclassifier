@@ -31,7 +31,9 @@ using ::testing::Ne;
 using ::testing::SizeIs;
 
 TEST(IrTest, HandlesSharingWithTerminalRules) {
-  Ir ir;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Ir ir(locale_shard_map);
 
   // <t1> ::= the
   const Nonterm t1 = ir.Add(kUnassignedNonterm, "the");
@@ -72,7 +74,9 @@ TEST(IrTest, HandlesSharingWithTerminalRules) {
 }
 
 TEST(IrTest, HandlesSharingWithNonterminalRules) {
-  Ir ir;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Ir ir(locale_shard_map);
 
   // Setup a few terminal rules.
   const std::vector<Nonterm> rhs = {
@@ -97,7 +101,9 @@ TEST(IrTest, HandlesSharingWithCallbacksWithSameParameters) {
   // Test sharing in the presence of callbacks.
   constexpr CallbackId kOutput1 = 1;
   constexpr CallbackId kOutput2 = 2;
-  Ir ir;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Ir ir(locale_shard_map);
 
   const Nonterm x1 = ir.Add(kUnassignedNonterm, "hello");
   const Nonterm x2 =
@@ -116,7 +122,10 @@ TEST(IrTest, HandlesSharingWithCallbacksWithSameParameters) {
 
 TEST(IrTest, SerializesRulesToFlatbufferFormat) {
   constexpr CallbackId kOutput = 1;
-  Ir ir;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Ir ir(locale_shard_map);
+
   const Nonterm verb = ir.AddUnshareableNonterminal();
   ir.Add(verb, "buy");
   ir.Add(Ir::Lhs{verb, {kOutput}}, "bring");
@@ -155,7 +164,9 @@ TEST(IrTest, SerializesRulesToFlatbufferFormat) {
 }
 
 TEST(IrTest, HandlesRulesSharding) {
-  Ir ir(/*num_shards=*/2);
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({"", "de"});
+  Ir ir(locale_shard_map);
   const Nonterm verb = ir.AddUnshareableNonterminal();
   const Nonterm set_reminder = ir.AddUnshareableNonterminal();
 
@@ -210,7 +221,9 @@ TEST(IrTest, HandlesRulesSharding) {
 }
 
 TEST(IrTest, DeduplicatesLhsSets) {
-  Ir ir;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Ir ir(locale_shard_map);
 
   const Nonterm test = ir.AddUnshareableNonterminal();
   ir.Add(test, "test");

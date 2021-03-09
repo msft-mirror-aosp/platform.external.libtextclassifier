@@ -16,6 +16,7 @@
 
 #include "utils/grammar/utils/ir.h"
 
+#include "utils/i18n/locale.h"
 #include "utils/strings/append.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/zlib/zlib.h"
@@ -445,16 +446,29 @@ void Ir::Serialize(const bool include_debug_information,
   }
 
   // Serialize the unary and binary rules.
-  for (const RulesShard& shard : shards_) {
+  for (int i = 0; i < shards_.size(); i++) {
     output->rules.emplace_back(std::make_unique<RulesSet_::RulesT>());
     RulesSet_::RulesT* rules = output->rules.back().get();
+    for (const Locale& shard_locale : locale_shard_map_.GetLocales(i)) {
+      if (shard_locale.IsValid()) {
+        // Check if the language is set to all i.e. '*' which is a special, to
+        // make it consistent with device side parser here instead of filling
+        // the all locale leave the language tag list empty
+        rules->locale.emplace_back(
+            std::make_unique<libtextclassifier3::LanguageTagT>());
+        libtextclassifier3::LanguageTagT* language_tag =
+            rules->locale.back().get();
+        language_tag->language = shard_locale.Language();
+        language_tag->region = shard_locale.Region();
+        language_tag->script = shard_locale.Script();
+      }
+    }
+
     // Serialize the unary rules.
-    SerializeUnaryRulesShard(shard.unary_rules, output, rules);
-
+    SerializeUnaryRulesShard(shards_[i].unary_rules, output, rules);
     // Serialize the binary rules.
-    SerializeBinaryRulesShard(shard.binary_rules, output, rules);
+    SerializeBinaryRulesShard(shards_[i].binary_rules, output, rules);
   }
-
   // Serialize the terminal rules.
   // We keep the rules separate by shard but merge the actual terminals into
   // one shared string pool to most effectively exploit reuse.
