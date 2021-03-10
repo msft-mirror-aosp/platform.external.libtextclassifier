@@ -23,6 +23,7 @@
 #include "annotator/model_generated.h"
 #include "utils/flatbuffers/flatbuffers.h"
 #include "utils/flatbuffers/mutable.h"
+#include "utils/grammar/utils/locale-shard-map.h"
 #include "utils/grammar/utils/rules.h"
 #include "utils/tokenizer.h"
 #include "utils/utf8/unicodetext.h"
@@ -45,7 +46,9 @@ TEST_F(GrammarAnnotatorTest, AnnotesWithGrammarRules) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -79,7 +82,9 @@ TEST_F(GrammarAnnotatorTest, HandlesAssertions) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -120,7 +125,9 @@ TEST_F(GrammarAnnotatorTest, HandlesCapturingGroups) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.AddValueMapping("<low_confidence_phone>", {"<digits>"},
                         /*value=*/0);
 
@@ -157,7 +164,9 @@ TEST_F(GrammarAnnotatorTest, ClassifiesTextWithGrammarRules) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -194,7 +203,9 @@ TEST_F(GrammarAnnotatorTest, ClassifiesTextWithAssertions) {
   grammar_model.context_left_num_tokens = -1;
   grammar_model.context_right_num_tokens = -1;
 
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -254,7 +265,9 @@ TEST_F(GrammarAnnotatorTest, ClassifiesTextWithContext) {
   grammar_model.context_left_num_tokens = 3;
   grammar_model.context_right_num_tokens = 0;
 
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<tracking_number>", {"<5_digits>"});
   rules.Add("<tracking_number>", {"<6_digits>"});
   rules.Add("<tracking_number>", {"<7_digits>"});
@@ -306,7 +319,9 @@ TEST_F(GrammarAnnotatorTest, SuggestsTextSelection) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -338,7 +353,9 @@ TEST_F(GrammarAnnotatorTest, SetsFixedEntityData) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   const int person_result =
       AddRuleClassificationResult("person", ModeFlag_ALL, 1.0, &grammar_model);
   rules.Add(
@@ -382,7 +399,9 @@ TEST_F(GrammarAnnotatorTest, SetsEntityDataFromCapturingMatches) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   const int person_result =
       AddRuleClassificationResult("person", ModeFlag_ALL, 1.0, &grammar_model);
 
@@ -438,7 +457,9 @@ TEST_F(GrammarAnnotatorTest, RespectsRuleModes) {
   GrammarModelT grammar_model;
   SetTestTokenizerOptions(&grammar_model);
   grammar_model.rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<classification_carrier>", {"ei"});
   rules.Add("<classification_carrier>", {"en"});
   rules.Add("<selection_carrier>", {"ai"});
