@@ -123,7 +123,9 @@ class MatcherTest : public testing::Test {
 
 TEST_F(MatcherTest, HandlesBasicOperations) {
   // Create an example grammar.
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<test>", {"the", "quick", "brown", "fox"},
             static_cast<CallbackId>(DefaultCallback::kRootRule));
   rules.Add("<action>", {"<test>"},
@@ -146,7 +148,9 @@ TEST_F(MatcherTest, HandlesBasicOperations) {
 
 std::string CreateTestGrammar() {
   // Create an example grammar.
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
 
   // Callbacks on terminal rules.
   rules.Add("<output_5>", {"quick"},
@@ -260,7 +264,9 @@ TEST_F(MatcherTest, HandlesManualAddParseTreeCalls) {
 }
 
 TEST_F(MatcherTest, HandlesOptionalRuleElements) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<output_0>", {"a?", "b?", "c?", "d?", "e"},
             static_cast<CallbackId>(DefaultCallback::kRootRule));
   rules.Add("<output_1>", {"a", "b?", "c", "d?", "e"},
@@ -293,7 +299,9 @@ TEST_F(MatcherTest, HandlesOptionalRuleElements) {
 }
 
 TEST_F(MatcherTest, HandlesWhitespaceGapLimits) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<iata>", {"lx"});
   rules.Add("<iata>", {"aa"});
   // Require no whitespace between code and flight number.
@@ -331,7 +339,9 @@ TEST_F(MatcherTest, HandlesWhitespaceGapLimits) {
 }
 
 TEST_F(MatcherTest, HandlesCaseSensitiveTerminals) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<iata>", {"LX"}, /*callback=*/kNoCallback, 0,
             /*max_whitespace_gap*/ -1, /*case_sensitive=*/true);
   rules.Add("<iata>", {"AA"}, /*callback=*/kNoCallback, 0,
@@ -383,7 +393,10 @@ TEST_F(MatcherTest, HandlesCaseSensitiveTerminals) {
 }
 
 TEST_F(MatcherTest, HandlesExclusions) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
+
   rules.Add("<all_zeros>", {"0000"});
   rules.AddWithExclusion("<flight_code>", {"<4_digits>"},
                          /*excluded_nonterminal=*/"<all_zeros>");
