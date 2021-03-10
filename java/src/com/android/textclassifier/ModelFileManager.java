@@ -339,6 +339,7 @@ final class ModelFileManager {
 
     ModelFile bestModel = null;
     for (ModelFile model : listModelFiles(modelType)) {
+      // TODO(licha): update this when we want to support multiple languages
       if (model.isAnyLanguageSupported(languageRangeList)) {
         if (model.isPreferredTo(bestModel)) {
           bestModel = model;
@@ -379,15 +380,21 @@ final class ModelFileManager {
   /**
    * Returns a {@link File} that represents the destination to download a model.
    *
-   * <p>Each model file's name is uniquely formatted based on its unique remote manifest URL.
+   * <p>Each model file's name is uniquely formatted based on its unique remote manifest URL suffix.
    *
    * <p>{@link ModelDownloadManager} needs to call this to get the right location and file name.
    *
    * @param modelType the type of the model image to download
-   * @param manifestUrl the unique remote url of the model manifest
+   * @param manifestUrlSuffix the unique remote url suffix of the model manifest
    */
-  public File getDownloadTargetFile(@ModelTypeDef String modelType, String manifestUrl) {
-    String fileName = String.format("%s.%d.model", modelType, manifestUrl.hashCode());
+  public File getDownloadTargetFile(
+      @ModelType.ModelTypeDef String modelType, String manifestUrlSuffix) {
+    // TODO(licha): Consider preserving the folder hierarchy of the URL
+    String fileMidName = manifestUrlSuffix.replaceAll("[^A-Za-z0-9]", "_");
+    if (fileMidName.endsWith("_manifest")) {
+      fileMidName = fileMidName.substring(0, fileMidName.length() - "_manifest".length());
+    }
+    String fileName = String.format("%s.%s.model", modelType, fileMidName);
     return new File(modelDownloaderDir, fileName);
   }
 

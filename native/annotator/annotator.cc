@@ -1017,7 +1017,13 @@ CodepointSpan Annotator::SuggestSelection(
         return original_click_indices;
       }
 
-      return candidates.annotated_spans[0][i].span;
+      // We return a suggested span contains the original span.
+      // This compensates for "select all" selection that may come from
+      // other apps. See http://b/179890518.
+      if (SpanContains(candidates.annotated_spans[0][i].span,
+                       original_click_indices)) {
+        return candidates.annotated_spans[0][i].span;
+      }
     }
   }
 
@@ -1935,7 +1941,7 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
 bool Annotator::ModelAnnotate(
     const std::string& context,
     const std::vector<Locale>& detected_text_language_tags,
-    const BaseOptions& options, InterpreterManager* interpreter_manager,
+    const AnnotationOptions& options, InterpreterManager* interpreter_manager,
     std::vector<Token>* tokens, std::vector<AnnotatedSpan>* result) const {
   if (model_->triggering_options() == nullptr ||
       !(model_->triggering_options()->enabled_modes() & ModeFlag_ANNOTATION)) {
@@ -2008,13 +2014,41 @@ bool Annotator::ModelAnnotate(
     }
 
     const int offset = std::distance(context_unicode.begin(), line.first);
+    UnicodeText line_unicode;
+    std::vector<UnicodeText::const_iterator> line_codepoints;
+    if (options.enable_optimization) {
+      if (local_chunks.empty()) {
+        continue;
+      }
+      line_unicode = UTF8ToUnicodeText(line_str, /*do_copy=*/false);
+      line_codepoints = line_unicode.Codepoints();
+      line_codepoints.push_back(line_unicode.end());
+    }
     for (const TokenSpan& chunk : local_chunks) {
       CodepointSpan codepoint_span =
-          selection_feature_processor_->StripBoundaryCodepoints(
-              line_str, TokenSpanToCodepointSpan(line_tokens, chunk));
-      if (model_->selection_options()->strip_unpaired_brackets()) {
-        codepoint_span =
-            StripUnpairedBrackets(context_unicode, codepoint_span, *unilib_);
+          TokenSpanToCodepointSpan(line_tokens, chunk);
+      if (options.enable_optimization) {
+        if (!codepoint_span.IsValid() ||
+            codepoint_span.second > line_codepoints.size()) {
+          continue;
+        }
+        codepoint_span = selection_feature_processor_->StripBoundaryCodepoints(
+            /*span_begin=*/line_codepoints[codepoint_span.first],
+            /*span_end=*/line_codepoints[codepoint_span.second],
+            codepoint_span);
+        if (model_->selection_options()->strip_unpaired_brackets()) {
+          codepoint_span = StripUnpairedBrackets(
+              /*span_begin=*/line_codepoints[codepoint_span.first],
+              /*span_end=*/line_codepoints[codepoint_span.second],
+              codepoint_span, *unilib_);
+        }
+      } else {
+        codepoint_span = selection_feature_processor_->StripBoundaryCodepoints(
+            line_str, codepoint_span);
+        if (model_->selection_options()->strip_unpaired_brackets()) {
+          codepoint_span =
+              StripUnpairedBrackets(context_unicode, codepoint_span, *unilib_);
+        }
       }
 
       // Skip empty spans.
@@ -3134,6 +3168,15 @@ bool Annotator::LookUpKnowledgeEntity(
     const std::string& id, std::string* serialized_knowledge_result) const {
   return knowledge_engine_ &&
          knowledge_engine_->LookUpEntity(id, serialized_knowledge_result);
+}
+
+StatusOr<std::string> Annotator::LookUpKnowledgeEntityProperty(
+    const std::string& mid_str, const std::string& property) const {
+  if (!knowledge_engine_) {
+    return Status(StatusCode::FAILED_PRECONDITION,
+                  "knowledge_engine_ is nullptr");
+  }
+  return knowledge_engine_->LookUpEntityProperty(mid_str, property);
 }
 
 }  // namespace libtextclassifier3

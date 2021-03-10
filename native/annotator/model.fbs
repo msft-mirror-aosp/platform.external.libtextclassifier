@@ -14,17 +14,17 @@
 // limitations under the License.
 //
 
-include "utils/intents/intent-config.fbs";
-include "annotator/experimental/experimental.fbs";
 include "annotator/entity-data.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/normalization.fbs";
-include "utils/tokenizer.fbs";
-include "utils/resources.fbs";
+include "annotator/experimental/experimental.fbs";
 include "utils/codepoint-range.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
-include "utils/zlib/buffer.fbs";
 include "utils/container/bit-vector.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
+include "utils/grammar/rules.fbs";
+include "utils/intents/intent-config.fbs";
+include "utils/normalization.fbs";
+include "utils/resources.fbs";
+include "utils/tokenizer.fbs";
+include "utils/zlib/buffer.fbs";
 
 file_identifier "TC2 ";
 
