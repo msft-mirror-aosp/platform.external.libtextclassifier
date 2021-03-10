@@ -27,6 +27,7 @@
 #include "annotator/test-utils.h"
 #include "annotator/types-test-util.h"
 #include "annotator/types.h"
+#include "utils/grammar/utils/locale-shard-map.h"
 #include "utils/grammar/utils/rules.h"
 #include "utils/testing/annotator.h"
 #include "lang_id/fb_model/lang-id-from-fb.h"
@@ -921,13 +922,13 @@ TEST_F(AnnotatorTest, SuggestSelection) {
 
   // Unpaired bracket stripping.
   EXPECT_EQ(
-      classifier->SuggestSelection("call me at (857) 225 3556 today", {11, 16}),
+      classifier->SuggestSelection("call me at (857) 225 3556 today", {12, 14}),
       CodepointSpan(11, 25));
-  EXPECT_EQ(classifier->SuggestSelection("call me at (857 today", {11, 15}),
+  EXPECT_EQ(classifier->SuggestSelection("call me at (857 today", {12, 14}),
             CodepointSpan(12, 15));
-  EXPECT_EQ(classifier->SuggestSelection("call me at 3556) today", {11, 16}),
+  EXPECT_EQ(classifier->SuggestSelection("call me at 3556) today", {12, 14}),
             CodepointSpan(11, 15));
-  EXPECT_EQ(classifier->SuggestSelection("call me at )857( today", {11, 16}),
+  EXPECT_EQ(classifier->SuggestSelection("call me at )857( today", {12, 14}),
             CodepointSpan(12, 15));
 
   // If the resulting selection would be empty, the original span is returned.
@@ -937,6 +938,12 @@ TEST_F(AnnotatorTest, SuggestSelection) {
             CodepointSpan(11, 12));
   EXPECT_EQ(classifier->SuggestSelection("call me at ) today", {11, 12}),
             CodepointSpan(11, 12));
+
+  // If the original span is larger than the found selection, the original span
+  // is returned.
+  EXPECT_EQ(
+      classifier->SuggestSelection("call me at 857 225 3556 today", {5, 24}),
+      CodepointSpan(5, 24));
 }
 
 TEST_F(AnnotatorTest, SuggestSelectionDisabledFail) {
@@ -1233,6 +1240,34 @@ TEST_F(AnnotatorTest, AnnotatesWithBracketStripping) {
                   IsAnnotatedSpan(11, 22, "phone"),
               }));
   EXPECT_THAT(classifier->Annotate("call me at )07038201818( today"),
+              ElementsAreArray({
+                  IsAnnotatedSpan(12, 23, "phone"),
+              }));
+}
+
+TEST_F(AnnotatorTest, AnnotatesWithBracketStrippingOptimized) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  ASSERT_TRUE(classifier);
+
+  AnnotationOptions options;
+  options.enable_optimization = true;
+
+  EXPECT_THAT(classifier->Annotate("call me at (0845) 100 1000 today", options),
+              ElementsAreArray({
+                  IsAnnotatedSpan(11, 26, "phone"),
+              }));
+
+  // Unpaired bracket stripping.
+  EXPECT_THAT(classifier->Annotate("call me at (07038201818 today", options),
+              ElementsAreArray({
+                  IsAnnotatedSpan(12, 23, "phone"),
+              }));
+  EXPECT_THAT(classifier->Annotate("call me at 07038201818) today", options),
+              ElementsAreArray({
+                  IsAnnotatedSpan(11, 22, "phone"),
+              }));
+  EXPECT_THAT(classifier->Annotate("call me at )07038201818( today", options),
               ElementsAreArray({
                   IsAnnotatedSpan(12, 23, "phone"),
               }));
@@ -1743,7 +1778,9 @@ TEST_F(AnnotatorTest, AnnotatesWithGrammarModel) {
 
   // Add test rules.
   grammar_model->rules.reset(new grammar::RulesSetT);
-  grammar::Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  grammar::Rules rules(locale_shard_map);
   rules.Add("<tv_detective>", {"jessica", "fletcher"});
   rules.Add("<tv_detective>", {"columbo"});
   rules.Add("<tv_detective>", {"magnum"});

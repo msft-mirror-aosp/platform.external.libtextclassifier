@@ -33,7 +33,7 @@ android_test {
     ],
 
     test_suites: [
-        "device-tests", "mts"
+        "device-tests", "mts-extservices"
     ],
 
     instrumentation_for: "TextClassifierNotificationLib",
