@@ -165,6 +165,11 @@ class FeatureProcessor {
       VectorSpan<Token> tokens,
       std::vector<CodepointSpan>* selection_label_spans) const;
 
+  // Fills selection_label_relative_token_spans with number of tokens left and
+  // right from the click.
+  bool SelectionLabelRelativeTokenSpans(
+      std::vector<TokenSpan>* selection_label_relative_token_spans) const;
+
   int DenseFeaturesCount() const {
     return feature_extractor_.DenseFeaturesCount();
   }
