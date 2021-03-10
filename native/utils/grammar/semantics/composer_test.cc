@@ -38,7 +38,9 @@ class SemanticComposerTest : public GrammarTest {};
 
 TEST_F(SemanticComposerTest, EvaluatesSimpleMapping) {
   RulesSetT model;
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   const int test_value_type =
       TypeIdForName(semantic_values_schema_.get(),
                     "libtextclassifier3.grammar.TestValue")
@@ -109,7 +111,9 @@ TEST_F(SemanticComposerTest, EvaluatesSimpleMapping) {
 
 TEST_F(SemanticComposerTest, RecursivelyEvaluatesConstituents) {
   RulesSetT model;
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   const int test_value_type =
       TypeIdForName(semantic_values_schema_.get(),
                     "libtextclassifier3.grammar.TestValue")

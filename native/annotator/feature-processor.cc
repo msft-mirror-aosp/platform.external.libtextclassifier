@@ -474,6 +474,13 @@ bool FeatureProcessor::SelectionLabelSpans(
   return true;
 }
 
+bool FeatureProcessor::SelectionLabelRelativeTokenSpans(
+    std::vector<TokenSpan>* selection_label_relative_token_spans) const {
+  selection_label_relative_token_spans->assign(label_to_selection_.begin(),
+                                               label_to_selection_.end());
+  return true;
+}
+
 void FeatureProcessor::PrepareIgnoredSpanBoundaryCodepoints() {
   if (options_->ignored_span_boundary_codepoints() != nullptr) {
     for (const int codepoint : *options_->ignored_span_boundary_codepoints()) {
