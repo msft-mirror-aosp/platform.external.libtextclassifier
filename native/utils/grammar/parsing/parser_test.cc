@@ -41,7 +41,9 @@ using ::testing::IsEmpty;
 class ParserTest : public GrammarTest {};
 
 TEST_F(ParserTest, ParsesSimpleRules) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<day>", {"<2_digits>"});
   rules.Add("<month>", {"<2_digits>"});
   rules.Add("<year>", {"<4_digits>"});
@@ -58,7 +60,9 @@ TEST_F(ParserTest, ParsesSimpleRules) {
 }
 
 TEST_F(ParserTest, HandlesEmptyInput) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   constexpr int kTest = 0;
   rules.Add("<test>", {"test"},
             static_cast<CallbackId>(DefaultCallback::kRootRule), kTest);
@@ -80,7 +84,9 @@ TEST_F(ParserTest, HandlesEmptyInput) {
 }
 
 TEST_F(ParserTest, HandlesUppercaseTokens) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   constexpr int kScriptedReply = 0;
   rules.Add("<test>", {"please?", "reply", "<uppercase_token>"},
             static_cast<CallbackId>(DefaultCallback::kRootRule),
@@ -99,7 +105,9 @@ TEST_F(ParserTest, HandlesUppercaseTokens) {
 }
 
 TEST_F(ParserTest, HandlesAnchors) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   constexpr int kScriptedReply = 0;
   rules.Add("<test>", {"<^>", "reply", "<uppercase_token>", "<$>"},
             static_cast<CallbackId>(DefaultCallback::kRootRule),
@@ -118,7 +126,9 @@ TEST_F(ParserTest, HandlesAnchors) {
 }
 
 TEST_F(ParserTest, HandlesWordBreaks) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   constexpr int kFlight = 0;
@@ -141,7 +151,9 @@ TEST_F(ParserTest, HandlesWordBreaks) {
 }
 
 TEST_F(ParserTest, HandlesAnnotations) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   constexpr int kCallPhone = 0;
   rules.Add("<flight>", {"dial", "<phone>"},
             static_cast<CallbackId>(DefaultCallback::kRootRule), kCallPhone);
@@ -167,7 +179,9 @@ TEST_F(ParserTest, HandlesAnnotations) {
 }
 
 TEST_F(ParserTest, HandlesRegexAnnotators) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.AddRegex("<code>",
                  "(\"([A-Za-z]+)\"|\\b\"?(?:[A-Z]+[0-9]*|[0-9])\"?\\b)");
   constexpr int kScriptedReply = 0;
@@ -188,7 +202,9 @@ TEST_F(ParserTest, HandlesRegexAnnotators) {
 }
 
 TEST_F(ParserTest, HandlesExclusions) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<excluded>", {"be", "safe"});
   rules.AddWithExclusion("<tokens_but_not_excluded>", {"<token>", "<token>"},
                          /*excluded_nonterminal=*/"<excluded>");
@@ -210,7 +226,9 @@ TEST_F(ParserTest, HandlesExclusions) {
 }
 
 TEST_F(ParserTest, HandlesFillers) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   constexpr int kSetReminder = 0;
   rules.Add("<set_reminder>", {"do", "not", "forget", "to", "<filler>"},
             static_cast<CallbackId>(DefaultCallback::kRootRule), kSetReminder);
@@ -224,7 +242,9 @@ TEST_F(ParserTest, HandlesFillers) {
 }
 
 TEST_F(ParserTest, HandlesAssertions) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -249,7 +269,9 @@ TEST_F(ParserTest, HandlesAssertions) {
 }
 
 TEST_F(ParserTest, HandlesWhitespaceGapLimit) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"lx"});
   rules.Add("<carrier>", {"aa"});
   rules.Add("<flight_code>", {"<2_digits>"});
@@ -270,7 +292,9 @@ TEST_F(ParserTest, HandlesWhitespaceGapLimit) {
 }
 
 TEST_F(ParserTest, HandlesCaseSensitiveMatching) {
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<carrier>", {"Lx"}, /*callback=*/kNoCallback, /*callback_param=*/0,
             /*max_whitespace_gap=*/-1, /*case_sensitive=*/true);
   rules.Add("<carrier>", {"AA"}, /*callback=*/kNoCallback, /*callback_param=*/0,

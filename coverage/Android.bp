@@ -8,5 +8,6 @@ android_library {
         "androidx.test.rules",
     ],
 
+    min_sdk_version: "30",
     sdk_version: "current",
 }
