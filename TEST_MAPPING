@@ -13,6 +13,9 @@
     },
     {
       "name": "libtextclassifier_java_tests"
+    },
+    {
+      "name": "TextClassifierNotificationTests"
     }
   ]
 }
