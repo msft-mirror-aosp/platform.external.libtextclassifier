@@ -45,5 +45,7 @@ android_test {
         "device-tests", "mts-extservices"
     ],
 
+    min_sdk_version: "30",
+
     instrumentation_for: "TextClassifierNotificationLib",
 }
