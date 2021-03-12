@@ -72,6 +72,20 @@ int NumMessagesToConsider(const Conversation& conversation,
               : max_conversation_history_length);
 }
 
+template <typename T>
+std::vector<T> PadOrTruncateToTargetLength(const std::vector<T>& inputs,
+                                           const int max_length,
+                                           const T pad_value) {
+  if (inputs.size() >= max_length) {
+    return std::vector<T>(inputs.begin(), inputs.begin() + max_length);
+  } else {
+    std::vector<T> result;
+    result.reserve(max_length);
+    result.insert(result.begin(), inputs.begin(), inputs.end());
+    result.insert(result.end(), max_length - inputs.size(), pad_value);
+    return result;
+  }
+}
 }  // namespace
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
@@ -639,8 +653,17 @@ bool ActionsSuggestions::SetupModelInput(
     return false;
   }
   if (model_->tflite_model_spec()->input_context() >= 0) {
-    model_executor_->SetInput<std::string>(
-        model_->tflite_model_spec()->input_context(), context, interpreter);
+    if (model_->tflite_model_spec()->input_length_to_pad() > 0) {
+      model_executor_->SetInput<std::string>(
+          model_->tflite_model_spec()->input_context(),
+          PadOrTruncateToTargetLength(
+              context, model_->tflite_model_spec()->input_length_to_pad(),
+              std::string("")),
+          interpreter);
+    } else {
+      model_executor_->SetInput<std::string>(
+          model_->tflite_model_spec()->input_context(), context, interpreter);
+    }
   }
   if (model_->tflite_model_spec()->input_context_length() >= 0) {
     model_executor_->SetInput<int>(
@@ -648,8 +671,16 @@ bool ActionsSuggestions::SetupModelInput(
         interpreter);
   }
   if (model_->tflite_model_spec()->input_user_id() >= 0) {
-    model_executor_->SetInput<int>(model_->tflite_model_spec()->input_user_id(),
-                                   user_ids, interpreter);
+    if (model_->tflite_model_spec()->input_length_to_pad() > 0) {
+      model_executor_->SetInput<int>(
+          model_->tflite_model_spec()->input_user_id(),
+          PadOrTruncateToTargetLength(
+              user_ids, model_->tflite_model_spec()->input_length_to_pad(), 0),
+          interpreter);
+    } else {
+      model_executor_->SetInput<int>(
+          model_->tflite_model_spec()->input_user_id(), user_ids, interpreter);
+    }
   }
   if (model_->tflite_model_spec()->input_num_suggestions() >= 0) {
     model_executor_->SetInput<int>(
