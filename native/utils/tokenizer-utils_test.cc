@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "utils/test-utils.h"
+#include "utils/tokenizer-utils.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -22,7 +22,7 @@
 namespace libtextclassifier3 {
 namespace {
 
-TEST(TestUtilTest, TokenizeOnSpace) {
+TEST(TokenizerUtilTest, TokenizeOnSpace) {
   std::vector<Token> tokens =
       TokenizeOnSpace("Where is Jörg Borg located? Maybe in Zürich ...");
 
@@ -65,7 +65,7 @@ TEST(TestUtilTest, TokenizeOnSpace) {
   EXPECT_EQ(tokens[8].end, 47);
 }
 
-TEST(TestUtilTest, TokenizeOnDelimiters) {
+TEST(TokenizerUtilTest, TokenizeOnDelimiters) {
   std::vector<Token> tokens = TokenizeOnDelimiters(
       "This   might be čomplíčateď?!: Oder?", {' ', '?', '!'});
 
@@ -96,7 +96,7 @@ TEST(TestUtilTest, TokenizeOnDelimiters) {
   EXPECT_EQ(tokens[5].end, 35);
 }
 
-TEST(TestUtilTest, TokenizeOnDelimitersKeepNoSpace) {
+TEST(TokenizerUtilTest, TokenizeOnDelimitersKeepNoSpace) {
   std::vector<Token> tokens = TokenizeOnDelimiters(
       "This   might be čomplíčateď?!: Oder?", {' ', '?', '!'},
       /* create_tokens_for_non_space_delimiters =*/true);
