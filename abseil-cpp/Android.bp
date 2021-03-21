@@ -33,7 +33,10 @@ license {
 cc_library_static {
     name: "libtextclassifier_abseil",
     export_include_dirs: ["."],
-    visibility: ["//external/libtextclassifier:__subpackages__"],
+    visibility: [
+        "//external/libtextclassifier:__subpackages__",
+        "//external/tflite-support:__subpackages__"
+    ],
     srcs: [
         "absl/**/*.cc",
     ],

@@ -335,7 +335,7 @@ cc_test {
     name: "libtextclassifier_tests",
     defaults: ["libtextclassifier_defaults"],
 
-    test_suites: ["device-tests", "mts"],
+    test_suites: ["device-tests", "mts-extservices"],
 
     data: [
         "annotator/test_data/**/*",
