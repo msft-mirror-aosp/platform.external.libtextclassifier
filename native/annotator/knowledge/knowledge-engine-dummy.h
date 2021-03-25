@@ -37,19 +37,19 @@ class KnowledgeEngine {
 
   void SetPriorityScore(float priority_score) {}
 
-  bool ClassifyText(const std::string& text, CodepointSpan selection_indices,
-                    AnnotationUsecase annotation_usecase,
-                    const Optional<LocationContext>& location_context,
-                    const Permissions& permissions,
-                    ClassificationResult* classification_result) const {
-    return false;
+  Status ClassifyText(const std::string& text, CodepointSpan selection_indices,
+                      AnnotationUsecase annotation_usecase,
+                      const Optional<LocationContext>& location_context,
+                      const Permissions& permissions,
+                      ClassificationResult* classification_result) const {
+    return Status(StatusCode::UNIMPLEMENTED, "Not implemented.");
   }
 
-  bool Chunk(const std::string& text, AnnotationUsecase annotation_usecase,
-             const Optional<LocationContext>& location_context,
-             const Permissions& permissions, const AnnotateMode annotate_mode,
-             Annotations* result) const {
-    return true;
+  Status Chunk(const std::string& text, AnnotationUsecase annotation_usecase,
+               const Optional<LocationContext>& location_context,
+               const Permissions& permissions, const AnnotateMode annotate_mode,
+               Annotations* result) const {
+    return Status::OK;
   }
 
   Status ChunkMultipleSpans(
@@ -62,9 +62,8 @@ class KnowledgeEngine {
     return Status::OK;
   }
 
-  bool LookUpEntity(const std::string& id,
-                    std::string* serialized_knowledge_result) const {
-    return false;
+  StatusOr<std::string> LookUpEntity(const std::string& id) const {
+    return Status(StatusCode::UNIMPLEMENTED, "Not implemented.");
   }
 
   StatusOr<std::string> LookUpEntityProperty(
