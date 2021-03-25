@@ -180,6 +180,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     @Nullable private final NamedVariant[] entityData;
     @Nullable private final byte[] serializedEntityData;
     @Nullable private final RemoteActionTemplate[] remoteActionTemplates;
+    @Nullable private final Slot[] slots;
 
     public ActionSuggestion(
         @Nullable String responseText,
@@ -187,13 +188,15 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         float score,
         @Nullable NamedVariant[] entityData,
         @Nullable byte[] serializedEntityData,
-        @Nullable RemoteActionTemplate[] remoteActionTemplates) {
+        @Nullable RemoteActionTemplate[] remoteActionTemplates,
+        @Nullable Slot[] slots) {
       this.responseText = responseText;
       this.actionType = actionType;
       this.score = score;
       this.entityData = entityData;
       this.serializedEntityData = serializedEntityData;
       this.remoteActionTemplates = remoteActionTemplates;
+      this.slots = slots;
     }
 
     @Nullable
@@ -223,6 +226,11 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     @Nullable
     public RemoteActionTemplate[] getRemoteActionTemplates() {
       return remoteActionTemplates;
+    }
+
+    @Nullable
+    public Slot[] getSlots() {
+      return slots;
     }
   }
 
@@ -293,6 +301,25 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   /** Represents options for the SuggestActions call. */
   public static final class ActionSuggestionOptions {
     public ActionSuggestionOptions() {}
+  }
+
+  /** Represents a slot for an {@link ActionSuggestion}. */
+  public static final class Slot {
+
+    public final String type;
+    public final int messageIndex;
+    public final int startIndex;
+    public final int endIndex;
+    public final float confidenceScore;
+
+    public Slot(
+        String type, int messageIndex, int startIndex, int endIndex, float confidenceScore) {
+      this.type = type;
+      this.messageIndex = messageIndex;
+      this.startIndex = startIndex;
+      this.endIndex = endIndex;
+      this.confidenceScore = confidenceScore;
+    }
   }
 
   /**
