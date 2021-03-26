@@ -90,7 +90,7 @@ public class TextClassifierApiUsageLoggerTest {
     TextClassifierApiUsageReported event = loggedEvents.get(0);
     assertThat(event.getApiType()).isEqualTo(ApiType.SUGGEST_SELECTION);
     assertThat(event.getResultType()).isEqualTo(ResultType.SUCCESS);
-    assertThat(event.getLatencyMillis()).isGreaterThan(0);
+    assertThat(event.getLatencyMillis()).isGreaterThan(0L);
     assertThat(event.getSessionId()).isEqualTo(SESSION_ID);
   }
 
@@ -119,7 +119,7 @@ public class TextClassifierApiUsageLoggerTest {
     TextClassifierApiUsageReported event = loggedEvents.get(0);
     assertThat(event.getApiType()).isEqualTo(ApiType.CLASSIFY_TEXT);
     assertThat(event.getResultType()).isEqualTo(ResultType.FAIL);
-    assertThat(event.getLatencyMillis()).isGreaterThan(0);
+    assertThat(event.getLatencyMillis()).isGreaterThan(0L);
     assertThat(event.getSessionId()).isEqualTo(SESSION_ID);
   }
 
