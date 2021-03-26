@@ -17,10 +17,13 @@
 #include "actions/actions-suggestions.h"
 
 #include <memory>
+#include <vector>
 
 #if !defined(TC3_DISABLE_LUA)
 #include "actions/lua-actions.h"
 #endif
+#include "actions/ngram-model.h"
+#include "actions/tflite-sensitive-model.h"
 #include "actions/types.h"
 #include "actions/utils.h"
 #include "actions/zlib-utils.h"
@@ -84,6 +87,22 @@ std::vector<T> PadOrTruncateToTargetLength(const std::vector<T>& inputs,
     result.insert(result.begin(), inputs.begin(), inputs.end());
     result.insert(result.end(), max_length - inputs.size(), pad_value);
     return result;
+  }
+}
+
+template <typename T>
+void SetVectorOrScalarAsModelInput(
+    const int param_index, const Variant& param_value,
+    tflite::Interpreter* interpreter,
+    const std::unique_ptr<const TfLiteModelExecutor>& model_executor) {
+  if (param_value.Has<std::vector<T>>()) {
+    model_executor->SetInput<T>(
+        param_index, param_value.ConstRefValue<std::vector<T>>(), interpreter);
+  } else if (param_value.Has<T>()) {
+    model_executor->SetInput<float>(param_index, param_value.Value<T>(),
+                                    interpreter);
+  } else {
+    TC3_LOG(ERROR) << "Variant type error!";
   }
 }
 }  // namespace
@@ -369,12 +388,20 @@ bool ActionsSuggestions::ValidateAndInitialize() {
 
   // Create low confidence model if specified.
   if (model_->low_confidence_ngram_model() != nullptr) {
-    ngram_model_ = NGramModel::Create(
+    sensitive_model_ = NGramSensitiveModel::Create(
         unilib_, model_->low_confidence_ngram_model(),
         feature_processor_ == nullptr ? nullptr
                                       : feature_processor_->tokenizer());
-    if (ngram_model_ == nullptr) {
+    if (sensitive_model_ == nullptr) {
       TC3_LOG(ERROR) << "Could not create ngram linear regression model.";
+      return false;
+    }
+  }
+  if (model_->low_confidence_tflite_model() != nullptr) {
+    sensitive_model_ =
+        TFLiteSensitiveModel::Create(model_->low_confidence_tflite_model());
+    if (sensitive_model_ == nullptr) {
+      TC3_LOG(ERROR) << "Could not create TFLite sensitive model.";
       return false;
     }
   }
@@ -726,16 +753,24 @@ bool ActionsSuggestions::SetupModelInput(
       const bool has_value = param_value_it != model_parameters.end();
       switch (param_type) {
         case kTfLiteFloat32:
-          model_executor_->SetInput<float>(
-              param_index,
-              has_value ? param_value_it->second.Value<float>() : kDefaultFloat,
-              interpreter);
+          if (has_value) {
+            SetVectorOrScalarAsModelInput<float>(param_index,
+                                                 param_value_it->second,
+                                                 interpreter, model_executor_);
+          } else {
+            model_executor_->SetInput<float>(param_index, kDefaultFloat,
+                                             interpreter);
+          }
           break;
         case kTfLiteInt32:
-          model_executor_->SetInput<int32_t>(
-              param_index,
-              has_value ? param_value_it->second.Value<int>() : kDefaultInt,
-              interpreter);
+          if (has_value) {
+            SetVectorOrScalarAsModelInput<int32_t>(
+                param_index, param_value_it->second, interpreter,
+                model_executor_);
+          } else {
+            model_executor_->SetInput<int32_t>(param_index, kDefaultInt,
+                                               interpreter);
+          }
           break;
         case kTfLiteInt64:
           model_executor_->SetInput<int64_t>(
@@ -1308,9 +1343,10 @@ bool ActionsSuggestions::GatherActionsSuggestions(
 
   std::vector<const UniLib::RegexPattern*> post_check_rules;
   if (preconditions_.suppress_on_low_confidence_input) {
-    if ((ngram_model_ != nullptr &&
-         ngram_model_->EvalConversation(annotated_conversation,
-                                        num_messages)) ||
+    if ((sensitive_model_ != nullptr &&
+         sensitive_model_
+             ->EvalConversation(annotated_conversation, num_messages)
+             .first) ||
         regex_actions_->IsLowConfidenceInput(annotated_conversation,
                                              num_messages, &post_check_rules)) {
       response->output_filtered_low_confidence = true;
