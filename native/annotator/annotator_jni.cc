@@ -876,10 +876,12 @@ TC3_JNI_METHOD(jbyteArray, TC3_ANNOTATOR_CLASS_NAME,
   const Annotator* model = reinterpret_cast<AnnotatorJniContext*>(ptr)->model();
   TC3_ASSIGN_OR_RETURN_NULL(const std::string id_utf8,
                             JStringToUtf8String(env, id));
-  std::string serialized_knowledge_result;
-  if (!model->LookUpKnowledgeEntity(id_utf8, &serialized_knowledge_result)) {
+  auto serialized_knowledge_result_so = model->LookUpKnowledgeEntity(id_utf8);
+  if (!serialized_knowledge_result_so.ok()) {
     return nullptr;
   }
+  std::string serialized_knowledge_result =
+      serialized_knowledge_result_so.ValueOrDie();
 
   TC3_ASSIGN_OR_RETURN_NULL(
       ScopedLocalRef<jbyteArray> result,

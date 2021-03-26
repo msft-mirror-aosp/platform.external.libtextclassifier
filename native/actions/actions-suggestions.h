@@ -27,9 +27,9 @@
 #include "actions/actions_model_generated.h"
 #include "actions/feature-processor.h"
 #include "actions/grammar-actions.h"
-#include "actions/ngram-model.h"
 #include "actions/ranker.h"
 #include "actions/regex-actions.h"
+#include "actions/sensitive-classifier-base.h"
 #include "actions/types.h"
 #include "annotator/annotator.h"
 #include "annotator/model-executor.h"
@@ -264,7 +264,7 @@ class ActionsSuggestions {
   const TriggeringPreconditions* triggering_preconditions_overlay_;
 
   // Low confidence input ngram classifier.
-  std::unique_ptr<const NGramModel> ngram_model_;
+  std::unique_ptr<const SensitiveTopicModelBase> sensitive_model_;
 };
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.

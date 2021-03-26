@@ -42,6 +42,8 @@ import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported.ApiType;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported.ResultType;
+import com.android.textclassifier.common.ModelFileManager;
+import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.statsd.StatsdTestUtils;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
 import com.google.common.base.Preconditions;
@@ -232,7 +234,7 @@ public class DefaultTextClassifierServiceTest {
                 .collect(Collectors.toList()));
     assertThat(loggedEvents).hasSize(1);
     TextClassifierApiUsageReported loggedEvent = loggedEvents.get(0);
-    assertThat(loggedEvent.getLatencyMillis()).isGreaterThan(0);
+    assertThat(loggedEvent.getLatencyMillis()).isGreaterThan(0L);
     assertThat(loggedEvent.getApiType()).isEqualTo(expectedApiType);
     assertThat(loggedEvent.getResultType()).isEqualTo(expectedResultApiType);
     assertThat(loggedEvent.getSessionId()).isEqualTo(SESSION_ID);

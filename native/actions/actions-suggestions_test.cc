@@ -51,10 +51,16 @@ using ::testing::SizeIs;
 constexpr char kModelFileName[] = "actions_suggestions_test.model";
 constexpr char kModelGrammarFileName[] =
     "actions_suggestions_grammar_test.model";
+constexpr char kMultiTaskTF2TestModelFileName[] =
+    "actions_suggestions_test.multi_task_tf2_test.model";
 constexpr char kMultiTaskModelFileName[] =
     "actions_suggestions_test.multi_task_9heads.model";
 constexpr char kHashGramModelFileName[] =
     "actions_suggestions_test.hashgram.model";
+constexpr char kMultiTaskSrP13nModelFileName[] =
+    "actions_suggestions_test.multi_task_sr_p13n.model";
+constexpr char kMultiTaskSrEmojiModelFileName[] =
+    "actions_suggestions_test.multi_task_sr_emoji.model";
 
 std::string ReadFile(const std::string& file_name) {
   std::ifstream file_stream(file_name);
@@ -78,6 +84,11 @@ class ActionsSuggestionsTest : public testing::Test {
   std::unique_ptr<ActionsSuggestions> LoadMultiTaskTestModel() {
     return ActionsSuggestions::FromPath(
         GetModelPath() + kMultiTaskModelFileName, unilib_.get());
+  }
+
+  std::unique_ptr<ActionsSuggestions> LoadMultiTaskSrP13nTestModel() {
+    return ActionsSuggestions::FromPath(
+        GetModelPath() + kMultiTaskSrP13nModelFileName, unilib_.get());
   }
   std::unique_ptr<UniLib> unilib_;
 };
@@ -793,6 +804,22 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsWithLongerConversation) {
   ASSERT_GE(response.actions.size(), 1);
   EXPECT_EQ(response.actions[0].type, "view_map");
   EXPECT_EQ(response.actions[0].score, 1.0);
+}
+
+TEST_F(ActionsSuggestionsTest, SuggestsActionsFromTF2MultiTaskModel) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kMultiTaskTF2TestModelFileName);
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "Hello how are you",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{},
+             /*locales=*/"en"}}});
+  EXPECT_EQ(response.actions.size(), 4);
+  EXPECT_EQ(response.actions[0].response_text, "Okay");
+  EXPECT_EQ(response.actions[0].type, "REPLY_SUGGESTION");
+  EXPECT_EQ(response.actions[3].type, "TEST_CLASSIFIER_INTENT");
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsFromPhoneGrammarAnnotations) {
@@ -1685,6 +1712,36 @@ TEST_F(ActionsSuggestionsTest, MultiTaskSuggestActionsSmartReplyOnly) {
   EXPECT_EQ(response.actions.size(), 3 /*3 smart replies*/);
 }
 
+const int kUserProfileSize = 1000;
+constexpr char kUserProfileTokenIndex[] = "user_profile_token_index";
+constexpr char kUserProfileTokenWeight[] = "user_profile_token_weight";
+
+ActionSuggestionOptions GetOptionsForSmartReplyP13nModel() {
+  ActionSuggestionOptions options;
+  const std::vector<int> user_profile_token_indexes(kUserProfileSize, 1);
+  const std::vector<float> user_profile_token_weights(kUserProfileSize, 0.1f);
+  options.model_parameters.insert(
+      {kUserProfileTokenIndex,
+       libtextclassifier3::Variant(user_profile_token_indexes)});
+  options.model_parameters.insert(
+      {kUserProfileTokenWeight,
+       libtextclassifier3::Variant(user_profile_token_weights)});
+  return options;
+}
+
+TEST_F(ActionsSuggestionsTest, MultiTaskSuggestActionsSmartReplyP13n) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadMultiTaskSrP13nTestModel();
+  const ActionSuggestionOptions options = GetOptionsForSmartReplyP13nModel();
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "How are you?", /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{}, /*locales=*/"en"}}},
+          /*annotator=*/nullptr, options);
+  EXPECT_EQ(response.actions.size(), 3 /*3 smart replies*/);
+}
+
 TEST_F(ActionsSuggestionsTest,
        MultiTaskSuggestActionsDiversifiedSmartReplyAndLocation) {
   std::unique_ptr<ActionsSuggestions> actions_suggestions =
@@ -1732,6 +1789,23 @@ TEST_F(ActionsSuggestionsTest,
                   /*Different emoji than previous test*/ IsSmartReply("😊"),
                   IsActionOfType("REMINDER_INTENT")));
   EXPECT_EQ(response.actions.size(), 5 /*1 location share + 3 smart replies*/);
+}
+
+TEST_F(ActionsSuggestionsTest, SuggestsActionsFromMultiTaskSrEmojiModel) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kMultiTaskSrEmojiModelFileName);
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "hello?",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{},
+             /*locales=*/"en"}}});
+  EXPECT_EQ(response.actions.size(), 5);
+  EXPECT_EQ(response.actions[0].response_text, "😁");
+  EXPECT_EQ(response.actions[0].type, "EMOJI_CONCEPT");
+  EXPECT_EQ(response.actions[1].response_text, "Yes");
+  EXPECT_EQ(response.actions[1].type, "REPLY_SUGGESTION");
 }
 
 }  // namespace
