@@ -115,7 +115,7 @@ public class TextClassifierApiTest {
     assertThat(links).hasSize(1);
     assertThat(links.get(0).getEntityCount()).isGreaterThan(0);
     assertThat(links.get(0).getEntity(0)).isEqualTo(TextClassifier.TYPE_URL);
-    assertThat(links.get(0).getConfidenceScore(TextClassifier.TYPE_URL)).isGreaterThan(0);
+    assertThat(links.get(0).getConfidenceScore(TextClassifier.TYPE_URL)).isGreaterThan(0f);
   }
 
   @Test
@@ -127,7 +127,7 @@ public class TextClassifierApiTest {
 
     assertThat(textLanguage.getLocaleHypothesisCount()).isGreaterThan(0);
     assertThat(textLanguage.getLocale(0).getLanguage()).isEqualTo("ja");
-    assertThat(textLanguage.getConfidenceScore(ULocale.JAPANESE)).isGreaterThan(0);
+    assertThat(textLanguage.getConfidenceScore(ULocale.JAPANESE)).isGreaterThan(0f);
   }
 
   @Test

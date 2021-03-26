@@ -188,7 +188,8 @@ class Rules {
       std::vector<bool>* omit_these);
 
   // Applies optimizations to the right hand side of a rule.
-  std::vector<RhsElement> OptimizeRhs(const std::vector<RhsElement>& rhs);
+  std::vector<RhsElement> OptimizeRhs(const std::vector<RhsElement>& rhs,
+                                      int shard = 0);
 
   // Removes start and end anchors in case they are followed (respectively
   // preceded) by unbounded filler.
@@ -206,7 +207,8 @@ class Rules {
   // `<a_with_tokens> ::= <a>`
   // `<a_with_tokens> ::= <a_with_tokens> <token>`
   // In this each occurrence of `<a>` can start a sequence of tokens.
-  std::vector<RhsElement> ResolveFillers(const std::vector<RhsElement>& rhs);
+  std::vector<RhsElement> ResolveFillers(const std::vector<RhsElement>& rhs,
+                                         int shard = 0);
 
   // Checks whether an element denotes a specific nonterminal.
   bool IsNonterminalOfName(const RhsElement& element,

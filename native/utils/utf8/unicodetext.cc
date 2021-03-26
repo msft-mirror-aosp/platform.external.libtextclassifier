@@ -22,6 +22,7 @@
 
 #include "utils/base/logging.h"
 #include "utils/strings/utf8.h"
+#include "absl/strings/string_view.h"
 
 namespace libtextclassifier3 {
 
@@ -333,6 +334,10 @@ UnicodeText UTF8ToUnicodeText(const std::string& str, bool do_copy) {
 }
 
 UnicodeText UTF8ToUnicodeText(StringPiece str, bool do_copy) {
+  return UTF8ToUnicodeText(str.data(), str.size(), do_copy);
+}
+
+UnicodeText UTF8ToUnicodeText(absl::string_view str, bool do_copy) {
   return UTF8ToUnicodeText(str.data(), str.size(), do_copy);
 }
 
