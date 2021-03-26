@@ -226,7 +226,7 @@ public class ActionsSuggestionsHelperTest {
   public void createLabeledIntentResult_null() {
     ActionsSuggestionsModel.ActionSuggestion nativeSuggestion =
         new ActionsSuggestionsModel.ActionSuggestion(
-            "text", ConversationAction.TYPE_OPEN_URL, 1.0f, null, null, null);
+            "text", ConversationAction.TYPE_OPEN_URL, 1.0f, null, null, null, null);
 
     LabeledIntent.Result labeledIntentResult =
         ActionsSuggestionsHelper.createLabeledIntentResult(
@@ -246,7 +246,8 @@ public class ActionsSuggestionsHelperTest {
             1.0f,
             null,
             null,
-            new RemoteActionTemplate[0]);
+            new RemoteActionTemplate[0],
+            null);
 
     LabeledIntent.Result labeledIntentResult =
         ActionsSuggestionsHelper.createLabeledIntentResult(
@@ -280,7 +281,8 @@ public class ActionsSuggestionsHelperTest {
                   null,
                   null,
                   0)
-            });
+            },
+            null);
 
     LabeledIntent.Result labeledIntentResult =
         ActionsSuggestionsHelper.createLabeledIntentResult(
