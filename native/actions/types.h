@@ -55,6 +55,13 @@ struct ActionSuggestionAnnotation {
   std::string name;
 };
 
+// A slot associated with an action {
+struct Slot {
+  std::string type;
+  MessageTextSpan span;
+  float confidence_score;
+};
+
 // Action suggestion that contains a response text and the type of the response.
 struct ActionSuggestion {
   // Text of the action suggestion.
@@ -74,6 +81,9 @@ struct ActionSuggestion {
 
   // Extras information.
   std::string serialized_entity_data;
+
+  // Slots corresponding to the action suggestion.
+  std::vector<Slot> slots;
 
   const ActionsEntityData* entity_data() const {
     return LoadAndVerifyFlatbuffer<ActionsEntityData>(

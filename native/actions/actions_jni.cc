@@ -137,6 +137,14 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
   }
   ScopedLocalRef<jclass> result_class =
       std::move(status_or_result_class.ValueOrDie());
+  auto status_or_slot_class = JniHelper::FindClass(
+      env, TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR "$Slot");
+  if (!status_or_slot_class.ok()) {
+    TC3_LOG(ERROR) << "Couldn't find Slot class.";
+    return status_or_slot_class.status();
+  }
+  ScopedLocalRef<jclass> slot_class =
+      std::move(status_or_slot_class.ValueOrDie());
 
   TC3_ASSIGN_OR_RETURN(
       const jmethodID result_class_constructor,
@@ -145,7 +153,10 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
           "(Ljava/lang/String;Ljava/lang/String;F[L" TC3_PACKAGE_PATH
               TC3_NAMED_VARIANT_CLASS_NAME_STR
           ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR
-          ";)V"));
+          ";[L" TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR "$Slot;)V"));
+  TC3_ASSIGN_OR_RETURN(const jmethodID slot_class_constructor,
+                       JniHelper::GetMethodID(env, slot_class.get(), "<init>",
+                                              "(Ljava/lang/String;IIIF)V"));
   TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jobjectArray> results,
                        JniHelper::NewObjectArray(env, action_result.size(),
                                                  result_class.get(), nullptr));
@@ -197,13 +208,35 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
         ScopedLocalRef<jstring> action_type,
         JniHelper::NewStringUTF(env, action_result[i].type.c_str()));
 
+    ScopedLocalRef<jobjectArray> slots;
+    if (!action_result[i].slots.empty()) {
+      TC3_ASSIGN_OR_RETURN(
+          slots, JniHelper::NewObjectArray(env, action_result[i].slots.size(),
+                                           slot_class.get(), nullptr));
+      for (int j = 0; j < action_result[i].slots.size(); j++) {
+        const Slot& slot_c = action_result[i].slots[j];
+        TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> slot_type,
+                             JniHelper::NewStringUTF(env, slot_c.type.c_str()));
+
+        TC3_ASSIGN_OR_RETURN(
+            ScopedLocalRef<jobject> slot,
+            JniHelper::NewObject(
+                env, slot_class.get(), slot_class_constructor, slot_type.get(),
+                slot_c.span.message_index, slot_c.span.span.first,
+                slot_c.span.span.second, slot_c.confidence_score));
+
+        TC3_RETURN_IF_ERROR(
+            JniHelper::SetObjectArrayElement(env, slots.get(), j, slot.get()));
+      }
+    }
+
     TC3_ASSIGN_OR_RETURN(
         ScopedLocalRef<jobject> result,
-        JniHelper::NewObject(env, result_class.get(), result_class_constructor,
-                             reply.get(), action_type.get(),
-                             static_cast<jfloat>(action_result[i].score),
-                             extras.get(), serialized_entity_data.get(),
-                             remote_action_templates_result.get()));
+        JniHelper::NewObject(
+            env, result_class.get(), result_class_constructor, reply.get(),
+            action_type.get(), static_cast<jfloat>(action_result[i].score),
+            extras.get(), serialized_entity_data.get(),
+            remote_action_templates_result.get(), slots.get()));
     TC3_RETURN_IF_ERROR(
         JniHelper::SetObjectArrayElement(env, results.get(), i, result.get()));
   }
