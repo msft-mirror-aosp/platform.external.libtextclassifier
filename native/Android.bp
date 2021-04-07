@@ -241,6 +241,9 @@ cc_test_library {
         "libbase_ndk",
         "libtextclassifier",
     ],
+    header_libs: [
+        "libtextclassifier_flatbuffer_testonly_headers",
+    ],
 }
 
 android_test {

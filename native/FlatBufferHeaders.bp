@@ -64,6 +64,13 @@ genrule {
 }
 
 genrule {
+    name: "libtextclassifier_fbgen_annotator_datetime_datetime",
+    srcs: ["annotator/datetime/datetime.fbs"],
+    out: ["annotator/datetime/datetime_generated.h"],
+    defaults: ["fbgen"],
+}
+
+genrule {
     name: "libtextclassifier_fbgen_annotator_entity-data",
     srcs: ["annotator/entity-data.fbs"],
     out: ["annotator/entity-data_generated.h"],
@@ -178,8 +185,8 @@ cc_library_headers {
         "libtextclassifier_fbgen_annotator_model",
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
+        "libtextclassifier_fbgen_annotator_datetime_datetime",
         "libtextclassifier_fbgen_annotator_entity-data",
-        "libtextclassifier_fbgen_utils_grammar_testing_value",
         "libtextclassifier_fbgen_utils_grammar_semantics_expression",
         "libtextclassifier_fbgen_utils_grammar_rules",
         "libtextclassifier_fbgen_utils_normalization",
@@ -201,8 +208,8 @@ cc_library_headers {
         "libtextclassifier_fbgen_annotator_model",
         "libtextclassifier_fbgen_annotator_person_name_person_name_model",
         "libtextclassifier_fbgen_annotator_experimental_experimental",
+        "libtextclassifier_fbgen_annotator_datetime_datetime",
         "libtextclassifier_fbgen_annotator_entity-data",
-        "libtextclassifier_fbgen_utils_grammar_testing_value",
         "libtextclassifier_fbgen_utils_grammar_semantics_expression",
         "libtextclassifier_fbgen_utils_grammar_rules",
         "libtextclassifier_fbgen_utils_normalization",
@@ -215,5 +222,22 @@ cc_library_headers {
         "libtextclassifier_fbgen_utils_codepoint-range",
         "libtextclassifier_fbgen_utils_zlib_buffer",
         "libtextclassifier_fbgen_utils_intents_intent-config",
+    ],
+}
+
+cc_library_headers {
+    name: "libtextclassifier_flatbuffer_testonly_headers",
+    stl: "libc++_static",
+    sdk_version: "current",
+    min_sdk_version: "30",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.extservices",
+    ],
+    generated_headers: [
+        "libtextclassifier_fbgen_utils_grammar_testing_value",
+    ],
+    export_generated_headers: [
+        "libtextclassifier_fbgen_utils_grammar_testing_value",
     ],
 }
