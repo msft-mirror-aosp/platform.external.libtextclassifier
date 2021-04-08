@@ -49,6 +49,7 @@ android_test {
     ],
 
     plugins: ["androidx.room_room-compiler-plugin",],
+    min_sdk_version: "30",
     sdk_version: "system_current",
     use_embedded_native_libs: true,
     compile_multilib: "both",
