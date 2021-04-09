@@ -25,7 +25,7 @@ namespace libtextclassifier3 {
 using ::testing::ElementsAre;
 
 namespace {
-constexpr char kTestVocabPath[] = "utils/test_data/vocab.txt";
+constexpr char kTestVocabPath[] = "annotator/pod_ner/test_data/vocab.txt";
 
 void AssertTokenizerResults(std::unique_ptr<BertTokenizer> tokenizer) {
   auto results = tokenizer->Tokenize("i'm question");
