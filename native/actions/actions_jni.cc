@@ -566,3 +566,19 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeGetNativeModelPtr)
   return reinterpret_cast<jlong>(
       reinterpret_cast<ActionsSuggestionsJniContext*>(ptr)->model());
 }
+
+TC3_JNI_METHOD(jboolean, TC3_ACTIONS_CLASS_NAME, nativeInitializeDeepClu)
+(JNIEnv* env, jobject thiz, jlong ptr, jbyteArray jserialized_config) {
+  if (!ptr) {
+    return false;
+  }
+
+  ActionsSuggestions* model =
+      reinterpret_cast<ActionsSuggestionsJniContext*>(ptr)->model();
+
+  std::string serialized_config;
+  TC3_ASSIGN_OR_RETURN_0(
+      serialized_config, JByteArrayToString(env, jserialized_config),
+      TC3_LOG(ERROR) << "Could not convert serialized DeepCLU config.");
+  return model->InitializeDeepClu(serialized_config);
+}

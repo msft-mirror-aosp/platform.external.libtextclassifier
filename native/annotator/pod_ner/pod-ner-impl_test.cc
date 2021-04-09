@@ -65,7 +65,7 @@ class PodNerTest : public testing::Test {
     model.tflite_model = std::vector<uint8_t>(tflite_model_buffer.begin(),
                                               tflite_model_buffer.end());
     const std::string word_piece_vocab_buffer =
-        GetTestFileContent("utils/test_data/vocab.txt");
+        GetTestFileContent("annotator/pod_ner/test_data/vocab.txt");
     model.word_piece_vocab = std::vector<uint8_t>(
         word_piece_vocab_buffer.begin(), word_piece_vocab_buffer.end());
 

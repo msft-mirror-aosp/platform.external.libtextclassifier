@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "actions/actions_model_generated.h"
+#include "actions/deep_clu/deep-clu.h"
 #include "actions/feature-processor.h"
 #include "actions/grammar-actions.h"
 #include "actions/ranker.h"
@@ -44,12 +45,6 @@
 #include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3 {
-
-// Options for suggesting actions.
-struct ActionSuggestionOptions {
-  static ActionSuggestionOptions Default() { return ActionSuggestionOptions(); }
-  std::unordered_map<std::string, Variant> model_parameters;
-};
 
 // Class for predicting actions following a conversation.
 class ActionsSuggestions {
@@ -109,6 +104,8 @@ class ActionsSuggestions {
   ActionsSuggestionsResponse SuggestActions(
       const Conversation& conversation, const Annotator* annotator,
       const ActionSuggestionOptions& options = ActionSuggestionOptions()) const;
+
+  bool InitializeDeepClu(const std::string& serialized_config);
 
   const ActionsModel* model() const;
   const reflection::Schema* entity_data_schema() const;
@@ -196,6 +193,10 @@ class ActionsSuggestions {
       ActionsSuggestionsResponse* response,
       std::unique_ptr<tflite::Interpreter>* interpreter) const;
 
+  Status SuggestActionsFromDeepClu(
+      const Conversation& conversation, const ActionSuggestionOptions& options,
+      std::vector<ActionSuggestion>* actions) const;
+
   // Creates options for annotation of a message.
   AnnotationOptions AnnotationOptionsForMessage(
       const ConversationMessage& message) const;
@@ -265,6 +266,9 @@ class ActionsSuggestions {
 
   // Low confidence input ngram classifier.
   std::unique_ptr<const SensitiveTopicModelBase> sensitive_model_;
+
+  // DeepCLU model for additional actions.
+  std::unique_ptr<const DeepClu> deep_clu_;
 };
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.
