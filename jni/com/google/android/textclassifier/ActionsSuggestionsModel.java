@@ -172,6 +172,13 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         assetFileDescriptor.getLength());
   }
 
+  /** Initializes DeepCLU, passing the given serialized config to it. */
+  public void initializeDeepClu(byte[] serializedConfig) {
+    if (!nativeInitializeDeepClu(actionsModelPtr, serializedConfig)) {
+      throw new IllegalArgumentException("Couldn't initialize DeepCLU");
+    }
+  }
+
   /** Action suggestion that contains a response text and the type of the response. */
   public static final class ActionSuggestion {
     @Nullable private final String responseText;
@@ -337,6 +344,8 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
   private static native long nativeNewActionsModelWithOffset(
       int fd, long offset, long size, byte[] preconditionsOverwrite);
+
+  private native boolean nativeInitializeDeepClu(long actionsModelPtr, byte[] serializedConfig);
 
   private static native String nativeGetLocales(int fd);
 
