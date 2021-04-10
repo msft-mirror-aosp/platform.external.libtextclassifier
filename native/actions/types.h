@@ -19,6 +19,7 @@
 
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "actions/actions-entity-data_generated.h"
@@ -89,6 +90,12 @@ struct ActionSuggestion {
     return LoadAndVerifyFlatbuffer<ActionsEntityData>(
         serialized_entity_data.data(), serialized_entity_data.size());
   }
+};
+
+// Options for suggesting actions.
+struct ActionSuggestionOptions {
+  static ActionSuggestionOptions Default() { return ActionSuggestionOptions(); }
+  std::unordered_map<std::string, Variant> model_parameters;
 };
 
 // Actions suggestions result containing meta - information and the suggested

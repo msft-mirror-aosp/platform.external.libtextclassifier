@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "annotator/collections.h"
+#include "annotator/datetime/grammar-parser.h"
 #include "annotator/datetime/regex-parser.h"
 #include "annotator/flatbuffer-utils.h"
 #include "annotator/knowledge/knowledge-engine-types.h"
@@ -37,6 +38,7 @@
 #include "utils/base/statusor.h"
 #include "utils/calendar/calendar.h"
 #include "utils/checksum.h"
+#include "utils/grammar/analyzer.h"
 #include "utils/i18n/locale-list.h"
 #include "utils/i18n/locale.h"
 #include "utils/math/softmax.h"
@@ -416,7 +418,17 @@ void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
     }
   }
 
-  if (model_->datetime_model()) {
+  if (model_->datetime_grammar_model()) {
+    if (model_->datetime_grammar_model()->rules()) {
+      analyzer_ = std::make_unique<grammar::Analyzer>(
+          unilib_, model_->datetime_grammar_model()->rules());
+      datetime_grounder_ = std::make_unique<DatetimeGrounder>(calendarlib_);
+      datetime_parser_ = std::make_unique<GrammarDatetimeParser>(
+          *analyzer_, *datetime_grounder_,
+          /*target_classification_score=*/1.0,
+          /*priority_score=*/1.0);
+    }
+  } else if (model_->datetime_model()) {
     datetime_parser_ = RegexDatetimeParser::Instance(
         model_->datetime_model(), unilib_, calendarlib_, decompressor.get());
     if (!datetime_parser_) {

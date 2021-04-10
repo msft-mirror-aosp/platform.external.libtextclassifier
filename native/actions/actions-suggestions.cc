@@ -19,6 +19,8 @@
 #include <memory>
 #include <vector>
 
+#include "utils/base/statusor.h"
+
 #if !defined(TC3_DISABLE_LUA)
 #include "actions/lua-actions.h"
 #endif
@@ -1038,6 +1040,18 @@ bool ActionsSuggestions::SuggestActionsFromModel(
   return ReadModelOutput(interpreter->get(), options, response);
 }
 
+Status ActionsSuggestions::SuggestActionsFromDeepClu(
+    const Conversation& conversation, const ActionSuggestionOptions& options,
+    std::vector<ActionSuggestion>* actions) const {
+  std::vector<ActionSuggestion> deep_clu_actions;
+  TC3_ASSIGN_OR_RETURN(deep_clu_actions,
+                       deep_clu_->SuggestActions(conversation, options));
+  for (const auto& action : deep_clu_actions) {
+    actions->push_back(std::move(action));
+  }
+  return Status::OK;
+}
+
 AnnotationOptions ActionsSuggestions::AnnotationOptionsForMessage(
     const ConversationMessage& message) const {
   AnnotationOptions options;
@@ -1367,6 +1381,16 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
+  if (deep_clu_) {
+    // TODO(zbin): Ensure the deduplication/ranking logic in ranker.cc works.
+    auto actions = SuggestActionsFromDeepClu(annotated_conversation, options,
+                                             &response->actions);
+    if (!actions.ok()) {
+      TC3_LOG(ERROR) << "Could not run DeepCLU: " << actions.error_message();
+      return false;
+    }
+  }
+
   if (!SuggestActionsFromLua(
           annotated_conversation, model_executor_.get(), interpreter.get(),
           annotator != nullptr ? annotator->entity_data_schema() : nullptr,
@@ -1449,6 +1473,17 @@ const ActionsModel* ViewActionsModel(const void* buffer, int size) {
     return nullptr;
   }
   return LoadAndVerifyModel(reinterpret_cast<const uint8_t*>(buffer), size);
+}
+
+bool ActionsSuggestions::InitializeDeepClu(
+    const std::string& serialized_config) {
+  auto deep_clu = std::make_unique<DeepClu>();
+  if (!deep_clu->Initialize(serialized_config).ok()) {
+    TC3_LOG(ERROR) << "Failed to initialize DeepCLU.";
+    return false;
+  }
+  deep_clu_ = std::move(deep_clu);
+  return true;
 }
 
 }  // namespace libtextclassifier3
