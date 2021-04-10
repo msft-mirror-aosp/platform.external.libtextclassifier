@@ -49,6 +49,14 @@ std::string GetModelWithVocabPath() {
   return GetModelPath() + "test_vocab_model.fb";
 }
 
+std::string GetTestModelWithDatetimeRegEx() {
+  std::string model_buffer = ReadFile(GetTestModelPath());
+  model_buffer = ModifyAnnotatorModel(model_buffer, [](ModelT* model) {
+    model->datetime_grammar_model.reset(nullptr);
+  });
+  return model_buffer;
+}
+
 void ExpectFirstEntityIsMoney(const std::vector<AnnotatedSpan>& result,
                               const std::string& currency,
                               const std::string& amount, const int whole_part,
@@ -1326,12 +1334,12 @@ TEST_F(AnnotatorTest, AnnotatesDurationsInRawMode) {
   VerifyAnnotatesDurationsInRawMode(classifier.get());
 }
 
-TEST_F(AnnotatorTest, DurationAndRelativeTimeCanOverlapInRawMode) {
-  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
-      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+void VerifyDurationAndRelativeTimeCanOverlapInRawMode(
+    const Annotator* classifier) {
   ASSERT_TRUE(classifier);
   AnnotationOptions options;
   options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
+  options.locales = "en";
 
   const std::vector<AnnotatedSpan> annotations =
       classifier->Annotate("let's meet in 3 hours", options);
@@ -1340,9 +1348,24 @@ TEST_F(AnnotatorTest, DurationAndRelativeTimeCanOverlapInRawMode) {
               Contains(IsDatetimeSpan(/*start=*/11, /*end=*/21,
                                       /*time_ms_utc=*/10800000L,
                                       DatetimeGranularity::GRANULARITY_HOUR)));
-  EXPECT_THAT(annotations, Contains(IsDurationSpan(
-                               /*start=*/14, /*end=*/21,
-                               /*duration_ms=*/3 * 60 * 60 * 1000)));
+  EXPECT_THAT(annotations,
+              Contains(IsDurationSpan(/*start=*/14, /*end=*/21,
+                                      /*duration_ms=*/3 * 60 * 60 * 1000)));
+}
+
+TEST_F(AnnotatorTest, DurationAndRelativeTimeCanOverlapInRawMode) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  VerifyDurationAndRelativeTimeCanOverlapInRawMode(classifier.get());
+}
+
+TEST_F(AnnotatorTest,
+       DurationAndRelativeTimeCanOverlapInRawModeWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyDurationAndRelativeTimeCanOverlapInRawMode(classifier.get());
 }
 
 TEST_F(AnnotatorTest, AnnotateSplitLines) {
@@ -1610,6 +1633,7 @@ void VerifyClassifyTextDateInZurichTimezone(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   ClassificationOptions options;
   options.reference_timezone = "Europe/Zurich";
+  options.locales = "en";
 
   std::vector<ClassificationResult> result =
       classifier->ClassifyText("january 1, 2017", {0, 15}, options);
@@ -1625,10 +1649,19 @@ TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezone) {
   VerifyClassifyTextDateInZurichTimezone(classifier.get());
 }
 
+TEST_F(AnnotatorTest, ClassifyTextDateInZurichTimezoneWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyClassifyTextDateInZurichTimezone(classifier.get());
+}
+
 void VerifyClassifyTextDateInLATimezone(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   ClassificationOptions options;
   options.reference_timezone = "America/Los_Angeles";
+  options.locales = "en";
 
   std::vector<ClassificationResult> result =
       classifier->ClassifyText("march 1, 2017", {0, 13}, options);
@@ -1636,6 +1669,14 @@ void VerifyClassifyTextDateInLATimezone(const Annotator* classifier) {
   EXPECT_THAT(result,
               ElementsAre(IsDateResult(1488355200000,
                                        DatetimeGranularity::GRANULARITY_DAY)));
+}
+
+TEST_F(AnnotatorTest, ClassifyTextDateInLATimezoneWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyClassifyTextDateInLATimezone(classifier.get());
 }
 
 TEST_F(AnnotatorTest, ClassifyTextDateInLATimezone) {
@@ -1648,6 +1689,7 @@ void VerifyClassifyTextDateOnAotherLine(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   ClassificationOptions options;
   options.reference_timezone = "Europe/Zurich";
+  options.locales = "en";
 
   std::vector<ClassificationResult> result = classifier->ClassifyText(
       "hello world this is the first line\n"
@@ -1657,6 +1699,14 @@ void VerifyClassifyTextDateOnAotherLine(const Annotator* classifier) {
   EXPECT_THAT(result,
               ElementsAre(IsDateResult(1483225200000,
                                        DatetimeGranularity::GRANULARITY_DAY)));
+}
+
+TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLineWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyClassifyTextDateOnAotherLine(classifier.get());
 }
 
 TEST_F(AnnotatorTest, ClassifyTextDateOnAotherLine) {
@@ -1687,9 +1737,20 @@ TEST_F(AnnotatorTest, ClassifyTextWhenLocaleUSParsesDateAsMonthDay) {
   VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(classifier.get());
 }
 
+TEST_F(AnnotatorTest,
+       ClassifyTextWhenLocaleUSParsesDateAsMonthDayWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyClassifyTextWhenLocaleUSParsesDateAsMonthDay(classifier.get());
+}
+
 TEST_F(AnnotatorTest, ClassifyTextWhenLocaleGermanyParsesDateAsMonthDay) {
-  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
-      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
   EXPECT_TRUE(classifier);
   std::vector<ClassificationResult> result;
   ClassificationOptions options;
@@ -1741,7 +1802,7 @@ TEST_F(AnnotatorTest, AnnotateAmbiguousDatetime) {
 }
 
 TEST_F(AnnotatorTest, SuggestTextDateDisabled) {
-  const std::string test_model = ReadFile(GetTestModelPath());
+  std::string test_model = GetTestModelWithDatetimeRegEx();
   std::unique_ptr<ModelT> unpacked_model = UnPackModel(test_model.c_str());
 
   // Disable the patterns for selection.
@@ -2090,20 +2151,37 @@ void VerifyLongInput(const Annotator* classifier) {
                                    std::string(50000, ' ');
     const int value_length = type_value_pair.second.size();
 
-    EXPECT_THAT(classifier->Annotate(input_100k),
+    AnnotationOptions annotation_options;
+    annotation_options.locales = "en";
+    EXPECT_THAT(classifier->Annotate(input_100k, annotation_options),
                 ElementsAreArray({IsAnnotatedSpan(50000, 50000 + value_length,
                                                   type_value_pair.first)}));
-    EXPECT_EQ(classifier->SuggestSelection(input_100k, {50000, 50001}),
+    SelectionOptions selection_options;
+    selection_options.locales = "en";
+    EXPECT_EQ(classifier->SuggestSelection(input_100k, {50000, 50001},
+                                           selection_options),
               CodepointSpan(50000, 50000 + value_length));
+
+    ClassificationOptions classification_options;
+    classification_options.locales = "en";
     EXPECT_EQ(type_value_pair.first,
               FirstResult(classifier->ClassifyText(
-                  input_100k, {50000, 50000 + value_length})));
+                  input_100k, {50000, 50000 + value_length},
+                  classification_options)));
   }
 }
 
 TEST_F(AnnotatorTest, LongInput) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  VerifyLongInput(classifier.get());
+}
+
+TEST_F(AnnotatorTest, LongInputWithRegExDatetime) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
   VerifyLongInput(classifier.get());
 }
 
@@ -2484,6 +2562,7 @@ void VerifyClassifyTextOutputsDatetimeEntityData(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   std::vector<ClassificationResult> result;
   ClassificationOptions options;
+  options.locales = "en-US";
 
   result = classifier->ClassifyText("03.05.1970 00:00am", {0, 18}, options);
 
@@ -2553,11 +2632,20 @@ TEST_F(AnnotatorTest, ClassifyTextOutputsDatetimeEntityData) {
   VerifyClassifyTextOutputsDatetimeEntityData(classifier.get());
 }
 
+TEST_F(AnnotatorTest, ClassifyTextOutputsDatetimeEntityDataWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyClassifyTextOutputsDatetimeEntityData(classifier.get());
+}
+
 void VerifyAnnotateOutputsDatetimeEntityData(const Annotator* classifier) {
   EXPECT_TRUE(classifier);
   std::vector<AnnotatedSpan> result;
   AnnotationOptions options;
   options.is_serialized_entity_data_enabled = true;
+  options.locales = "en";
 
   result = classifier->Annotate("September 1, 2019", options);
 
@@ -2605,7 +2693,19 @@ TEST_F(AnnotatorTest, AnnotateOutputsDatetimeEntityData) {
   VerifyAnnotateOutputsDatetimeEntityData(classifier.get());
 }
 
+TEST_F(AnnotatorTest, AnnotateOutputsDatetimeEntityDataWithDatatimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyAnnotateOutputsDatetimeEntityData(classifier.get());
+}
+
 TEST_F(AnnotatorTest, AnnotateOutputsMoneyEntityData) {
+  // std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  // std::unique_ptr<Annotator> classifier =
+  //     Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+  //                                  unilib_.get(), calendarlib_.get());
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
   EXPECT_TRUE(classifier);
@@ -2696,8 +2796,8 @@ TEST_F(AnnotatorTest, AnnotateOutputsMoneyEntityData) {
                            /*amount=*/"3,000.00", /*whole_part=*/3000,
                            /*decimal_part=*/0, /*nanos=*/0);
 
-  ExpectFirstEntityIsMoney(classifier->Annotate("１.２ CHF", options), "CHF",
-                           /*amount=*/"１.２", /*whole_part=*/1,
+  ExpectFirstEntityIsMoney(classifier->Annotate("1.2 CHF", options), "CHF",
+                           /*amount=*/"1.2", /*whole_part=*/1,
                            /*decimal_part=*/2, /*nanos=*/200000000);
   ExpectFirstEntityIsMoney(classifier->Annotate("CHF１.２", options), "CHF",
                            /*amount=*/"１.２", /*whole_part=*/1,
@@ -2757,9 +2857,10 @@ TEST_F(AnnotatorTest, AnnotateStructuredInputCallsMultipleAnnotators) {
       {.text = "...was born on 13/12/1989."},
   };
 
+  AnnotationOptions annotation_options;
+  annotation_options.locales = "en";
   StatusOr<Annotations> annotations_status =
-      classifier->AnnotateStructuredInput(string_fragments,
-                                          AnnotationOptions());
+      classifier->AnnotateStructuredInput(string_fragments, annotation_options);
   ASSERT_TRUE(annotations_status.ok());
   Annotations annotations = annotations_status.ValueOrDie();
   ASSERT_EQ(annotations.annotated_spans.size(), 2);
@@ -2769,11 +2870,10 @@ TEST_F(AnnotatorTest, AnnotateStructuredInputCallsMultipleAnnotators) {
               ElementsAreArray({IsAnnotatedSpan(15, 25, "date")}));
 }
 
-TEST_F(AnnotatorTest, InputFragmentTimestampOverridesAnnotationOptions) {
-  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
-      GetTestModelPath(), unilib_.get(), calendarlib_.get());
-
+void VerifyInputFragmentTimestampOverridesAnnotationOptions(
+    const Annotator* classifier) {
   AnnotationOptions annotation_options;
+  annotation_options.locales = "en";
   annotation_options.reference_time_ms_utc =
       1554465190000;                             // 04/05/2019 11:53 am
   int64 fragment_reference_time = 946727580000;  // 01/01/2000 11:53 am
@@ -2799,9 +2899,23 @@ TEST_F(AnnotatorTest, InputFragmentTimestampOverridesAnnotationOptions) {
                   DatetimeGranularity::GRANULARITY_MINUTE)}));
 }
 
-TEST_F(AnnotatorTest, InputFragmentTimezoneOverridesAnnotationOptions) {
+TEST_F(AnnotatorTest,
+       InputFragmentTimestampOverridesAnnotationOptionsWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyInputFragmentTimestampOverridesAnnotationOptions(classifier.get());
+}
+
+TEST_F(AnnotatorTest, InputFragmentTimestampOverridesAnnotationOptions) {
   std::unique_ptr<Annotator> classifier = Annotator::FromPath(
       GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  VerifyInputFragmentTimestampOverridesAnnotationOptions(classifier.get());
+}
+
+void VerifyInputFragmentTimezoneOverridesAnnotationOptions(
+    const Annotator* classifier) {
   std::vector<InputFragment> string_fragments = {
       {.text = "11/12/2020 17:20"},
       {
@@ -2809,9 +2923,10 @@ TEST_F(AnnotatorTest, InputFragmentTimezoneOverridesAnnotationOptions) {
           .datetime_options = Optional<DatetimeOptions>(
               {.reference_timezone = "Europe/Zurich"}),
       }};
+  AnnotationOptions annotation_options;
+  annotation_options.locales = "en-US";
   StatusOr<Annotations> annotations_status =
-      classifier->AnnotateStructuredInput(string_fragments,
-                                          AnnotationOptions());
+      classifier->AnnotateStructuredInput(string_fragments, annotation_options);
   ASSERT_TRUE(annotations_status.ok());
   Annotations annotations = annotations_status.ValueOrDie();
   ASSERT_EQ(annotations.annotated_spans.size(), 2);
@@ -2823,6 +2938,21 @@ TEST_F(AnnotatorTest, InputFragmentTimezoneOverridesAnnotationOptions) {
               ElementsAreArray({IsDatetimeSpan(
                   /*start=*/0, /*end=*/16, /*time_ms_utc=*/1605198000000,
                   DatetimeGranularity::GRANULARITY_MINUTE)}));
+}
+
+TEST_F(AnnotatorTest, InputFragmentTimezoneOverridesAnnotationOptions) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  VerifyInputFragmentTimezoneOverridesAnnotationOptions(classifier.get());
+}
+
+TEST_F(AnnotatorTest,
+       InputFragmentTimezoneOverridesAnnotationOptionsWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyInputFragmentTimezoneOverridesAnnotationOptions(classifier.get());
 }
 
 namespace {
@@ -2909,9 +3039,8 @@ TEST_F(AnnotatorTest, RawModeOptimizationWorks) {
               IsEmpty());
 }
 
-TEST_F(AnnotatorTest, AnnotateSupportsPointwiseCollectionFilteringInRawMode) {
-  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
-      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+void VerifyAnnotateSupportsPointwiseCollectionFilteringInRawMode(
+    const Annotator* classifier) {
   ASSERT_TRUE(classifier);
   struct Example {
     std::string collection;
@@ -2942,6 +3071,7 @@ TEST_F(AnnotatorTest, AnnotateSupportsPointwiseCollectionFilteringInRawMode) {
 
   for (const Example& example : examples) {
     AnnotationOptions options;
+    options.locales = "en";
     options.annotation_usecase = AnnotationUsecase_ANNOTATION_USECASE_RAW;
     options.entity_types.insert(example.collection);
 
@@ -2952,9 +3082,23 @@ TEST_F(AnnotatorTest, AnnotateSupportsPointwiseCollectionFilteringInRawMode) {
   }
 }
 
+TEST_F(AnnotatorTest, AnnotateSupportsPointwiseCollectionFilteringInRawMode) {
+  std::unique_ptr<Annotator> classifier = Annotator::FromPath(
+      GetTestModelPath(), unilib_.get(), calendarlib_.get());
+  VerifyAnnotateSupportsPointwiseCollectionFilteringInRawMode(classifier.get());
+}
+
+TEST_F(AnnotatorTest,
+       AnnotateSupportsPointwiseCollectionFilteringInRawModeWithDatetimeRegEx) {
+  std::string model_buffer = GetTestModelWithDatetimeRegEx();
+  std::unique_ptr<Annotator> classifier =
+      Annotator::FromUnownedBuffer(model_buffer.data(), model_buffer.size(),
+                                   unilib_.get(), calendarlib_.get());
+  VerifyAnnotateSupportsPointwiseCollectionFilteringInRawMode(classifier.get());
+}
+
 TEST_F(AnnotatorTest, InitializeFromString) {
   const std::string test_model = ReadFile(GetTestModelPath());
-
   std::unique_ptr<Annotator> classifier =
       Annotator::FromString(test_model, unilib_.get(), calendarlib_.get());
   ASSERT_TRUE(classifier);

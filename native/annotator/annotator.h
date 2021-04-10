@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "annotator/contact/contact-engine.h"
+#include "annotator/datetime/datetime-grounder.h"
 #include "annotator/datetime/parser.h"
 #include "annotator/duration/duration.h"
 #include "annotator/experimental/experimental.h"
@@ -448,6 +449,8 @@ class Annotator {
   std::unique_ptr<const FeatureProcessor> selection_feature_processor_;
   std::unique_ptr<const FeatureProcessor> classification_feature_processor_;
 
+  std::unique_ptr<const grammar::Analyzer> analyzer_;
+  std::unique_ptr<const DatetimeGrounder> datetime_grounder_;
   std::unique_ptr<const DatetimeParser> datetime_parser_;
   std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 
