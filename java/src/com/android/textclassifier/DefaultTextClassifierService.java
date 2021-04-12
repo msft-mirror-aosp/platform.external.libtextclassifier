@@ -180,6 +180,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   @Override
   protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
     IndentingPrintWriter indentingPrintWriter = new IndentingPrintWriter(writer);
+    // TODO(licha): Also dump ModelDownloadManager for debugging
     textClassifier.dump(indentingPrintWriter);
     indentingPrintWriter.flush();
   }
