@@ -125,7 +125,8 @@ void StringProjectionOpBase::DenseLshProjection(
           float seed = hash_function_[hash_bit].AsFloat();
           float bit = running_sign_bit(input, weight, seed, key.get());
           output->data.uint8[batch * num_hash_ * num_bits_ + hash_bit] =
-              PodQuantize(bit, output->params.zero_point, inverse_scale);
+              seq_flow_lite::PodQuantize(bit, output->params.zero_point,
+                                         inverse_scale);
         }
       }
     }

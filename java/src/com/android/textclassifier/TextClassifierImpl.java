@@ -33,6 +33,8 @@ import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.SelectionEvent;
 import android.view.textclassifier.TextClassification;
+import android.view.textclassifier.TextClassification.Request;
+import android.view.textclassifier.TextClassificationContext;
 import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextClassifierEvent;
@@ -127,7 +129,11 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextSelection suggestSelection(TextSelection.Request request) throws IOException {
+  TextSelection suggestSelection(
+      @Nullable TextClassificationSessionId sessionId,
+      @Nullable TextClassificationContext textClassificationContext,
+      TextSelection.Request request)
+      throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     final int rangeLength = request.getEndIndex() - request.getStartIndex();
@@ -186,7 +192,11 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextClassification classifyText(TextClassification.Request request) throws IOException {
+  TextClassification classifyText(
+      @Nullable TextClassificationSessionId sessionId,
+      @Nullable TextClassificationContext textClassificationContext,
+      Request request)
+      throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     LangIdModel langId = getLangIdImpl();
@@ -226,7 +236,11 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextLinks generateLinks(TextLinks.Request request) throws IOException {
+  TextLinks generateLinks(
+      @Nullable TextClassificationSessionId sessionId,
+      @Nullable TextClassificationContext textClassificationContext,
+      TextLinks.Request request)
+      throws IOException {
     Preconditions.checkNotNull(request);
     Preconditions.checkArgument(
         request.getText().length() <= getMaxGenerateLinksTextLength(),
@@ -293,6 +307,8 @@ final class TextClassifierImpl {
       langIdModelInfo = Optional.fromNullable(langIdModelInUse).transform(ModelFile::toModelInfo);
     }
     generateLinksLogger.logGenerateLinks(
+        sessionId,
+        textClassificationContext,
         request.getText(),
         links,
         callingPackageName,
@@ -321,7 +337,7 @@ final class TextClassifierImpl {
     }
   }
 
-  void onSelectionEvent(SelectionEvent event) {
+  void onSelectionEvent(@Nullable TextClassificationSessionId sessionId, SelectionEvent event) {
     TextClassifierEvent textClassifierEvent = SelectionEventConverter.toTextClassifierEvent(event);
     if (textClassifierEvent == null) {
       return;
@@ -336,7 +352,11 @@ final class TextClassifierImpl {
         TextClassifierEventConverter.fromPlatform(event));
   }
 
-  TextLanguage detectLanguage(TextLanguage.Request request) throws IOException {
+  TextLanguage detectLanguage(
+      @Nullable TextClassificationSessionId sessionId,
+      @Nullable TextClassificationContext textClassificationContext,
+      TextLanguage.Request request)
+      throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     final TextLanguage.Builder builder = new TextLanguage.Builder();
@@ -349,7 +369,10 @@ final class TextClassifierImpl {
     return builder.build();
   }
 
-  ConversationActions suggestConversationActions(ConversationActions.Request request)
+  ConversationActions suggestConversationActions(
+      @Nullable TextClassificationSessionId sessionId,
+      @Nullable TextClassificationContext textClassificationContext,
+      ConversationActions.Request request)
       throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
@@ -650,6 +673,7 @@ final class TextClassifierImpl {
 
       printWriter.println();
       settings.dump(printWriter);
+      printWriter.println();
     }
   }
 

@@ -126,7 +126,7 @@ std::unique_ptr<tflite::Interpreter> CreateInterpreter(
             ::tflite::BuiltinOperator_EXPAND_DIMS,
             ::tflite::ops::builtin::Register_EXPAND_DIMS());
         mutable_resolver->AddCustom(
-            "LayerNorm", ::tflite::ops::custom::Register_LAYER_NORM());
+            "LayerNorm", ::seq_flow_lite::ops::custom::Register_LAYER_NORM());
       });
 
   std::unique_ptr<tflite::Interpreter> tflite_interpreter;
@@ -253,7 +253,8 @@ std::vector<LabelT> PodNerAnnotator::ReadResultsFromInterpreter(
     float max_prob = 0.0f;
     int max_index = 0;
     for (int cindex = 0; cindex < output->dims->data[2]; ++cindex) {
-      const float probability = ::tflite::PodDequantize(*output, index++);
+      const float probability =
+          ::seq_flow_lite::PodDequantize(*output, index++);
       if (probability > max_prob) {
         max_prob = probability;
         max_index = cindex;

@@ -127,6 +127,9 @@ public final class TextClassifierSettings {
   /** Sampling rate for TextClassifier API logging. */
   static final String TEXTCLASSIFIER_API_LOG_SAMPLE_RATE = "textclassifier_api_log_sample_rate";
 
+  /** The size of the cache of the mapping of session id to text classification context. */
+  private static final String SESSION_ID_TO_CONTEXT_CACHE_SIZE = "session_id_to_context_cache_size";
+
   /**
    * A colon(:) separated string that specifies the configuration to use when including surrounding
    * context text in language detection queries.
@@ -201,6 +204,8 @@ public final class TextClassifierSettings {
    * is the logged.
    */
   private static final int TEXTCLASSIFIER_API_LOG_SAMPLE_RATE_DEFAULT = 10;
+
+  private static final int SESSION_ID_TO_CONTEXT_CACHE_SIZE_DEFAULT = 10;
 
   // TODO(licha): Consider removing this. We can use real device config for testing.
   /** DeviceConfig interface to facilitate testing. */
@@ -427,6 +432,11 @@ public final class TextClassifierSettings {
         NAMESPACE, TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, TEXTCLASSIFIER_API_LOG_SAMPLE_RATE_DEFAULT);
   }
 
+  public int getSessionIdToContextCacheSize() {
+    return deviceConfig.getInt(
+        NAMESPACE, SESSION_ID_TO_CONTEXT_CACHE_SIZE, SESSION_ID_TO_CONTEXT_CACHE_SIZE_DEFAULT);
+  }
+
   public void dump(IndentingPrintWriter pw) {
     pw.println("TextClassifierSettings:");
     pw.increaseIndent();
@@ -451,6 +461,7 @@ public final class TextClassifierSettings {
     pw.printPair(MODEL_DOWNLOAD_MAX_ATTEMPTS, getModelDownloadMaxAttempts());
     pw.decreaseIndent();
     pw.printPair(TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, getTextClassifierApiLogSampleRate());
+    pw.printPair(SESSION_ID_TO_CONTEXT_CACHE_SIZE, getSessionIdToContextCacheSize());
     pw.decreaseIndent();
   }
 
