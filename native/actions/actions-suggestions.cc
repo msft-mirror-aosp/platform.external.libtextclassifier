@@ -1040,13 +1040,13 @@ bool ActionsSuggestions::SuggestActionsFromModel(
   return ReadModelOutput(interpreter->get(), options, response);
 }
 
-Status ActionsSuggestions::SuggestActionsFromDeepClu(
+Status ActionsSuggestions::SuggestActionsFromConversationIntentDetection(
     const Conversation& conversation, const ActionSuggestionOptions& options,
     std::vector<ActionSuggestion>* actions) const {
-  std::vector<ActionSuggestion> deep_clu_actions;
-  TC3_ASSIGN_OR_RETURN(deep_clu_actions,
-                       deep_clu_->SuggestActions(conversation, options));
-  for (const auto& action : deep_clu_actions) {
+  TC3_ASSIGN_OR_RETURN(
+      std::vector<ActionSuggestion> new_actions,
+      conversation_intent_detection_->SuggestActions(conversation, options));
+  for (auto& action : new_actions) {
     actions->push_back(std::move(action));
   }
   return Status::OK;
@@ -1381,12 +1381,13 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return true;
   }
 
-  if (deep_clu_) {
+  if (conversation_intent_detection_) {
     // TODO(zbin): Ensure the deduplication/ranking logic in ranker.cc works.
-    auto actions = SuggestActionsFromDeepClu(annotated_conversation, options,
-                                             &response->actions);
+    auto actions = SuggestActionsFromConversationIntentDetection(
+        annotated_conversation, options, &response->actions);
     if (!actions.ok()) {
-      TC3_LOG(ERROR) << "Could not run DeepCLU: " << actions.error_message();
+      TC3_LOG(ERROR) << "Could not run conversation intent detection: "
+                     << actions.error_message();
       return false;
     }
   }
@@ -1475,14 +1476,15 @@ const ActionsModel* ViewActionsModel(const void* buffer, int size) {
   return LoadAndVerifyModel(reinterpret_cast<const uint8_t*>(buffer), size);
 }
 
-bool ActionsSuggestions::InitializeDeepClu(
+bool ActionsSuggestions::InitializeConversationIntentDetection(
     const std::string& serialized_config) {
-  auto deep_clu = std::make_unique<DeepClu>();
-  if (!deep_clu->Initialize(serialized_config).ok()) {
-    TC3_LOG(ERROR) << "Failed to initialize DeepCLU.";
+  auto conversation_intent_detection =
+      std::make_unique<ConversationIntentDetection>();
+  if (!conversation_intent_detection->Initialize(serialized_config).ok()) {
+    TC3_LOG(ERROR) << "Failed to initialize conversation intent detection.";
     return false;
   }
-  deep_clu_ = std::move(deep_clu);
+  conversation_intent_detection_ = std::move(conversation_intent_detection);
   return true;
 }
 
