@@ -61,6 +61,8 @@ constexpr char kMultiTaskSrP13nModelFileName[] =
     "actions_suggestions_test.multi_task_sr_p13n.model";
 constexpr char kMultiTaskSrEmojiModelFileName[] =
     "actions_suggestions_test.multi_task_sr_emoji.model";
+constexpr char kSensitiveTFliteModelFileName[] =
+    "actions_suggestions_test.sensitive_tflite.model";
 
 std::string ReadFile(const std::string& file_name) {
   std::ifstream file_stream(file_name);
@@ -1806,6 +1808,20 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsFromMultiTaskSrEmojiModel) {
   EXPECT_EQ(response.actions[0].type, "EMOJI_CONCEPT");
   EXPECT_EQ(response.actions[1].response_text, "Yes");
   EXPECT_EQ(response.actions[1].type, "REPLY_SUGGESTION");
+}
+
+TEST_F(ActionsSuggestionsTest, SuggestsActionsFromSensitiveTfLiteModel) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kSensitiveTFliteModelFileName);
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "I want to kill myself",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{},
+             /*locales=*/"en"}}});
+  EXPECT_EQ(response.actions.size(), 0);
+  EXPECT_TRUE(response.output_filtered_low_confidence);
 }
 
 }  // namespace
