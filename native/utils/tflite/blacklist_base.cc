@@ -77,9 +77,11 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
       }
     }
   } else if (output_categories->type == kTfLiteUInt8) {
-    const uint8_t one = PodQuantize(1.0, output_categories->params.zero_point,
-                                    1.0 / output_categories->params.scale);
-    const uint8_t zero = PodQuantize(0.0, output_categories->params.zero_point,
+    const uint8_t one =
+        ::seq_flow_lite::PodQuantize(1.0, output_categories->params.zero_point,
+                                     1.0 / output_categories->params.scale);
+    const uint8_t zero =
+        ::seq_flow_lite::PodQuantize(0.0, output_categories->params.zero_point,
                                      1.0 / output_categories->params.scale);
     for (int i = 0; i < input_size; i++) {
       absl::flat_hash_set<int> categories = op->GetCategories(i);

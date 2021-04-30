@@ -2739,14 +2739,19 @@ bool Annotator::ParseAndFillInMoneyAmount(
     std::string quantity;
     GetMoneyQuantityFromCapturingGroup(match, config, context_unicode,
                                        &quantity, &quantity_exponent);
-    if ((quantity_exponent > 0 && quantity_exponent < 9) ||
-        (quantity_exponent == 9 && data->money->amount_whole_part <= 2)) {
-      data->money->amount_whole_part =
+    if (quantity_exponent > 0 && quantity_exponent <= 9) {
+      const double amount_whole_part =
           data->money->amount_whole_part * pow(10, quantity_exponent) +
           data->money->nanos / pow(10, 9 - quantity_exponent);
-      data->money->nanos = data->money->nanos %
-                           static_cast<int>(pow(10, 9 - quantity_exponent)) *
-                           pow(10, quantity_exponent);
+      // TODO(jacekj): Change type of `data->money->amount_whole_part` to int64
+      // (and `std::numeric_limits<int>::max()` to
+      // `std::numeric_limits<int64>::max()`).
+      if (amount_whole_part < std::numeric_limits<int>::max()) {
+        data->money->amount_whole_part = amount_whole_part;
+        data->money->nanos = data->money->nanos %
+                             static_cast<int>(pow(10, 9 - quantity_exponent)) *
+                             pow(10, quantity_exponent);
+      }
     }
     if (quantity_exponent > 0) {
       data->money->unnormalized_amount = strings::JoinStrings(

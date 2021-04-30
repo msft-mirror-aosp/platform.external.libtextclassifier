@@ -18,8 +18,12 @@ package com.android.textclassifier.common.statsd;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.os.Binder;
+import android.os.Parcel;
 import android.stats.textclassifier.EventType;
 import android.stats.textclassifier.WidgetType;
+import android.view.textclassifier.TextClassificationContext;
+import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLinks;
 import androidx.test.core.app.ApplicationProvider;
@@ -55,6 +59,11 @@ public class GenerateLinksLoggerTest {
       new ModelInfo(1, ImmutableList.of(Locale.ENGLISH));
   private static final ModelInfo LANGID_MODEL =
       new ModelInfo(2, ImmutableList.of(Locale.forLanguageTag("*")));
+  private static final String SESSION_ID = "123456";
+  private static final String WIDGET_TYPE = TextClassifier.WIDGET_TYPE_WEBVIEW;
+  private static final WidgetType WIDGET_TYPE_ENUM = WidgetType.WIDGET_TYPE_WEBVIEW;
+  private final TextClassificationContext textClassificationContext =
+      new TextClassificationContext.Builder(PACKAGE_NAME, WIDGET_TYPE).build();
 
   @Before
   public void setup() throws Exception {
@@ -83,11 +92,11 @@ public class GenerateLinksLoggerTest {
         new TextLinks.Builder(testText)
             .addLink(phoneOffset, phoneOffset + phoneText.length(), phoneEntityScores)
             .build();
-    String uuid = "uuid";
 
-    GenerateLinksLogger generateLinksLogger =
-        new GenerateLinksLogger(/* sampleRate= */ 1, () -> uuid);
+    GenerateLinksLogger generateLinksLogger = new GenerateLinksLogger(/* sampleRate= */ 1);
     generateLinksLogger.logGenerateLinks(
+        createTextClassificationSessionId(),
+        textClassificationContext,
         testText,
         links,
         PACKAGE_NAME,
@@ -103,10 +112,10 @@ public class GenerateLinksLoggerTest {
     assertThat(loggedEvents).hasSize(2);
     TextLinkifyEvent summaryEvent =
         AtomsProto.TextLinkifyEvent.newBuilder()
-            .setSessionId(uuid)
+            .setSessionId(SESSION_ID)
             .setEventIndex(0)
             .setModelName("en_v1")
-            .setWidgetType(WidgetType.WIDGET_TYPE_UNKNOWN)
+            .setWidgetType(WIDGET_TYPE_ENUM)
             .setEventType(EventType.LINKS_GENERATED)
             .setPackageName(PACKAGE_NAME)
             .setEntityType("")
@@ -118,10 +127,10 @@ public class GenerateLinksLoggerTest {
             .build();
     TextLinkifyEvent phoneEvent =
         AtomsProto.TextLinkifyEvent.newBuilder()
-            .setSessionId(uuid)
+            .setSessionId(SESSION_ID)
             .setEventIndex(0)
             .setModelName("en_v1")
-            .setWidgetType(WidgetType.WIDGET_TYPE_UNKNOWN)
+            .setWidgetType(WIDGET_TYPE_ENUM)
             .setEventType(EventType.LINKS_GENERATED)
             .setPackageName(PACKAGE_NAME)
             .setEntityType(TextClassifier.TYPE_PHONE)
@@ -148,11 +157,11 @@ public class GenerateLinksLoggerTest {
             .addLink(phoneOffset, phoneOffset + phoneText.length(), phoneEntityScores)
             .addLink(addressOffset, addressOffset + addressText.length(), addressEntityScores)
             .build();
-    String uuid = "uuid";
 
-    GenerateLinksLogger generateLinksLogger =
-        new GenerateLinksLogger(/* sampleRate= */ 1, () -> uuid);
+    GenerateLinksLogger generateLinksLogger = new GenerateLinksLogger(/* sampleRate= */ 1);
     generateLinksLogger.logGenerateLinks(
+        createTextClassificationSessionId(),
+        textClassificationContext,
         testText,
         links,
         PACKAGE_NAME,
@@ -181,5 +190,14 @@ public class GenerateLinksLoggerTest {
     assertThat(phoneEvent.getEntityType()).isEqualTo(TextClassifier.TYPE_PHONE);
     assertThat(phoneEvent.getNumLinks()).isEqualTo(1);
     assertThat(phoneEvent.getLinkedTextLength()).isEqualTo(phoneText.length());
+  }
+
+  private static TextClassificationSessionId createTextClassificationSessionId() {
+    // A hack to create TextClassificationSessionId because its constructor is @hide.
+    Parcel parcel = Parcel.obtain();
+    parcel.writeString(SESSION_ID);
+    parcel.writeStrongBinder(new Binder());
+    parcel.setDataPosition(0);
+    return TextClassificationSessionId.CREATOR.createFromParcel(parcel);
   }
 }
