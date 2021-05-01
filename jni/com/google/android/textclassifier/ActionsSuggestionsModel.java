@@ -172,10 +172,10 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         assetFileDescriptor.getLength());
   }
 
-  /** Initializes DeepCLU, passing the given serialized config to it. */
-  public void initializeDeepClu(byte[] serializedConfig) {
-    if (!nativeInitializeDeepClu(actionsModelPtr, serializedConfig)) {
-      throw new IllegalArgumentException("Couldn't initialize DeepCLU");
+  /** Initializes conversation intent detection, passing the given serialized config to it. */
+  public void initializeConversationIntentDetection(byte[] serializedConfig) {
+    if (!nativeInitializeConversationIntentDetection(actionsModelPtr, serializedConfig)) {
+      throw new IllegalArgumentException("Couldn't initialize conversation intent detection");
     }
   }
 
@@ -345,7 +345,8 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   private static native long nativeNewActionsModelWithOffset(
       int fd, long offset, long size, byte[] preconditionsOverwrite);
 
-  private native boolean nativeInitializeDeepClu(long actionsModelPtr, byte[] serializedConfig);
+  private native boolean nativeInitializeConversationIntentDetection(
+      long actionsModelPtr, byte[] serializedConfig);
 
   private static native String nativeGetLocales(int fd);
 

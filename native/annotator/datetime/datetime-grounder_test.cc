@@ -261,6 +261,12 @@ TEST_F(DatetimeGrounderTest, InValidUngroundedDatetime) {
                             /*hour=*/11, /*minute=*/59, /*second=*/99,
                             grammar::datetime::Meridiem_AM)
           .get());
+
+  VerifyInValidUngroundedDatetime(
+      BuildAbsoluteDatetime(/*year=*/2000, /*month=*/00, /*day=*/28,
+                            /*hour=*/11, /*minute=*/59, /*second=*/99,
+                            grammar::datetime::Meridiem_AM)
+          .get());
 }
 
 TEST_F(DatetimeGrounderTest, ValidUngroundedDatetime) {

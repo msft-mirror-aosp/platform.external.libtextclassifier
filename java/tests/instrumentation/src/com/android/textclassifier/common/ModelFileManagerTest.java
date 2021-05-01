@@ -501,10 +501,10 @@ public final class ModelFileManagerTest {
     ImmutableList<ModelFile> listedModels = regularFilePatternMatchLister.list(MODEL_TYPE);
 
     assertThat(listedModels).hasSize(2);
-    assertThat(listedModels.get(0).absolutePath).isEqualTo(modelFile1.getAbsolutePath());
     assertThat(listedModels.get(0).isAsset).isFalse();
-    assertThat(listedModels.get(1).absolutePath).isEqualTo(modelFile2.getAbsolutePath());
     assertThat(listedModels.get(1).isAsset).isFalse();
+    assertThat(ImmutableList.of(listedModels.get(0).absolutePath, listedModels.get(1).absolutePath))
+        .containsExactly(modelFile1.getAbsolutePath(), modelFile2.getAbsolutePath());
   }
 
   @Test
