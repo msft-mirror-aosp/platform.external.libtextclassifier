@@ -36,7 +36,7 @@ limitations under the License.
 #include "tensorflow_models/seq_flow_lite/tflite_ops/quantization_util.h"
 #include "tensorflow/lite/kernels/kernel_util.h"
 
-namespace tflite {
+namespace seq_flow_lite {
 namespace ops {
 namespace custom {
 
@@ -344,4 +344,4 @@ TfLiteRegistration* Register_LAYER_NORM() {
 
 }  // namespace custom
 }  // namespace ops
-}  // namespace tflite
+}  // namespace seq_flow_lite
