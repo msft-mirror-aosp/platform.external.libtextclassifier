@@ -25,11 +25,14 @@ import android.service.textclassifier.TextClassifierService;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.SelectionEvent;
 import android.view.textclassifier.TextClassification;
+import android.view.textclassifier.TextClassificationContext;
 import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifierEvent;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
+import androidx.annotation.NonNull;
+import androidx.collection.LruCache;
 import com.android.textclassifier.common.ModelFileManager;
 import com.android.textclassifier.common.TextClassifierServiceExecutors;
 import com.android.textclassifier.common.TextClassifierSettings;
@@ -45,8 +48,10 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import javax.annotation.Nullable;
 
 /** An implementation of a TextClassifierService. */
 public final class DefaultTextClassifierService extends TextClassifierService {
@@ -60,6 +65,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   private TextClassifierSettings settings;
   private ModelFileManager modelFileManager;
   private BroadcastReceiver localeChangedReceiver;
+  private LruCache<TextClassificationSessionId, TextClassificationContext> sessionIdToContext;
 
   public DefaultTextClassifierService() {
     this.injector = new InjectorImpl(this);
@@ -82,6 +88,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     lowPriorityExecutor = injector.createLowPriorityExecutor();
     textClassifier = injector.createTextClassifierImpl(settings, modelFileManager);
     localeChangedReceiver = new LocaleChangedReceiver(modelFileManager);
+    sessionIdToContext = new LruCache<>(settings.getSessionIdToContextCacheSize());
     textClassifierApiUsageLogger =
         injector.createTextClassifierApiUsageLogger(settings, lowPriorityExecutor);
 
@@ -97,13 +104,26 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   }
 
   @Override
+  public void onCreateTextClassificationSession(
+      @NonNull TextClassificationContext context, @NonNull TextClassificationSessionId sessionId) {
+    sessionIdToContext.put(sessionId, context);
+  }
+
+  @Override
+  public void onDestroyTextClassificationSession(@NonNull TextClassificationSessionId sessionId) {
+    sessionIdToContext.remove(sessionId);
+  }
+
+  @Override
   public void onSuggestSelection(
       TextClassificationSessionId sessionId,
       TextSelection.Request request,
       CancellationSignal cancellationSignal,
       Callback<TextSelection> callback) {
     handleRequestAsync(
-        () -> textClassifier.suggestSelection(request),
+        () ->
+            textClassifier.suggestSelection(
+                sessionId, sessionIdToTextClassificationContext(sessionId), request),
         callback,
         textClassifierApiUsageLogger.createSession(
             TextClassifierApiUsageLogger.API_TYPE_SUGGEST_SELECTION, sessionId),
@@ -117,7 +137,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
       CancellationSignal cancellationSignal,
       Callback<TextClassification> callback) {
     handleRequestAsync(
-        () -> textClassifier.classifyText(request),
+        () ->
+            textClassifier.classifyText(
+                sessionId, sessionIdToTextClassificationContext(sessionId), request),
         callback,
         textClassifierApiUsageLogger.createSession(
             TextClassifierApiUsageLogger.API_TYPE_CLASSIFY_TEXT, sessionId),
@@ -131,7 +153,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
       CancellationSignal cancellationSignal,
       Callback<TextLinks> callback) {
     handleRequestAsync(
-        () -> textClassifier.generateLinks(request),
+        () ->
+            textClassifier.generateLinks(
+                sessionId, sessionIdToTextClassificationContext(sessionId), request),
         callback,
         textClassifierApiUsageLogger.createSession(
             TextClassifierApiUsageLogger.API_TYPE_GENERATE_LINKS, sessionId),
@@ -145,7 +169,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
       CancellationSignal cancellationSignal,
       Callback<ConversationActions> callback) {
     handleRequestAsync(
-        () -> textClassifier.suggestConversationActions(request),
+        () ->
+            textClassifier.suggestConversationActions(
+                sessionId, sessionIdToTextClassificationContext(sessionId), request),
         callback,
         textClassifierApiUsageLogger.createSession(
             TextClassifierApiUsageLogger.API_TYPE_SUGGEST_CONVERSATION_ACTIONS, sessionId),
@@ -159,7 +185,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
       CancellationSignal cancellationSignal,
       Callback<TextLanguage> callback) {
     handleRequestAsync(
-        () -> textClassifier.detectLanguage(request),
+        () ->
+            textClassifier.detectLanguage(
+                sessionId, sessionIdToTextClassificationContext(sessionId), request),
         callback,
         textClassifierApiUsageLogger.createSession(
             TextClassifierApiUsageLogger.API_TYPE_DETECT_LANGUAGES, sessionId),
@@ -168,7 +196,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
 
   @Override
   public void onSelectionEvent(TextClassificationSessionId sessionId, SelectionEvent event) {
-    handleEvent(() -> textClassifier.onSelectionEvent(event));
+    handleEvent(() -> textClassifier.onSelectionEvent(sessionId, event));
   }
 
   @Override
@@ -182,7 +210,22 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     IndentingPrintWriter indentingPrintWriter = new IndentingPrintWriter(writer);
     // TODO(licha): Also dump ModelDownloadManager for debugging
     textClassifier.dump(indentingPrintWriter);
+    dumpImpl(indentingPrintWriter);
     indentingPrintWriter.flush();
+  }
+
+  private void dumpImpl(IndentingPrintWriter printWriter) {
+    printWriter.println("DefaultTextClassifierService:");
+    printWriter.increaseIndent();
+    printWriter.println("sessionIdToContext:");
+    printWriter.increaseIndent();
+    for (Map.Entry<TextClassificationSessionId, TextClassificationContext> entry :
+        sessionIdToContext.snapshot().entrySet()) {
+      printWriter.printPair(entry.getKey().getValue(), entry.getValue());
+    }
+    printWriter.decreaseIndent();
+    printWriter.decreaseIndent();
+    printWriter.println();
   }
 
   private <T> void handleRequestAsync(
@@ -230,6 +273,15 @@ public final class DefaultTextClassifierService extends TextClassifierService {
           }
         },
         MoreExecutors.directExecutor());
+  }
+
+  @Nullable
+  private TextClassificationContext sessionIdToTextClassificationContext(
+      @Nullable TextClassificationSessionId sessionId) {
+    if (sessionId == null) {
+      return null;
+    }
+    return sessionIdToContext.get(sessionId);
   }
 
   /**

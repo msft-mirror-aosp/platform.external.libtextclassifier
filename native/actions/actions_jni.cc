@@ -567,7 +567,8 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeGetNativeModelPtr)
       reinterpret_cast<ActionsSuggestionsJniContext*>(ptr)->model());
 }
 
-TC3_JNI_METHOD(jboolean, TC3_ACTIONS_CLASS_NAME, nativeInitializeDeepClu)
+TC3_JNI_METHOD(jboolean, TC3_ACTIONS_CLASS_NAME,
+               nativeInitializeConversationIntentDetection)
 (JNIEnv* env, jobject thiz, jlong ptr, jbyteArray jserialized_config) {
   if (!ptr) {
     return false;
@@ -579,6 +580,7 @@ TC3_JNI_METHOD(jboolean, TC3_ACTIONS_CLASS_NAME, nativeInitializeDeepClu)
   std::string serialized_config;
   TC3_ASSIGN_OR_RETURN_0(
       serialized_config, JByteArrayToString(env, jserialized_config),
-      TC3_LOG(ERROR) << "Could not convert serialized DeepCLU config.");
-  return model->InitializeDeepClu(serialized_config);
+      TC3_LOG(ERROR) << "Could not convert serialized conversation intent "
+                        "detection config.");
+  return model->InitializeConversationIntentDetection(serialized_config);
 }
