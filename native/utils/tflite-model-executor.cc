@@ -39,6 +39,7 @@ TfLiteRegistration* Register_REDUCE_ANY();
 TfLiteRegistration* Register_SOFTMAX();
 TfLiteRegistration* Register_GATHER();
 TfLiteRegistration* Register_GATHER_ND();
+TfLiteRegistration* Register_IF();
 TfLiteRegistration* Register_ROUND();
 TfLiteRegistration* Register_ZEROS_LIKE();
 TfLiteRegistration* Register_TRANSPOSE();
@@ -145,8 +146,10 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
   resolver->AddBuiltin(::tflite::BuiltinOperator_GATHER_ND,
                        ::tflite::ops::builtin::Register_GATHER_ND(),
                        /*version=*/2);
-  resolver->AddBuiltin(::tflite::BuiltinOperator_ROUND,
-                       ::tflite::ops::builtin::Register_ROUND());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_IF,
+                       ::tflite::ops::builtin::Register_IF()),
+      resolver->AddBuiltin(::tflite::BuiltinOperator_ROUND,
+                           ::tflite::ops::builtin::Register_ROUND());
   resolver->AddBuiltin(::tflite::BuiltinOperator_ZEROS_LIKE,
                        ::tflite::ops::builtin::Register_ZEROS_LIKE());
   resolver->AddBuiltin(tflite::BuiltinOperator_TRANSPOSE,

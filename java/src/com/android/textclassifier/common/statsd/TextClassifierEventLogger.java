@@ -19,7 +19,6 @@ package com.android.textclassifier.common.statsd;
 import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.base.Strings.nullToEmpty;
 
-import android.view.textclassifier.TextClassifier;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.logging.ResultIdUtils;
 import com.android.textclassifier.common.logging.TextClassificationContext;
@@ -195,6 +194,14 @@ public final class TextClassifierEventLogger {
     return ResultIdUtils.getModelNames(event.getResultId());
   }
 
+  private static int getWidgetType(TextClassifierEvent event) {
+    TextClassificationContext eventContext = event.getEventContext();
+    if (eventContext == null) {
+      return TextClassifierStatsLog.TEXT_SELECTION_EVENT__WIDGET_TYPE__WIDGET_TYPE_UNKNOWN;
+    }
+    return WidgetTypeConverter.toLoggingValue(eventContext.getWidgetType());
+  }
+
   @Nullable
   private static String getPackageName(TextClassifierEvent event) {
     TextClassificationContext eventContext = event.getEventContext();
@@ -202,53 +209,5 @@ public final class TextClassifierEventLogger {
       return null;
     }
     return eventContext.getPackageName();
-  }
-
-  private static int getWidgetType(TextClassifierEvent event) {
-    TextClassificationContext eventContext = event.getEventContext();
-    if (eventContext == null) {
-      return WidgetType.WIDGET_TYPE_UNKNOWN;
-    }
-    switch (eventContext.getWidgetType()) {
-      case TextClassifier.WIDGET_TYPE_UNKNOWN:
-        return WidgetType.WIDGET_TYPE_UNKNOWN;
-      case TextClassifier.WIDGET_TYPE_TEXTVIEW:
-        return WidgetType.WIDGET_TYPE_TEXTVIEW;
-      case TextClassifier.WIDGET_TYPE_EDITTEXT:
-        return WidgetType.WIDGET_TYPE_EDITTEXT;
-      case TextClassifier.WIDGET_TYPE_UNSELECTABLE_TEXTVIEW:
-        return WidgetType.WIDGET_TYPE_UNSELECTABLE_TEXTVIEW;
-      case TextClassifier.WIDGET_TYPE_WEBVIEW:
-        return WidgetType.WIDGET_TYPE_WEBVIEW;
-      case TextClassifier.WIDGET_TYPE_EDIT_WEBVIEW:
-        return WidgetType.WIDGET_TYPE_EDIT_WEBVIEW;
-      case TextClassifier.WIDGET_TYPE_CUSTOM_TEXTVIEW:
-        return WidgetType.WIDGET_TYPE_CUSTOM_TEXTVIEW;
-      case TextClassifier.WIDGET_TYPE_CUSTOM_EDITTEXT:
-        return WidgetType.WIDGET_TYPE_CUSTOM_EDITTEXT;
-      case TextClassifier.WIDGET_TYPE_CUSTOM_UNSELECTABLE_TEXTVIEW:
-        return WidgetType.WIDGET_TYPE_CUSTOM_UNSELECTABLE_TEXTVIEW;
-      case TextClassifier.WIDGET_TYPE_NOTIFICATION:
-        return WidgetType.WIDGET_TYPE_NOTIFICATION;
-      default: // fall out
-    }
-    return WidgetType.WIDGET_TYPE_UNKNOWN;
-  }
-
-  /** Widget type constants for logging. */
-  public static final class WidgetType {
-    // Sync these constants with textclassifier_enums.proto.
-    public static final int WIDGET_TYPE_UNKNOWN = 0;
-    public static final int WIDGET_TYPE_TEXTVIEW = 1;
-    public static final int WIDGET_TYPE_EDITTEXT = 2;
-    public static final int WIDGET_TYPE_UNSELECTABLE_TEXTVIEW = 3;
-    public static final int WIDGET_TYPE_WEBVIEW = 4;
-    public static final int WIDGET_TYPE_EDIT_WEBVIEW = 5;
-    public static final int WIDGET_TYPE_CUSTOM_TEXTVIEW = 6;
-    public static final int WIDGET_TYPE_CUSTOM_EDITTEXT = 7;
-    public static final int WIDGET_TYPE_CUSTOM_UNSELECTABLE_TEXTVIEW = 8;
-    public static final int WIDGET_TYPE_NOTIFICATION = 9;
-
-    private WidgetType() {}
   }
 }

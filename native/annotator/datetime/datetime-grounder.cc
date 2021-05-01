@@ -58,7 +58,8 @@ const std::unordered_map<int, int> kMonthDefaultLastDayMap(
 bool IsValidDatetime(const AbsoluteDateTime* absolute_datetime) {
   // Sanity Checks.
   if (absolute_datetime->minute() > 59 || absolute_datetime->second() > 59 ||
-      absolute_datetime->hour() > 23 || absolute_datetime->month() > 12) {
+      absolute_datetime->hour() > 23 || absolute_datetime->month() > 12 ||
+      absolute_datetime->month() == 0) {
     return false;
   }
   if (absolute_datetime->day() >= 0) {
