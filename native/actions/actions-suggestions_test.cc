@@ -1821,7 +1821,8 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsFromSensitiveTfLiteModel) {
              /*annotations=*/{},
              /*locales=*/"en"}}});
   EXPECT_EQ(response.actions.size(), 0);
-  EXPECT_TRUE(response.output_filtered_low_confidence);
+  EXPECT_TRUE(response.is_sensitive);
+  EXPECT_FALSE(response.output_filtered_low_confidence);
 }
 
 }  // namespace
