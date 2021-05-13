@@ -14,19 +14,19 @@
 // limitations under the License.
 //
 
-syntax = "proto3";
+syntax = "proto2";
 
 package textclassifier.tcs;
 
-option java_package = "com.android.textclassifier";
+option java_package = "com.android.textclassifier.downloader";
 option java_multiple_files = true;
 
 // Manifest for a download task.
 message ModelManifest {
   message Model {
-    string url = 1;
-    int64 size_in_bytes = 2;
-    string fingerprint = 3;
+    optional string url = 1;
+    optional int64 size_in_bytes = 2;
+    optional string fingerprint = 3;
   }
   // All models to download in this task. Currently the size is always one.
   repeated Model models = 1;
@@ -38,9 +38,9 @@ message ModelManifest {
     NOT_ROAMING = 3;
     CONNECTED = 4;
   }
-  NetworkType required_network_type = 2;
-  bool requires_battery_not_low = 3;
-  bool requires_charging = 4;
-  bool requires_device_idle = 5;
-  bool requires_storage_not_low = 6;
+  optional NetworkType required_network_type = 2;
+  optional bool requires_battery_not_low = 3;
+  optional bool requires_charging = 4;
+  optional bool requires_device_idle = 5;
+  optional bool requires_storage_not_low = 6;
 }

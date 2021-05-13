@@ -100,7 +100,8 @@ cc_defaults {
         "-DTC3_UNILIB_JAVAICU",
         "-DTC3_CALENDAR_JAVAICU",
         "-DTC3_AOSP",
-        "-DTC3_VOCAB_ANNOTATOR_DUMMY",
+        "-DTC3_VOCAB_ANNOTATOR_IMPL",
+        "-DTC3_POD_NER_ANNOTATOR_IMPL",
     ],
 
     product_variables: {
@@ -128,6 +129,7 @@ cc_defaults {
         "liblua",
         "libutf",
         "libtflite_static",
+        "tflite_support",
     ],
 }
 
@@ -238,6 +240,9 @@ cc_test_library {
         "libgtest_ndk_c++",
         "libbase_ndk",
         "libtextclassifier",
+    ],
+    header_libs: [
+    	"libtextclassifier_flatbuffer_testonly_headers",
     ],
 }
 

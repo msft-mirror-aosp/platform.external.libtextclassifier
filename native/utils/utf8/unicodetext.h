@@ -25,6 +25,7 @@
 #include "utils/base/integral_types.h"
 #include "utils/base/logging.h"
 #include "utils/strings/stringpiece.h"
+#include "absl/strings/string_view.h"
 
 namespace libtextclassifier3 {
 
@@ -237,6 +238,7 @@ UnicodeText UTF8ToUnicodeText(const char* utf8_buf, int len,
 UnicodeText UTF8ToUnicodeText(const char* utf8_buf, bool do_copy = true);
 UnicodeText UTF8ToUnicodeText(const std::string& str, bool do_copy = true);
 UnicodeText UTF8ToUnicodeText(StringPiece str, bool do_copy = true);
+UnicodeText UTF8ToUnicodeText(absl::string_view str, bool do_copy = true);
 
 inline logging::LoggingStringStream& operator<<(
     logging::LoggingStringStream& stream, const UnicodeText& message) {
