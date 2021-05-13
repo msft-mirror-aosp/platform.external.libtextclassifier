@@ -897,13 +897,12 @@ bool ActionsSuggestions::ReadModelOutput(
       return false;
     }
     response->sensitivity_score = sensitive_topic_score.data()[0];
-    response->output_filtered_sensitivity =
-        (response->sensitivity_score >
-         preconditions_.max_sensitive_topic_score);
+    response->is_sensitive = (response->sensitivity_score >
+                              preconditions_.max_sensitive_topic_score);
   }
 
   // Suppress model outputs.
-  if (response->output_filtered_sensitivity) {
+  if (response->is_sensitive) {
     return true;
   }
 
@@ -984,6 +983,12 @@ bool ActionsSuggestions::SuggestActionsFromModel(
     ActionsSuggestionsResponse* response,
     std::unique_ptr<tflite::Interpreter>* interpreter) const {
   TC3_CHECK_LE(num_messages, conversation.messages.size());
+
+  if (sensitive_model_ != nullptr &&
+      sensitive_model_->EvalConversation(conversation, num_messages).first) {
+    response->is_sensitive = true;
+    return true;
+  }
 
   if (!model_executor_) {
     return true;
@@ -1357,11 +1362,7 @@ bool ActionsSuggestions::GatherActionsSuggestions(
 
   std::vector<const UniLib::RegexPattern*> post_check_rules;
   if (preconditions_.suppress_on_low_confidence_input) {
-    if ((sensitive_model_ != nullptr &&
-         sensitive_model_
-             ->EvalConversation(annotated_conversation, num_messages)
-             .first) ||
-        regex_actions_->IsLowConfidenceInput(annotated_conversation,
+    if (regex_actions_->IsLowConfidenceInput(annotated_conversation,
                                              num_messages, &post_check_rules)) {
       response->output_filtered_low_confidence = true;
       return true;
@@ -1375,9 +1376,10 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return false;
   }
 
+  // SuggestActionsFromModel also detects if the conversation is sensitive,
+  // either by using the old ngram model or the new model.
   // Suppress all predictions if the conversation was deemed sensitive.
-  if (preconditions_.suppress_on_sensitive_topic &&
-      response->output_filtered_sensitivity) {
+  if (preconditions_.suppress_on_sensitive_topic && response->is_sensitive) {
     return true;
   }
 

@@ -87,7 +87,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   }
 
   /** Suggests actions / replies to the given conversation. */
-  public ActionSuggestion[] suggestActions(
+  public ActionSuggestions suggestActions(
       Conversation conversation, ActionSuggestionOptions options, AnnotatorModel annotator) {
     return nativeSuggestActions(
         actionsModelPtr,
@@ -99,7 +99,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         /* generateAndroidIntents= */ false);
   }
 
-  public ActionSuggestion[] suggestActionsWithIntents(
+  public ActionSuggestions suggestActionsWithIntents(
       Conversation conversation,
       ActionSuggestionOptions options,
       Object appContext,
@@ -176,6 +176,19 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   public void initializeConversationIntentDetection(byte[] serializedConfig) {
     if (!nativeInitializeConversationIntentDetection(actionsModelPtr, serializedConfig)) {
       throw new IllegalArgumentException("Couldn't initialize conversation intent detection");
+    }
+  }
+
+  /** Represents a list of suggested actions of a given conversation. */
+  public static final class ActionSuggestions {
+    /** A list of suggested actionsm sorted by score descendingly. */
+    public final ActionSuggestion[] actionSuggestions;
+    /** Whether the input conversation is considered as sensitive. */
+    public final boolean isSensitive;
+
+    public ActionSuggestions(ActionSuggestion[] actionSuggestions, boolean isSensitive) {
+      this.actionSuggestions = actionSuggestions;
+      this.isSensitive = isSensitive;
     }
   }
 
@@ -360,7 +373,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
   private static native String nativeGetNameWithOffset(int fd, long offset, long size);
 
-  private native ActionSuggestion[] nativeSuggestActions(
+  private native ActionSuggestions nativeSuggestActions(
       long context,
       Conversation conversation,
       ActionSuggestionOptions options,
