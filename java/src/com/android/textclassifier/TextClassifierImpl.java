@@ -60,6 +60,7 @@ import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
+import com.google.android.textclassifier.ActionsSuggestionsModel.ActionSuggestions;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.LangIdModel;
 import com.google.common.base.Optional;
@@ -387,7 +388,7 @@ final class TextClassifierImpl {
     ActionsSuggestionsModel.Conversation nativeConversation =
         new ActionsSuggestionsModel.Conversation(nativeMessages);
 
-    ActionsSuggestionsModel.ActionSuggestion[] nativeSuggestions =
+    ActionSuggestions nativeSuggestions =
         actionsImpl.suggestActionsWithIntents(
             nativeConversation,
             null,
@@ -404,11 +405,11 @@ final class TextClassifierImpl {
    * non-null component name is in the extras.
    */
   private ConversationActions createConversationActionResult(
-      ConversationActions.Request request,
-      ActionsSuggestionsModel.ActionSuggestion[] nativeSuggestions) {
+      ConversationActions.Request request, ActionSuggestions nativeSuggestions) {
     Collection<String> expectedTypes = resolveActionTypesFromRequest(request);
     List<ConversationAction> conversationActions = new ArrayList<>();
-    for (ActionsSuggestionsModel.ActionSuggestion nativeSuggestion : nativeSuggestions) {
+    for (ActionsSuggestionsModel.ActionSuggestion nativeSuggestion :
+        nativeSuggestions.actionSuggestions) {
       String actionType = nativeSuggestion.getActionType();
       if (!expectedTypes.contains(actionType)) {
         continue;
@@ -690,7 +691,7 @@ final class TextClassifierImpl {
 
   private static void checkMainThread() {
     if (Looper.myLooper() == Looper.getMainLooper()) {
-      TcLog.e(TAG, "TextClassifier called on main thread", new Exception());
+      TcLog.e(TAG, "TCS TextClassifier called on main thread", new Exception());
     }
   }
 
