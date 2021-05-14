@@ -40,7 +40,6 @@
 
 using libtextclassifier3::ActionsSuggestions;
 using libtextclassifier3::ActionsSuggestionsResponse;
-using libtextclassifier3::ActionSuggestion;
 using libtextclassifier3::ActionSuggestionOptions;
 using libtextclassifier3::Annotator;
 using libtextclassifier3::Conversation;
@@ -122,21 +121,34 @@ ActionSuggestionOptions FromJavaActionSuggestionOptions(JNIEnv* env,
   return options;
 }
 
-StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
+StatusOr<ScopedLocalRef<jobject>> ActionSuggestionsToJObject(
     JNIEnv* env, const ActionsSuggestionsJniContext* context,
     jobject app_context,
     const reflection::Schema* annotations_entity_data_schema,
-    const std::vector<ActionSuggestion>& action_result,
+    const ActionsSuggestionsResponse& action_response,
     const Conversation& conversation, const jstring device_locales,
     const bool generate_intents) {
-  auto status_or_result_class = JniHelper::FindClass(
+  // Find the class ActionSuggestion.
+  auto status_or_action_class = JniHelper::FindClass(
       env, TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR "$ActionSuggestion");
-  if (!status_or_result_class.ok()) {
+  if (!status_or_action_class.ok()) {
     TC3_LOG(ERROR) << "Couldn't find ActionSuggestion class.";
+    return status_or_action_class.status();
+  }
+  ScopedLocalRef<jclass> action_class =
+      std::move(status_or_action_class.ValueOrDie());
+
+  // Find the class ActionSuggestions
+  auto status_or_result_class = JniHelper::FindClass(
+      env, TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR "$ActionSuggestions");
+  if (!status_or_result_class.ok()) {
+    TC3_LOG(ERROR) << "Couldn't find ActionSuggestions class.";
     return status_or_result_class.status();
   }
   ScopedLocalRef<jclass> result_class =
       std::move(status_or_result_class.ValueOrDie());
+
+  // Find the class Slot.
   auto status_or_slot_class = JniHelper::FindClass(
       env, TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR "$Slot");
   if (!status_or_slot_class.ok()) {
@@ -147,9 +159,9 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
       std::move(status_or_slot_class.ValueOrDie());
 
   TC3_ASSIGN_OR_RETURN(
-      const jmethodID result_class_constructor,
+      const jmethodID action_class_constructor,
       JniHelper::GetMethodID(
-          env, result_class.get(), "<init>",
+          env, action_class.get(), "<init>",
           "(Ljava/lang/String;Ljava/lang/String;F[L" TC3_PACKAGE_PATH
               TC3_NAMED_VARIANT_CLASS_NAME_STR
           ";[B[L" TC3_PACKAGE_PATH TC3_REMOTE_ACTION_TEMPLATE_CLASS_NAME_STR
@@ -157,39 +169,41 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
   TC3_ASSIGN_OR_RETURN(const jmethodID slot_class_constructor,
                        JniHelper::GetMethodID(env, slot_class.get(), "<init>",
                                               "(Ljava/lang/String;IIIF)V"));
-  TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jobjectArray> results,
-                       JniHelper::NewObjectArray(env, action_result.size(),
-                                                 result_class.get(), nullptr));
-  for (int i = 0; i < action_result.size(); i++) {
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jobjectArray> actions,
+      JniHelper::NewObjectArray(env, action_response.actions.size(),
+                                action_class.get(), nullptr));
+  for (int i = 0; i < action_response.actions.size(); i++) {
     ScopedLocalRef<jobjectArray> extras;
     const reflection::Schema* actions_entity_data_schema =
         context->model()->entity_data_schema();
     if (actions_entity_data_schema != nullptr &&
-        !action_result[i].serialized_entity_data.empty()) {
+        !action_response.actions[i].serialized_entity_data.empty()) {
       TC3_ASSIGN_OR_RETURN(
           extras, context->template_handler()->EntityDataAsNamedVariantArray(
                       actions_entity_data_schema,
-                      action_result[i].serialized_entity_data));
+                      action_response.actions[i].serialized_entity_data));
     }
 
     ScopedLocalRef<jbyteArray> serialized_entity_data;
-    if (!action_result[i].serialized_entity_data.empty()) {
+    if (!action_response.actions[i].serialized_entity_data.empty()) {
       TC3_ASSIGN_OR_RETURN(
           serialized_entity_data,
           JniHelper::NewByteArray(
-              env, action_result[i].serialized_entity_data.size()));
+              env, action_response.actions[i].serialized_entity_data.size()));
       TC3_RETURN_IF_ERROR(JniHelper::SetByteArrayRegion(
           env, serialized_entity_data.get(), 0,
-          action_result[i].serialized_entity_data.size(),
+          action_response.actions[i].serialized_entity_data.size(),
           reinterpret_cast<const jbyte*>(
-              action_result[i].serialized_entity_data.data())));
+              action_response.actions[i].serialized_entity_data.data())));
     }
 
     ScopedLocalRef<jobjectArray> remote_action_templates_result;
     if (generate_intents) {
       std::vector<RemoteActionTemplate> remote_action_templates;
       if (context->intent_generator()->GenerateIntents(
-              device_locales, action_result[i], conversation, app_context,
+              device_locales, action_response.actions[i], conversation,
+              app_context,
               /*annotations_entity_data_schema=*/annotations_entity_data_schema,
               /*actions_entity_data_schema=*/actions_entity_data_schema,
               &remote_action_templates)) {
@@ -202,19 +216,20 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
 
     TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> reply,
                          context->jni_cache()->ConvertToJavaString(
-                             action_result[i].response_text));
+                             action_response.actions[i].response_text));
 
     TC3_ASSIGN_OR_RETURN(
         ScopedLocalRef<jstring> action_type,
-        JniHelper::NewStringUTF(env, action_result[i].type.c_str()));
+        JniHelper::NewStringUTF(env, action_response.actions[i].type.c_str()));
 
     ScopedLocalRef<jobjectArray> slots;
-    if (!action_result[i].slots.empty()) {
-      TC3_ASSIGN_OR_RETURN(
-          slots, JniHelper::NewObjectArray(env, action_result[i].slots.size(),
-                                           slot_class.get(), nullptr));
-      for (int j = 0; j < action_result[i].slots.size(); j++) {
-        const Slot& slot_c = action_result[i].slots[j];
+    if (!action_response.actions[i].slots.empty()) {
+      TC3_ASSIGN_OR_RETURN(slots,
+                           JniHelper::NewObjectArray(
+                               env, action_response.actions[i].slots.size(),
+                               slot_class.get(), nullptr));
+      for (int j = 0; j < action_response.actions[i].slots.size(); j++) {
+        const Slot& slot_c = action_response.actions[i].slots[j];
         TC3_ASSIGN_OR_RETURN(ScopedLocalRef<jstring> slot_type,
                              JniHelper::NewStringUTF(env, slot_c.type.c_str()));
 
@@ -231,16 +246,28 @@ StatusOr<ScopedLocalRef<jobjectArray>> ActionSuggestionsToJObjectArray(
     }
 
     TC3_ASSIGN_OR_RETURN(
-        ScopedLocalRef<jobject> result,
+        ScopedLocalRef<jobject> action,
         JniHelper::NewObject(
-            env, result_class.get(), result_class_constructor, reply.get(),
-            action_type.get(), static_cast<jfloat>(action_result[i].score),
-            extras.get(), serialized_entity_data.get(),
-            remote_action_templates_result.get(), slots.get()));
+            env, action_class.get(), action_class_constructor, reply.get(),
+            action_type.get(),
+            static_cast<jfloat>(action_response.actions[i].score), extras.get(),
+            serialized_entity_data.get(), remote_action_templates_result.get(),
+            slots.get()));
     TC3_RETURN_IF_ERROR(
-        JniHelper::SetObjectArrayElement(env, results.get(), i, result.get()));
+        JniHelper::SetObjectArrayElement(env, actions.get(), i, action.get()));
   }
-  return results;
+
+  // Create the ActionSuggestions object.
+  TC3_ASSIGN_OR_RETURN(
+      const jmethodID result_class_constructor,
+      JniHelper::GetMethodID(env, result_class.get(), "<init>",
+                             "([L" TC3_PACKAGE_PATH TC3_ACTIONS_CLASS_NAME_STR
+                             "$ActionSuggestion;Z)V"));
+  TC3_ASSIGN_OR_RETURN(
+      ScopedLocalRef<jobject> result,
+      JniHelper::NewObject(env, result_class.get(), result_class_constructor,
+                           actions.get(), action_response.is_sensitive));
+  return result;
 }
 
 StatusOr<ConversationMessage> FromJavaConversationMessage(JNIEnv* env,
@@ -387,7 +414,7 @@ StatusOr<ScopedLocalRef<jstring>> GetNameFromMmap(
 }  // namespace libtextclassifier3
 
 using libtextclassifier3::ActionsSuggestionsJniContext;
-using libtextclassifier3::ActionSuggestionsToJObjectArray;
+using libtextclassifier3::ActionSuggestionsToJObject;
 using libtextclassifier3::FromJavaActionSuggestionOptions;
 using libtextclassifier3::FromJavaConversation;
 using libtextclassifier3::JByteArrayToString;
@@ -468,7 +495,7 @@ TC3_JNI_METHOD(jlong, TC3_ACTIONS_CLASS_NAME, nativeNewActionsModelWithOffset)
 #endif  // TC3_UNILIB_JAVAICU
 }
 
-TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
+TC3_JNI_METHOD(jobject, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
 (JNIEnv* env, jobject thiz, jlong ptr, jobject jconversation, jobject joptions,
  jlong annotatorPtr, jobject app_context, jstring device_locales,
  jboolean generate_intents) {
@@ -490,10 +517,10 @@ TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
       annotator ? annotator->entity_data_schema() : nullptr;
 
   TC3_ASSIGN_OR_RETURN_NULL(
-      ScopedLocalRef<jobjectArray> result,
-      ActionSuggestionsToJObjectArray(
-          env, context, app_context, anntotations_entity_data_schema,
-          response.actions, conversation, device_locales, generate_intents));
+      ScopedLocalRef<jobject> result,
+      ActionSuggestionsToJObject(
+          env, context, app_context, anntotations_entity_data_schema, response,
+          conversation, device_locales, generate_intents));
   return result.release();
 }
 
