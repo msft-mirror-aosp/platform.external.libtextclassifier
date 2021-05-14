@@ -56,7 +56,14 @@ public final class TextClassifierServiceExecutors {
     return MoreExecutors.listeningDecorator(
         Executors.newFixedThreadPool(
             corePoolSize,
-            new ThreadFactoryBuilder().setNameFormat(nameFormat).setPriority(priority).build()));
+            new ThreadFactoryBuilder()
+                .setNameFormat(nameFormat)
+                .setPriority(priority)
+                // In Android, those uncaught exceptions will crash the whole process if not handled
+                .setUncaughtExceptionHandler(
+                    (thread, throwable) ->
+                        TcLog.e(TAG, "Exception from executor: " + thread, throwable))
+                .build()));
   }
 
   private TextClassifierServiceExecutors() {}
