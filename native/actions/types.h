@@ -105,8 +105,8 @@ struct ActionsSuggestionsResponse {
   float sensitivity_score = -1.f;
   float triggering_score = -1.f;
 
-  // Whether the output was suppressed by the sensitivity threshold.
-  bool output_filtered_sensitivity = false;
+  // Whether the input conversation is considered as sensitive.
+  bool is_sensitive = false;
 
   // Whether the output was suppressed by the triggering score threshold.
   bool output_filtered_min_triggering_score = false;

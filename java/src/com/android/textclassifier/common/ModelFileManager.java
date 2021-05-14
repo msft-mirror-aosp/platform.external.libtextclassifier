@@ -374,27 +374,9 @@ public final class ModelFileManager {
     }
   }
 
-  /**
-   * Returns a {@link File} that represents the destination to download a model.
-   *
-   * <p>Each model file's name is uniquely formatted based on its unique remote manifest URL.
-   *
-   * <p>{@link ModelDownloadManager} needs to call this to get the right location and file name.
-   *
-   * @param modelType the type of the model image to download
-   * @param manifestUrl the unique remote url of the model manifest
-   */
-  public File getDownloadTargetFile(@ModelType.ModelTypeDef String modelType, String manifestUrl) {
-    // TODO(licha): Consider preserving the folder hierarchy of the URL
-    String fileMidName = manifestUrl.replaceAll("[^A-Za-z0-9]", "_");
-    if (fileMidName.startsWith("https___")) {
-      fileMidName = fileMidName.substring("https___".length());
-    }
-    if (fileMidName.endsWith("_manifest")) {
-      fileMidName = fileMidName.substring(0, fileMidName.length() - "_manifest".length());
-    }
-    String fileName = String.format("%s.%s.model", modelType, fileMidName);
-    return new File(modelDownloaderDir, fileName);
+  /** Returns the directory containing models downloaded by the downloader. */
+  public File getModelDownloaderDir() {
+    return modelDownloaderDir;
   }
 
   /**
