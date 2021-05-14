@@ -45,7 +45,7 @@ TC3_JNI_METHOD(jboolean, TC3_ACTIONS_CLASS_NAME,
                nativeInitializeConversationIntentDetection)
 (JNIEnv* env, jobject thiz, jlong ptr, jbyteArray jserialized_config);
 
-TC3_JNI_METHOD(jobjectArray, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
+TC3_JNI_METHOD(jobject, TC3_ACTIONS_CLASS_NAME, nativeSuggestActions)
 (JNIEnv* env, jobject thiz, jlong ptr, jobject jconversation, jobject joptions,
  jlong annotatorPtr, jobject app_context, jstring device_locales,
  jboolean generate_intents);
