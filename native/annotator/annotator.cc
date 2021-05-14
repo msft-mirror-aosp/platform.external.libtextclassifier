@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "annotator/collections.h"
+#include "annotator/datetime/grammar-parser.h"
 #include "annotator/datetime/regex-parser.h"
 #include "annotator/flatbuffer-utils.h"
 #include "annotator/knowledge/knowledge-engine-types.h"
@@ -37,6 +38,7 @@
 #include "utils/base/statusor.h"
 #include "utils/calendar/calendar.h"
 #include "utils/checksum.h"
+#include "utils/grammar/analyzer.h"
 #include "utils/i18n/locale-list.h"
 #include "utils/i18n/locale.h"
 #include "utils/math/softmax.h"
@@ -416,7 +418,17 @@ void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
     }
   }
 
-  if (model_->datetime_model()) {
+  if (model_->datetime_grammar_model()) {
+    if (model_->datetime_grammar_model()->rules()) {
+      analyzer_ = std::make_unique<grammar::Analyzer>(
+          unilib_, model_->datetime_grammar_model()->rules());
+      datetime_grounder_ = std::make_unique<DatetimeGrounder>(calendarlib_);
+      datetime_parser_ = std::make_unique<GrammarDatetimeParser>(
+          *analyzer_, *datetime_grounder_,
+          /*target_classification_score=*/1.0,
+          /*priority_score=*/1.0);
+    }
+  } else if (model_->datetime_model()) {
     datetime_parser_ = RegexDatetimeParser::Instance(
         model_->datetime_model(), unilib_, calendarlib_, decompressor.get());
     if (!datetime_parser_) {
@@ -686,24 +698,6 @@ bool Annotator::InitializeExperimentalAnnotators() {
   return false;
 }
 
-namespace {
-
-int CountDigits(const std::string& str,
-                const CodepointSpan& selection_indices) {
-  int count = 0;
-  int i = 0;
-  const UnicodeText unicode_str = UTF8ToUnicodeText(str, /*do_copy=*/false);
-  for (auto it = unicode_str.begin(); it != unicode_str.end(); ++it, ++i) {
-    if (i >= selection_indices.first && i < selection_indices.second &&
-        IsDigit(*it)) {
-      ++count;
-    }
-  }
-  return count;
-}
-
-}  // namespace
-
 namespace internal {
 // Helper function, which if the initial 'span' contains only white-spaces,
 // moves the selection to a single-codepoint selection on a left or right side
@@ -909,9 +903,11 @@ CodepointSpan Annotator::SuggestSelection(
     return original_click_indices;
   }
   if (knowledge_engine_ != nullptr &&
-      !knowledge_engine_->Chunk(context, options.annotation_usecase,
-                                options.location_context, Permissions(),
-                                AnnotateMode::kEntityAnnotation, &candidates)) {
+      !knowledge_engine_
+           ->Chunk(context, options.annotation_usecase,
+                   options.location_context, Permissions(),
+                   AnnotateMode::kEntityAnnotation, &candidates)
+           .ok()) {
     TC3_LOG(ERROR) << "Knowledge suggest selection failed.";
     return original_click_indices;
   }
@@ -1002,12 +998,13 @@ CodepointSpan Annotator::SuggestSelection(
       if (candidates.annotated_spans[0][i].classification.empty() &&
           model_->selection_options()->always_classify_suggested_selection() &&
           !filtered_collections_selection_.empty()) {
-        if (!ModelClassifyText(
-                context, detected_text_language_tags,
-                candidates.annotated_spans[0][i].span, options,
-                &interpreter_manager,
-                /*embedding_cache=*/nullptr,
-                &candidates.annotated_spans[0][i].classification)) {
+        if (!ModelClassifyText(context, /*cached_tokens=*/{},
+                               detected_text_language_tags,
+                               candidates.annotated_spans[0][i].span, options,
+                               &interpreter_manager,
+                               /*embedding_cache=*/nullptr,
+                               &candidates.annotated_spans[0][i].classification,
+                               /*tokens=*/nullptr)) {
           return original_click_indices;
         }
       }
@@ -1158,7 +1155,8 @@ bool Annotator::ResolveConflict(
     std::vector<ClassificationResult> classification;
     if (!ModelClassifyText(context, cached_tokens, detected_text_language_tags,
                            candidates[i].span, options, interpreter_manager,
-                           /*embedding_cache=*/nullptr, &classification)) {
+                           /*embedding_cache=*/nullptr, &classification,
+                           /*tokens=*/nullptr)) {
       return false;
     }
 
@@ -1260,8 +1258,10 @@ bool Annotator::ModelSuggestSelection(
 
   int click_pos;
   *tokens = selection_feature_processor_->Tokenize(context_unicode);
+  const auto [click_begin, click_end] =
+      CodepointSpanToUnicodeTextRange(context_unicode, click_indices);
   selection_feature_processor_->RetokenizeAndFindClick(
-      context_unicode, click_indices,
+      context_unicode, click_begin, click_end, click_indices,
       selection_feature_processor_->GetOptions()->only_use_line_with_click(),
       tokens, &click_pos);
   if (click_pos == kInvalidIndex) {
@@ -1352,18 +1352,6 @@ bool Annotator::ModelSuggestSelection(
   return true;
 }
 
-bool Annotator::ModelClassifyText(
-    const std::string& context,
-    const std::vector<Locale>& detected_text_language_tags,
-    const CodepointSpan& selection_indices, const BaseOptions& options,
-    InterpreterManager* interpreter_manager,
-    FeatureProcessor::EmbeddingCache* embedding_cache,
-    std::vector<ClassificationResult>* classification_results) const {
-  return ModelClassifyText(context, {}, detected_text_language_tags,
-                           selection_indices, options, interpreter_manager,
-                           embedding_cache, classification_results);
-}
-
 namespace internal {
 std::vector<Token> CopyCachedTokens(const std::vector<Token>& cached_tokens,
                                     const CodepointSpan& selection_indices,
@@ -1433,16 +1421,24 @@ bool Annotator::ModelClassifyText(
     const CodepointSpan& selection_indices, const BaseOptions& options,
     InterpreterManager* interpreter_manager,
     FeatureProcessor::EmbeddingCache* embedding_cache,
-    std::vector<ClassificationResult>* classification_results) const {
-  std::vector<Token> tokens;
-  return ModelClassifyText(context, cached_tokens, detected_text_language_tags,
-                           selection_indices, options, interpreter_manager,
-                           embedding_cache, classification_results, &tokens);
+    std::vector<ClassificationResult>* classification_results,
+    std::vector<Token>* tokens) const {
+  const UnicodeText context_unicode =
+      UTF8ToUnicodeText(context, /*do_copy=*/false);
+  const auto [span_begin, span_end] =
+      CodepointSpanToUnicodeTextRange(context_unicode, selection_indices);
+  return ModelClassifyText(context_unicode, cached_tokens,
+                           detected_text_language_tags, span_begin, span_end,
+                           /*line=*/nullptr, selection_indices, options,
+                           interpreter_manager, embedding_cache,
+                           classification_results, tokens);
 }
 
 bool Annotator::ModelClassifyText(
-    const std::string& context, const std::vector<Token>& cached_tokens,
+    const UnicodeText& context_unicode, const std::vector<Token>& cached_tokens,
     const std::vector<Locale>& detected_text_language_tags,
+    const UnicodeText::const_iterator& span_begin,
+    const UnicodeText::const_iterator& span_end, const UnicodeTextRange* line,
     const CodepointSpan& selection_indices, const BaseOptions& options,
     InterpreterManager* interpreter_manager,
     FeatureProcessor::EmbeddingCache* embedding_cache,
@@ -1460,8 +1456,13 @@ bool Annotator::ModelClassifyText(
     return true;
   }
 
+  std::vector<Token> local_tokens;
+  if (tokens == nullptr) {
+    tokens = &local_tokens;
+  }
+
   if (cached_tokens.empty()) {
-    *tokens = classification_feature_processor_->Tokenize(context);
+    *tokens = classification_feature_processor_->Tokenize(context_unicode);
   } else {
     *tokens = internal::CopyCachedTokens(cached_tokens, selection_indices,
                                          ClassifyTextUpperBoundNeededTokens());
@@ -1469,7 +1470,7 @@ bool Annotator::ModelClassifyText(
 
   int click_pos;
   classification_feature_processor_->RetokenizeAndFindClick(
-      context, selection_indices,
+      context_unicode, span_begin, span_end, selection_indices,
       classification_feature_processor_->GetOptions()
           ->only_use_line_with_click(),
       tokens, &click_pos);
@@ -1572,7 +1573,7 @@ bool Annotator::ModelClassifyText(
 
   // Sanity checks.
   if (top_collection == Collections::Phone()) {
-    const int digit_count = CountDigits(context, selection_indices);
+    const int digit_count = std::count_if(span_begin, span_end, IsDigit);
     if (digit_count <
             model_->classification_options()->phone_min_num_digits() ||
         digit_count >
@@ -1772,9 +1773,11 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   // TODO(b/126579108): Propagate error status.
   ClassificationResult knowledge_result;
   if (knowledge_engine_ &&
-      knowledge_engine_->ClassifyText(
-          context, selection_indices, options.annotation_usecase,
-          options.location_context, Permissions(), &knowledge_result)) {
+      knowledge_engine_
+          ->ClassifyText(context, selection_indices, options.annotation_usecase,
+                         options.location_context, Permissions(),
+                         &knowledge_result)
+          .ok()) {
     candidates.push_back({selection_indices, {knowledge_result}});
     candidates.back().source = AnnotatedSpan::Source::KNOWLEDGE;
   }
@@ -2054,14 +2057,28 @@ bool Annotator::ModelAnnotate(
       // Skip empty spans.
       if (codepoint_span.first != codepoint_span.second) {
         std::vector<ClassificationResult> classification;
-        if (!ModelClassifyText(line_str, line_tokens,
-                               detected_text_language_tags, codepoint_span,
-                               options, interpreter_manager, &embedding_cache,
-                               &classification)) {
-          TC3_LOG(ERROR) << "Could not classify text: "
-                         << (codepoint_span.first + offset) << " "
-                         << (codepoint_span.second + offset);
-          return false;
+        if (options.enable_optimization) {
+          if (!ModelClassifyText(
+                  line_unicode, line_tokens, detected_text_language_tags,
+                  /*span_begin=*/line_codepoints[codepoint_span.first],
+                  /*span_end=*/line_codepoints[codepoint_span.second], &line,
+                  codepoint_span, options, interpreter_manager,
+                  &embedding_cache, &classification, /*tokens=*/nullptr)) {
+            TC3_LOG(ERROR) << "Could not classify text: "
+                           << (codepoint_span.first + offset) << " "
+                           << (codepoint_span.second + offset);
+            return false;
+          }
+        } else {
+          if (!ModelClassifyText(line_str, line_tokens,
+                                 detected_text_language_tags, codepoint_span,
+                                 options, interpreter_manager, &embedding_cache,
+                                 &classification, /*tokens=*/nullptr)) {
+            TC3_LOG(ERROR) << "Could not classify text: "
+                           << (codepoint_span.first + offset) << " "
+                           << (codepoint_span.second + offset);
+            return false;
+          }
         }
 
         // Do not include the span if it's classified as "other".
@@ -2722,14 +2739,19 @@ bool Annotator::ParseAndFillInMoneyAmount(
     std::string quantity;
     GetMoneyQuantityFromCapturingGroup(match, config, context_unicode,
                                        &quantity, &quantity_exponent);
-    if ((quantity_exponent > 0 && quantity_exponent < 9) ||
-        (quantity_exponent == 9 && data->money->amount_whole_part <= 2)) {
-      data->money->amount_whole_part =
+    if (quantity_exponent > 0 && quantity_exponent <= 9) {
+      const double amount_whole_part =
           data->money->amount_whole_part * pow(10, quantity_exponent) +
           data->money->nanos / pow(10, 9 - quantity_exponent);
-      data->money->nanos = data->money->nanos %
-                           static_cast<int>(pow(10, 9 - quantity_exponent)) *
-                           pow(10, quantity_exponent);
+      // TODO(jacekj): Change type of `data->money->amount_whole_part` to int64
+      // (and `std::numeric_limits<int>::max()` to
+      // `std::numeric_limits<int64>::max()`).
+      if (amount_whole_part < std::numeric_limits<int>::max()) {
+        data->money->amount_whole_part = amount_whole_part;
+        data->money->nanos = data->money->nanos %
+                             static_cast<int>(pow(10, 9 - quantity_exponent)) *
+                             pow(10, quantity_exponent);
+      }
     }
     if (quantity_exponent > 0) {
       data->money->unnormalized_amount = strings::JoinStrings(
@@ -3164,10 +3186,13 @@ const Model* ViewModel(const void* buffer, int size) {
   return LoadAndVerifyModel(buffer, size);
 }
 
-bool Annotator::LookUpKnowledgeEntity(
-    const std::string& id, std::string* serialized_knowledge_result) const {
-  return knowledge_engine_ &&
-         knowledge_engine_->LookUpEntity(id, serialized_knowledge_result);
+StatusOr<std::string> Annotator::LookUpKnowledgeEntity(
+    const std::string& id) const {
+  if (!knowledge_engine_) {
+    return Status(StatusCode::FAILED_PRECONDITION,
+                  "knowledge_engine_ is nullptr");
+  }
+  return knowledge_engine_->LookUpEntity(id);
 }
 
 StatusOr<std::string> Annotator::LookUpKnowledgeEntityProperty(

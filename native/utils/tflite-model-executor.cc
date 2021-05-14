@@ -18,6 +18,7 @@
 
 #include "utils/base/logging.h"
 #include "tensorflow/lite/kernels/register.h"
+#include "tensorflow/lite/schema/schema_generated.h"
 
 // Forward declaration of custom TensorFlow Lite ops for registration.
 namespace tflite {
@@ -33,15 +34,21 @@ TfLiteRegistration* Register_L2_NORMALIZATION();
 TfLiteRegistration* Register_MUL();
 TfLiteRegistration* Register_RESHAPE();
 TfLiteRegistration* Register_REDUCE_MAX();
+TfLiteRegistration* Register_REDUCE_MIN();
 TfLiteRegistration* Register_REDUCE_ANY();
 TfLiteRegistration* Register_SOFTMAX();
 TfLiteRegistration* Register_GATHER();
+TfLiteRegistration* Register_GATHER_ND();
+TfLiteRegistration* Register_IF();
+TfLiteRegistration* Register_ROUND();
+TfLiteRegistration* Register_ZEROS_LIKE();
 TfLiteRegistration* Register_TRANSPOSE();
 TfLiteRegistration* Register_SUB();
 TfLiteRegistration* Register_DIV();
 TfLiteRegistration* Register_STRIDED_SLICE();
 TfLiteRegistration* Register_EXP();
 TfLiteRegistration* Register_TOPK_V2();
+TfLiteRegistration* Register_SLICE();
 TfLiteRegistration* Register_SPLIT();
 TfLiteRegistration* Register_CAST();
 TfLiteRegistration* Register_MAXIMUM();
@@ -49,6 +56,7 @@ TfLiteRegistration* Register_MINIMUM();
 TfLiteRegistration* Register_NEG();
 TfLiteRegistration* Register_SLICE();
 TfLiteRegistration* Register_LOG();
+TfLiteRegistration* Register_LOGISTIC();
 TfLiteRegistration* Register_SUM();
 TfLiteRegistration* Register_PACK();
 TfLiteRegistration* Register_DEQUANTIZE();
@@ -62,7 +70,7 @@ TfLiteRegistration* Register_WHERE();
 TfLiteRegistration* Register_ONE_HOT();
 TfLiteRegistration* Register_POW();
 TfLiteRegistration* Register_TANH();
-#ifndef TC3_AOSP
+TfLiteRegistration* Register_UNIQUE();
 TfLiteRegistration* Register_REDUCE_PROD();
 TfLiteRegistration* Register_SHAPE();
 TfLiteRegistration* Register_NOT_EQUAL();
@@ -70,26 +78,26 @@ TfLiteRegistration* Register_CUMSUM();
 TfLiteRegistration* Register_EXPAND_DIMS();
 TfLiteRegistration* Register_FILL();
 TfLiteRegistration* Register_PADV2();
-#endif  // TC3_AOSP
 }  // namespace builtin
 }  // namespace ops
 }  // namespace tflite
 
 #ifdef TC3_WITH_ACTIONS_OPS
+#include "utils/tflite/blacklist.h"
 #include "utils/tflite/dist_diversification.h"
+#include "utils/tflite/string_projection.h"
 #include "utils/tflite/text_encoder.h"
 #include "utils/tflite/token_encoder.h"
-#ifndef TC3_AOSP
 namespace tflite {
 namespace ops {
 namespace custom {
 TfLiteRegistration* Register_SENTENCEPIECE_TOKENIZER();
 TfLiteRegistration* Register_RAGGED_TENSOR_TO_TENSOR();
 TfLiteRegistration* Register_RAGGED_RANGE();
+TfLiteRegistration* Register_RANDOM_UNIFORM();
 }  // namespace custom
 }  // namespace ops
 }  // namespace tflite
-#endif  // TC3_AOSP
 
 void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
   resolver->AddBuiltin(tflite::BuiltinOperator_ADD,
@@ -123,6 +131,8 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_RESHAPE());
   resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_MAX,
                        ::tflite::ops::builtin::Register_REDUCE_MAX());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_MIN,
+                       ::tflite::ops::builtin::Register_REDUCE_MIN());
   resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_ANY,
                        ::tflite::ops::builtin::Register_REDUCE_ANY());
   resolver->AddBuiltin(tflite::BuiltinOperator_SOFTMAX,
@@ -133,6 +143,15 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_GATHER(),
                        /*min_version=*/1,
                        /*max_version=*/2);
+  resolver->AddBuiltin(::tflite::BuiltinOperator_GATHER_ND,
+                       ::tflite::ops::builtin::Register_GATHER_ND(),
+                       /*version=*/2);
+  resolver->AddBuiltin(::tflite::BuiltinOperator_IF,
+                       ::tflite::ops::builtin::Register_IF()),
+      resolver->AddBuiltin(::tflite::BuiltinOperator_ROUND,
+                           ::tflite::ops::builtin::Register_ROUND());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_ZEROS_LIKE,
+                       ::tflite::ops::builtin::Register_ZEROS_LIKE());
   resolver->AddBuiltin(tflite::BuiltinOperator_TRANSPOSE,
                        tflite::ops::builtin::Register_TRANSPOSE(),
                        /*min_version=*/1,
@@ -153,6 +172,10 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_TOPK_V2(),
                        /*min_version=*/1,
                        /*max_version=*/2);
+  resolver->AddBuiltin(tflite::BuiltinOperator_SLICE,
+                       tflite::ops::builtin::Register_SLICE(),
+                       /*min_version=*/1,
+                       /*max_version=*/3);
   resolver->AddBuiltin(tflite::BuiltinOperator_SPLIT,
                        tflite::ops::builtin::Register_SPLIT(),
                        /*min_version=*/1,
@@ -175,6 +198,8 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        /*max_version=*/2);
   resolver->AddBuiltin(tflite::BuiltinOperator_LOG,
                        tflite::ops::builtin::Register_LOG());
+  resolver->AddBuiltin(tflite::BuiltinOperator_LOGISTIC,
+                       tflite::ops::builtin::Register_LOGISTIC());
   resolver->AddBuiltin(tflite::BuiltinOperator_SUM,
                        tflite::ops::builtin::Register_SUM());
   resolver->AddBuiltin(tflite::BuiltinOperator_PACK,
@@ -211,7 +236,8 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        tflite::ops::builtin::Register_TANH(),
                        /*min_version=*/1,
                        /*max_version=*/1);
-#ifndef TC3_AOSP
+  resolver->AddBuiltin(::tflite::BuiltinOperator_UNIQUE,
+                       ::tflite::ops::builtin::Register_UNIQUE());
   resolver->AddBuiltin(::tflite::BuiltinOperator_REDUCE_PROD,
                        ::tflite::ops::builtin::Register_REDUCE_PROD());
   resolver->AddBuiltin(::tflite::BuiltinOperator_SHAPE,
@@ -226,7 +252,6 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        ::tflite::ops::builtin::Register_FILL());
   resolver->AddBuiltin(::tflite::BuiltinOperator_PADV2,
                        ::tflite::ops::builtin::Register_PADV2());
-#endif  // TC3_AOSP
 }
 #else
 void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
@@ -258,7 +283,6 @@ std::unique_ptr<tflite::OpResolver> BuildOpResolver(
                       tflite::ops::custom::Register_TEXT_ENCODER());
   resolver->AddCustom("TokenEncoder",
                       tflite::ops::custom::Register_TOKEN_ENCODER());
-#ifndef TC3_AOSP
   resolver->AddCustom(
       "TFSentencepieceTokenizeOp",
       ::tflite::ops::custom::Register_SENTENCEPIECE_TOKENIZER());
@@ -267,7 +291,14 @@ std::unique_ptr<tflite::OpResolver> BuildOpResolver(
   resolver->AddCustom(
       "RaggedTensorToTensor",
       ::tflite::ops::custom::Register_RAGGED_TENSOR_TO_TENSOR());
-#endif  // TC3_AOSP
+  resolver->AddCustom(
+      "STRING_PROJECTION",
+      ::tflite::ops::custom::libtextclassifier3::Register_STRING_PROJECTION());
+  resolver->AddCustom(
+      "BLACKLIST",
+      ::tflite::ops::custom::libtextclassifier3::Register_BLACKLIST());
+  resolver->AddCustom("RandomUniform",
+                      ::tflite::ops::custom::Register_RANDOM_UNIFORM());
 #endif  // TC3_WITH_ACTIONS_OPS
   customize_fn(resolver.get());
   return std::unique_ptr<tflite::OpResolver>(std::move(resolver));
