@@ -16,8 +16,8 @@
 
 // Utilities for tests.
 
-#ifndef LIBTEXTCLASSIFIER_UTILS_TEST_UTILS_H_
-#define LIBTEXTCLASSIFIER_UTILS_TEST_UTILS_H_
+#ifndef LIBTEXTCLASSIFIER_UTILS_TOKENIZER_UTILS_H_
+#define LIBTEXTCLASSIFIER_UTILS_TOKENIZER_UTILS_H_
 
 #include <string>
 
@@ -40,4 +40,4 @@ std::vector<Token> TokenizeOnDelimiters(
 
 }  // namespace  libtextclassifier3
 
-#endif  // LIBTEXTCLASSIFIER_UTILS_TEST_UTILS_H_
+#endif  // LIBTEXTCLASSIFIER_UTILS_TOKENIZER_UTILS_H_

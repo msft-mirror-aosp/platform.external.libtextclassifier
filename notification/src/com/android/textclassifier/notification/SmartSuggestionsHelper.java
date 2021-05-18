@@ -221,7 +221,10 @@ public class SmartSuggestionsHelper {
             code,
             contentDescription,
             PendingIntent.getActivity(
-                context, code.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT));
+                context,
+                code.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
 
     return createNotificationActionFromRemoteAction(
         remoteAction, TYPE_COPY, conversationAction.getConfidenceScore());

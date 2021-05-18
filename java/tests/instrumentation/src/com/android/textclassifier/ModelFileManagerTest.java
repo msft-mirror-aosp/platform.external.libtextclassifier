@@ -50,8 +50,8 @@ import org.mockito.MockitoAnnotations;
 @RunWith(AndroidJUnit4.class)
 public final class ModelFileManagerTest {
   private static final Locale DEFAULT_LOCALE = Locale.forLanguageTag("en-US");
-  private static final String URL = "http://www.gstatic.com/android/text_classifier/q/711/en.fb";
-  private static final String URL_2 = "http://www.gstatic.com/android/text_classifier/q/712/en.fb";
+  private static final String URL_SUFFIX = "q/711/en.fb";
+  private static final String URL_SUFFIX_2 = "q/712/en.fb";
 
   @ModelTypeDef private static final String MODEL_TYPE = ModelType.ANNOTATOR;
 
@@ -371,17 +371,17 @@ public final class ModelFileManagerTest {
 
   @Test
   public void getDownloadTargetFile_targetFileInCorrectDir() {
-    File targetFile = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
+    File targetFile = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL_SUFFIX);
     assertThat(targetFile.getAbsolutePath())
         .startsWith(ApplicationProvider.getApplicationContext().getFilesDir().getAbsolutePath());
   }
 
   @Test
   public void getDownloadTargetFile_filePathIsUnique() {
-    File targetFileOne = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
-    File targetFileTwo = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL);
-    File targetFileThree = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL_2);
-    File targetFileFour = modelFileManager.getDownloadTargetFile(MODEL_TYPE_2, URL);
+    File targetFileOne = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL_SUFFIX);
+    File targetFileTwo = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL_SUFFIX);
+    File targetFileThree = modelFileManager.getDownloadTargetFile(MODEL_TYPE, URL_SUFFIX_2);
+    File targetFileFour = modelFileManager.getDownloadTargetFile(MODEL_TYPE_2, URL_SUFFIX);
 
     assertThat(targetFileOne.getAbsolutePath()).isEqualTo(targetFileTwo.getAbsolutePath());
     assertThat(targetFileOne.getAbsolutePath()).isNotEqualTo(targetFileThree.getAbsolutePath());
