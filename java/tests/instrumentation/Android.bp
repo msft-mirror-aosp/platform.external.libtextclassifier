@@ -54,7 +54,7 @@ android_test {
     ],
 
     test_suites: [
-        "device-tests", "mts-extservices"
+        "general-tests", "mts-extservices"
     ],
 
     plugins: ["androidx.room_room-compiler-plugin",],
