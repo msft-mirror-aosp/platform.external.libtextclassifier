@@ -35,12 +35,13 @@ interface ModelDownloader {
   /**
    * Downloads a model file and validate it based on given model info.
    *
-   * <p>The file should be in the cache folder. Returns the File if succeed. If the download or
+   * <p>The file should be in the target folder. Returns the File if succeed. If the download or
    * validation fails, the unfinished model file should be cleaned up. Failures should be wrapped
    * inside a {@link ModelDownloadException} and throw.
    *
+   * @param targetDir the target directory for the downloaded model
    * @param modelInfo the model information in manifest used for downloading and validation
    * @return the downloaded model file
    */
-  ListenableFuture<File> downloadModel(ModelManifest.Model modelInfo);
+  ListenableFuture<File> downloadModel(File targetDir, ModelManifest.Model modelInfo);
 }

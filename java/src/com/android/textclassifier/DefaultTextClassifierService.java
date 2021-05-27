@@ -30,7 +30,6 @@ import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
 import androidx.annotation.NonNull;
 import androidx.collection.LruCache;
-import com.android.textclassifier.common.ModelFileManager;
 import com.android.textclassifier.common.TextClassifierServiceExecutors;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.base.TcLog;
@@ -88,10 +87,10 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     modelDownloadManager =
         new com.android.textclassifier.downloader.ModelDownloadManager(
             injector.getContext().getApplicationContext(),
-            modelFileManager,
             settings,
             TextClassifierServiceExecutors.getDownloaderExecutor());
     modelDownloadManager.onTextClassifierServiceCreated();
+    modelFileManager.addModelDownloaderModels(modelDownloadManager, settings);
     textClassifierApiUsageLogger =
         injector.createTextClassifierApiUsageLogger(settings, lowPriorityExecutor);
   }
@@ -209,6 +208,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     IndentingPrintWriter indentingPrintWriter = new IndentingPrintWriter(writer);
     // TODO(licha): Also dump ModelDownloadManager for debugging
     textClassifier.dump(indentingPrintWriter);
+    modelDownloadManager.dump(indentingPrintWriter);
     dumpImpl(indentingPrintWriter);
     indentingPrintWriter.flush();
   }

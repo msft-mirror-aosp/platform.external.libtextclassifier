@@ -24,10 +24,10 @@ import android.content.Context;
 import androidx.test.core.app.ApplicationProvider;
 import com.android.textclassifier.downloader.TestModelDownloaderService.DownloadResult;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Executors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -53,18 +53,23 @@ public final class ModelDownloaderImplTest {
       ModelManifest.newBuilder().addModels(MODEL_PROTO).build();
 
   private ModelDownloaderImpl modelDownloaderImpl;
+  private File modelDownloaderDir;
 
   @Before
   public void setUp() {
     Context context = ApplicationProvider.getApplicationContext();
     this.modelDownloaderImpl =
         new ModelDownloaderImpl(
-            context, Executors.newSingleThreadExecutor(), TestModelDownloaderService.class);
+            context, MoreExecutors.newDirectExecutorService(), TestModelDownloaderService.class);
+    this.modelDownloaderDir = new File(context.getFilesDir(), "downloader");
+    this.modelDownloaderDir.mkdirs();
+
+    TestModelDownloaderService.reset();
   }
 
   @After
   public void tearDown() {
-    TestModelDownloaderService.reset();
+    DownloaderTestUtils.deleteRecursively(modelDownloaderDir);
   }
 
   @Test
@@ -148,9 +153,12 @@ public final class ModelDownloaderImplTest {
     assertThat(TestModelDownloaderService.isBound()).isFalse();
 
     TestModelDownloaderService.setBindSucceed(true);
-    TestModelDownloaderService.setDownloadResult(MANIFEST_URL, DownloadResult.BLOCKING, null);
+    TestModelDownloaderService.setDownloadResult(MANIFEST_URL, DownloadResult.DO_NOTHING, null);
     ListenableFuture<ModelManifest> manifestFuture =
         modelDownloaderImpl.downloadManifest(MANIFEST_URL);
+
+    assertThat(TestModelDownloaderService.getOnBindInvokedLatch().await(1L, SECONDS)).isTrue();
+    assertThat(TestModelDownloaderService.isBound()).isTrue();
     manifestFuture.cancel(true);
 
     expectThrows(CancellationException.class, manifestFuture::get);
@@ -165,7 +173,8 @@ public final class ModelDownloaderImplTest {
     assertThat(TestModelDownloaderService.isBound()).isFalse();
 
     TestModelDownloaderService.setBindSucceed(false);
-    ListenableFuture<File> modelFuture = modelDownloaderImpl.downloadModel(MODEL_PROTO);
+    ListenableFuture<File> modelFuture =
+        modelDownloaderImpl.downloadModel(modelDownloaderDir, MODEL_PROTO);
 
     Throwable t = expectThrows(Throwable.class, modelFuture::get);
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
@@ -184,9 +193,11 @@ public final class ModelDownloaderImplTest {
     TestModelDownloaderService.setBindSucceed(true);
     TestModelDownloaderService.setDownloadResult(
         MODEL_URL, DownloadResult.SUCCEEDED, MODEL_CONTENT_BYTES);
-    ListenableFuture<File> modelFuture = modelDownloaderImpl.downloadModel(MODEL_PROTO);
+    ListenableFuture<File> modelFuture =
+        modelDownloaderImpl.downloadModel(modelDownloaderDir, MODEL_PROTO);
 
     File modelFile = modelFuture.get();
+    assertThat(modelFile.getParentFile()).isEqualTo(modelDownloaderDir);
     assertThat(Files.readAllBytes(modelFile.toPath())).isEqualTo(MODEL_CONTENT_BYTES);
     assertThat(TestModelDownloaderService.getOnUnbindInvokedLatch().await(1L, SECONDS)).isTrue();
     assertThat(TestModelDownloaderService.isBound()).isFalse();
@@ -200,7 +211,8 @@ public final class ModelDownloaderImplTest {
 
     TestModelDownloaderService.setBindSucceed(true);
     TestModelDownloaderService.setDownloadResult(MODEL_URL, DownloadResult.FAILED, null);
-    ListenableFuture<File> modelFuture = modelDownloaderImpl.downloadModel(MODEL_PROTO);
+    ListenableFuture<File> modelFuture =
+        modelDownloaderImpl.downloadModel(modelDownloaderDir, MODEL_PROTO);
 
     Throwable t = expectThrows(Throwable.class, modelFuture::get);
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
@@ -220,7 +232,8 @@ public final class ModelDownloaderImplTest {
     TestModelDownloaderService.setBindSucceed(true);
     TestModelDownloaderService.setDownloadResult(
         MODEL_URL, DownloadResult.SUCCEEDED, "randomString".getBytes());
-    ListenableFuture<File> modelFuture = modelDownloaderImpl.downloadModel(MODEL_PROTO);
+    ListenableFuture<File> modelFuture =
+        modelDownloaderImpl.downloadModel(modelDownloaderDir, MODEL_PROTO);
 
     Throwable t = expectThrows(Throwable.class, modelFuture::get);
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
@@ -237,8 +250,12 @@ public final class ModelDownloaderImplTest {
     assertThat(TestModelDownloaderService.isBound()).isFalse();
 
     TestModelDownloaderService.setBindSucceed(true);
-    TestModelDownloaderService.setDownloadResult(MODEL_URL, DownloadResult.BLOCKING, null);
-    ListenableFuture<File> modelFuture = modelDownloaderImpl.downloadModel(MODEL_PROTO);
+    TestModelDownloaderService.setDownloadResult(MODEL_URL, DownloadResult.DO_NOTHING, null);
+    ListenableFuture<File> modelFuture =
+        modelDownloaderImpl.downloadModel(modelDownloaderDir, MODEL_PROTO);
+
+    assertThat(TestModelDownloaderService.getOnBindInvokedLatch().await(1L, SECONDS)).isTrue();
+    assertThat(TestModelDownloaderService.isBound()).isTrue();
     modelFuture.cancel(true);
 
     expectThrows(CancellationException.class, modelFuture::get);

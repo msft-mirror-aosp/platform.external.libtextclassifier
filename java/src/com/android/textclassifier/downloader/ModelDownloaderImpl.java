@@ -84,9 +84,8 @@ final class ModelDownloaderImpl implements ModelDownloader {
   }
 
   @Override
-  public ListenableFuture<File> downloadModel(ModelManifest.Model model) {
-    File modelFile =
-        new File(context.getCacheDir(), model.getUrl().replaceAll("[^A-Za-z0-9]", "_") + ".model");
+  public ListenableFuture<File> downloadModel(File targetDir, ModelManifest.Model model) {
+    File modelFile = new File(targetDir, model.getUrl().replaceAll("[^A-Za-z0-9]", "_") + ".model");
     ListenableFuture<File> modelFileFuture =
         Futures.transform(
             download(URI.create(model.getUrl()), modelFile),
@@ -100,7 +99,7 @@ final class ModelDownloaderImpl implements ModelDownloader {
         new FutureCallback<File>() {
           @Override
           public void onSuccess(File pendingModelFile) {
-            TcLog.d(TAG, "Download mode successfully: " + pendingModelFile.getAbsolutePath());
+            TcLog.v(TAG, "Download model successfully: " + pendingModelFile.getAbsolutePath());
           }
 
           @Override

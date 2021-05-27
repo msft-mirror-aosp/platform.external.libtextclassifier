@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
 import javax.annotation.Nullable;
 
+// TODO(licha): Find another way to test the service. Those static states can break easily.
 /** Test Service of IModelDownloaderService. */
 public final class TestModelDownloaderService extends Service {
   private static final String TAG = "TestModelDownloaderService";
@@ -38,13 +39,13 @@ public final class TestModelDownloaderService extends Service {
   public enum DownloadResult {
     SUCCEEDED,
     FAILED,
-    BLOCKING,
     DO_NOTHING
   }
 
   // Obviously this does not work when considering concurrency, but probably fine for test purpose
   private static boolean boundBefore = false;
   private static boolean boundNow = false;
+  private static CountDownLatch onBindInvokedLatch = new CountDownLatch(1);
   private static CountDownLatch onUnbindInvokedLatch = new CountDownLatch(1);
 
   private static boolean bindSucceed = false;
@@ -58,6 +59,10 @@ public final class TestModelDownloaderService extends Service {
 
   public static boolean isBound() {
     return boundNow;
+  }
+
+  public static CountDownLatch getOnBindInvokedLatch() {
+    return onBindInvokedLatch;
   }
 
   public static CountDownLatch getOnUnbindInvokedLatch() {
@@ -78,26 +83,34 @@ public final class TestModelDownloaderService extends Service {
   public static void reset() {
     boundBefore = false;
     boundNow = false;
+    onBindInvokedLatch = new CountDownLatch(1);
     onUnbindInvokedLatch = new CountDownLatch(1);
     bindSucceed = false;
   }
 
   @Override
   public IBinder onBind(Intent intent) {
-    if (bindSucceed) {
-      boundBefore = true;
-      boundNow = true;
-      return new TestModelDownloaderServiceImpl();
-    } else {
-      return null;
+    try {
+      if (bindSucceed) {
+        boundBefore = true;
+        boundNow = true;
+        return new TestModelDownloaderServiceImpl();
+      } else {
+        return null;
+      }
+    } finally {
+      onBindInvokedLatch.countDown();
     }
   }
 
   @Override
   public boolean onUnbind(Intent intent) {
-    boundNow = false;
-    onUnbindInvokedLatch.countDown();
-    return false;
+    try {
+      boundNow = false;
+      return false;
+    } finally {
+      onUnbindInvokedLatch.countDown();
+    }
   }
 
   private static final class TestModelDownloaderServiceImpl extends IModelDownloaderService.Stub {
@@ -117,10 +130,6 @@ public final class TestModelDownloaderService extends Service {
             break;
           case FAILED:
             callback.onFailure(ERROR_CODE, ERROR_MSG);
-            break;
-          case BLOCKING:
-            Thread.sleep(1000 * 60L);
-            TcLog.w(TAG, "Blocking request returns.");
             break;
           case DO_NOTHING:
             // Do nothing
