@@ -42,7 +42,6 @@ import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported.ApiType;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported.ResultType;
-import com.android.textclassifier.common.ModelFileManager;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.statsd.StatsdTestUtils;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
