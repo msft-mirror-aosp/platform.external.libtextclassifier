@@ -16,80 +16,21 @@
 
 package com.android.textclassifier.downloader;
 
-import android.content.Context;
-import androidx.work.ListenableWorker;
 import androidx.work.WorkInfo;
 import androidx.work.WorkManager;
 import androidx.work.WorkQuery;
-import androidx.work.WorkerParameters;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import java.io.File;
 import java.util.List;
 
 /** Utils for downloader logic testing. */
 final class DownloaderTestUtils {
 
-  /** One unique queue holds at most one request at one time. Returns null if no WorkInfo found. */
-  public static WorkInfo queryTheOnlyWorkInfo(WorkManager workManager, String queueName)
+  public static List<WorkInfo> queryWorkInfos(WorkManager workManager, String queueName)
       throws Exception {
     WorkQuery workQuery =
         WorkQuery.Builder.fromUniqueWorkNames(ImmutableList.of(queueName)).build();
-    List<WorkInfo> workInfos = workManager.getWorkInfos(workQuery).get();
-    if (workInfos.isEmpty()) {
-      return null;
-    } else {
-      return Iterables.getOnlyElement(workInfos);
-    }
-  }
-
-  /**
-   * Completes immediately with the pre-set result. If it's not retry, the result will also include
-   * the input Data as its output Data.
-   */
-  public static final class TestWorker extends ListenableWorker {
-    private static Result expectedResult;
-
-    public TestWorker(Context context, WorkerParameters workerParams) {
-      super(context, workerParams);
-    }
-
-    @Override
-    public ListenableFuture<ListenableWorker.Result> startWork() {
-      if (expectedResult == null) {
-        return Futures.immediateFailedFuture(new Exception("no expected result"));
-      }
-      ListenableWorker.Result result;
-      switch (expectedResult) {
-        case SUCCESS:
-          result = ListenableWorker.Result.success(getInputData());
-          break;
-        case FAILURE:
-          result = ListenableWorker.Result.failure(getInputData());
-          break;
-        case RETRY:
-          result = ListenableWorker.Result.retry();
-          break;
-        default:
-          throw new IllegalStateException("illegal result");
-      }
-      // Reset expected result
-      expectedResult = null;
-      return Futures.immediateFuture(result);
-    }
-
-    /** Sets the expected worker result in a static variable. Will be cleaned up after reading. */
-    public static void setExpectedResult(Result expectedResult) {
-      TestWorker.expectedResult = expectedResult;
-    }
-
-    public enum Result {
-      SUCCESS,
-      FAILURE,
-      RETRY;
-    }
+    return workManager.getWorkInfos(workQuery).get();
   }
 
   // MoreFiles#deleteRecursively is not available for Android guava.

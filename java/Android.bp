@@ -57,6 +57,10 @@ android_library {
         "src/**/*.aidl",
     ],
     manifest: "LibNoManifest_AndroidManifest.xml",
+    plugins: [
+        "auto_value_plugin",
+        "androidx.room_room-compiler-plugin",
+    ],
     static_libs: [
         "androidx.core_core",
         "libtextclassifier-java",
@@ -69,6 +73,8 @@ android_library {
         "textclassifier-statsd",
         "textclassifier-java-proto-lite",
         "androidx.concurrent_concurrent-futures",
+        "auto_value_annotations",
+        "androidx.room_room-runtime",
     ],
     sdk_version: "system_current",
     min_sdk_version: "30",

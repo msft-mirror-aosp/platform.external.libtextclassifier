@@ -17,167 +17,269 @@
 package com.android.textclassifier.downloader;
 
 import android.content.Context;
-import androidx.work.Data;
+import android.util.ArrayMap;
+import android.util.Pair;
 import androidx.work.ListenableWorker;
 import androidx.work.WorkerParameters;
-import com.android.textclassifier.common.ModelFileManager;
 import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.ModelType.ModelTypeDef;
 import com.android.textclassifier.common.TextClassifierServiceExecutors;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.base.TcLog;
+import com.android.textclassifier.downloader.DownloadedModelDatabase.Manifest;
+import com.android.textclassifier.downloader.DownloadedModelDatabase.ManifestEnrollment;
+import com.android.textclassifier.downloader.DownloadedModelDatabase.Model;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
-import java.util.concurrent.ExecutorService;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.errorprone.annotations.concurrent.GuardedBy;
+import java.util.ArrayList;
+import java.util.Locale;
 
 // TODO(licha): Rename this to ModelDownloadWorker.
-// TODO(licha): Consider whether we should let the worker handle all locales/model types.
 /** The WorkManager worker to download models for TextClassifierService. */
 public final class NewModelDownloadWorker extends ListenableWorker {
   private static final String TAG = "NewModelDownloadWorker";
-  private static final int MAX_DOWNLOAD_ATTEMPTS_DEFAULT = 5;
 
-  static final String DATA_MODEL_TYPE_KEY = "NewDownloadWorker_modelType";
-  static final String DATA_LOCALE_TAG_KEY = "NewDownloadWorker_localeTag";
-  static final String DATA_MANIFEST_URL_KEY = "NewDownloadWorker_manifestUrl";
-  static final String DATA_MAX_DOWNLOAD_ATTEMPTS_KEY = "NewDownloadWorker_maxDownloadAttempts";
-
-  @ModelTypeDef private final String modelType;
-  private final String manifestUrl;
-  private final int maxDownloadAttempts;
-
-  private final ExecutorService executorService;
+  private final ListeningExecutorService executorService;
   private final ModelDownloader downloader;
-  private final File modelDownloaderDir;
-  private final Runnable postDownloadCleanUpRunnable;
+  private final DownloadedModelManager downloadedModelManager;
+  private final TextClassifierSettings settings;
+
+  private final Object lock = new Object();
+
+  @GuardedBy("lock")
+  private final ArrayMap<String, ListenableFuture<Void>> pendingDownloads;
+
+  private ImmutableMap<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls;
 
   public NewModelDownloadWorker(Context context, WorkerParameters workerParams) {
     super(context, workerParams);
-
-    this.modelType = Preconditions.checkNotNull(getInputData().getString(DATA_MODEL_TYPE_KEY));
-    this.manifestUrl = Preconditions.checkNotNull(getInputData().getString(DATA_MANIFEST_URL_KEY));
-    this.maxDownloadAttempts =
-        getInputData().getInt(DATA_MAX_DOWNLOAD_ATTEMPTS_KEY, MAX_DOWNLOAD_ATTEMPTS_DEFAULT);
-
     this.executorService = TextClassifierServiceExecutors.getDownloaderExecutor();
     this.downloader = new ModelDownloaderImpl(context, executorService);
-    ModelFileManager modelFileManager = new ModelFileManager(context, new TextClassifierSettings());
-    this.modelDownloaderDir = modelFileManager.getModelDownloaderDir();
-    this.postDownloadCleanUpRunnable = modelFileManager::deleteUnusedModelFiles;
+    this.downloadedModelManager = DownloadedModelManagerImpl.getInstance(context);
+    this.settings = new TextClassifierSettings();
+    this.pendingDownloads = new ArrayMap<>();
+    this.modelTypeToLocaleTagAndManifestUrls = null;
   }
 
   @VisibleForTesting
   NewModelDownloadWorker(
       Context context,
       WorkerParameters workerParams,
-      ExecutorService executorService,
+      ListeningExecutorService executorService,
       ModelDownloader modelDownloader,
-      File modelDownloaderDir,
-      Runnable postDownloadCleanUpRunnable) {
+      DownloadedModelManager downloadedModelManager,
+      TextClassifierSettings settings) {
     super(context, workerParams);
-
-    this.modelType = Preconditions.checkNotNull(getInputData().getString(DATA_MODEL_TYPE_KEY));
-    this.manifestUrl = Preconditions.checkNotNull(getInputData().getString(DATA_MANIFEST_URL_KEY));
-    this.maxDownloadAttempts =
-        getInputData().getInt(DATA_MAX_DOWNLOAD_ATTEMPTS_KEY, MAX_DOWNLOAD_ATTEMPTS_DEFAULT);
-
     this.executorService = executorService;
     this.downloader = modelDownloader;
-    this.modelDownloaderDir = modelDownloaderDir;
-    this.postDownloadCleanUpRunnable = postDownloadCleanUpRunnable;
+    this.downloadedModelManager = downloadedModelManager;
+    this.settings = settings;
+    this.pendingDownloads = new ArrayMap<>();
+    this.modelTypeToLocaleTagAndManifestUrls = null;
   }
 
   @Override
   public final ListenableFuture<ListenableWorker.Result> startWork() {
-    if (getRunAttemptCount() >= maxDownloadAttempts) {
-      TcLog.d(TAG, "Max attempt reached. Abort download task.");
-      TextClassifierDownloadLogger.downloadFailedAndAbort(
-          modelType,
-          manifestUrl,
-          // TODO(licha): Add a new failure reason for this
-          ModelDownloadException.UNKNOWN_FAILURE_REASON,
-          getRunAttemptCount());
+    // Notice: startWork() is invoked on the main thread
+    if (!settings.isModelDownloadManagerEnabled()) {
+      TcLog.e(TAG, "Model Downloader is disabled. Abort the work.");
       return Futures.immediateFuture(ListenableWorker.Result.failure());
     }
-    FluentFuture<ListenableWorker.Result> resultFuture =
-        FluentFuture.from(downloader.downloadManifest(manifestUrl))
-            .transformAsync(
-                manifest -> {
-                  // TODO(licha): put this in a function to improve the readability
-                  ModelManifest.Model modelInfo = manifest.getModels(0);
-                  File targetModelFile =
-                      new File(
-                          modelDownloaderDir,
-                          formatFileNameByModelTypeAndUrl(modelType, modelInfo.getUrl()));
-                  if (targetModelFile.exists()) {
-                    TcLog.d(
-                        TAG,
-                        "Target model file already exists. Skip download and reuse it: "
-                            + targetModelFile.getAbsolutePath());
-                    TextClassifierDownloadLogger.downloadSucceeded(
-                        modelType, manifestUrl, getRunAttemptCount());
-                    return Futures.immediateFuture(ListenableWorker.Result.success());
-                  } else {
-                    return Futures.transform(
-                        downloadAndMoveModel(targetModelFile, modelInfo),
-                        unused -> {
-                          TextClassifierDownloadLogger.downloadSucceeded(
-                              modelType, manifestUrl, getRunAttemptCount());
-                          return ListenableWorker.Result.success();
-                        },
-                        executorService);
-                  }
-                },
-                executorService)
-            .catching(
-                Throwable.class,
-                e -> {
-                  TcLog.e(TAG, "Download attempt failed.", e);
-                  int errorCode =
-                      (e instanceof ModelDownloadException)
-                          ? ((ModelDownloadException) e).getErrorCode()
-                          : ModelDownloadException.UNKNOWN_FAILURE_REASON;
-                  // Retry until reach max allowed attempts (attempt starts from 0)
-                  // The backoff time between two tries will grow exponentially (i.e. 30s, 1min,
-                  // 2min, 4min). This is configurable when building the request.
-                  TextClassifierDownloadLogger.downloadFailedAndRetry(
-                      modelType, manifestUrl, errorCode, getRunAttemptCount());
-                  return ListenableWorker.Result.retry();
-                },
-                executorService);
-    resultFuture.addListener(postDownloadCleanUpRunnable, executorService);
-    return resultFuture;
+    TcLog.v(TAG, "Start download work...");
+    if (getRunAttemptCount() >= settings.getModelDownloadWorkerMaxAttempts()) {
+      TcLog.d(TAG, "Max attempt reached. Abort download work.");
+      return Futures.immediateFuture(ListenableWorker.Result.failure());
+    }
+
+    return FluentFuture.from(Futures.submitAsync(this::checkAndDownloadModels, executorService))
+        .transform(
+            allSucceeded -> {
+              Preconditions.checkNotNull(modelTypeToLocaleTagAndManifestUrls);
+              downloadedModelManager.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+              TcLog.v(TAG, "Download work completed. Succeeded: " + allSucceeded);
+              return allSucceeded
+                  ? ListenableWorker.Result.success()
+                  : ListenableWorker.Result.retry();
+            },
+            executorService)
+        .catching(
+            Throwable.class,
+            t -> {
+              TcLog.e(TAG, "Unexpected Exception during downloading: ", t);
+              return ListenableWorker.Result.retry();
+            },
+            executorService);
   }
 
-  private ListenableFuture<Void> downloadAndMoveModel(
-      File targetModelFile, ModelManifest.Model modelInfo) {
-    return Futures.transform(
-        downloader.downloadModel(modelInfo),
-        pendingModelFile -> {
-          try {
-            if (!modelDownloaderDir.exists()) {
-              modelDownloaderDir.mkdirs();
-            }
-            Files.move(
-                pendingModelFile.toPath(),
-                targetModelFile.toPath(),
-                StandardCopyOption.ATOMIC_MOVE,
-                StandardCopyOption.REPLACE_EXISTING);
-            TcLog.d(
-                TAG, "Model file downloaded successfully: " + targetModelFile.getAbsolutePath());
-            return null;
-          } catch (Exception e) {
-            pendingModelFile.delete();
-            throw new ModelDownloadException(ModelDownloadException.FAILED_TO_MOVE_MODEL, e);
-          }
-        },
-        executorService);
+  /**
+   * Check device config and dispatch download tasks for all modelTypes.
+   *
+   * <p>Download tasks will be combined and logged after completion. Return true if all tasks
+   * succeeded
+   */
+  private ListenableFuture<Boolean> checkAndDownloadModels() {
+    Locale primaryLocale = Locale.getDefault();
+    ArrayList<ListenableFuture<Boolean>> downloadResultFutures = new ArrayList<>();
+    ImmutableMap.Builder<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrlsBuilder =
+        ImmutableMap.builder();
+    for (String modelType : ModelType.values()) {
+      Pair<String, String> bestLocaleTagAndManifestUrl =
+          LocaleUtils.lookupBestLocaleTagAndManifestUrl(modelType, primaryLocale, settings);
+      if (bestLocaleTagAndManifestUrl == null) {
+        TcLog.w(
+            TAG,
+            String.format(
+                "No suitable manifest for %s, %s", modelType, primaryLocale.toLanguageTag()));
+        continue;
+      }
+      modelTypeToLocaleTagAndManifestUrlsBuilder.put(modelType, bestLocaleTagAndManifestUrl);
+      String bestLocaleTag = bestLocaleTagAndManifestUrl.first;
+      String manifestUrl = bestLocaleTagAndManifestUrl.second;
+      TcLog.v(
+          TAG,
+          String.format(
+              "model type: %s, device locale tag: %s, best locale tag: %s, manifest url: %s",
+              modelType, primaryLocale.toLanguageTag(), bestLocaleTag, manifestUrl));
+      if (!shouldDownloadManifest(modelType, bestLocaleTag, manifestUrl)) {
+        continue;
+      }
+      downloadResultFutures.add(downloadManifestAndRegister(modelType, bestLocaleTag, manifestUrl));
+    }
+    modelTypeToLocaleTagAndManifestUrls = modelTypeToLocaleTagAndManifestUrlsBuilder.build();
+
+    return Futures.whenAllComplete(downloadResultFutures)
+        .call(
+            () -> {
+              TcLog.v(TAG, "All Download Tasks Completed");
+              boolean allSucceeded = true;
+              for (ListenableFuture<Boolean> downloadResultFuture : downloadResultFutures) {
+                allSucceeded &= Futures.getDone(downloadResultFuture);
+              }
+              return allSucceeded;
+            },
+            executorService);
+  }
+
+  private boolean shouldDownloadManifest(
+      @ModelTypeDef String modelType, String localeTag, String manifestUrl) {
+    Manifest downloadedManifest = downloadedModelManager.getManifest(manifestUrl);
+    if (downloadedManifest == null) {
+      return true;
+    }
+    if (downloadedManifest.getStatus() == Manifest.STATUS_FAILED) {
+      if (downloadedManifest.getFailureCounts() >= settings.getManifestDownloadMaxAttempts()) {
+        TcLog.w(
+            TAG,
+            String.format(
+                "Manifest failed too many times, stop retrying: %s %d",
+                manifestUrl, downloadedManifest.getFailureCounts()));
+        return false;
+      } else {
+        return true;
+      }
+    }
+    ManifestEnrollment manifestEnrollment =
+        downloadedModelManager.getManifestEnrollment(modelType, localeTag);
+    return manifestEnrollment == null || !manifestUrl.equals(manifestEnrollment.getManifestUrl());
+  }
+
+  /**
+   * Downloads a single manifest and models configured inside it.
+   *
+   * <p>The returned future should always resolve to a ManifestDownloadResult as we catch all
+   * exceptions.
+   */
+  private ListenableFuture<Boolean> downloadManifestAndRegister(
+      @ModelTypeDef String modelType, String localeTag, String manifestUrl) {
+    return FluentFuture.from(downloadManifest(manifestUrl))
+        .transform(
+            unused -> {
+              downloadedModelManager.registerManifestEnrollment(modelType, localeTag, manifestUrl);
+              TextClassifierDownloadLogger.downloadSucceeded(
+                  modelType, manifestUrl, getRunAttemptCount());
+              TcLog.v(TAG, "Manifest downloaded and registered: " + manifestUrl);
+              return true;
+            },
+            executorService)
+        .catching(
+            Throwable.class,
+            t -> {
+              downloadedModelManager.registerManifestDownloadFailure(manifestUrl);
+              int errorCode = ModelDownloadException.UNKNOWN_FAILURE_REASON;
+              if (t instanceof ModelDownloadException) {
+                errorCode = ((ModelDownloadException) t).getErrorCode();
+              }
+              TcLog.e(TAG, "Failed to download manfiest: " + manifestUrl, t);
+              TextClassifierDownloadLogger.downloadFailedAndRetry(
+                  modelType, manifestUrl, errorCode, getRunAttemptCount());
+              return false;
+            },
+            executorService);
+  }
+
+  // Download a manifest and its models, and register it to Manifest table.
+  private ListenableFuture<Void> downloadManifest(String manifestUrl) {
+    synchronized (lock) {
+      Manifest downloadedManifest = downloadedModelManager.getManifest(manifestUrl);
+      if (downloadedManifest != null
+          && downloadedManifest.getStatus() == Manifest.STATUS_SUCCEEDED) {
+        TcLog.v(TAG, "Manifest already downloaded: " + manifestUrl);
+        return Futures.immediateVoidFuture();
+      }
+      if (pendingDownloads.containsKey(manifestUrl)) {
+        return pendingDownloads.get(manifestUrl);
+      }
+      ListenableFuture<Void> manfiestDownloadFuture =
+          FluentFuture.from(downloader.downloadManifest(manifestUrl))
+              .transformAsync(
+                  manifest -> {
+                    ModelManifest.Model modelInfo = manifest.getModels(0);
+                    return Futures.transform(
+                        downloadModel(modelInfo), unused -> modelInfo, executorService);
+                  },
+                  executorService)
+              .transform(
+                  modelInfo -> {
+                    downloadedModelManager.registerManifest(manifestUrl, modelInfo.getUrl());
+                    return null;
+                  },
+                  executorService);
+      pendingDownloads.put(manifestUrl, manfiestDownloadFuture);
+      return manfiestDownloadFuture;
+    }
+  }
+  // Download a model and register it into Model table.
+  private ListenableFuture<Void> downloadModel(ModelManifest.Model modelInfo) {
+    String modelUrl = modelInfo.getUrl();
+    synchronized (lock) {
+      Model downloadedModel = downloadedModelManager.getModel(modelUrl);
+      if (downloadedModel != null) {
+        TcLog.d(TAG, "Model file already exists: " + downloadedModel.getModelPath());
+        return Futures.immediateVoidFuture();
+      }
+      if (pendingDownloads.containsKey(modelUrl)) {
+        return pendingDownloads.get(modelUrl);
+      }
+      ListenableFuture<Void> modelDownloadFuture =
+          FluentFuture.from(
+                  downloader.downloadModel(
+                      downloadedModelManager.getModelDownloaderDir(), modelInfo))
+              .transform(
+                  modelFile -> {
+                    downloadedModelManager.registerModel(modelUrl, modelFile.getAbsolutePath());
+                    TcLog.v(TAG, "Model File downloaded: " + modelUrl);
+                    return null;
+                  },
+                  executorService);
+      pendingDownloads.put(modelUrl, modelDownloadFuture);
+      return modelDownloadFuture;
+    }
   }
 
   /**
@@ -187,39 +289,6 @@ public final class NewModelDownloadWorker extends ListenableWorker {
    */
   @Override
   public final void onStopped() {
-    TcLog.d(TAG, String.format("Stop download: %s, attempt:%d", manifestUrl, getRunAttemptCount()));
-    TextClassifierDownloadLogger.downloadFailedAndRetry(
-        modelType, manifestUrl, ModelDownloadException.WORKER_STOPPED, getRunAttemptCount());
-  }
-
-  static final Data createInputData(
-      @ModelTypeDef String modelType,
-      String localeTag,
-      String manifestUrl,
-      int maxDownloadAttempts) {
-    return new Data.Builder()
-        .putString(DATA_MODEL_TYPE_KEY, modelType)
-        .putString(DATA_LOCALE_TAG_KEY, localeTag)
-        .putString(DATA_MANIFEST_URL_KEY, manifestUrl)
-        .putInt(DATA_MAX_DOWNLOAD_ATTEMPTS_KEY, maxDownloadAttempts)
-        .build();
-  }
-
-  /**
-   * Returns the absolute path to download a model.
-   *
-   * <p>Each file's name is uniquely formatted based on its unique remote manifest URL.
-   *
-   * @param modelType the type of the model image to download
-   * @param url the unique remote url
-   */
-  static String formatFileNameByModelTypeAndUrl(
-      @ModelType.ModelTypeDef String modelType, String url) {
-    // TODO(licha): Consider preserving the folder hierarchy of the URL
-    String fileMidName = url.replaceAll("[^A-Za-z0-9]", "_");
-    if (fileMidName.startsWith("https___")) {
-      fileMidName = fileMidName.substring("https___".length());
-    }
-    return String.format("%s.%s.model", modelType, fileMidName);
+    TcLog.d(TAG, String.format("Stop download. Attempt:%d", getRunAttemptCount()));
   }
 }

@@ -17,8 +17,7 @@
 package com.android.textclassifier;
 
 import android.content.Context;
-import com.android.textclassifier.common.ModelFileManager;
-import com.android.textclassifier.common.ModelFileManager.RegularFileFullMatchLister;
+import com.android.textclassifier.ModelFileManager.RegularFileFullMatchLister;
 import com.android.textclassifier.common.ModelType;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
