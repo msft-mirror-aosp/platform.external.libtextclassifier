@@ -20,6 +20,7 @@ import static java.util.concurrent.TimeUnit.HOURS;
 
 import android.provider.DeviceConfig;
 import android.provider.DeviceConfig.Properties;
+import android.text.TextUtils;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.TextClassifier;
 import androidx.annotation.NonNull;
@@ -117,13 +118,19 @@ public final class TextClassifierSettings {
       "manifest_download_required_network_type";
   /** Max attempts allowed for a single ModelDownloader downloading task. */
   @VisibleForTesting
-  static final String MODEL_DOWNLOAD_MAX_ATTEMPTS = "model_download_max_attempts";
+  static final String MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS = "model_download_worker_max_attempts";
+  /** Max attempts allowed for a certain manifest url. */
+  @VisibleForTesting
+  static final String MANIFEST_DOWNLOAD_MAX_ATTEMPTS = "manifest_download_max_attempts";
 
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS =
       "model_download_backoff_delay_in_millis";
   /** Flag name for manifest url is dynamically formatted based on model type and model language. */
   @VisibleForTesting public static final String MANIFEST_URL_TEMPLATE = "manifest_url_%s_%s";
+
+  @VisibleForTesting public static final String MODEL_URL_BLOCKLIST = "model_url_blocklist";
+  @VisibleForTesting public static final String MODEL_URL_BLOCKLIST_SEPARATOR = ",";
   /** Sampling rate for TextClassifier API logging. */
   static final String TEXTCLASSIFIER_API_LOG_SAMPLE_RATE = "textclassifier_api_log_sample_rate";
 
@@ -195,7 +202,8 @@ public final class TextClassifierSettings {
   private static final boolean DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT = true;
   private static final boolean MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT = false;
   private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT = "UNMETERED";
-  private static final int MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 5;
+  private static final int MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS_DEFAULT = 5;
+  private static final int MANIFEST_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 2;
   private static final long MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS_DEFAULT = HOURS.toMillis(1);
   private static final String MANIFEST_URL_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
@@ -380,9 +388,14 @@ public final class TextClassifierSettings {
         MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT);
   }
 
-  public int getModelDownloadMaxAttempts() {
+  public int getModelDownloadWorkerMaxAttempts() {
     return deviceConfig.getInt(
-        NAMESPACE, MODEL_DOWNLOAD_MAX_ATTEMPTS, MODEL_DOWNLOAD_MAX_ATTEMPTS_DEFAULT);
+        NAMESPACE, MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS, MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS_DEFAULT);
+  }
+
+  public int getManifestDownloadMaxAttempts() {
+    return deviceConfig.getInt(
+        NAMESPACE, MANIFEST_DOWNLOAD_MAX_ATTEMPTS, MANIFEST_DOWNLOAD_MAX_ATTEMPTS_DEFAULT);
   }
 
   public long getModelDownloadBackoffDelayInMillis() {
@@ -406,12 +419,22 @@ public final class TextClassifierSettings {
     return deviceConfig.getString(NAMESPACE, urlFlagName, MANIFEST_URL_DEFAULT);
   }
 
+  /* Gets a list of models urls that should not be used. Usually used for a quick rollback.  */
+  public ImmutableList<String> getModelUrlBlocklist() {
+    return ImmutableList.copyOf(
+        Splitter.on(MODEL_URL_BLOCKLIST_SEPARATOR)
+            .split(deviceConfig.getString(NAMESPACE, MODEL_URL_BLOCKLIST, "")));
+  }
+
+  // TODO(licha): Let this method return a <localeTag, flagValue> map.
   /**
    * Gets all language variants configured for a specific ModelType.
    *
    * <p>For a specific language, there can be many variants: de-CH, de-LI, zh-Hans, zh-Hant. There
    * is no easy way to hardcode the list in client. Therefore, we parse all configured flag's name
    * in DeviceConfig, and let the client to choose the best variant to download.
+   *
+   * <p>If one flag's value is empty, it will be ignored.
    */
   public ImmutableList<String> getLanguageTagsForManifestURL(
       @ModelType.ModelTypeDef String modelType) {
@@ -419,8 +442,11 @@ public final class TextClassifierSettings {
     Properties properties = deviceConfig.getProperties(NAMESPACE);
     ImmutableList.Builder<String> variantsBuilder = ImmutableList.builder();
     for (String name : properties.getKeyset()) {
-      if (name.startsWith(urlFlagBaseName)
-          && properties.getString(name, /* defaultValue= */ null) != null) {
+      if (!name.startsWith(urlFlagBaseName)) {
+        continue;
+      }
+      String value = properties.getString(name, /* defaultValue= */ null);
+      if (!TextUtils.isEmpty(value)) {
         variantsBuilder.add(name.substring(urlFlagBaseName.length()));
       }
     }
@@ -458,7 +484,8 @@ public final class TextClassifierSettings {
     pw.printPair(TEMPLATE_INTENT_FACTORY_ENABLED, isTemplateIntentFactoryEnabled());
     pw.printPair(TRANSLATE_IN_CLASSIFICATION_ENABLED, isTranslateInClassificationEnabled());
     pw.printPair(MODEL_DOWNLOAD_MANAGER_ENABLED, isModelDownloadManagerEnabled());
-    pw.printPair(MODEL_DOWNLOAD_MAX_ATTEMPTS, getModelDownloadMaxAttempts());
+    pw.printPair(MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS, getModelDownloadWorkerMaxAttempts());
+    pw.printPair(MANIFEST_DOWNLOAD_MAX_ATTEMPTS, getManifestDownloadMaxAttempts());
     pw.decreaseIndent();
     pw.printPair(TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, getTextClassifierApiLogSampleRate());
     pw.printPair(SESSION_ID_TO_CONTEXT_CACHE_SIZE, getSessionIdToContextCacheSize());

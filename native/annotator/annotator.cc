@@ -338,6 +338,12 @@ void Annotator::ValidateAndInitialize(const Model* model, const UniLib* unilib,
       TC3_LOG(ERROR) << "Could not initialize selection executor.";
       return;
     }
+  }
+
+  // Even if the annotation mode is not enabled (for the neural network model),
+  // the selection feature processor is needed to tokenize the text for other
+  // models.
+  if (model_->selection_feature_options()) {
     selection_feature_processor_.reset(
         new FeatureProcessor(model_->selection_feature_options(), unilib_));
   }
@@ -1946,21 +1952,22 @@ bool Annotator::ModelAnnotate(
     const std::vector<Locale>& detected_text_language_tags,
     const AnnotationOptions& options, InterpreterManager* interpreter_manager,
     std::vector<Token>* tokens, std::vector<AnnotatedSpan>* result) const {
+  bool skip_model_annotatation = false;
   if (model_->triggering_options() == nullptr ||
       !(model_->triggering_options()->enabled_modes() & ModeFlag_ANNOTATION)) {
-    return true;
+    skip_model_annotatation = true;
   }
-
   if (!Locale::IsAnyLocaleSupported(detected_text_language_tags,
                                     ml_model_triggering_locales_,
                                     /*default_value=*/true)) {
-    return true;
+    skip_model_annotatation = true;
   }
 
   const UnicodeText context_unicode = UTF8ToUnicodeText(context,
                                                         /*do_copy=*/false);
   std::vector<UnicodeTextRange> lines;
-  if (!selection_feature_processor_->GetOptions()->only_use_line_with_click()) {
+  if (!selection_feature_processor_ ||
+      !selection_feature_processor_->GetOptions()->only_use_line_with_click()) {
     lines.push_back({context_unicode.begin(), context_unicode.end()});
   } else {
     lines = selection_feature_processor_->SplitContext(
@@ -1974,7 +1981,6 @@ bool Annotator::ModelAnnotate(
            : 0.f);
 
   for (const UnicodeTextRange& line : lines) {
-    FeatureProcessor::EmbeddingCache embedding_cache;
     const std::string line_str =
         UnicodeText::UTF8Substring(line.first, line.second);
 
@@ -1988,6 +1994,13 @@ bool Annotator::ModelAnnotate(
         /*click_pos=*/nullptr);
     const TokenSpan full_line_span = {
         0, static_cast<TokenIndex>(line_tokens.size())};
+
+    tokens->insert(tokens->end(), line_tokens.begin(), line_tokens.end());
+
+    if (skip_model_annotatation) {
+      // We do not annotate, we only output the tokens.
+      continue;
+    }
 
     // TODO(zilka): Add support for greater granularity of this check.
     if (!selection_feature_processor_->HasEnoughSupportedCodepoints(
@@ -2017,68 +2030,46 @@ bool Annotator::ModelAnnotate(
     }
 
     const int offset = std::distance(context_unicode.begin(), line.first);
-    UnicodeText line_unicode;
-    std::vector<UnicodeText::const_iterator> line_codepoints;
-    if (options.enable_optimization) {
-      if (local_chunks.empty()) {
-        continue;
-      }
-      line_unicode = UTF8ToUnicodeText(line_str, /*do_copy=*/false);
-      line_codepoints = line_unicode.Codepoints();
-      line_codepoints.push_back(line_unicode.end());
+    if (local_chunks.empty()) {
+      continue;
     }
+    const UnicodeText line_unicode =
+        UTF8ToUnicodeText(line_str, /*do_copy=*/false);
+    std::vector<UnicodeText::const_iterator> line_codepoints =
+        line_unicode.Codepoints();
+    line_codepoints.push_back(line_unicode.end());
+
+    FeatureProcessor::EmbeddingCache embedding_cache;
     for (const TokenSpan& chunk : local_chunks) {
       CodepointSpan codepoint_span =
           TokenSpanToCodepointSpan(line_tokens, chunk);
-      if (options.enable_optimization) {
-        if (!codepoint_span.IsValid() ||
-            codepoint_span.second > line_codepoints.size()) {
-          continue;
-        }
-        codepoint_span = selection_feature_processor_->StripBoundaryCodepoints(
+      if (!codepoint_span.IsValid() ||
+          codepoint_span.second > line_codepoints.size()) {
+        continue;
+      }
+      codepoint_span = selection_feature_processor_->StripBoundaryCodepoints(
+          /*span_begin=*/line_codepoints[codepoint_span.first],
+          /*span_end=*/line_codepoints[codepoint_span.second], codepoint_span);
+      if (model_->selection_options()->strip_unpaired_brackets()) {
+        codepoint_span = StripUnpairedBrackets(
             /*span_begin=*/line_codepoints[codepoint_span.first],
-            /*span_end=*/line_codepoints[codepoint_span.second],
-            codepoint_span);
-        if (model_->selection_options()->strip_unpaired_brackets()) {
-          codepoint_span = StripUnpairedBrackets(
-              /*span_begin=*/line_codepoints[codepoint_span.first],
-              /*span_end=*/line_codepoints[codepoint_span.second],
-              codepoint_span, *unilib_);
-        }
-      } else {
-        codepoint_span = selection_feature_processor_->StripBoundaryCodepoints(
-            line_str, codepoint_span);
-        if (model_->selection_options()->strip_unpaired_brackets()) {
-          codepoint_span =
-              StripUnpairedBrackets(context_unicode, codepoint_span, *unilib_);
-        }
+            /*span_end=*/line_codepoints[codepoint_span.second], codepoint_span,
+            *unilib_);
       }
 
       // Skip empty spans.
       if (codepoint_span.first != codepoint_span.second) {
         std::vector<ClassificationResult> classification;
-        if (options.enable_optimization) {
-          if (!ModelClassifyText(
-                  line_unicode, line_tokens, detected_text_language_tags,
-                  /*span_begin=*/line_codepoints[codepoint_span.first],
-                  /*span_end=*/line_codepoints[codepoint_span.second], &line,
-                  codepoint_span, options, interpreter_manager,
-                  &embedding_cache, &classification, /*tokens=*/nullptr)) {
-            TC3_LOG(ERROR) << "Could not classify text: "
-                           << (codepoint_span.first + offset) << " "
-                           << (codepoint_span.second + offset);
-            return false;
-          }
-        } else {
-          if (!ModelClassifyText(line_str, line_tokens,
-                                 detected_text_language_tags, codepoint_span,
-                                 options, interpreter_manager, &embedding_cache,
-                                 &classification, /*tokens=*/nullptr)) {
-            TC3_LOG(ERROR) << "Could not classify text: "
-                           << (codepoint_span.first + offset) << " "
-                           << (codepoint_span.second + offset);
-            return false;
-          }
+        if (!ModelClassifyText(
+                line_unicode, line_tokens, detected_text_language_tags,
+                /*span_begin=*/line_codepoints[codepoint_span.first],
+                /*span_end=*/line_codepoints[codepoint_span.second], &line,
+                codepoint_span, options, interpreter_manager, &embedding_cache,
+                &classification, /*tokens=*/nullptr)) {
+          TC3_LOG(ERROR) << "Could not classify text: "
+                         << (codepoint_span.first + offset) << " "
+                         << (codepoint_span.second + offset);
+          return false;
         }
 
         // Do not include the span if it's classified as "other".
@@ -2091,16 +2082,6 @@ bool Annotator::ModelAnnotate(
           result->push_back(std::move(result_span));
         }
       }
-    }
-
-    // If we are going line-by-line, we need to insert the tokens for each line.
-    // But if not, we can optimize and just std::move the current line vector to
-    // the output.
-    if (selection_feature_processor_->GetOptions()
-            ->only_use_line_with_click()) {
-      tokens->insert(tokens->end(), line_tokens.begin(), line_tokens.end());
-    } else {
-      *tokens = std::move(line_tokens);
     }
   }
   return true;
