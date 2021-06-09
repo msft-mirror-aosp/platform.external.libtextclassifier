@@ -30,7 +30,6 @@ import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
 import androidx.annotation.NonNull;
 import androidx.collection.LruCache;
-import com.android.textclassifier.common.ModelFileManager;
 import com.android.textclassifier.common.TextClassifierServiceExecutors;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.base.TcLog;
@@ -58,6 +57,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   // TODO: Figure out do we need more concurrency.
   private ListeningExecutorService normPriorityExecutor;
   private ListeningExecutorService lowPriorityExecutor;
+  @Nullable private com.android.textclassifier.downloader.ModelDownloadManager modelDownloadManager;
   private TextClassifierImpl textClassifier;
   private TextClassifierSettings settings;
   private ModelFileManager modelFileManager;
@@ -84,6 +84,13 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     lowPriorityExecutor = injector.createLowPriorityExecutor();
     textClassifier = injector.createTextClassifierImpl(settings, modelFileManager);
     sessionIdToContext = new LruCache<>(settings.getSessionIdToContextCacheSize());
+    modelDownloadManager =
+        new com.android.textclassifier.downloader.ModelDownloadManager(
+            injector.getContext().getApplicationContext(),
+            settings,
+            TextClassifierServiceExecutors.getDownloaderExecutor());
+    modelDownloadManager.onTextClassifierServiceCreated();
+    modelFileManager.addModelDownloaderModels(modelDownloadManager, settings);
     textClassifierApiUsageLogger =
         injector.createTextClassifierApiUsageLogger(settings, lowPriorityExecutor);
   }
@@ -91,6 +98,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   @Override
   public void onDestroy() {
     super.onDestroy();
+    modelDownloadManager.destroy();
   }
 
   @Override
@@ -200,6 +208,7 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     IndentingPrintWriter indentingPrintWriter = new IndentingPrintWriter(writer);
     // TODO(licha): Also dump ModelDownloadManager for debugging
     textClassifier.dump(indentingPrintWriter);
+    modelDownloadManager.dump(indentingPrintWriter);
     dumpImpl(indentingPrintWriter);
     indentingPrintWriter.flush();
   }
