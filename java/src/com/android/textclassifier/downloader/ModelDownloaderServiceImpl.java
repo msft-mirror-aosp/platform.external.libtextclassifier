@@ -90,7 +90,7 @@ final class ModelDownloaderServiceImpl extends IModelDownloaderService.Stub {
 
   @Override
   public void download(String uri, String targetFilePath, IModelDownloaderCallback callback) {
-    TcLog.d(TAG, "Download request received: " + uri);
+    TcLog.v(TAG, "Download request received: " + uri);
     try {
       File targetFile = new File(targetFilePath);
       File tempMetadataFile = getMetadataFile(targetFile);

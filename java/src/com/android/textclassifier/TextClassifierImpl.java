@@ -47,6 +47,7 @@ import androidx.core.util.Pair;
 import com.android.textclassifier.ModelFileManager.ModelFile;
 import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.TextClassifierSettings;
+import com.android.textclassifier.common.TextSelectionCompat;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.intent.LabeledIntent;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
@@ -166,6 +167,8 @@ final class TextClassifierImpl {
       throw new IllegalArgumentException("Got bad indices for input text. Ignoring result.");
     }
     final TextSelection.Builder tsBuilder = new TextSelection.Builder(start, end);
+    final boolean shouldIncludeTextClassification =
+        TextSelectionCompat.shouldIncludeTextClassification(request);
     final AnnotatorModel.ClassificationResult[] results =
         annotatorImpl.classifyText(
             string,
@@ -176,18 +179,24 @@ final class TextClassifierImpl {
                 .setReferenceTimezone(refTime.getZone().getId())
                 .setLocales(localesString)
                 .setDetectedTextLanguageTags(detectLanguageTags)
+                .setAnnotationUsecase(AnnotatorModel.AnnotationUsecase.SMART.getValue())
                 .setUserFamiliarLanguageTags(LocaleList.getDefault().toLanguageTags())
                 .build(),
-            // Passing null here to suppress intent generation
+            // Passing null here to suppress intent generation.
             // TODO: Use an explicit flag to suppress it.
-            /* appContext */ null,
-            /* deviceLocales */ null);
+            shouldIncludeTextClassification ? context : null,
+            getResourceLocalesString());
     final int size = results.length;
     for (int i = 0; i < size; i++) {
       tsBuilder.setEntityType(results[i].getCollection(), results[i].getScore());
     }
     final String resultId =
         createAnnotatorId(string, request.getStartIndex(), request.getEndIndex());
+    if (shouldIncludeTextClassification) {
+      TextClassification textClassification =
+          createClassificationResult(results, string, start, end, langIdModel);
+      TextSelectionCompat.setTextClassification(tsBuilder, textClassification);
+    }
     return tsBuilder.setId(resultId).build();
   }
 

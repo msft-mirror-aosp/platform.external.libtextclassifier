@@ -141,7 +141,7 @@ public final class NewModelDownloadWorker extends ListenableWorker {
       modelTypeToLocaleTagAndManifestUrlsBuilder.put(modelType, bestLocaleTagAndManifestUrl);
       String bestLocaleTag = bestLocaleTagAndManifestUrl.first;
       String manifestUrl = bestLocaleTagAndManifestUrl.second;
-      TcLog.v(
+      TcLog.d(
           TAG,
           String.format(
               "model type: %s, device locale tag: %s, best locale tag: %s, manifest url: %s",
@@ -203,7 +203,7 @@ public final class NewModelDownloadWorker extends ListenableWorker {
               downloadedModelManager.registerManifestEnrollment(modelType, localeTag, manifestUrl);
               TextClassifierDownloadLogger.downloadSucceeded(
                   modelType, manifestUrl, getRunAttemptCount());
-              TcLog.v(TAG, "Manifest downloaded and registered: " + manifestUrl);
+              TcLog.d(TAG, "Manifest downloaded and registered: " + manifestUrl);
               return true;
             },
             executorService)
@@ -273,7 +273,7 @@ public final class NewModelDownloadWorker extends ListenableWorker {
               .transform(
                   modelFile -> {
                     downloadedModelManager.registerModel(modelUrl, modelFile.getAbsolutePath());
-                    TcLog.v(TAG, "Model File downloaded: " + modelUrl);
+                    TcLog.d(TAG, "Model File downloaded: " + modelUrl);
                     return null;
                   },
                   executorService);

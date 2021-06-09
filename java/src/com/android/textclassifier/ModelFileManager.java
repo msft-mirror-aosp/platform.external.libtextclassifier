@@ -578,7 +578,8 @@ public final class ModelFileManager {
     }
 
     public ModelInfo toModelInfo() {
-      return new ModelInfo(version, supportedLocales.toLanguageTags());
+      return new ModelInfo(
+          version, languageIndependent ? LANGUAGE_INDEPENDENT : supportedLocales.toLanguageTags());
     }
 
     @Override

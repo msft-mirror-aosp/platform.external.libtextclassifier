@@ -25,7 +25,7 @@ import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
 import javax.annotation.Nullable;
 
-// TODO(licha): Find another way to test the service. Those static states can break easily.
+// TODO(licha): Find another way to test the service. (E.g. CtsTextClassifierService.java)
 /** Test Service of IModelDownloaderService. */
 public final class TestModelDownloaderService extends Service {
   private static final String TAG = "TestModelDownloaderService";

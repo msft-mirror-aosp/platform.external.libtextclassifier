@@ -121,7 +121,7 @@ public final class TextClassifierSettings {
   static final String MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS = "model_download_worker_max_attempts";
   /** Max attempts allowed for a certain manifest url. */
   @VisibleForTesting
-  static final String MANIFEST_DOWNLOAD_MAX_ATTEMPTS = "manifest_download_max_attempts";
+  public static final String MANIFEST_DOWNLOAD_MAX_ATTEMPTS = "manifest_download_max_attempts";
 
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS =
@@ -203,7 +203,7 @@ public final class TextClassifierSettings {
   private static final boolean MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT = false;
   private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT = "UNMETERED";
   private static final int MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS_DEFAULT = 5;
-  private static final int MANIFEST_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 2;
+  private static final int MANIFEST_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 3;
   private static final long MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS_DEFAULT = HOURS.toMillis(1);
   private static final String MANIFEST_URL_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
