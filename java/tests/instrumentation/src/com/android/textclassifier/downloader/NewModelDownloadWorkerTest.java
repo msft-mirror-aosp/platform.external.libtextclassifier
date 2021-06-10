@@ -302,11 +302,14 @@ public final class NewModelDownloadWorkerTest {
   @Test
   public void downloadSkipped_reachManifestMaxAttempts() throws Exception {
     setUpManifestUrl(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
-    // Current default max attempts is 2
-    downloadedModelManager.registerManifestDownloadFailure(MANIFEST_URL);
-    downloadedModelManager.registerManifestDownloadFailure(MANIFEST_URL);
+    deviceConfig.setConfig(
+        TextClassifierSettings.MANIFEST_DOWNLOAD_MAX_ATTEMPTS, MANIFEST_MAX_ATTEMPT_COUNT);
 
+    for (int i = 0; i < MANIFEST_MAX_ATTEMPT_COUNT; i++) {
+      downloadedModelManager.registerManifestDownloadFailure(MANIFEST_URL);
+    }
     NewModelDownloadWorker worker = createWorker(MANIFEST_MAX_ATTEMPT_COUNT);
+
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(loggerTestRule.getLoggedAtoms()).isEmpty();
   }

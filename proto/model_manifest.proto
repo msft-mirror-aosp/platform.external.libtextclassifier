@@ -38,6 +38,7 @@ message ModelManifest {
     NOT_ROAMING = 3;
     CONNECTED = 4;
   }
+  // Notice: all fields below are not used currently
   optional NetworkType required_network_type = 2;
   optional bool requires_battery_not_low = 3;
   optional bool requires_charging = 4;
