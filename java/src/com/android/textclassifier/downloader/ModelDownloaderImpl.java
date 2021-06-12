@@ -170,11 +170,11 @@ final class ModelDownloaderImpl implements ModelDownloader {
     } catch (IOException e) {
       throw new ModelDownloadException(ModelDownloadException.FAILED_TO_VALIDATE_MODEL, e);
     }
-    TcLog.d(TAG, "Pending model file passed validation.");
+    TcLog.v(TAG, "Pending model file passed validation.");
   }
 
   private ListenableFuture<IModelDownloaderService> connect(DownloaderServiceConnection conn) {
-    TcLog.d(TAG, "Starting a new connection to ModelDownloaderService");
+    TcLog.v(TAG, "Starting a new connection to ModelDownloaderService");
     return CallbackToFutureAdapter.getFuture(
         completer -> {
           conn.attachCompleter(completer);
@@ -197,7 +197,7 @@ final class ModelDownloaderImpl implements ModelDownloader {
   // restult future will hang there until time out. (WorkManager forces a 10-min running time.)
   private static ListenableFuture<Long> scheduleDownload(
       IModelDownloaderService service, URI uri, File targetFile) {
-    TcLog.d(TAG, "Scheduling a new download task with ModelDownloaderService");
+    TcLog.v(TAG, "Scheduling a new download task with ModelDownloaderService");
     return CallbackToFutureAdapter.getFuture(
         completer -> {
           service.download(
@@ -233,7 +233,7 @@ final class ModelDownloaderImpl implements ModelDownloader {
 
     @Override
     public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
-      TcLog.d(TAG, "DownloaderService connected");
+      TcLog.v(TAG, "DownloaderService connected");
       completer.set(Preconditions.checkNotNull(IModelDownloaderService.Stub.asInterface(iBinder)));
     }
 

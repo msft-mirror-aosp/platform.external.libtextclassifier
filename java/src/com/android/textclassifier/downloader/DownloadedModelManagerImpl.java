@@ -224,6 +224,8 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
           manifestEnrollmentsToDelete.addAll(manifestEnrollmentsByType);
           manifestEnrollmentsToDelete.remove(optionalManifestEnrollment.get());
         } else {
+          // TODO(licha): We may still need to delete models here. E.g. we are switching from en to
+          // zh. Although we fail to download zh model, we still want to delete en models.
           // The desired manifest failed to be downloaded. Do not delete anything.
           TcLog.w(
               TAG,

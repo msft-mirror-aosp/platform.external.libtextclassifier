@@ -40,6 +40,7 @@ import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.SdkSuppress;
 import androidx.test.filters.SmallTest;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.testing.FakeContextBuilder;
@@ -129,6 +130,41 @@ public class TextClassifierImplTest {
 
     TextSelection selection = classifier.suggestSelection(null, null, request);
     assertThat(selection, isTextSelection(startIndex, endIndex, NO_TYPE));
+  }
+
+  @SdkSuppress(minSdkVersion = 31, codeName = "S")
+  @Test
+  public void testSuggestSelection_includeTextClassification() throws IOException {
+    String text = "Visit http://www.android.com for more information";
+    String suggested = "http://www.android.com";
+    int startIndex = text.indexOf(suggested);
+    TextSelection.Request request =
+        new TextSelection.Request.Builder(text, startIndex, /*endIndex=*/ startIndex + 1)
+            .setDefaultLocales(LOCALES)
+            .setIncludeTextClassification(true)
+            .build();
+
+    TextSelection selection = classifier.suggestSelection(null, null, request);
+
+    assertThat(
+        selection.getTextClassification(),
+        isTextClassification(suggested, TextClassifier.TYPE_URL));
+    assertThat(selection.getTextClassification(), containsIntentWithAction(Intent.ACTION_VIEW));
+  }
+
+  @SdkSuppress(minSdkVersion = 31, codeName = "S")
+  @Test
+  public void testSuggestSelection_notIncludeTextClassification() throws IOException {
+    String text = "Visit http://www.android.com for more information";
+    TextSelection.Request request =
+        new TextSelection.Request.Builder(text, /*startIndex=*/ 0, /*endIndex=*/ 4)
+            .setDefaultLocales(LOCALES)
+            .setIncludeTextClassification(false)
+            .build();
+
+    TextSelection selection = classifier.suggestSelection(null, null, request);
+
+    assertThat(selection.getTextClassification()).isNull();
   }
 
   @Test

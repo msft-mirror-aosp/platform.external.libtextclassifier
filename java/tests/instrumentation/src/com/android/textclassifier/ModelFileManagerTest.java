@@ -299,6 +299,17 @@ public final class ModelFileManagerTest {
   }
 
   @Test
+  public void modelFile_toModelInfo_universal() {
+    ModelFileManager.ModelFile modelFile =
+        new ModelFileManager.ModelFile(
+            MODEL_TYPE, "/path/a", /* version= */ 2, "*", /* isAsset= */ false);
+
+    ModelInfo modelInfo = modelFile.toModelInfo();
+
+    assertThat(modelInfo.toModelName()).isEqualTo("*_v2");
+  }
+
+  @Test
   public void modelFile_toModelInfos() {
     ModelFile englishModelFile =
         new ModelFile(MODEL_TYPE, "/path/a", /* version= */ 1, "en", /* isAsset= */ false);
