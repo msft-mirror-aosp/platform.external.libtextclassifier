@@ -27,10 +27,12 @@ public final class TestingDeviceConfig implements TextClassifierSettings.IDevice
 
   private final HashMap<String, String> strConfigs;
   private final HashMap<String, Boolean> boolConfigs;
+  private final HashMap<String, Integer> intConfigs;
 
   public TestingDeviceConfig() {
     this.strConfigs = new HashMap<>();
     this.boolConfigs = new HashMap<>();
+    this.intConfigs = new HashMap<>();
   }
 
   public void setConfig(String key, String value) {
@@ -41,6 +43,10 @@ public final class TestingDeviceConfig implements TextClassifierSettings.IDevice
     boolConfigs.put(key, value);
   }
 
+  public void setConfig(String key, int value) {
+    intConfigs.put(key, value);
+  }
+
   @Override
   public Properties getProperties(@NonNull String namespace, @NonNull String... names) {
     Properties.Builder builder = new Properties.Builder(namespace);
@@ -49,6 +55,9 @@ public final class TestingDeviceConfig implements TextClassifierSettings.IDevice
     }
     for (String key : boolConfigs.keySet()) {
       builder.setBoolean(key, boolConfigs.get(key));
+    }
+    for (String key : intConfigs.keySet()) {
+      builder.setInt(key, intConfigs.get(key));
     }
     return builder.build();
   }
@@ -62,5 +71,10 @@ public final class TestingDeviceConfig implements TextClassifierSettings.IDevice
   public String getString(
       @NonNull String namespace, @NonNull String name, @Nullable String defaultValue) {
     return strConfigs.containsKey(name) ? strConfigs.get(name) : defaultValue;
+  }
+
+  @Override
+  public int getInt(@NonNull String namespace, @NonNull String name, int defaultValue) {
+    return intConfigs.containsKey(name) ? intConfigs.get(name) : defaultValue;
   }
 }
