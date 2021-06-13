@@ -163,6 +163,9 @@ public final class ModelDownloadManager {
    * @param printWriter writer to write dumped states
    */
   public void dump(IndentingPrintWriter printWriter) {
+    if (!settings.isModelDownloadManagerEnabled()) {
+      return;
+    }
     printWriter.println("ModelDownloadManager:");
     printWriter.increaseIndent();
     downloadedModelManager.dump(printWriter);
