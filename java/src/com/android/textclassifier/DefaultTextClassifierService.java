@@ -46,6 +46,7 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import javax.annotation.Nullable;
 
@@ -205,12 +206,21 @@ public final class DefaultTextClassifierService extends TextClassifierService {
 
   @Override
   protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
-    IndentingPrintWriter indentingPrintWriter = new IndentingPrintWriter(writer);
-    // TODO(licha): Also dump ModelDownloadManager for debugging
-    textClassifier.dump(indentingPrintWriter);
-    modelDownloadManager.dump(indentingPrintWriter);
-    dumpImpl(indentingPrintWriter);
-    indentingPrintWriter.flush();
+    // Dump in a background thread b/c we may need to query Room db (e.g. to init model cache)
+    try {
+      TextClassifierServiceExecutors.getLowPriorityExecutor()
+          .submit(
+              () -> {
+                IndentingPrintWriter indentingPrintWriter = new IndentingPrintWriter(writer);
+                textClassifier.dump(indentingPrintWriter);
+                modelDownloadManager.dump(indentingPrintWriter);
+                dumpImpl(indentingPrintWriter);
+                indentingPrintWriter.flush();
+              })
+          .get();
+    } catch (ExecutionException | InterruptedException e) {
+      TcLog.e(TAG, "Failed to dump Default TextClassifierService", e);
+    }
   }
 
   private void dumpImpl(IndentingPrintWriter printWriter) {
