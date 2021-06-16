@@ -33,14 +33,12 @@ import androidx.room.Query;
 import androidx.room.RoomDatabase;
 import androidx.room.Transaction;
 import com.android.textclassifier.common.ModelType.ModelTypeDef;
-import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.Iterables;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 
 /** Database storing info about models downloaded by model downloader */
@@ -342,40 +340,34 @@ abstract class DownloadedModelDatabase extends RoomDatabase {
   void dump(IndentingPrintWriter printWriter, ExecutorService executorService) {
     printWriter.println("DownloadedModelDatabase");
     printWriter.increaseIndent();
-    try {
-      printWriter.println("Model Table:");
-      printWriter.increaseIndent();
-      List<Model> models = executorService.submit(() -> dao().queryAllModels()).get();
-      for (Model model : models) {
-        printWriter.println(model.toString());
-      }
-      printWriter.decreaseIndent();
-      printWriter.println("Manifest Table:");
-      printWriter.increaseIndent();
-      List<Manifest> manifests = executorService.submit(() -> dao().queryAllManifests()).get();
-      for (Manifest manifest : manifests) {
-        printWriter.println(manifest.toString());
-      }
-      printWriter.decreaseIndent();
-      printWriter.println("ManifestModelCrossRef Table:");
-      printWriter.increaseIndent();
-      List<ManifestModelCrossRef> manifestModelCrossRefs =
-          executorService.submit(() -> dao().queryAllManifestModelCrossRefs()).get();
-      for (ManifestModelCrossRef manifestModelCrossRef : manifestModelCrossRefs) {
-        printWriter.println(manifestModelCrossRef.toString());
-      }
-      printWriter.decreaseIndent();
-      printWriter.println("ManifestEnrollment Table:");
-      printWriter.increaseIndent();
-      List<ManifestEnrollment> manifestEnrollments =
-          executorService.submit(() -> dao().queryAllManifestEnrollments()).get();
-      for (ManifestEnrollment manifestEnrollment : manifestEnrollments) {
-        printWriter.println(manifestEnrollment.toString());
-      }
-      printWriter.decreaseIndent();
-    } catch (ExecutionException | InterruptedException e) {
-      TcLog.e(TAG, "Failed to dump the database", e);
+    printWriter.println("Model Table:");
+    printWriter.increaseIndent();
+    List<Model> models = dao().queryAllModels();
+    for (Model model : models) {
+      printWriter.println(model.toString());
     }
+    printWriter.decreaseIndent();
+    printWriter.println("Manifest Table:");
+    printWriter.increaseIndent();
+    List<Manifest> manifests = dao().queryAllManifests();
+    for (Manifest manifest : manifests) {
+      printWriter.println(manifest.toString());
+    }
+    printWriter.decreaseIndent();
+    printWriter.println("ManifestModelCrossRef Table:");
+    printWriter.increaseIndent();
+    List<ManifestModelCrossRef> manifestModelCrossRefs = dao().queryAllManifestModelCrossRefs();
+    for (ManifestModelCrossRef manifestModelCrossRef : manifestModelCrossRefs) {
+      printWriter.println(manifestModelCrossRef.toString());
+    }
+    printWriter.decreaseIndent();
+    printWriter.println("ManifestEnrollment Table:");
+    printWriter.increaseIndent();
+    List<ManifestEnrollment> manifestEnrollments = dao().queryAllManifestEnrollments();
+    for (ManifestEnrollment manifestEnrollment : manifestEnrollments) {
+      printWriter.println(manifestEnrollment.toString());
+    }
+    printWriter.decreaseIndent();
     printWriter.decreaseIndent();
   }
 }
