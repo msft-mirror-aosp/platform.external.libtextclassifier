@@ -189,6 +189,8 @@ public final class ModelDownloadManager {
                     .setRequiredNetworkType(networkType)
                     .setRequiresBatteryNotLow(true)
                     .setRequiresStorageNotLow(true)
+                    .setRequiresDeviceIdle(settings.getManifestDownloadRequiresDeviceIdle())
+                    .setRequiresCharging(settings.getManifestDownloadRequiresCharging())
                     .build())
             .setBackoffCriteria(
                 BackoffPolicy.EXPONENTIAL,
