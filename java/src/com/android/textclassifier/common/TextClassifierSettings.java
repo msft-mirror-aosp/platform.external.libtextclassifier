@@ -126,6 +126,12 @@ public final class TextClassifierSettings {
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS =
       "model_download_backoff_delay_in_millis";
+
+  private static final String MANIFEST_DOWNLOAD_REQUIRES_CHARGING =
+      "manifest_download_requires_charging";
+  private static final String MANIFEST_DOWNLOAD_REQUIRES_DEVICE_IDLE =
+      "manifest_download_requires_device_idle";
+
   /** Flag name for manifest url is dynamically formatted based on model type and model language. */
   @VisibleForTesting public static final String MANIFEST_URL_TEMPLATE = "manifest_url_%s_%s";
 
@@ -205,6 +211,9 @@ public final class TextClassifierSettings {
   private static final int MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS_DEFAULT = 5;
   private static final int MANIFEST_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 3;
   private static final long MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS_DEFAULT = HOURS.toMillis(1);
+  private static final boolean MANIFEST_DOWNLOAD_REQUIRES_DEVICE_IDLE_DEFAULT = false;
+  private static final boolean MANIFEST_DOWNLOAD_REQUIRES_CHARGING_DEFAULT = false;
+
   private static final String MANIFEST_URL_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
   /**
@@ -405,6 +414,20 @@ public final class TextClassifierSettings {
         MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS_DEFAULT);
   }
 
+  public boolean getManifestDownloadRequiresDeviceIdle() {
+    return deviceConfig.getBoolean(
+        NAMESPACE,
+        MANIFEST_DOWNLOAD_REQUIRES_DEVICE_IDLE,
+        MANIFEST_DOWNLOAD_REQUIRES_DEVICE_IDLE_DEFAULT);
+  }
+
+  public boolean getManifestDownloadRequiresCharging() {
+    return deviceConfig.getBoolean(
+        NAMESPACE,
+        MANIFEST_DOWNLOAD_REQUIRES_CHARGING,
+        MANIFEST_DOWNLOAD_REQUIRES_CHARGING_DEFAULT);
+  }
+
   /**
    * Get model's manifest url for given model type and language.
    *
@@ -486,6 +509,9 @@ public final class TextClassifierSettings {
     pw.printPair(MODEL_DOWNLOAD_MANAGER_ENABLED, isModelDownloadManagerEnabled());
     pw.printPair(MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS, getModelDownloadWorkerMaxAttempts());
     pw.printPair(MANIFEST_DOWNLOAD_MAX_ATTEMPTS, getManifestDownloadMaxAttempts());
+    pw.printPair(MANIFEST_DOWNLOAD_REQUIRES_CHARGING, getManifestDownloadRequiresCharging());
+    pw.printPair(MANIFEST_DOWNLOAD_REQUIRES_DEVICE_IDLE, getManifestDownloadRequiresDeviceIdle());
+
     pw.decreaseIndent();
     pw.printPair(TEXTCLASSIFIER_API_LOG_SAMPLE_RATE, getTextClassifierApiLogSampleRate());
     pw.printPair(SESSION_ID_TO_CONTEXT_CACHE_SIZE, getSessionIdToContextCacheSize());
