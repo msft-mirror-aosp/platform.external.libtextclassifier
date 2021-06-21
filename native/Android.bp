@@ -12,9 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "external_libtextclassifier_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["external_libtextclassifier_license"],
+}
+
 cc_library_headers {
     name: "libtextclassifier_hash_headers",
     vendor_available: true,
+    host_supported: true,
     export_include_dirs: ["."],
     apex_available: [
         "//apex_available:platform",
@@ -25,6 +35,8 @@ cc_library_headers {
 
 cc_defaults {
     name: "libtextclassifier_hash_defaults",
+    vendor_available: true,
+    host_supported: true,
     srcs: [
         "utils/hash/farmhash.cc",
     ],
@@ -46,7 +58,6 @@ cc_library_shared {
 cc_library_static {
     name: "libtextclassifier_hash_static",
     defaults: ["libtextclassifier_hash_defaults"],
-    vendor_available: true,
     sdk_version: "current",
     stl: "libc++_static",
     apex_available: [
@@ -89,7 +100,8 @@ cc_defaults {
         "-DTC3_UNILIB_JAVAICU",
         "-DTC3_CALENDAR_JAVAICU",
         "-DTC3_AOSP",
-        "-DTC3_VOCAB_ANNOTATOR_DUMMY",
+        "-DTC3_VOCAB_ANNOTATOR_IMPL",
+        "-DTC3_POD_NER_ANNOTATOR_IMPL",
     ],
 
     product_variables: {
@@ -100,6 +112,7 @@ cc_defaults {
     },
 
     header_libs: [
+        "jni_headers",
         "tensorflow_headers",
         "flatbuffer_headers",
         "libtextclassifier_flatbuffer_headers",
@@ -116,6 +129,7 @@ cc_defaults {
         "liblua",
         "libutf",
         "libtflite_static",
+        "tflite_support",
     ],
 }
 
@@ -180,7 +194,7 @@ cc_test {
     name: "libtextclassifier_tests",
     defaults: ["libtextclassifier_defaults"],
 
-    test_suites: ["device-tests", "mts-extservices"],
+    test_suites: ["general-tests", "mts-extservices"],
 
     data: [
         "**/test_data/*",
@@ -204,9 +218,6 @@ cc_test {
     ],
 
     compile_multilib: "prefer32",
-
-    // A workaround for code coverage. See b/166040889#comment23
-    sdk_variant_only: true,
 }
 
 // ------------------------------------
@@ -230,13 +241,17 @@ cc_test_library {
         "libbase_ndk",
         "libtextclassifier",
     ],
+    header_libs: [
+    	"libtextclassifier_flatbuffer_testonly_headers",
+    ],
 }
 
 android_test {
     name: "libtextclassifier_java_tests",
     srcs: ["testing/JvmTestLauncher.java"],
+    min_sdk_version: "30",
     test_suites: [
-        "device-tests",
+        "general-tests",
         "mts-extservices",
     ],
     static_libs: [

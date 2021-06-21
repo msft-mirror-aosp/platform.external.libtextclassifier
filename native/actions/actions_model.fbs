@@ -246,6 +246,17 @@ table NGramLinearRegressionModel {
   tokenizer_options:ActionsTokenizerOptions;
 }
 
+// TFLite based sensitive topic classifier model.
+namespace libtextclassifier3;
+table TFLiteSensitiveClassifierConfig {
+  // Specification of the model.
+  model_spec:TensorflowLiteModelSpec;
+
+  // Triggering threshold, if a sensitive topic has a score higher than this
+  // value, it triggers the classifier.
+  threshold:float;
+}
+
 namespace libtextclassifier3;
 table TriggeringPreconditions {
   // Lower bound thresholds for the smart reply model prediction output.
@@ -554,6 +565,8 @@ table ActionsModel {
 
   // Feature processor options.
   feature_processor_options:ActionsTokenFeatureProcessorOptions;
+
+  low_confidence_tflite_model:TFLiteSensitiveClassifierConfig;
 }
 
 root_type libtextclassifier3.ActionsModel;
