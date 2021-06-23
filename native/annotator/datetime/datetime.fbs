@@ -75,6 +75,8 @@ enum Modifier : int {
   NOW = 4,
   TOMORROW = 5,
   YESTERDAY = 6,
+  PAST = 7,
+  FUTURE = 8,
 }
 
 // Message for representing the relative date-time component in date-time
@@ -141,5 +143,11 @@ namespace libtextclassifier3.grammar.datetime;
 table UngroundedDatetime {
   absolute_datetime:AbsoluteDateTime;
   relative_datetime:RelativeDateTime;
+
+  // The annotation usecases.
+  // There are two modes.
+  // 1- SMART - Datetime results which are optimized for Smart select
+  // 2- RAW - Results are optimized for where annotates as much as possible.
+  annotation_usecases:uint = 4294967295;
 }
 
