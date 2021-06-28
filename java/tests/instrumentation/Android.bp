@@ -32,11 +32,6 @@ android_test {
         "src/**/*.java",
     ],
 
-    exclude_srcs: [
-        "src/**/ModelDownloaderIntegrationTest.java",
-    ],
-
-
     static_libs: [
         "androidx.test.ext.junit",
         "androidx.test.rules",
@@ -72,37 +67,4 @@ android_test {
     instrumentation_for: "TextClassifierService",
 
     data: ["testdata/*"],
-
-    test_config: "AndroidTest.xml",
-}
-
-android_test {
-    name: "TCSModelDownloaderIntegrationTest",
-
-    manifest: "AndroidManifest_TCSModelDownloaderIntegrationTest.xml",
-
-    srcs: [
-        "src/**/ModelDownloaderIntegrationTest.java",
-    ],
-
-    static_libs: [
-        "androidx.test.ext.junit",
-        "androidx.test.espresso.core",
-        "androidx.test.ext.truth",
-        "ub-uiautomator",
-    ],
-
-    jni_libs: [
-        "libtextclassifier",
-        "libdexmakerjvmtiagent"
-    ],
-
-    test_suites: [
-        "general-tests"
-    ],
-
-    min_sdk_version: "30",
-    sdk_version: "system_current",
-
-    test_config: "AndroidTest_TCSModelDownloaderIntegrationTest.xml",
 }
