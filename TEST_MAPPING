@@ -16,9 +16,6 @@
     },
     {
       "name": "TextClassifierNotificationTests"
-    },
-    {
-      "name": "TCSModelDownloaderIntegrationTest"
     }
   ],
   "mainline-presubmit": [
