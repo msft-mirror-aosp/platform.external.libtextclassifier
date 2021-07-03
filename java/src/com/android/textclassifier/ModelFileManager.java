@@ -78,7 +78,7 @@ public final class ModelFileManager {
             new RegularFileFullMatchLister(
                 ModelType.ANNOTATOR,
                 new File(CONFIG_UPDATER_DIR, "textclassifier.model"),
-                /* isEnabled= */ () -> true),
+                /* isEnabled= */ () -> settings.isConfigUpdaterModelEnabled()),
             new AssetFilePatternMatchLister(
                 assetManager,
                 ModelType.ANNOTATOR,
@@ -89,7 +89,7 @@ public final class ModelFileManager {
             new RegularFileFullMatchLister(
                 ModelType.ACTIONS_SUGGESTIONS,
                 new File(CONFIG_UPDATER_DIR, "actions_suggestions.model"),
-                /* isEnabled= */ () -> true),
+                /* isEnabled= */ () -> settings.isConfigUpdaterModelEnabled()),
             new AssetFilePatternMatchLister(
                 assetManager,
                 ModelType.ACTIONS_SUGGESTIONS,
@@ -100,7 +100,7 @@ public final class ModelFileManager {
             new RegularFileFullMatchLister(
                 ModelType.LANG_ID,
                 new File(CONFIG_UPDATER_DIR, "lang_id.model"),
-                /* isEnabled= */ () -> true),
+                /* isEnabled= */ () -> settings.isConfigUpdaterModelEnabled()),
             new AssetFilePatternMatchLister(
                 assetManager,
                 ModelType.LANG_ID,
@@ -321,7 +321,7 @@ public final class ModelFileManager {
           try {
             modelFilesBuilder.add(ModelFile.createFromAsset(assetManager, absolutePath, modelType));
           } catch (IOException e) {
-            TcLog.w(TAG, "Failed to call createFromAsset with: " + absolutePath);
+            TcLog.e(TAG, "Failed to call createFromAsset with: " + absolutePath, e);
           }
         }
         ImmutableList<ModelFile> result = modelFilesBuilder.build();
