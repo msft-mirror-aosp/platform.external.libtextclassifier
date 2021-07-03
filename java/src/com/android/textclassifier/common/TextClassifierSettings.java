@@ -109,7 +109,8 @@ public final class TextClassifierSettings {
    */
   private static final String DETECT_LANGUAGES_FROM_TEXT_ENABLED =
       "detect_languages_from_text_enabled";
-
+  /** Whether to use models downloaded by config updater. */
+  private static final String CONFIG_UPDATER_MODEL_ENABLED = "config_updater_model_enabled";
   /** Whether to enable model downloading with ModelDownloadManager */
   @VisibleForTesting
   public static final String MODEL_DOWNLOAD_MANAGER_ENABLED = "model_download_manager_enabled";
@@ -206,6 +207,7 @@ public final class TextClassifierSettings {
   private static final boolean TEMPLATE_INTENT_FACTORY_ENABLED_DEFAULT = true;
   private static final boolean TRANSLATE_IN_CLASSIFICATION_ENABLED_DEFAULT = true;
   private static final boolean DETECT_LANGUAGES_FROM_TEXT_ENABLED_DEFAULT = true;
+  private static final boolean CONFIG_UPDATER_MODEL_ENABLED_DEFAULT = true;
   private static final boolean MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT = false;
   private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE_DEFAULT = "UNMETERED";
   private static final int MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS_DEFAULT = 5;
@@ -384,6 +386,11 @@ public final class TextClassifierSettings {
     return getDeviceConfigFloatArray(LANG_ID_CONTEXT_SETTINGS, LANG_ID_CONTEXT_SETTINGS_DEFAULT);
   }
 
+  public boolean isConfigUpdaterModelEnabled() {
+    return deviceConfig.getBoolean(
+        NAMESPACE, CONFIG_UPDATER_MODEL_ENABLED, CONFIG_UPDATER_MODEL_ENABLED_DEFAULT);
+  }
+
   public boolean isModelDownloadManagerEnabled() {
     return deviceConfig.getBoolean(
         NAMESPACE, MODEL_DOWNLOAD_MANAGER_ENABLED, MODEL_DOWNLOAD_MANAGER_ENABLED_DEFAULT);
@@ -506,6 +513,7 @@ public final class TextClassifierSettings {
     pw.printPair(USER_LANGUAGE_PROFILE_ENABLED, isUserLanguageProfileEnabled());
     pw.printPair(TEMPLATE_INTENT_FACTORY_ENABLED, isTemplateIntentFactoryEnabled());
     pw.printPair(TRANSLATE_IN_CLASSIFICATION_ENABLED, isTranslateInClassificationEnabled());
+    pw.printPair(CONFIG_UPDATER_MODEL_ENABLED, isConfigUpdaterModelEnabled());
     pw.printPair(MODEL_DOWNLOAD_MANAGER_ENABLED, isModelDownloadManagerEnabled());
     pw.printPair(MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS, getModelDownloadWorkerMaxAttempts());
     pw.printPair(MANIFEST_DOWNLOAD_MAX_ATTEMPTS, getManifestDownloadMaxAttempts());
