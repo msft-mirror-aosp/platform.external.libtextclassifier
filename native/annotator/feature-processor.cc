@@ -141,26 +141,23 @@ void FeatureProcessor::StripTokensFromOtherLines(
     std::vector<Token>* tokens) const {
   const UnicodeText context_unicode = UTF8ToUnicodeText(context,
                                                         /*do_copy=*/false);
-  StripTokensFromOtherLines(context_unicode, span, tokens);
+  const auto [span_begin, span_end] =
+      CodepointSpanToUnicodeTextRange(context_unicode, span);
+  StripTokensFromOtherLines(context_unicode, span_begin, span_end, span,
+                            tokens);
 }
 
 void FeatureProcessor::StripTokensFromOtherLines(
-    const UnicodeText& context_unicode, const CodepointSpan& span,
+    const UnicodeText& context_unicode,
+    const UnicodeText::const_iterator& span_begin,
+    const UnicodeText::const_iterator& span_end, const CodepointSpan& span,
     std::vector<Token>* tokens) const {
   std::vector<UnicodeTextRange> lines =
       SplitContext(context_unicode, options_->use_pipe_character_for_newline());
 
-  auto span_start = context_unicode.begin();
-  if (span.first > 0) {
-    std::advance(span_start, span.first);
-  }
-  auto span_end = context_unicode.begin();
-  if (span.second > 0) {
-    std::advance(span_end, span.second);
-  }
   for (const UnicodeTextRange& line : lines) {
     // Find the line that completely contains the span.
-    if (line.first <= span_start && line.second >= span_end) {
+    if (line.first <= span_begin && line.second >= span_end) {
       const CodepointIndex last_line_begin_index =
           std::distance(context_unicode.begin(), line.first);
       const CodepointIndex last_line_end_index =
@@ -363,6 +360,19 @@ CodepointSpan TokenSpanToCodepointSpan(
     const std::vector<Token>& selectable_tokens, const TokenSpan& token_span) {
   return {selectable_tokens[token_span.first].start,
           selectable_tokens[token_span.second - 1].end};
+}
+
+UnicodeTextRange CodepointSpanToUnicodeTextRange(
+    const UnicodeText& unicode_text, const CodepointSpan& span) {
+  auto begin = unicode_text.begin();
+  if (span.first > 0) {
+    std::advance(begin, span.first);
+  }
+  auto end = unicode_text.begin();
+  if (span.second > 0) {
+    std::advance(end, span.second);
+  }
+  return {begin, end};
 }
 
 namespace {
@@ -581,10 +591,8 @@ CodepointSpan FeatureProcessor::StripBoundaryCodepoints(
     return span;
   }
 
-  UnicodeText::const_iterator span_begin = context_unicode.begin();
-  std::advance(span_begin, span.first);
-  UnicodeText::const_iterator span_end = context_unicode.begin();
-  std::advance(span_end, span.second);
+  const auto [span_begin, span_end] =
+      CodepointSpanToUnicodeTextRange(context_unicode, span);
 
   return StripBoundaryCodepoints(span_begin, span_end, span);
 }
@@ -692,14 +700,18 @@ void FeatureProcessor::RetokenizeAndFindClick(const std::string& context,
                                               int* click_pos) const {
   const UnicodeText context_unicode =
       UTF8ToUnicodeText(context, /*do_copy=*/false);
-  RetokenizeAndFindClick(context_unicode, input_span, only_use_line_with_click,
-                         tokens, click_pos);
+  const auto [span_begin, span_end] =
+      CodepointSpanToUnicodeTextRange(context_unicode, input_span);
+  RetokenizeAndFindClick(context_unicode, span_begin, span_end, input_span,
+                         only_use_line_with_click, tokens, click_pos);
 }
 
 void FeatureProcessor::RetokenizeAndFindClick(
-    const UnicodeText& context_unicode, const CodepointSpan& input_span,
-    bool only_use_line_with_click, std::vector<Token>* tokens,
-    int* click_pos) const {
+    const UnicodeText& context_unicode,
+    const UnicodeText::const_iterator& span_begin,
+    const UnicodeText::const_iterator& span_end,
+    const CodepointSpan& input_span, bool only_use_line_with_click,
+    std::vector<Token>* tokens, int* click_pos) const {
   TC3_CHECK(tokens != nullptr);
 
   if (options_->split_tokens_on_selection_boundaries()) {
@@ -707,7 +719,8 @@ void FeatureProcessor::RetokenizeAndFindClick(
   }
 
   if (only_use_line_with_click) {
-    StripTokensFromOtherLines(context_unicode, input_span, tokens);
+    StripTokensFromOtherLines(context_unicode, span_begin, span_end, input_span,
+                              tokens);
   }
 
   int local_click_pos;

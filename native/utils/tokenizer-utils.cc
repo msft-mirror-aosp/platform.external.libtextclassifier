@@ -21,6 +21,8 @@
 #include "utils/codepoint-range.h"
 #include "utils/strings/utf8.h"
 #include "utils/utf8/unicodetext.h"
+#include "utils/utf8/unilib-common.h"
+#include "absl/container/flat_hash_set.h"
 
 namespace libtextclassifier3 {
 
@@ -31,43 +33,24 @@ std::vector<Token> TokenizeOnSpace(const std::string& text) {
 }
 
 std::vector<Token> TokenizeOnDelimiters(
-    const std::string& text, const std::unordered_set<char32>& delimiters,
+    const std::string& text, const absl::flat_hash_set<char32>& delimiters,
     bool create_tokens_for_non_space_delimiters) {
-  const UnicodeText unicode_text = UTF8ToUnicodeText(text, /*do_copy=*/false);
-
-  std::vector<Token> result;
-
-  int token_start_codepoint = 0;
-  auto token_start_it = unicode_text.begin();
-  int codepoint_idx = 0;
-
-  UnicodeText::const_iterator it;
-  for (it = unicode_text.begin(); it < unicode_text.end(); it++) {
-    if (delimiters.find(*it) != delimiters.end()) {
-      // Only add a token when the string is non-empty.
-      if (token_start_it != it) {
-        result.push_back(Token{UnicodeText::UTF8Substring(token_start_it, it),
-                               token_start_codepoint, codepoint_idx});
-      }
-      if (create_tokens_for_non_space_delimiters && *it != ' ') {
-        result.push_back(
-            Token{std::string(1, *it), codepoint_idx, codepoint_idx + 1});
-      }
-
-      token_start_codepoint = codepoint_idx + 1;
-      token_start_it = it;
-      token_start_it++;
-    }
-
-    codepoint_idx++;
-  }
-  // Only add a token when the string is non-empty.
-  if (token_start_it != it) {
-    result.push_back(Token{UnicodeText::UTF8Substring(token_start_it, it),
-                           token_start_codepoint, codepoint_idx});
-  }
-
-  return result;
+  return TokenizeWithFilter(text, [&](char32 codepoint) {
+    bool to_split = delimiters.find(codepoint) != delimiters.end();
+    bool to_keep =
+        (create_tokens_for_non_space_delimiters) ? codepoint != ' ' : false;
+    return FilterResult{to_split, to_keep};
+  });
 }
 
+std::vector<Token> TokenizeOnWhiteSpacePunctuationAndChineseLetter(
+    const absl::string_view text) {
+  return TokenizeWithFilter(text, [](char32 codepoint) {
+    bool is_whitespace = IsWhitespace(codepoint);
+    bool to_split =
+        is_whitespace || IsPunctuation(codepoint) || IsChineseLetter(codepoint);
+    bool to_keep = !is_whitespace;
+    return FilterResult{to_split, to_keep};
+  });
+}
 }  // namespace  libtextclassifier3
