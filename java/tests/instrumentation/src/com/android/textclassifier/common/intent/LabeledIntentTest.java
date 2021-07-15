@@ -17,7 +17,7 @@
 package com.android.textclassifier.common.intent;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.testng.Assert.assertThrows;
+import static org.testng.Assert.expectThrows;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -119,7 +119,7 @@ public final class LabeledIntentTest {
 
   @Test
   public void resolve_missingTitle() {
-    assertThrows(
+    expectThrows(
         IllegalArgumentException.class,
         () -> new LabeledIntent(null, null, DESCRIPTION, null, INTENT, REQUEST_CODE));
   }
