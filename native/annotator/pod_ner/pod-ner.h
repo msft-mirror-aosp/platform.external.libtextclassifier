@@ -17,6 +17,16 @@
 #ifndef LIBTEXTCLASSIFIER_ANNOTATOR_POD_NER_POD_NER_H_
 #define LIBTEXTCLASSIFIER_ANNOTATOR_POD_NER_POD_NER_H_
 
+#if defined TC3_POD_NER_ANNOTATOR_FLAG_DEFINED
+#include "annotator/pod_ner/pod-ner-flag-defined.h"
+#else
+#if defined TC3_POD_NER_ANNOTATOR_IMPL
+#include "annotator/pod_ner/pod-ner-impl.h"
+#elif defined TC3_POD_NER_ANNOTATOR_DUMMY
 #include "annotator/pod_ner/pod-ner-dummy.h"
+#else
+#error No POD NER implementation specified.
+#endif
+#endif  // TC3_POD_NER_ANNOTATOR_FLAG_DEFINED
 
 #endif  // LIBTEXTCLASSIFIER_ANNOTATOR_POD_NER_POD_NER_H_
