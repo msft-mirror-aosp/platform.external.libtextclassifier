@@ -16,6 +16,7 @@
 
 #include "utils/grammar/utils/ir.h"
 
+#include "utils/i18n/locale.h"
 #include "utils/strings/append.h"
 #include "utils/strings/stringpiece.h"
 #include "utils/zlib/zlib.h"
@@ -234,6 +235,9 @@ Nonterm Ir::Add(const Lhs& lhs, const std::string& terminal,
   }
 }
 
+// For latency we put sub-rules on the first shard which must be any match
+// i.e. '*' rules are always included while parsing the tree as it is only
+// on shard one hence will be deduped correctly.
 Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
                 const int shard) {
   // Add a new unary rule.
@@ -244,9 +248,9 @@ Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
   // Add a chain of (rhs.size() - 1) binary rules.
   Nonterm prev = rhs.front();
   for (int i = 1; i < rhs.size() - 1; i++) {
-    prev = Add(kUnassignedNonterm, prev, rhs[i], shard);
+    prev = Add(kUnassignedNonterm, prev, rhs[i]);
   }
-  return Add(lhs, prev, rhs.back(), shard);
+  return Add(lhs, prev, rhs.back());
 }
 
 Nonterm Ir::AddRegex(Nonterm lhs, const std::string& regex_pattern) {
@@ -445,16 +449,29 @@ void Ir::Serialize(const bool include_debug_information,
   }
 
   // Serialize the unary and binary rules.
-  for (const RulesShard& shard : shards_) {
+  for (int i = 0; i < shards_.size(); i++) {
     output->rules.emplace_back(std::make_unique<RulesSet_::RulesT>());
     RulesSet_::RulesT* rules = output->rules.back().get();
+    for (const Locale& shard_locale : locale_shard_map_.GetLocales(i)) {
+      if (shard_locale.IsValid()) {
+        // Check if the language is set to all i.e. '*' which is a special, to
+        // make it consistent with device side parser here instead of filling
+        // the all locale leave the language tag list empty
+        rules->locale.emplace_back(
+            std::make_unique<libtextclassifier3::LanguageTagT>());
+        libtextclassifier3::LanguageTagT* language_tag =
+            rules->locale.back().get();
+        language_tag->language = shard_locale.Language();
+        language_tag->region = shard_locale.Region();
+        language_tag->script = shard_locale.Script();
+      }
+    }
+
     // Serialize the unary rules.
-    SerializeUnaryRulesShard(shard.unary_rules, output, rules);
-
+    SerializeUnaryRulesShard(shards_[i].unary_rules, output, rules);
     // Serialize the binary rules.
-    SerializeBinaryRulesShard(shard.binary_rules, output, rules);
+    SerializeBinaryRulesShard(shards_[i].binary_rules, output, rules);
   }
-
   // Serialize the terminal rules.
   // We keep the rules separate by shard but merge the actual terminals into
   // one shared string pool to most effectively exploit reuse.

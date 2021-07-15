@@ -38,7 +38,9 @@ TEST_F(AnalyzerTest, ParsesTextWithGrammar) {
                                       semantic_values_schema_.buffer().end());
 
   // Define rules and semantics.
-  Rules rules;
+  grammar::LocaleShardMap locale_shard_map =
+      grammar::LocaleShardMap::CreateLocaleShardMap({""});
+  Rules rules(locale_shard_map);
   rules.Add("<month>", {"january"},
             static_cast<CallbackId>(DefaultCallback::kSemanticExpression),
             /*callback_param=*/model.semantic_expression.size());
@@ -68,9 +70,8 @@ TEST_F(AnalyzerTest, ParsesTextWithGrammar) {
     EXPECT_THAT(results, SizeIs(1));
 
     // Check parse tree.
-    EXPECT_THAT(
-        results[0].derivation,
-        IsDerivation(kMonth /* rule_id */, 13 /* begin */, 20 /* end */));
+    EXPECT_THAT(results[0], IsDerivation(kMonth /* rule_id */, 13 /* begin */,
+                                         20 /* end */));
 
     // Check semantic result.
     EXPECT_EQ(results[0].value->Value<int32>(), 1);
@@ -86,7 +87,7 @@ TEST_F(AnalyzerTest, ParsesTextWithGrammar) {
     EXPECT_THAT(results, SizeIs(1));
 
     // Check parse tree.
-    EXPECT_THAT(results[0].derivation,
+    EXPECT_THAT(results[0],
                 IsDerivation(kMonth /* rule_id */, 0 /* begin */, 8 /* end */));
 
     // Check semantic result.
