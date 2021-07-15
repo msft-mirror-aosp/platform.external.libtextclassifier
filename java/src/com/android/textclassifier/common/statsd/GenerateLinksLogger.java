@@ -16,21 +16,20 @@
 
 package com.android.textclassifier.common.statsd;
 
+import android.view.textclassifier.TextClassificationContext;
+import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLinks;
 import androidx.collection.ArrayMap;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
 import com.android.textclassifier.common.logging.TextClassifierEvent;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 /** A helper for logging calls to generateLinks. */
@@ -40,7 +39,6 @@ public final class GenerateLinksLogger {
 
   private final Random random;
   private final int sampleRate;
-  private final Supplier<String> randomUuidSupplier;
 
   /**
    * @param sampleRate the rate at which log events are written. (e.g. 100 means there is a 0.01
@@ -48,24 +46,14 @@ public final class GenerateLinksLogger {
    *     events, pass 1.
    */
   public GenerateLinksLogger(int sampleRate) {
-    this(sampleRate, () -> UUID.randomUUID().toString());
-  }
-
-  /**
-   * @param sampleRate the rate at which log events are written. (e.g. 100 means there is a 0.01
-   *     chance that a call to logGenerateLinks results in an event being written). To write all
-   *     events, pass 1.
-   * @param randomUuidSupplier supplies random UUIDs.
-   */
-  @VisibleForTesting
-  GenerateLinksLogger(int sampleRate, Supplier<String> randomUuidSupplier) {
     this.sampleRate = sampleRate;
     random = new Random();
-    this.randomUuidSupplier = Preconditions.checkNotNull(randomUuidSupplier);
   }
 
   /** Logs statistics about a call to generateLinks. */
   public void logGenerateLinks(
+      @Nullable TextClassificationSessionId sessionId,
+      @Nullable TextClassificationContext textClassificationContext,
       CharSequence text,
       TextLinks links,
       String callingPackageName,
@@ -95,20 +83,33 @@ public final class GenerateLinksLogger {
       totalStats.countLink(link);
       perEntityTypeStats.computeIfAbsent(entityType, k -> new LinkifyStats()).countLink(link);
     }
+    int widgetType = TextClassifierStatsLog.TEXT_SELECTION_EVENT__WIDGET_TYPE__WIDGET_TYPE_UNKNOWN;
+    if (textClassificationContext != null) {
+      widgetType = WidgetTypeConverter.toLoggingValue(textClassificationContext.getWidgetType());
+    }
 
-    final String callId = randomUuidSupplier.get();
+    final String sessionIdStr = sessionId == null ? null : sessionId.getValue();
     writeStats(
-        callId, callingPackageName, null, totalStats, text, latencyMs, annotatorModel, langIdModel);
+        sessionIdStr,
+        callingPackageName,
+        null,
+        totalStats,
+        text,
+        widgetType,
+        latencyMs,
+        annotatorModel,
+        langIdModel);
     // Sort the entity types to ensure the logging order is deterministic.
     ImmutableList<String> sortedEntityTypes =
         ImmutableList.sortedCopyOf(perEntityTypeStats.keySet());
     for (String entityType : sortedEntityTypes) {
       writeStats(
-          callId,
+          sessionIdStr,
           callingPackageName,
           entityType,
           perEntityTypeStats.get(entityType),
           text,
+          widgetType,
           latencyMs,
           annotatorModel,
           langIdModel);
@@ -130,11 +131,12 @@ public final class GenerateLinksLogger {
 
   /** Writes a log event for the given stats. */
   private static void writeStats(
-      String callId,
+      @Nullable String sessionId,
       String callingPackageName,
       @Nullable String entityType,
       LinkifyStats stats,
       CharSequence text,
+      int widgetType,
       long latencyMs,
       Optional<ModelInfo> annotatorModel,
       Optional<ModelInfo> langIdModel) {
@@ -142,10 +144,10 @@ public final class GenerateLinksLogger {
     String langIdModelName = langIdModel.transform(ModelInfo::toModelName).or("");
     TextClassifierStatsLog.write(
         TextClassifierStatsLog.TEXT_LINKIFY_EVENT,
-        callId,
+        sessionId,
         TextClassifierEvent.TYPE_LINKS_GENERATED,
         annotatorModelName,
-        TextClassifierEventLogger.WidgetType.WIDGET_TYPE_UNKNOWN,
+        widgetType,
         /* eventIndex */ 0,
         entityType,
         stats.numLinks,
@@ -161,7 +163,7 @@ public final class GenerateLinksLogger {
           String.format(
               Locale.US,
               "%s:%s %d links (%d/%d chars) %dms %s annotator=%s langid=%s",
-              callId,
+              sessionId,
               entityType,
               stats.numLinks,
               stats.numLinksTextLength,
