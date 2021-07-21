@@ -21,13 +21,15 @@ import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.os.LocaleList;
 import android.os.ParcelFileDescriptor;
-import android.util.ArraySet;
 import androidx.annotation.GuardedBy;
-import androidx.annotation.StringDef;
 import androidx.collection.ArrayMap;
-import com.android.textclassifier.ModelFileManager.ModelType.ModelTypeDef;
+import com.android.textclassifier.ModelFileManager.ModelFile;
+import com.android.textclassifier.common.ModelType;
+import com.android.textclassifier.common.ModelType.ModelTypeDef;
+import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.logging.ResultIdUtils.ModelInfo;
+import com.android.textclassifier.downloader.ModelDownloadManager;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.AnnotatorModel;
@@ -40,8 +42,6 @@ import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 import java.io.IOException;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -58,35 +58,27 @@ import javax.annotation.Nullable;
  * Manages all model files in storage. {@link TextClassifierImpl} depends on this class to get the
  * model files to load.
  */
-final class ModelFileManager {
+public final class ModelFileManager {
 
   private static final String TAG = "ModelFileManager";
 
-  private static final String DOWNLOAD_SUB_DIR_NAME = "textclassifier/downloads/models/";
   private static final File CONFIG_UPDATER_DIR = new File("/data/misc/textclassifier/");
   private static final String ASSETS_DIR = "textclassifier";
 
-  private final List<ModelFileLister> modelFileListers;
-  private final File modelDownloaderDir;
+  private ImmutableList<ModelFileLister> modelFileListers;
 
   public ModelFileManager(Context context, TextClassifierSettings settings) {
     Preconditions.checkNotNull(context);
     Preconditions.checkNotNull(settings);
 
     AssetManager assetManager = context.getAssets();
-    this.modelDownloaderDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
     modelFileListers =
         ImmutableList.of(
             // Annotator models.
-            new RegularFilePatternMatchLister(
-                ModelType.ANNOTATOR,
-                this.modelDownloaderDir,
-                "annotator\\.(.*)\\.model",
-                settings::isModelDownloadManagerEnabled),
             new RegularFileFullMatchLister(
                 ModelType.ANNOTATOR,
                 new File(CONFIG_UPDATER_DIR, "textclassifier.model"),
-                /* isEnabled= */ () -> true),
+                /* isEnabled= */ () -> settings.isConfigUpdaterModelEnabled()),
             new AssetFilePatternMatchLister(
                 assetManager,
                 ModelType.ANNOTATOR,
@@ -94,15 +86,10 @@ final class ModelFileManager {
                 "annotator\\.(.*)\\.model",
                 /* isEnabled= */ () -> true),
             // Actions models.
-            new RegularFilePatternMatchLister(
-                ModelType.ACTIONS_SUGGESTIONS,
-                this.modelDownloaderDir,
-                "actions_suggestions\\.(.*)\\.model",
-                settings::isModelDownloadManagerEnabled),
             new RegularFileFullMatchLister(
                 ModelType.ACTIONS_SUGGESTIONS,
                 new File(CONFIG_UPDATER_DIR, "actions_suggestions.model"),
-                /* isEnabled= */ () -> true),
+                /* isEnabled= */ () -> settings.isConfigUpdaterModelEnabled()),
             new AssetFilePatternMatchLister(
                 assetManager,
                 ModelType.ACTIONS_SUGGESTIONS,
@@ -110,15 +97,10 @@ final class ModelFileManager {
                 "actions_suggestions\\.(.*)\\.model",
                 /* isEnabled= */ () -> true),
             // LangID models.
-            new RegularFilePatternMatchLister(
-                ModelType.LANG_ID,
-                this.modelDownloaderDir,
-                "lang_id\\.(.*)\\.model",
-                settings::isModelDownloadManagerEnabled),
             new RegularFileFullMatchLister(
                 ModelType.LANG_ID,
                 new File(CONFIG_UPDATER_DIR, "lang_id.model"),
-                /* isEnabled= */ () -> true),
+                /* isEnabled= */ () -> settings.isConfigUpdaterModelEnabled()),
             new AssetFilePatternMatchLister(
                 assetManager,
                 ModelType.LANG_ID,
@@ -128,9 +110,36 @@ final class ModelFileManager {
   }
 
   @VisibleForTesting
-  ModelFileManager(Context context, List<ModelFileLister> modelFileListers) {
-    this.modelDownloaderDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
+  public ModelFileManager(Context context, List<ModelFileLister> modelFileListers) {
     this.modelFileListers = ImmutableList.copyOf(modelFileListers);
+  }
+
+  // TODO(licha): Move this to constructor and consider using DownloadedModelManager here
+  /** Enable ModelFileManager to scan and use models downloaded by model downloader. */
+  public void addModelDownloaderModels(
+      ModelDownloadManager modelDownloadManager, TextClassifierSettings settings) {
+    this.modelFileListers =
+        ImmutableList.<ModelFileLister>builder()
+            .addAll(modelFileListers)
+            .add(
+                modelType -> {
+                  ImmutableList.Builder<ModelFile> modelFilesBuilder = ImmutableList.builder();
+                  if (settings.isModelDownloadManagerEnabled()) {
+                    for (File modelFile : modelDownloadManager.listDownloadedModels(modelType)) {
+                      try {
+                        // TODO(licha): Make the ModelFile class public and construct downloader
+                        // model files with locale tag in our internal database
+                        modelFilesBuilder.add(
+                            ModelFile.createFromRegularFile(modelFile, modelType));
+                      } catch (IOException e) {
+                        TcLog.e(
+                            TAG, "Failed to create ModelFile: " + modelFile.getAbsolutePath(), e);
+                      }
+                    }
+                  }
+                  return modelFilesBuilder.build();
+                })
+            .build();
   }
 
   /**
@@ -149,6 +158,7 @@ final class ModelFileManager {
   }
 
   /** Lists model files. */
+  @FunctionalInterface
   public interface ModelFileLister {
     List<ModelFile> list(@ModelTypeDef String modelType);
   }
@@ -311,7 +321,7 @@ final class ModelFileManager {
           try {
             modelFilesBuilder.add(ModelFile.createFromAsset(assetManager, absolutePath, modelType));
           } catch (IOException e) {
-            TcLog.w(TAG, "Failed to call createFromAsset with: " + absolutePath);
+            TcLog.e(TAG, "Failed to call createFromAsset with: " + absolutePath, e);
           }
         }
         ImmutableList<ModelFile> result = modelFilesBuilder.build();
@@ -331,64 +341,42 @@ final class ModelFileManager {
   @Nullable
   public ModelFile findBestModelFile(
       @ModelTypeDef String modelType, @Nullable LocaleList localePreferences) {
-    final String languages =
-        localePreferences == null || localePreferences.isEmpty()
-            ? LocaleList.getDefault().toLanguageTags()
-            : localePreferences.toLanguageTags();
-    final List<Locale.LanguageRange> languageRangeList = Locale.LanguageRange.parse(languages);
+    Locale targetLocale =
+        localePreferences != null ? localePreferences.get(0) : Locale.getDefault();
+    return findBestModelFile(modelType, targetLocale);
+  }
 
+  /**
+   * Returns the best model file for the given locale, {@code null} if nothing is found.
+   *
+   * @param modelType the type of model to look up (e.g. annotator, lang_id, etc.)
+   * @param targetLocale the preferred locale
+   */
+  @Nullable
+  private ModelFile findBestModelFile(@ModelTypeDef String modelType, Locale targetLocale) {
+    List<Locale.LanguageRange> deviceLanguageRanges =
+        Locale.LanguageRange.parse(LocaleList.getDefault().toLanguageTags());
+    boolean languageIndependentModelOnly = false;
+    if (Locale.lookupTag(deviceLanguageRanges, ImmutableList.of(targetLocale.getLanguage()))
+        == null) {
+      // If the targetLocale's language is not in device locale list, we don't match it to avoid
+      // leaking user language profile to the callers.
+      languageIndependentModelOnly = true;
+    }
+    List<Locale.LanguageRange> targetLanguageRanges =
+        Locale.LanguageRange.parse(targetLocale.toLanguageTag());
     ModelFile bestModel = null;
     for (ModelFile model : listModelFiles(modelType)) {
-      if (model.isAnyLanguageSupported(languageRangeList)) {
+      if (languageIndependentModelOnly && !model.languageIndependent) {
+        continue;
+      }
+      if (model.isAnyLanguageSupported(targetLanguageRanges)) {
         if (model.isPreferredTo(bestModel)) {
           bestModel = model;
         }
       }
     }
     return bestModel;
-  }
-
-  /**
-   * Deletes model files that are not preferred for any locales in user's preference.
-   *
-   * <p>This method will be invoked as a clean-up after we download a new model successfully. Race
-   * conditions are hard to avoid because we do not hold locks for files. But it should rarely cause
-   * any issues since it's safe to delete a model file in use (b/c we mmap it to memory).
-   */
-  public void deleteUnusedModelFiles() {
-    TcLog.d(TAG, "Start to delete unused model files.");
-    LocaleList localeList = LocaleList.getDefault();
-    for (@ModelTypeDef String modelType : ModelType.values()) {
-      ArraySet<ModelFile> allModelFiles = new ArraySet<>(listModelFiles(modelType));
-      for (int i = 0; i < localeList.size(); i++) {
-        // If a model file is preferred for any local in locale list, then keep it
-        ModelFile bestModel = findBestModelFile(modelType, new LocaleList(localeList.get(i)));
-        allModelFiles.remove(bestModel);
-      }
-      for (ModelFile modelFile : allModelFiles) {
-        if (modelFile.canWrite()) {
-          TcLog.d(TAG, "Deleting model: " + modelFile);
-          if (!modelFile.delete()) {
-            TcLog.w(TAG, "Failed to delete model: " + modelFile);
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Returns a {@link File} that represents the destination to download a model.
-   *
-   * <p>Each model file's name is uniquely formatted based on its unique remote manifest URL.
-   *
-   * <p>{@link ModelDownloadManager} needs to call this to get the right location and file name.
-   *
-   * @param modelType the type of the model image to download
-   * @param manifestUrl the unique remote url of the model manifest
-   */
-  public File getDownloadTargetFile(@ModelTypeDef String modelType, String manifestUrl) {
-    String fileName = String.format("%s.%d.model", modelType, manifestUrl.hashCode());
-    return new File(modelDownloaderDir, fileName);
   }
 
   /**
@@ -590,7 +578,8 @@ final class ModelFileManager {
     }
 
     public ModelInfo toModelInfo() {
-      return new ModelInfo(version, supportedLocales.toLanguageTags());
+      return new ModelInfo(
+          version, languageIndependent ? LANGUAGE_INDEPENDENT : supportedLocales.toLanguageTags());
     }
 
     @Override
@@ -611,25 +600,5 @@ final class ModelFileManager {
           .map(modelFile -> modelFile.transform(ModelFileManager.ModelFile::toModelInfo))
           .collect(Collectors.collectingAndThen(Collectors.toList(), ImmutableList::copyOf));
     }
-  }
-
-  /** Effectively an enum class to represent types of models. */
-  public static final class ModelType {
-    @Retention(RetentionPolicy.SOURCE)
-    @StringDef({ANNOTATOR, LANG_ID, ACTIONS_SUGGESTIONS})
-    @interface ModelTypeDef {}
-
-    public static final String ANNOTATOR = "annotator";
-    public static final String LANG_ID = "lang_id";
-    public static final String ACTIONS_SUGGESTIONS = "actions_suggestions";
-
-    public static final ImmutableList<String> VALUES =
-        ImmutableList.of(ANNOTATOR, LANG_ID, ACTIONS_SUGGESTIONS);
-
-    public static ImmutableList<String> values() {
-      return VALUES;
-    }
-
-    private ModelType() {}
   }
 }

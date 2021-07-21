@@ -83,6 +83,18 @@ TokenSpan CodepointSpanToTokenSpan(
 CodepointSpan TokenSpanToCodepointSpan(
     const std::vector<Token>& selectable_tokens, const TokenSpan& token_span);
 
+// Converts a codepoint span to a unicode text range, within the given unicode
+// text.
+// For an invalid span (with a negative index), returns (begin, begin). This
+// means that it is safe to call this function before checking the validity of
+// the span.
+// The indices must fit within the unicode text.
+// Note that the execution time is linear with respect to the codepoint indices.
+// Calling this function repeatedly for spans on the same text might lead to
+// inefficient code.
+UnicodeTextRange CodepointSpanToUnicodeTextRange(
+    const UnicodeText& unicode_text, const CodepointSpan& span);
+
 // Takes care of preparing features for the span prediction model.
 class FeatureProcessor {
  public:
@@ -138,8 +150,11 @@ class FeatureProcessor {
                               bool only_use_line_with_click,
                               std::vector<Token>* tokens, int* click_pos) const;
 
-  // Same as above but takes UnicodeText.
+  // Same as above, but takes UnicodeText and iterators within it corresponding
+  // to input_span.
   void RetokenizeAndFindClick(const UnicodeText& context_unicode,
+                              const UnicodeText::const_iterator& span_begin,
+                              const UnicodeText::const_iterator& span_end,
                               const CodepointSpan& input_span,
                               bool only_use_line_with_click,
                               std::vector<Token>* tokens, int* click_pos) const;
@@ -164,6 +179,11 @@ class FeatureProcessor {
   bool SelectionLabelSpans(
       VectorSpan<Token> tokens,
       std::vector<CodepointSpan>* selection_label_spans) const;
+
+  // Fills selection_label_relative_token_spans with number of tokens left and
+  // right from the click.
+  bool SelectionLabelRelativeTokenSpans(
+      std::vector<TokenSpan>* selection_label_relative_token_spans) const;
 
   int DenseFeaturesCount() const {
     return feature_extractor_.DenseFeaturesCount();
@@ -256,6 +276,8 @@ class FeatureProcessor {
 
   // Same as above but takes UnicodeText.
   void StripTokensFromOtherLines(const UnicodeText& context_unicode,
+                                 const UnicodeText::const_iterator& span_begin,
+                                 const UnicodeText::const_iterator& span_end,
                                  const CodepointSpan& span,
                                  std::vector<Token>* tokens) const;
 

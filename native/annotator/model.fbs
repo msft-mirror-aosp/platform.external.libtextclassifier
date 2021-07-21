@@ -14,17 +14,17 @@
 // limitations under the License.
 //
 
-include "utils/intents/intent-config.fbs";
-include "annotator/experimental/experimental.fbs";
 include "annotator/entity-data.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/normalization.fbs";
-include "utils/tokenizer.fbs";
-include "utils/resources.fbs";
+include "annotator/experimental/experimental.fbs";
 include "utils/codepoint-range.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
-include "utils/zlib/buffer.fbs";
 include "utils/container/bit-vector.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
+include "utils/grammar/rules.fbs";
+include "utils/intents/intent-config.fbs";
+include "utils/normalization.fbs";
+include "utils/resources.fbs";
+include "utils/tokenizer.fbs";
+include "utils/zlib/buffer.fbs";
 
 file_identifier "TC2 ";
 
@@ -426,6 +426,12 @@ table GrammarModel {
 
   // Grammar specific tokenizer options.
   tokenizer_options:GrammarTokenizerOptions;
+
+  // The score.
+  target_classification_score:float = 1;
+
+  // The priority score used for conflict resolution with the other models.
+  priority_score:float = 1;
 }
 
 namespace libtextclassifier3.MoneyParsingOptions_;
@@ -596,6 +602,7 @@ table Model {
   experimental_model:ExperimentalModel;
   pod_ner_model:PodNerModel;
   vocab_model:VocabModel;
+  datetime_grammar_model:GrammarModel;
 }
 
 // Method for selecting the center token.
