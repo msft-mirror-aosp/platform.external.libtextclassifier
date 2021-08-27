@@ -46,15 +46,24 @@ Analyzer::Analyzer(const UniLib* unilib, const RulesSet* rules_set,
                               : nullptr) {}
 
 StatusOr<std::vector<EvaluatedDerivation>> Analyzer::Parse(
-    const TextContext& input, UnsafeArena* arena) const {
+    const TextContext& input, UnsafeArena* arena,
+    bool deduplicate_derivations) const {
   std::vector<EvaluatedDerivation> result;
 
+  std::vector<Derivation> derivations = parser_.Parse(input, arena);
+  if (deduplicate_derivations) {
+    derivations = DeduplicateDerivations<Derivation>(derivations);
+  }
   // Evaluate each derivation.
-  for (const Derivation& derivation :
-       ValidDeduplicatedDerivations(parser_.Parse(input, arena))) {
-    TC3_ASSIGN_OR_RETURN(const SemanticValue* value,
-                         semantic_evaluator_.Eval(input, derivation, arena));
-    result.emplace_back(EvaluatedDerivation{std::move(derivation), value});
+  for (const Derivation& derivation : derivations) {
+    if (derivation.IsValid()) {
+      TC3_ASSIGN_OR_RETURN(const SemanticValue* value,
+                           semantic_evaluator_.Eval(input, derivation, arena));
+      result.emplace_back(
+          EvaluatedDerivation{{/*parse_tree=*/derivation.parse_tree,
+                               /*rule_id=*/derivation.rule_id},
+                              /*semantic_value=*/value});
+    }
   }
 
   return result;
@@ -62,8 +71,9 @@ StatusOr<std::vector<EvaluatedDerivation>> Analyzer::Parse(
 
 StatusOr<std::vector<EvaluatedDerivation>> Analyzer::Parse(
     const UnicodeText& text, const std::vector<Locale>& locales,
-    UnsafeArena* arena) const {
-  return Parse(BuildTextContextForInput(text, locales), arena);
+    UnsafeArena* arena, bool deduplicate_derivations) const {
+  return Parse(BuildTextContextForInput(text, locales), arena,
+               deduplicate_derivations);
 }
 
 TextContext Analyzer::BuildTextContextForInput(

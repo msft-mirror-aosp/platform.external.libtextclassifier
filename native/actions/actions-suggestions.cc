@@ -17,10 +17,15 @@
 #include "actions/actions-suggestions.h"
 
 #include <memory>
+#include <vector>
+
+#include "utils/base/statusor.h"
 
 #if !defined(TC3_DISABLE_LUA)
 #include "actions/lua-actions.h"
 #endif
+#include "actions/ngram-model.h"
+#include "actions/tflite-sensitive-model.h"
 #include "actions/types.h"
 #include "actions/utils.h"
 #include "actions/zlib-utils.h"
@@ -72,6 +77,36 @@ int NumMessagesToConsider(const Conversation& conversation,
               : max_conversation_history_length);
 }
 
+template <typename T>
+std::vector<T> PadOrTruncateToTargetLength(const std::vector<T>& inputs,
+                                           const int max_length,
+                                           const T pad_value) {
+  if (inputs.size() >= max_length) {
+    return std::vector<T>(inputs.begin(), inputs.begin() + max_length);
+  } else {
+    std::vector<T> result;
+    result.reserve(max_length);
+    result.insert(result.begin(), inputs.begin(), inputs.end());
+    result.insert(result.end(), max_length - inputs.size(), pad_value);
+    return result;
+  }
+}
+
+template <typename T>
+void SetVectorOrScalarAsModelInput(
+    const int param_index, const Variant& param_value,
+    tflite::Interpreter* interpreter,
+    const std::unique_ptr<const TfLiteModelExecutor>& model_executor) {
+  if (param_value.Has<std::vector<T>>()) {
+    model_executor->SetInput<T>(
+        param_index, param_value.ConstRefValue<std::vector<T>>(), interpreter);
+  } else if (param_value.Has<T>()) {
+    model_executor->SetInput<float>(param_index, param_value.Value<T>(),
+                                    interpreter);
+  } else {
+    TC3_LOG(ERROR) << "Variant type error!";
+  }
+}
 }  // namespace
 
 std::unique_ptr<ActionsSuggestions> ActionsSuggestions::FromUnownedBuffer(
@@ -355,12 +390,20 @@ bool ActionsSuggestions::ValidateAndInitialize() {
 
   // Create low confidence model if specified.
   if (model_->low_confidence_ngram_model() != nullptr) {
-    ngram_model_ = NGramModel::Create(
+    sensitive_model_ = NGramSensitiveModel::Create(
         unilib_, model_->low_confidence_ngram_model(),
         feature_processor_ == nullptr ? nullptr
                                       : feature_processor_->tokenizer());
-    if (ngram_model_ == nullptr) {
+    if (sensitive_model_ == nullptr) {
       TC3_LOG(ERROR) << "Could not create ngram linear regression model.";
+      return false;
+    }
+  }
+  if (model_->low_confidence_tflite_model() != nullptr) {
+    sensitive_model_ =
+        TFLiteSensitiveModel::Create(model_->low_confidence_tflite_model());
+    if (sensitive_model_ == nullptr) {
+      TC3_LOG(ERROR) << "Could not create TFLite sensitive model.";
       return false;
     }
   }
@@ -639,8 +682,17 @@ bool ActionsSuggestions::SetupModelInput(
     return false;
   }
   if (model_->tflite_model_spec()->input_context() >= 0) {
-    model_executor_->SetInput<std::string>(
-        model_->tflite_model_spec()->input_context(), context, interpreter);
+    if (model_->tflite_model_spec()->input_length_to_pad() > 0) {
+      model_executor_->SetInput<std::string>(
+          model_->tflite_model_spec()->input_context(),
+          PadOrTruncateToTargetLength(
+              context, model_->tflite_model_spec()->input_length_to_pad(),
+              std::string("")),
+          interpreter);
+    } else {
+      model_executor_->SetInput<std::string>(
+          model_->tflite_model_spec()->input_context(), context, interpreter);
+    }
   }
   if (model_->tflite_model_spec()->input_context_length() >= 0) {
     model_executor_->SetInput<int>(
@@ -648,8 +700,16 @@ bool ActionsSuggestions::SetupModelInput(
         interpreter);
   }
   if (model_->tflite_model_spec()->input_user_id() >= 0) {
-    model_executor_->SetInput<int>(model_->tflite_model_spec()->input_user_id(),
-                                   user_ids, interpreter);
+    if (model_->tflite_model_spec()->input_length_to_pad() > 0) {
+      model_executor_->SetInput<int>(
+          model_->tflite_model_spec()->input_user_id(),
+          PadOrTruncateToTargetLength(
+              user_ids, model_->tflite_model_spec()->input_length_to_pad(), 0),
+          interpreter);
+    } else {
+      model_executor_->SetInput<int>(
+          model_->tflite_model_spec()->input_user_id(), user_ids, interpreter);
+    }
   }
   if (model_->tflite_model_spec()->input_num_suggestions() >= 0) {
     model_executor_->SetInput<int>(
@@ -695,16 +755,24 @@ bool ActionsSuggestions::SetupModelInput(
       const bool has_value = param_value_it != model_parameters.end();
       switch (param_type) {
         case kTfLiteFloat32:
-          model_executor_->SetInput<float>(
-              param_index,
-              has_value ? param_value_it->second.Value<float>() : kDefaultFloat,
-              interpreter);
+          if (has_value) {
+            SetVectorOrScalarAsModelInput<float>(param_index,
+                                                 param_value_it->second,
+                                                 interpreter, model_executor_);
+          } else {
+            model_executor_->SetInput<float>(param_index, kDefaultFloat,
+                                             interpreter);
+          }
           break;
         case kTfLiteInt32:
-          model_executor_->SetInput<int32_t>(
-              param_index,
-              has_value ? param_value_it->second.Value<int>() : kDefaultInt,
-              interpreter);
+          if (has_value) {
+            SetVectorOrScalarAsModelInput<int32_t>(
+                param_index, param_value_it->second, interpreter,
+                model_executor_);
+          } else {
+            model_executor_->SetInput<int32_t>(param_index, kDefaultInt,
+                                               interpreter);
+          }
           break;
         case kTfLiteInt64:
           model_executor_->SetInput<int64_t>(
@@ -829,13 +897,12 @@ bool ActionsSuggestions::ReadModelOutput(
       return false;
     }
     response->sensitivity_score = sensitive_topic_score.data()[0];
-    response->output_filtered_sensitivity =
-        (response->sensitivity_score >
-         preconditions_.max_sensitive_topic_score);
+    response->is_sensitive = (response->sensitivity_score >
+                              preconditions_.max_sensitive_topic_score);
   }
 
   // Suppress model outputs.
-  if (response->output_filtered_sensitivity) {
+  if (response->is_sensitive) {
     return true;
   }
 
@@ -917,6 +984,12 @@ bool ActionsSuggestions::SuggestActionsFromModel(
     std::unique_ptr<tflite::Interpreter>* interpreter) const {
   TC3_CHECK_LE(num_messages, conversation.messages.size());
 
+  if (sensitive_model_ != nullptr &&
+      sensitive_model_->EvalConversation(conversation, num_messages).first) {
+    response->is_sensitive = true;
+    return true;
+  }
+
   if (!model_executor_) {
     return true;
   }
@@ -970,6 +1043,18 @@ bool ActionsSuggestions::SuggestActionsFromModel(
   }
 
   return ReadModelOutput(interpreter->get(), options, response);
+}
+
+Status ActionsSuggestions::SuggestActionsFromConversationIntentDetection(
+    const Conversation& conversation, const ActionSuggestionOptions& options,
+    std::vector<ActionSuggestion>* actions) const {
+  TC3_ASSIGN_OR_RETURN(
+      std::vector<ActionSuggestion> new_actions,
+      conversation_intent_detection_->SuggestActions(conversation, options));
+  for (auto& action : new_actions) {
+    actions->push_back(std::move(action));
+  }
+  return Status::OK;
 }
 
 AnnotationOptions ActionsSuggestions::AnnotationOptionsForMessage(
@@ -1277,10 +1362,7 @@ bool ActionsSuggestions::GatherActionsSuggestions(
 
   std::vector<const UniLib::RegexPattern*> post_check_rules;
   if (preconditions_.suppress_on_low_confidence_input) {
-    if ((ngram_model_ != nullptr &&
-         ngram_model_->EvalConversation(annotated_conversation,
-                                        num_messages)) ||
-        regex_actions_->IsLowConfidenceInput(annotated_conversation,
+    if (regex_actions_->IsLowConfidenceInput(annotated_conversation,
                                              num_messages, &post_check_rules)) {
       response->output_filtered_low_confidence = true;
       return true;
@@ -1294,10 +1376,22 @@ bool ActionsSuggestions::GatherActionsSuggestions(
     return false;
   }
 
+  // SuggestActionsFromModel also detects if the conversation is sensitive,
+  // either by using the old ngram model or the new model.
   // Suppress all predictions if the conversation was deemed sensitive.
-  if (preconditions_.suppress_on_sensitive_topic &&
-      response->output_filtered_sensitivity) {
+  if (preconditions_.suppress_on_sensitive_topic && response->is_sensitive) {
     return true;
+  }
+
+  if (conversation_intent_detection_) {
+    // TODO(zbin): Ensure the deduplication/ranking logic in ranker.cc works.
+    auto actions = SuggestActionsFromConversationIntentDetection(
+        annotated_conversation, options, &response->actions);
+    if (!actions.ok()) {
+      TC3_LOG(ERROR) << "Could not run conversation intent detection: "
+                     << actions.error_message();
+      return false;
+    }
   }
 
   if (!SuggestActionsFromLua(
@@ -1382,6 +1476,18 @@ const ActionsModel* ViewActionsModel(const void* buffer, int size) {
     return nullptr;
   }
   return LoadAndVerifyModel(reinterpret_cast<const uint8_t*>(buffer), size);
+}
+
+bool ActionsSuggestions::InitializeConversationIntentDetection(
+    const std::string& serialized_config) {
+  auto conversation_intent_detection =
+      std::make_unique<ConversationIntentDetection>();
+  if (!conversation_intent_detection->Initialize(serialized_config).ok()) {
+    TC3_LOG(ERROR) << "Failed to initialize conversation intent detection.";
+    return false;
+  }
+  conversation_intent_detection_ = std::move(conversation_intent_detection);
+  return true;
 }
 
 }  // namespace libtextclassifier3
