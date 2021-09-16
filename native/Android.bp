@@ -148,13 +148,14 @@ cc_defaults {
         "libutf",
         "libtflite_static",
     ],
+    min_sdk_version: "30",
 }
 
 // -----------------
 // Generate headers with FlatBuffer schema compiler.
 // -----------------
 genrule_defaults {
-	name: "fbgen",
+       name: "fbgen",
     tools: ["flatc"],
     // "depfile" is used here in conjunction with flatc's -M to gather the deps
     cmd: "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -M $(in) >$(depfile) && " +

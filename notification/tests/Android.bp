@@ -46,4 +46,5 @@ android_test {
     ],
 
     instrumentation_for: "TextClassifierNotificationLib",
+    min_sdk_version: "30",
 }
