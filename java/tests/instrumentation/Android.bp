@@ -62,4 +62,5 @@ android_test {
     compile_multilib: "both",
 
     instrumentation_for: "TextClassifierService",
+    min_sdk_version: "30",
 }
