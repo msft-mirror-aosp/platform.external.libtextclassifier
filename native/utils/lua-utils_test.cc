@@ -95,6 +95,119 @@ TYPED_TEST(TypedLuaUtilsTest, HandlesVectorIterators) {
               testing::ContainerEq(elements));
 }
 
+TEST_F(LuaUtilsTest, IndexCallback) {
+  test::TestDataT input_data;
+  input_data.repeated_byte_field = {1, 2};
+  input_data.repeated_ubyte_field = {1, 2};
+  input_data.repeated_int_field = {1, 2};
+  input_data.repeated_uint_field = {1, 2};
+  input_data.repeated_long_field = {1, 2};
+  input_data.repeated_ulong_field = {1, 2};
+  input_data.repeated_bool_field = {true, false};
+  input_data.repeated_float_field = {1, 2};
+  input_data.repeated_double_field = {1, 2};
+  input_data.repeated_string_field = {"1", "2"};
+
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(test::TestData::Pack(builder, &input_data));
+  const flatbuffers::DetachedBuffer input_buffer = builder.Release();
+  PushFlatbuffer(schema_.get(),
+                 flatbuffers::GetRoot<flatbuffers::Table>(input_buffer.data()));
+  lua_setglobal(state_, "arg");
+  // A Lua script that reads the vectors and return the first value of them.
+  // This should trigger the __index callback.
+  RunScript(R"lua(
+    return {
+        byte_field = arg.repeated_byte_field[1],
+        ubyte_field = arg.repeated_ubyte_field[1],
+        int_field = arg.repeated_int_field[1],
+        uint_field = arg.repeated_uint_field[1],
+        long_field = arg.repeated_long_field[1],
+        ulong_field = arg.repeated_ulong_field[1],
+        bool_field = arg.repeated_bool_field[1],
+        float_field = arg.repeated_float_field[1],
+        double_field = arg.repeated_double_field[1],
+        string_field = arg.repeated_string_field[1],
+    }
+  )lua");
+
+  // Read the flatbuffer.
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  ReadFlatbuffer(/*index=*/-1, buffer.get());
+  const std::string serialized_buffer = buffer->Serialize();
+  std::unique_ptr<test::TestDataT> test_data =
+      LoadAndVerifyMutableFlatbuffer<test::TestData>(buffer->Serialize());
+
+  EXPECT_THAT(test_data->byte_field, 1);
+  EXPECT_THAT(test_data->ubyte_field, 1);
+  EXPECT_THAT(test_data->int_field, 1);
+  EXPECT_THAT(test_data->uint_field, 1);
+  EXPECT_THAT(test_data->long_field, 1);
+  EXPECT_THAT(test_data->ulong_field, 1);
+  EXPECT_THAT(test_data->bool_field, true);
+  EXPECT_THAT(test_data->float_field, FloatEq(1));
+  EXPECT_THAT(test_data->double_field, DoubleEq(1));
+  EXPECT_THAT(test_data->string_field, "1");
+}
+
+TEST_F(LuaUtilsTest, PairCallback) {
+  test::TestDataT input_data;
+  input_data.repeated_byte_field = {1, 2};
+  input_data.repeated_ubyte_field = {1, 2};
+  input_data.repeated_int_field = {1, 2};
+  input_data.repeated_uint_field = {1, 2};
+  input_data.repeated_long_field = {1, 2};
+  input_data.repeated_ulong_field = {1, 2};
+  input_data.repeated_bool_field = {true, false};
+  input_data.repeated_float_field = {1, 2};
+  input_data.repeated_double_field = {1, 2};
+  input_data.repeated_string_field = {"1", "2"};
+
+  flatbuffers::FlatBufferBuilder builder;
+  builder.Finish(test::TestData::Pack(builder, &input_data));
+  const flatbuffers::DetachedBuffer input_buffer = builder.Release();
+  PushFlatbuffer(schema_.get(),
+                 flatbuffers::GetRoot<flatbuffers::Table>(input_buffer.data()));
+  lua_setglobal(state_, "arg");
+
+  // Iterate the pushed repeated fields by using the pair API and check
+  // if the value is correct. This should trigger the __pair callback.
+  RunScript(R"lua(
+    function equal(table1, table2)
+      for key, value in pairs(table1) do
+          if value ~= table2[key] then
+              return false
+          end
+      end
+      return true
+    end
+
+    local valid = equal(arg.repeated_byte_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_ubyte_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_int_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_uint_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_long_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_ulong_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_bool_field, {[1]=true,[2]=false})
+    valid = valid and equal(arg.repeated_float_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_double_field, {[1]=1,[2]=2})
+    valid = valid and equal(arg.repeated_string_field, {[1]="1",[2]="2"})
+
+    return {
+        bool_field = valid
+    }
+  )lua");
+
+  // Read the flatbuffer.
+  std::unique_ptr<MutableFlatbuffer> buffer = flatbuffer_builder_.NewRoot();
+  ReadFlatbuffer(/*index=*/-1, buffer.get());
+  const std::string serialized_buffer = buffer->Serialize();
+  std::unique_ptr<test::TestDataT> test_data =
+      LoadAndVerifyMutableFlatbuffer<test::TestData>(buffer->Serialize());
+
+  EXPECT_THAT(test_data->bool_field, true);
+}
+
 TEST_F(LuaUtilsTest, PushAndReadsFlatbufferRoundTrip) {
   // Setup.
   test::TestDataT input_data;

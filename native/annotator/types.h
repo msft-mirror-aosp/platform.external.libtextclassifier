@@ -101,6 +101,11 @@ inline bool SpansOverlap(const CodepointSpan& a, const CodepointSpan& b) {
   return a.first < b.second && b.first < a.second;
 }
 
+inline bool SpanContains(const CodepointSpan& span,
+                         const CodepointSpan& sub_span) {
+  return span.first <= sub_span.first && span.second >= sub_span.second;
+}
+
 template <typename T>
 bool DoesCandidateConflict(
     const int considered_candidate, const std::vector<T>& candidates,

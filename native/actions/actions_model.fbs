@@ -15,15 +15,15 @@
 //
 
 include "actions/actions-entity-data.fbs";
-include "utils/grammar/rules.fbs";
-include "utils/tokenizer.fbs";
-include "utils/flatbuffers/flatbuffers.fbs";
-include "utils/codepoint-range.fbs";
-include "utils/zlib/buffer.fbs";
-include "utils/normalization.fbs";
 include "annotator/model.fbs";
+include "utils/codepoint-range.fbs";
+include "utils/flatbuffers/flatbuffers.fbs";
+include "utils/grammar/rules.fbs";
 include "utils/intents/intent-config.fbs";
+include "utils/normalization.fbs";
 include "utils/resources.fbs";
+include "utils/tokenizer.fbs";
+include "utils/zlib/buffer.fbs";
 
 file_identifier "TC3A";
 
@@ -116,6 +116,10 @@ table TensorflowLiteModelSpec {
 
   // Map of additional input tensor name to its index.
   input_name_index:[TensorflowLiteModelSpec_.InputNameIndexEntry];
+
+  // If greater than 0, pad or truncate the input_user_id and input_context
+  // tensor to length of input_length_to_pad.
+  input_length_to_pad:int = 0;
 }
 
 // Configuration for the tokenizer.
@@ -240,6 +244,17 @@ table NGramLinearRegressionModel {
   // Model specific tokenizer options.
   // If not specified, will reuse the feature processor tokenizer.
   tokenizer_options:ActionsTokenizerOptions;
+}
+
+// TFLite based sensitive topic classifier model.
+namespace libtextclassifier3;
+table TFLiteSensitiveClassifierConfig {
+  // Specification of the model.
+  model_spec:TensorflowLiteModelSpec;
+
+  // Triggering threshold, if a sensitive topic has a score higher than this
+  // value, it triggers the classifier.
+  threshold:float;
 }
 
 namespace libtextclassifier3;
@@ -550,6 +565,8 @@ table ActionsModel {
 
   // Feature processor options.
   feature_processor_options:ActionsTokenFeatureProcessorOptions;
+
+  low_confidence_tflite_model:TFLiteSensitiveClassifierConfig;
 }
 
 root_type libtextclassifier3.ActionsModel;
