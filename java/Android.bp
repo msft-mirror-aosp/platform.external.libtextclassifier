@@ -29,7 +29,7 @@ android_app {
     static_libs: ["TextClassifierServiceLib"],
     jni_libs: ["libtextclassifier"],
     sdk_version: "system_current",
-    min_sdk_version: "28",
+    min_sdk_version: "30",
     certificate: "platform",
     optimize: {
         proguard_flags_files: ["proguard.flags"],
@@ -42,8 +42,11 @@ android_library {
     name: "TextClassifierServiceLib",
     static_libs: ["TextClassifierServiceLibNoManifest"],
     sdk_version: "system_current",
-    min_sdk_version: "28",
+    min_sdk_version: "30",
     manifest: "AndroidManifest.xml",
+    aaptflags: [
+        "-0 .model",
+    ],
 }
 
 // Similar to TextClassifierServiceLib, but without the AndroidManifest.
@@ -60,12 +63,17 @@ android_library {
         "error_prone_annotations",
     ],
     sdk_version: "system_current",
-    min_sdk_version: "28",
+    min_sdk_version: "30",
+    aaptflags: [
+        "-0 .model",
+    ],
+
 }
 
 java_library {
     name: "textclassifier-statsd",
     sdk_version: "system_current",
+    min_sdk_version: "30",
     srcs: [
         ":statslog-textclassifier-java-gen",
     ],
@@ -75,7 +83,7 @@ genrule {
     name: "statslog-textclassifier-java-gen",
     tools: ["stats-log-api-gen"],
     cmd: "$(location stats-log-api-gen) --java $(out) --module textclassifier" +
-         " --javaPackage com.android.textclassifier --javaClass TextClassifierStatsLog" +
-         " --minApiLevel 30",
-    out: ["com/android/textclassifier/TextClassifierStatsLog.java"],
+         " --javaPackage com.android.textclassifier.common.statsd" +
+         " --javaClass TextClassifierStatsLog --minApiLevel 30",
+    out: ["com/android/textclassifier/common/statsd/TextClassifierStatsLog.java"],
 }
