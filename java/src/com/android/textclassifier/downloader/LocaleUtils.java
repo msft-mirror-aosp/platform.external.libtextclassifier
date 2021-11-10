@@ -21,8 +21,8 @@ import android.util.Pair;
 import com.android.textclassifier.common.ModelType.ModelTypeDef;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
 import javax.annotation.Nullable;
 
@@ -41,18 +41,19 @@ final class LocaleUtils {
   @Nullable
   static Pair<String, String> lookupBestLocaleTagAndManifestUrl(
       @ModelTypeDef String modelType, Locale targetLocale, TextClassifierSettings settings) {
-    List<String> allLocaleTags = settings.getLanguageTagsForManifestURL(modelType);
+    ImmutableMap<String, String> localeTagUrlMap =
+        settings.getLanguageTagAndManifestUrlMap(modelType);
+    Collection<String> allLocaleTags = localeTagUrlMap.keySet();
     String bestLocaleTag = lookupBestLocaleTag(targetLocale, allLocaleTags);
     if (bestLocaleTag == null) {
       return null;
     }
-    String manifestUrl = settings.getManifestURL(modelType, bestLocaleTag);
+    String manifestUrl = localeTagUrlMap.get(bestLocaleTag);
     if (TextUtils.isEmpty(manifestUrl)) {
       return null;
     }
     return Pair.create(bestLocaleTag, manifestUrl);
   }
-
   /** Find the best locale tag for the target locale. Return null if no one is suitable. */
   @Nullable
   static String lookupBestLocaleTag(Locale targetLocale, Collection<String> availableTags) {
