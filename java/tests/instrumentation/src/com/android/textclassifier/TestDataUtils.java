@@ -17,8 +17,9 @@
 package com.android.textclassifier;
 
 import android.content.Context;
-import com.android.textclassifier.ModelFileManager.RegularFileFullMatchLister;
+import com.android.textclassifier.ModelFileManagerImpl.RegularFileFullMatchLister;
 import com.android.textclassifier.common.ModelType;
+import com.android.textclassifier.common.TextClassifierSettings;
 import com.google.common.collect.ImmutableList;
 import java.io.File;
 
@@ -46,14 +47,15 @@ public final class TestDataUtils {
   }
 
   public static ModelFileManager createModelFileManagerForTesting(Context context) {
-    return new ModelFileManager(
+    return new ModelFileManagerImpl(
         context,
         ImmutableList.of(
             new RegularFileFullMatchLister(
                 ModelType.ANNOTATOR, getTestAnnotatorModelFile(), () -> true),
             new RegularFileFullMatchLister(
                 ModelType.ACTIONS_SUGGESTIONS, getTestActionsModelFile(), () -> true),
-            new RegularFileFullMatchLister(ModelType.LANG_ID, getLangIdModelFile(), () -> true)));
+            new RegularFileFullMatchLister(ModelType.LANG_ID, getLangIdModelFile(), () -> true)),
+        new TextClassifierSettings());
   }
 
   private TestDataUtils() {}

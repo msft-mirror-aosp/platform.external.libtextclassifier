@@ -437,7 +437,8 @@ struct ClassificationResult {
   ContactPointer contact_pointer;
   std::string contact_name, contact_given_name, contact_family_name,
       contact_nickname, contact_email_address, contact_phone_number,
-      contact_account_type, contact_account_name, contact_id;
+      contact_account_type, contact_account_name, contact_id,
+      contact_alternate_name;
   std::string app_name, app_package_name;
   int64 numeric_value;
   double numeric_double_value;
