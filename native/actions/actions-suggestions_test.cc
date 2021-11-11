@@ -63,6 +63,8 @@ constexpr char kMultiTaskSrEmojiModelFileName[] =
     "actions_suggestions_test.multi_task_sr_emoji.model";
 constexpr char kSensitiveTFliteModelFileName[] =
     "actions_suggestions_test.sensitive_tflite.model";
+constexpr char kLiveRelayTFLiteModelFileName[] =
+    "actions_suggestions_test.live_relay.model";
 
 std::string ReadFile(const std::string& file_name) {
   std::ifstream file_stream(file_name);
@@ -1808,6 +1810,23 @@ TEST_F(ActionsSuggestionsTest, SuggestsActionsFromMultiTaskSrEmojiModel) {
   EXPECT_EQ(response.actions[0].type, "EMOJI_CONCEPT");
   EXPECT_EQ(response.actions[1].response_text, "Yes");
   EXPECT_EQ(response.actions[1].type, "REPLY_SUGGESTION");
+}
+
+TEST_F(ActionsSuggestionsTest, LiveRelayModel) {
+  std::unique_ptr<ActionsSuggestions> actions_suggestions =
+      LoadTestModel(kLiveRelayTFLiteModelFileName);
+  const ActionsSuggestionsResponse response =
+      actions_suggestions->SuggestActions(
+          {{{/*user_id=*/1, "Hi",
+             /*reference_time_ms_utc=*/0,
+             /*reference_timezone=*/"Europe/Zurich",
+             /*annotations=*/{},
+             /*locales=*/"en"}}});
+  EXPECT_EQ(response.actions.size(), 3);
+  EXPECT_EQ(response.actions[0].response_text, "Hi how are you doing");
+  EXPECT_EQ(response.actions[0].type, "text_reply");
+  EXPECT_EQ(response.actions[1].response_text, "Hi whats up");
+  EXPECT_EQ(response.actions[1].type, "text_reply");
 }
 
 TEST_F(ActionsSuggestionsTest, SuggestsActionsFromSensitiveTfLiteModel) {

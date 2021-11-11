@@ -27,6 +27,14 @@ message ModelManifest {
     optional string url = 1;
     optional int64 size_in_bytes = 2;
     optional string fingerprint = 3;
+    // ModelUsage enum used to assign usage to Model files.
+    // Model file could have one of {DARK, LIVE, UNKNOWN} usage value.
+    enum ModelUsage {
+      UNKNOWN_USAGE = 0;
+      LIVE_MODEL = 1;
+      DARK_MODEL = 2;
+    }
+    optional ModelUsage usage = 4;
   }
   // All models to download in this task. Currently the size is always one.
   repeated Model models = 1;

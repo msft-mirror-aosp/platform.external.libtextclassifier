@@ -34,6 +34,7 @@ import com.android.textclassifier.common.TextClassifierServiceExecutors;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
+import com.android.textclassifier.downloader.ModelDownloadManager;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -58,7 +59,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   // TODO: Figure out do we need more concurrency.
   private ListeningExecutorService normPriorityExecutor;
   private ListeningExecutorService lowPriorityExecutor;
-  @Nullable private com.android.textclassifier.downloader.ModelDownloadManager modelDownloadManager;
+
+  @Nullable private ModelDownloadManager modelDownloadManager;
+
   private TextClassifierImpl textClassifier;
   private TextClassifierSettings settings;
   private ModelFileManager modelFileManager;
@@ -78,20 +81,18 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   @Override
   public void onCreate() {
     super.onCreate();
-
     settings = injector.createTextClassifierSettings();
-    modelFileManager = injector.createModelFileManager(settings);
-    normPriorityExecutor = injector.createNormPriorityExecutor();
-    lowPriorityExecutor = injector.createLowPriorityExecutor();
-    textClassifier = injector.createTextClassifierImpl(settings, modelFileManager);
-    sessionIdToContext = new LruCache<>(settings.getSessionIdToContextCacheSize());
     modelDownloadManager =
-        new com.android.textclassifier.downloader.ModelDownloadManager(
+        new ModelDownloadManager(
             injector.getContext().getApplicationContext(),
             settings,
             TextClassifierServiceExecutors.getDownloaderExecutor());
     modelDownloadManager.onTextClassifierServiceCreated();
-    modelFileManager.addModelDownloaderModels(modelDownloadManager, settings);
+    modelFileManager = injector.createModelFileManager(settings, modelDownloadManager);
+    normPriorityExecutor = injector.createNormPriorityExecutor();
+    lowPriorityExecutor = injector.createLowPriorityExecutor();
+    textClassifier = injector.createTextClassifierImpl(settings, modelFileManager);
+    sessionIdToContext = new LruCache<>(settings.getSessionIdToContextCacheSize());
     textClassifierApiUsageLogger =
         injector.createTextClassifierApiUsageLogger(settings, lowPriorityExecutor);
   }
@@ -308,8 +309,9 @@ public final class DefaultTextClassifierService extends TextClassifierService {
     }
 
     @Override
-    public ModelFileManager createModelFileManager(TextClassifierSettings settings) {
-      return new ModelFileManager(context, settings);
+    public ModelFileManager createModelFileManager(
+        TextClassifierSettings settings, ModelDownloadManager modelDownloadManager) {
+      return new ModelFileManagerImpl(context, modelDownloadManager, settings);
     }
 
     @Override
@@ -348,7 +350,8 @@ public final class DefaultTextClassifierService extends TextClassifierService {
   interface Injector {
     Context getContext();
 
-    ModelFileManager createModelFileManager(TextClassifierSettings settings);
+    ModelFileManager createModelFileManager(
+        TextClassifierSettings settings, ModelDownloadManager modelDownloadManager);
 
     TextClassifierSettings createTextClassifierSettings();
 
