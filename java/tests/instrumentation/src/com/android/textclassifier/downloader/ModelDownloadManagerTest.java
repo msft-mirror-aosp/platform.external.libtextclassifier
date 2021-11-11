@@ -76,7 +76,7 @@ public final class ModelDownloadManagerTest {
     this.downloadManager =
         new ModelDownloadManager(
             context,
-            NewModelDownloadWorker.class,
+            ModelDownloadWorker.class,
             downloadedModelManager,
             new TextClassifierSettings(deviceConfig),
             MoreExecutors.newDirectExecutorService());
@@ -101,6 +101,16 @@ public final class ModelDownloadManagerTest {
             DownloaderTestUtils.queryWorkInfos(
                 workManager, ModelDownloadManager.UNIQUE_QUEUE_NAME));
     assertThat(workInfo.getState()).isEqualTo(WorkInfo.State.ENQUEUED);
+  }
+
+  @Test
+  public void onTextClassifierServiceCreated_localeListOverridden() throws Exception {
+    deviceConfig.setConfig(TextClassifierSettings.TESTING_LOCALE_LIST_OVERRIDE, "zh,fr");
+    downloadManager.onTextClassifierServiceCreated();
+
+    assertThat(Locale.getDefault()).isEqualTo(Locale.forLanguageTag("zh"));
+    assertThat(LocaleList.getDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
+    assertThat(LocaleList.getAdjustedDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
   }
 
   @Test
@@ -144,6 +154,16 @@ public final class ModelDownloadManagerTest {
 
     assertThat(workInfos.stream().map(WorkInfo::getState).collect(Collectors.toList()))
         .containsExactly(WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED);
+  }
+
+  @Test
+  public void onTextClassifierDeviceConfigChanged_localeListOverridden() throws Exception {
+    deviceConfig.setConfig(TextClassifierSettings.TESTING_LOCALE_LIST_OVERRIDE, "zh,fr");
+    downloadManager.onTextClassifierDeviceConfigChanged();
+
+    assertThat(Locale.getDefault()).isEqualTo(Locale.forLanguageTag("zh"));
+    assertThat(LocaleList.getDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
+    assertThat(LocaleList.getAdjustedDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
   }
 
   @Test
