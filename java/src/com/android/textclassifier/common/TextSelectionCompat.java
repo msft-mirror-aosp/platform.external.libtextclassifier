@@ -16,17 +16,17 @@
 
 package com.android.textclassifier.common;
 
-import android.os.Build;
 import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextSelection;
 import androidx.annotation.RequiresApi;
+import androidx.core.os.BuildCompat;
 import javax.annotation.Nullable;
 
 /** Compatibility methods for {@link TextSelection}. */
 public final class TextSelectionCompat {
 
   public static boolean shouldIncludeTextClassification(TextSelection.Request request) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    if (BuildCompat.isAtLeastS()) {
       return Api31Impl.shouldIncludeTextClassification(request);
     }
     return Api30Impl.shouldIncludeTextClassification(request);
@@ -34,7 +34,7 @@ public final class TextSelectionCompat {
 
   public static void setTextClassification(
       TextSelection.Builder builder, @Nullable TextClassification textClassification) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    if (BuildCompat.isAtLeastS()) {
       Api31Impl.setTextClassification(builder, textClassification);
     }
   }
