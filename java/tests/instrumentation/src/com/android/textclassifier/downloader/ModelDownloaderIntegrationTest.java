@@ -26,6 +26,7 @@ import android.view.textclassifier.TextClassification.Request;
 import android.view.textclassifier.TextClassifier;
 import androidx.test.platform.app.InstrumentationRegistry;
 import com.android.textclassifier.testing.ExtServicesTextClassifierRule;
+import com.android.textclassifier.testing.TestingLocaleListOverrideRule;
 import java.io.IOException;
 import org.junit.After;
 import org.junit.Before;
@@ -42,8 +43,15 @@ public class ModelDownloaderIntegrationTest {
   private static final String EXPERIMENTAL_EN_TAG = "en_v999999999";
   private static final String V804_EN_ANNOTATOR_MANIFEST_URL =
       "https://www.gstatic.com/android/text_classifier/r/v804/en.fb.manifest";
+  private static final String V804_RU_ANNOTATOR_MANIFEST_URL =
+      "https://www.gstatic.com/android/text_classifier/r/v804/ru.fb.manifest";
   private static final String V804_EN_TAG = "en_v804";
+  private static final String V804_RU_TAG = "ru_v804";
   private static final String FACTORY_MODEL_TAG = "*";
+
+  @Rule
+  public final TestingLocaleListOverrideRule testingLocaleListOverrideRule =
+      new TestingLocaleListOverrideRule();
 
   @Rule
   public final ExtServicesTextClassifierRule extServicesTextClassifierRule =
@@ -56,7 +64,7 @@ public class ModelDownloaderIntegrationTest {
     // Flag overrides below can be overridden by Phenotype sync, which makes this test flaky
     runShellCommand("device_config put textclassifier config_updater_model_enabled false");
     runShellCommand("device_config put textclassifier model_download_manager_enabled true");
-    runShellCommand("device_config put textclassifier model_download_backoff_delay_in_millis 1");
+    runShellCommand("device_config put textclassifier model_download_backoff_delay_in_millis 5");
 
     textClassifier = extServicesTextClassifierRule.getTextClassifier();
     startExtservicesProcess();
@@ -65,7 +73,9 @@ public class ModelDownloaderIntegrationTest {
   @After
   public void tearDown() throws Exception {
     runShellCommand("device_config delete textclassifier manifest_url_annotator_en");
+    runShellCommand("device_config delete textclassifier manifest_url_annotator_ru");
     runShellCommand("device_config put textclassifier config_updater_model_enabled true");
+    runShellCommand("device_config delete textclassifier multi_language_support_enabled");
     runShellCommand(
         "device_config put textclassifier model_download_backoff_delay_in_millis 3600000");
   }
@@ -77,7 +87,7 @@ public class ModelDownloaderIntegrationTest {
             + V804_EN_ANNOTATOR_MANIFEST_URL);
 
     assertWithRetries(
-        /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(V804_EN_TAG));
+        /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveEnglishModel(V804_EN_TAG));
   }
 
   @Test
@@ -89,7 +99,9 @@ public class ModelDownloaderIntegrationTest {
               + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(EXPERIMENTAL_EN_TAG));
+          /* maxAttempts= */ 10,
+          /* sleepMs= */ 500,
+          () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
 
     // Downgrade to an older model.
@@ -99,7 +111,7 @@ public class ModelDownloaderIntegrationTest {
               + V804_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(V804_EN_TAG));
+          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveEnglishModel(V804_EN_TAG));
     }
   }
 
@@ -112,7 +124,7 @@ public class ModelDownloaderIntegrationTest {
               + V804_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(V804_EN_TAG));
+          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveEnglishModel(V804_EN_TAG));
     }
 
     // Upgrade to an experimental model.
@@ -122,7 +134,9 @@ public class ModelDownloaderIntegrationTest {
               + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(EXPERIMENTAL_EN_TAG));
+          /* maxAttempts= */ 10,
+          /* sleepMs= */ 500,
+          () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
   }
 
@@ -135,7 +149,9 @@ public class ModelDownloaderIntegrationTest {
               + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(EXPERIMENTAL_EN_TAG));
+          /* maxAttempts= */ 10,
+          /* sleepMs= */ 500,
+          () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
 
     // Revert the flag.
@@ -143,8 +159,37 @@ public class ModelDownloaderIntegrationTest {
       runShellCommand("device_config delete textclassifier manifest_url_annotator_en");
       // Fallback to use the universal model.
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(FACTORY_MODEL_TAG));
+          /* maxAttempts= */ 10,
+          /* sleepMs= */ 500,
+          () -> verifyActiveModel(/* text= */ "abc", /* expectedVersion= */ FACTORY_MODEL_TAG));
     }
+  }
+
+  @Test
+  public void modelsForMultipleLanguagesDownloaded() throws IOException, InterruptedException {
+    runShellCommand("device_config put textclassifier multi_language_support_enabled true");
+    testingLocaleListOverrideRule.set("en-US", "ru-RU");
+
+    // download en model
+    runShellCommand(
+        "device_config put textclassifier manifest_url_annotator_en "
+            + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
+
+    // download ru model
+    runShellCommand(
+        "device_config put textclassifier manifest_url_annotator_ru "
+            + V804_RU_ANNOTATOR_MANIFEST_URL);
+    assertWithRetries(
+        /* maxAttempts= */ 10,
+        /* sleepMs= */ 500,
+        () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
+
+    assertWithRetries(/* maxAttempts= */ 10, /* sleepMs= */ 500, this::verifyActiveRussianModel);
+
+    assertWithRetries(
+        /* maxAttempts= */ 10,
+        /* sleepMs= */ 500,
+        () -> verifyActiveModel(/* text= */ "français", /* expectedVersion= */ FACTORY_MODEL_TAG));
   }
 
   private void assertWithRetries(int maxAttempts, int sleepMs, Runnable assertRunnable)
@@ -163,11 +208,19 @@ public class ModelDownloaderIntegrationTest {
     }
   }
 
-  private void verifyActiveModel(String expectedVersion) {
+  private void verifyActiveModel(String text, String expectedVersion) {
     TextClassification textClassification =
-        textClassifier.classifyText(new Request.Builder("abc", 0, 3).build());
+        textClassifier.classifyText(new Request.Builder(text, 0, text.length()).build());
     // The result id contains the name of the just used model.
     assertThat(textClassification.getId()).contains(expectedVersion);
+  }
+
+  private void verifyActiveEnglishModel(String expectedVersion) {
+    verifyActiveModel("abc", expectedVersion);
+  }
+
+  private void verifyActiveRussianModel() {
+    verifyActiveModel("привет", V804_RU_TAG);
   }
 
   private void startExtservicesProcess() {
