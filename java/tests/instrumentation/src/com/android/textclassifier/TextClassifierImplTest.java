@@ -18,9 +18,11 @@ package com.android.textclassifier;
 
 import static com.google.common.truth.Truth.assertThat;
 import static org.hamcrest.CoreMatchers.not;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.expectThrows;
 
 import android.app.RemoteAction;
@@ -38,12 +40,17 @@ import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextSelection;
+import androidx.collection.LruCache;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.filters.SmallTest;
+import com.android.textclassifier.common.ModelFile;
+import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.testing.FakeContextBuilder;
+import com.android.textclassifier.testing.TestingDeviceConfig;
+import com.google.android.textclassifier.AnnotatorModel;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +63,8 @@ import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -65,18 +74,29 @@ public class TextClassifierImplTest {
   private static final LocaleList LOCALES = LocaleList.forLanguageTags("en-US");
   private static final String NO_TYPE = null;
 
+  @Mock private ModelFileManagerImpl.ModelFileLister mockModelFileLister;
+
+  private TextClassifierSettings settings;
+  private Context context;
+  private TestingDeviceConfig deviceConfig;
   private TextClassifierImpl classifier;
+
   private final ModelFileManager modelFileManager =
       TestDataUtils.createModelFileManagerForTesting(ApplicationProvider.getApplicationContext());
+  private LruCache<ModelFile, AnnotatorModel> annotatorModelCache;
 
   @Before
   public void setup() {
+    MockitoAnnotations.initMocks(this);
+    deviceConfig = new TestingDeviceConfig();
     Context context =
         new FakeContextBuilder()
             .setAllIntentComponent(FakeContextBuilder.DEFAULT_COMPONENT)
             .setAppLabel(FakeContextBuilder.DEFAULT_COMPONENT.getPackageName(), "Test app")
             .build();
-    TextClassifierSettings settings = new TextClassifierSettings();
+    this.context = context;
+    settings = new TextClassifierSettings(deviceConfig);
+    // TODO(veronikanikina): consider using a testing constructor here.
     classifier = new TextClassifierImpl(context, settings, modelFileManager);
   }
 
@@ -542,6 +562,160 @@ public class TextClassifierImplTest {
         classifier.suggestConversationActions(null, null, request);
 
     assertThat(conversationActions.getConversationActions()).isEmpty();
+  }
+
+  @Test
+  public void testUseCachedAnnotatorModelDisabled() throws IOException {
+    deviceConfig.setConfig(TextClassifierSettings.MODEL_DOWNLOAD_MANAGER_ENABLED, true);
+
+    String annotatorFilePath = TestDataUtils.getTestAnnotatorModelFile().getPath();
+    ModelFile annotatorModelA =
+        new ModelFile(ModelType.ANNOTATOR, annotatorFilePath, 701, "en", false);
+    ModelFile annotatorModelB =
+        new ModelFile(ModelType.ANNOTATOR, annotatorFilePath, 801, "en", false);
+    String langIdFilePath = TestDataUtils.getLangIdModelFile().getPath();
+    ModelFile langIdModel = new ModelFile(ModelType.LANG_ID, langIdFilePath, 1, "*", false);
+
+    annotatorModelCache = new LruCache<>(2);
+    ModelFileManager modelFileManagerCached =
+        new ModelFileManagerImpl(context, ImmutableList.of(mockModelFileLister), settings);
+    TextClassifierImpl textClassifierImpl =
+        new TextClassifierImpl(context, settings, modelFileManagerCached, annotatorModelCache);
+
+    LocaleList.setDefault(LocaleList.forLanguageTags("en"));
+    String englishText = "You can reach me on +12122537077.";
+    String classifiedText = "+12122537077";
+    TextClassification.Request request =
+        new TextClassification.Request.Builder(englishText, 0, englishText.length())
+            .setDefaultLocales(LOCALES)
+            .build();
+
+    when(mockModelFileLister.list(ModelType.LANG_ID)).thenReturn(ImmutableList.of(langIdModel));
+
+    // Check modelFileA v701
+    when(mockModelFileLister.list(ModelType.ANNOTATOR))
+        .thenReturn(ImmutableList.of(annotatorModelA));
+    TextClassification classificationA = textClassifierImpl.classifyText(null, null, request);
+
+    assertThat(classificationA.getId()).contains("v701");
+    assertThat(classificationA.getText()).contains(classifiedText);
+    assertArrayEquals(
+        new int[] {0, 0, 0, 0},
+        new int[] {
+          annotatorModelCache.putCount(),
+          annotatorModelCache.evictionCount(),
+          annotatorModelCache.hitCount(),
+          annotatorModelCache.missCount()
+        });
+
+    // Check modelFileB v801
+    when(mockModelFileLister.list(ModelType.ANNOTATOR))
+        .thenReturn(ImmutableList.of(annotatorModelB));
+    TextClassification classificationB = textClassifierImpl.classifyText(null, null, request);
+
+    assertThat(classificationB.getId()).contains("v801");
+    assertThat(classificationB.getText()).contains(classifiedText);
+    assertArrayEquals(
+        new int[] {0, 0, 0, 0},
+        new int[] {
+          annotatorModelCache.putCount(),
+          annotatorModelCache.evictionCount(),
+          annotatorModelCache.hitCount(),
+          annotatorModelCache.missCount()
+        });
+
+    // Reload modelFileA v701
+    when(mockModelFileLister.list(ModelType.ANNOTATOR))
+        .thenReturn(ImmutableList.of(annotatorModelA));
+    TextClassification classificationAcached = textClassifierImpl.classifyText(null, null, request);
+
+    assertThat(classificationAcached.getId()).contains("v701");
+    assertThat(classificationAcached.getText()).contains(classifiedText);
+    assertArrayEquals(
+        new int[] {0, 0, 0, 0},
+        new int[] {
+          annotatorModelCache.putCount(),
+          annotatorModelCache.evictionCount(),
+          annotatorModelCache.hitCount(),
+          annotatorModelCache.missCount()
+        });
+  }
+
+  @Test
+  public void testUseCachedAnnotatorModelEnabled() throws IOException {
+    deviceConfig.setConfig(TextClassifierSettings.MODEL_DOWNLOAD_MANAGER_ENABLED, true);
+    deviceConfig.setConfig(TextClassifierSettings.MULTI_ANNOTATOR_CACHE_ENABLED, true);
+
+    String annotatorFilePath = TestDataUtils.getTestAnnotatorModelFile().getPath();
+    ModelFile annotatorModelA =
+        new ModelFile(ModelType.ANNOTATOR, annotatorFilePath, 701, "en", false);
+    ModelFile annotatorModelB =
+        new ModelFile(ModelType.ANNOTATOR, annotatorFilePath, 801, "en", false);
+    String langIdFilePath = TestDataUtils.getLangIdModelFile().getPath();
+    ModelFile langIdModel = new ModelFile(ModelType.LANG_ID, langIdFilePath, 1, "*", false);
+
+    annotatorModelCache = new LruCache<>(settings.getMultiAnnotatorCacheSize());
+    ModelFileManager modelFileManagerCached =
+        new ModelFileManagerImpl(context, ImmutableList.of(mockModelFileLister), settings);
+    TextClassifierImpl textClassifierImpl =
+        new TextClassifierImpl(context, settings, modelFileManagerCached, annotatorModelCache);
+    LocaleList.setDefault(LocaleList.forLanguageTags("en"));
+    String englishText = "You can reach me on +12122537077.";
+    String classifiedText = "+12122537077";
+    TextClassification.Request request =
+        new TextClassification.Request.Builder(englishText, 0, englishText.length())
+            .setDefaultLocales(LOCALES)
+            .build();
+
+    when(mockModelFileLister.list(ModelType.LANG_ID)).thenReturn(ImmutableList.of(langIdModel));
+
+    // Check modelFileA v701
+    when(mockModelFileLister.list(ModelType.ANNOTATOR))
+        .thenReturn(ImmutableList.of(annotatorModelA));
+    TextClassification classification = textClassifierImpl.classifyText(null, null, request);
+
+    assertThat(classification.getId()).contains("v701");
+    assertThat(classification.getText()).contains(classifiedText);
+    assertArrayEquals(
+        new int[] {1, 0, 0, 1},
+        new int[] {
+          annotatorModelCache.putCount(),
+          annotatorModelCache.evictionCount(),
+          annotatorModelCache.hitCount(),
+          annotatorModelCache.missCount()
+        });
+
+    // Check modelFileB v801
+    when(mockModelFileLister.list(ModelType.ANNOTATOR))
+        .thenReturn(ImmutableList.of(annotatorModelB));
+    TextClassification classificationB = textClassifierImpl.classifyText(null, null, request);
+
+    assertThat(classificationB.getId()).contains("v801");
+    assertThat(classificationB.getText()).contains(classifiedText);
+    assertArrayEquals(
+        new int[] {2, 0, 0, 2},
+        new int[] {
+          annotatorModelCache.putCount(),
+          annotatorModelCache.evictionCount(),
+          annotatorModelCache.hitCount(),
+          annotatorModelCache.missCount()
+        });
+
+    // Reload modelFileA v701
+    when(mockModelFileLister.list(ModelType.ANNOTATOR))
+        .thenReturn(ImmutableList.of(annotatorModelA));
+    TextClassification classificationAcached = textClassifierImpl.classifyText(null, null, request);
+
+    assertThat(classificationAcached.getId()).contains("v701");
+    assertThat(classificationAcached.getText()).contains(classifiedText);
+    assertArrayEquals(
+        new int[] {2, 0, 1, 2},
+        new int[] {
+          annotatorModelCache.putCount(),
+          annotatorModelCache.evictionCount(),
+          annotatorModelCache.hitCount(),
+          annotatorModelCache.missCount()
+        });
   }
 
   private static void assertNoPackageInfoInExtras(Intent intent) {
