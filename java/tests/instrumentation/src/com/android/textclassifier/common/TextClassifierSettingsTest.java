@@ -18,12 +18,11 @@ package com.android.textclassifier.common;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.provider.DeviceConfig;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
+import com.android.textclassifier.testing.TestingDeviceConfig;
 import com.google.common.collect.ImmutableMap;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import org.junit.After;
@@ -96,29 +95,7 @@ public class TextClassifierSettingsTest {
   }
 
   @Test
-  public void getManifestURLSetting() {
-    assertSettings(
-        "manifest_url_annotator_en",
-        "https://annotator",
-        settings ->
-            assertThat(settings.getManifestURL(ModelType.ANNOTATOR, "en"))
-                .isEqualTo("https://annotator"));
-    assertSettings(
-        "manifest_url_lang_id_universal",
-        "https://lang_id",
-        settings ->
-            assertThat(settings.getManifestURL(ModelType.LANG_ID, "universal"))
-                .isEqualTo("https://lang_id"));
-    assertSettings(
-        "manifest_url_actions_suggestions_zh",
-        "https://actions_suggestions",
-        settings ->
-            assertThat(settings.getManifestURL(ModelType.ACTIONS_SUGGESTIONS, "zh"))
-                .isEqualTo("https://actions_suggestions"));
-  }
-
-  @Test
-  public void getLanguageTagsForManifestURL() {
+  public void getLanguageTagsForManifestAndUrlMap() {
     assertSettings(
         ImmutableMap.of(
             "manifest_url_annotator_en", "https://annotator-en",
@@ -126,8 +103,12 @@ public class TextClassifierSettingsTest {
             "manifest_url_annotator_zh-hant-hk", "https://annotator-zh",
             "manifest_url_lang_id_universal", "https://lang_id"),
         settings ->
-            assertThat(settings.getLanguageTagsForManifestURL(ModelType.ANNOTATOR))
-                .containsExactly("en", "en-us", "zh-hant-hk"));
+            assertThat(settings.getLanguageTagAndManifestUrlMap(ModelType.ANNOTATOR))
+                .containsExactlyEntriesIn(
+                    ImmutableMap.of(
+                        "en", "https://annotator-en",
+                        "en-us", "https://annotator-en-us",
+                        "zh-hant-hk", "https://annotator-zh")));
 
     assertSettings(
         ImmutableMap.of(
@@ -136,8 +117,8 @@ public class TextClassifierSettingsTest {
             "manifest_url_annotator_zh-hant-hk", "https://annotator-zh",
             "manifest_url_lang_id_universal", "https://lang_id"),
         settings ->
-            assertThat(settings.getLanguageTagsForManifestURL(ModelType.LANG_ID))
-                .containsExactly("universal"));
+            assertThat(settings.getLanguageTagAndManifestUrlMap(ModelType.LANG_ID))
+                .containsExactlyEntriesIn(ImmutableMap.of("universal", "https://lang_id")));
 
     assertSettings(
         ImmutableMap.of(
@@ -146,7 +127,7 @@ public class TextClassifierSettingsTest {
             "manifest_url_annotator_zh-hant-hk", "https://annotator-zh",
             "manifest_url_lang_id_universal", "https://lang_id"),
         settings ->
-            assertThat(settings.getLanguageTagsForManifestURL(ModelType.ACTIONS_SUGGESTIONS))
+            assertThat(settings.getLanguageTagAndManifestUrlMap(ModelType.ACTIONS_SUGGESTIONS))
                 .isEmpty());
   }
 
@@ -157,26 +138,11 @@ public class TextClassifierSettingsTest {
 
   private static void assertSettings(
       Map<String, String> keyValueMap, Consumer<TextClassifierSettings> settingsConsumer) {
-    HashMap<String, String> keyOriginalValueMap = new HashMap<>();
+    TestingDeviceConfig deviceConfig = new TestingDeviceConfig();
+    TextClassifierSettings settings = new TextClassifierSettings(deviceConfig);
     for (String key : keyValueMap.keySet()) {
-      keyOriginalValueMap.put(
-          key, DeviceConfig.getProperty(DeviceConfig.NAMESPACE_TEXTCLASSIFIER, key));
+      deviceConfig.setConfig(key, keyValueMap.get(key));
     }
-    TextClassifierSettings settings = new TextClassifierSettings();
-    try {
-      for (String key : keyValueMap.keySet()) {
-        setDeviceConfig(key, keyValueMap.get(key));
-      }
-      settingsConsumer.accept(settings);
-    } finally {
-      for (String key : keyValueMap.keySet()) {
-        setDeviceConfig(key, keyOriginalValueMap.get(key));
-      }
-    }
-  }
-
-  private static void setDeviceConfig(String key, String value) {
-    DeviceConfig.setProperty(
-        DeviceConfig.NAMESPACE_TEXTCLASSIFIER, key, value, /* makeDefault */ false);
+    settingsConsumer.accept(settings);
   }
 }
