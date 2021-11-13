@@ -22,7 +22,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.LocaleList;
 import android.provider.DeviceConfig;
+import android.text.TextUtils;
 import androidx.work.BackoffPolicy;
 import androidx.work.Constraints;
 import androidx.work.ExistingWorkPolicy;
@@ -73,14 +75,14 @@ public final class ModelDownloadManager {
       ListeningExecutorService executorService) {
     this(
         appContext,
-        NewModelDownloadWorker.class,
+        ModelDownloadWorker.class,
         DownloadedModelManagerImpl.getInstance(appContext),
         settings,
         executorService);
   }
 
   @VisibleForTesting
-  ModelDownloadManager(
+  public ModelDownloadManager(
       Context appContext,
       Class<? extends ListenableWorker> modelDownloadWorkerClass,
       DownloadedModelManager downloadedModelManager,
@@ -124,6 +126,7 @@ public final class ModelDownloadManager {
     if (!settings.isModelDownloadManagerEnabled()) {
       return;
     }
+    maybeOverrideLocaleListForTesting();
     TcLog.v(TAG, "Try to schedule model download work because TextClassifierService started.");
     scheduleDownloadWork();
   }
@@ -146,6 +149,7 @@ public final class ModelDownloadManager {
     if (!settings.isModelDownloadManagerEnabled()) {
       return;
     }
+    maybeOverrideLocaleListForTesting();
     TcLog.v(TAG, "Try to schedule model download work because of device config changes.");
     scheduleDownloadWork();
   }
@@ -216,5 +220,18 @@ public final class ModelDownloadManager {
           }
         },
         executorService);
+  }
+
+  private void maybeOverrideLocaleListForTesting() {
+    String localeList = settings.getTestingLocaleListOverride();
+    if (TextUtils.isEmpty(localeList)) {
+      return;
+    }
+    TcLog.d(
+        TAG,
+        String.format(
+            "Override LocaleList from %s to %s",
+            LocaleList.getAdjustedDefault().toLanguageTags(), localeList));
+    LocaleList.setDefault(LocaleList.forLanguageTags(localeList));
   }
 }
