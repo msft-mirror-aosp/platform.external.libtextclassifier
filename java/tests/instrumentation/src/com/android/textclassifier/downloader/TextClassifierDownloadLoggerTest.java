@@ -44,17 +44,6 @@ public final class TextClassifierDownloadLoggerTest {
       new TextClassifierDownloadLoggerTestRule();
 
   @Test
-  public void downloadScheduled() throws Exception {
-    TextClassifierDownloadLogger.downloadSceduled(MODEL_TYPE, URL);
-
-    TextClassifierDownloadReported atom = Iterables.getOnlyElement(loggerTestRule.getLoggedAtoms());
-    assertThat(atom.getDownloadStatus())
-        .isEqualTo(TextClassifierDownloadReported.DownloadStatus.SCHEDULED);
-    assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
-    assertThat(atom.getUrlSuffix()).isEqualTo(URL);
-  }
-
-  @Test
   public void downloadSucceeded() throws Exception {
     TextClassifierDownloadLogger.downloadSucceeded(MODEL_TYPE, URL, RUN_ATTEMPT_COUNT);
 
@@ -74,20 +63,6 @@ public final class TextClassifierDownloadLoggerTest {
     TextClassifierDownloadReported atom = Iterables.getOnlyElement(loggerTestRule.getLoggedAtoms());
     assertThat(atom.getDownloadStatus())
         .isEqualTo(TextClassifierDownloadReported.DownloadStatus.FAILED_AND_RETRY);
-    assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
-    assertThat(atom.getUrlSuffix()).isEqualTo(URL);
-    assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
-    assertThat(atom.getFailureReason()).isEqualTo(FAILURE_REASON_ATOM);
-  }
-
-  @Test
-  public void downloadFailedAndAbort() throws Exception {
-    TextClassifierDownloadLogger.downloadFailedAndAbort(
-        MODEL_TYPE, URL, ERROR_CODE, RUN_ATTEMPT_COUNT);
-
-    TextClassifierDownloadReported atom = Iterables.getOnlyElement(loggerTestRule.getLoggedAtoms());
-    assertThat(atom.getDownloadStatus())
-        .isEqualTo(TextClassifierDownloadReported.DownloadStatus.FAILED_AND_ABORT);
     assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
     assertThat(atom.getUrlSuffix()).isEqualTo(URL);
     assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
