@@ -16,6 +16,9 @@
 
 package com.android.textclassifier.downloader;
 
+import static com.android.textclassifier.downloader.TextClassifierDownloadLogger.REASON_TO_SCHEDULE_DEVICE_CONFIG_UPDATED;
+import static com.android.textclassifier.downloader.TextClassifierDownloadLogger.REASON_TO_SCHEDULE_LOCALE_SETTINGS_CHANGED;
+import static com.android.textclassifier.downloader.TextClassifierDownloadLogger.REASON_TO_SCHEDULE_TCS_STARTED;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import android.content.BroadcastReceiver;
@@ -27,6 +30,7 @@ import android.provider.DeviceConfig;
 import android.text.TextUtils;
 import androidx.work.BackoffPolicy;
 import androidx.work.Constraints;
+import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.ListenableWorker;
 import androidx.work.NetworkType;
@@ -40,12 +44,16 @@ import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Enums;
 import com.google.common.base.Preconditions;
+import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import java.io.File;
+import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 import javax.annotation.Nullable;
 
 /** Manager to listen to config update and download latest models. */
@@ -128,7 +136,7 @@ public final class ModelDownloadManager {
     }
     maybeOverrideLocaleListForTesting();
     TcLog.v(TAG, "Try to schedule model download work because TextClassifierService started.");
-    scheduleDownloadWork();
+    scheduleDownloadWork(REASON_TO_SCHEDULE_TCS_STARTED);
   }
 
   // TODO(licha): Make this private. Let the constructor accept a receiver to enable testing.
@@ -139,7 +147,7 @@ public final class ModelDownloadManager {
       return;
     }
     TcLog.v(TAG, "Try to schedule model download work because of system locale changes.");
-    scheduleDownloadWork();
+    scheduleDownloadWork(REASON_TO_SCHEDULE_LOCALE_SETTINGS_CHANGED);
   }
 
   // TODO(licha): Make this private. Let the constructor accept a receiver to enable testing.
@@ -151,7 +159,7 @@ public final class ModelDownloadManager {
     }
     maybeOverrideLocaleListForTesting();
     TcLog.v(TAG, "Try to schedule model download work because of device config changes.");
-    scheduleDownloadWork();
+    scheduleDownloadWork(REASON_TO_SCHEDULE_DEVICE_CONFIG_UPDATED);
   }
 
   /** Clean up internal states on destroying. */
@@ -182,7 +190,9 @@ public final class ModelDownloadManager {
    * <p>At any time there will only be at most one work running. If a work is already pending or
    * running, the newly scheduled work will be appended as a child of that work.
    */
-  private void scheduleDownloadWork() {
+  private void scheduleDownloadWork(int reasonToSchedule) {
+    long workId =
+        Hashing.farmHashFingerprint64().hashUnencodedChars(UUID.randomUUID().toString()).asLong();
     NetworkType networkType =
         Enums.getIfPresent(NetworkType.class, settings.getManifestDownloadRequiredNetworkType())
             .or(NetworkType.UNMETERED);
@@ -200,6 +210,13 @@ public final class ModelDownloadManager {
                 BackoffPolicy.EXPONENTIAL,
                 settings.getModelDownloadBackoffDelayInMillis(),
                 MILLISECONDS)
+            .setInputData(
+                new Data.Builder()
+                    .putLong(ModelDownloadWorker.INPUT_DATA_KEY_WORK_ID, workId)
+                    .putLong(
+                        ModelDownloadWorker.INPUT_DATA_KEY_SCHEDULED_TIMESTAMP,
+                        Instant.now().toEpochMilli())
+                    .build())
             .build();
     ListenableFuture<Operation.State.SUCCESS> enqueueResultFuture =
         WorkManager.getInstance(appContext)
@@ -212,11 +229,15 @@ public final class ModelDownloadManager {
           @Override
           public void onSuccess(Operation.State.SUCCESS unused) {
             TcLog.v(TAG, "Download work scheduled.");
+            TextClassifierDownloadLogger.downloadWorkScheduled(
+                workId, reasonToSchedule, /* failedToSchedule= */ false);
           }
 
           @Override
           public void onFailure(Throwable t) {
             TcLog.e(TAG, "Failed to schedule download work: ", t);
+            TextClassifierDownloadLogger.downloadWorkScheduled(
+                workId, reasonToSchedule, /* failedToSchedule= */ true);
           }
         },
         executorService);
@@ -230,8 +251,10 @@ public final class ModelDownloadManager {
     TcLog.d(
         TAG,
         String.format(
+            Locale.US,
             "Override LocaleList from %s to %s",
-            LocaleList.getAdjustedDefault().toLanguageTags(), localeList));
+            LocaleList.getAdjustedDefault().toLanguageTags(),
+            localeList));
     LocaleList.setDefault(LocaleList.forLanguageTags(localeList));
   }
 }
