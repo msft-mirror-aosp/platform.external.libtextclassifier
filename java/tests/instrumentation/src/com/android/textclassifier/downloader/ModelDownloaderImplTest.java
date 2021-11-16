@@ -86,6 +86,8 @@ public final class ModelDownloaderImplTest {
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode())
         .isEqualTo(ModelDownloadException.FAILED_TO_DOWNLOAD_SERVICE_CONN_BROKEN);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
     assertThat(TestModelDownloaderService.isBound()).isFalse();
     assertThat(TestModelDownloaderService.hasEverBeenBound()).isFalse();
   }
@@ -121,6 +123,8 @@ public final class ModelDownloaderImplTest {
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode()).isEqualTo(ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(TestModelDownloaderService.DOWNLOADER_LIB_ERROR_CODE);
     assertThat(e).hasMessageThat().contains(TestModelDownloaderService.ERROR_MSG);
     assertThat(TestModelDownloaderService.getOnUnbindInvokedLatch().await(1L, SECONDS)).isTrue();
     assertThat(TestModelDownloaderService.isBound()).isFalse();
@@ -142,6 +146,8 @@ public final class ModelDownloaderImplTest {
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode()).isEqualTo(ModelDownloadException.FAILED_TO_PARSE_MANIFEST);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
     assertThat(TestModelDownloaderService.getOnUnbindInvokedLatch().await(1L, SECONDS)).isTrue();
     assertThat(TestModelDownloaderService.isBound()).isFalse();
     assertThat(TestModelDownloaderService.hasEverBeenBound()).isTrue();
@@ -181,6 +187,8 @@ public final class ModelDownloaderImplTest {
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode())
         .isEqualTo(ModelDownloadException.FAILED_TO_DOWNLOAD_SERVICE_CONN_BROKEN);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
     assertThat(TestModelDownloaderService.isBound()).isFalse();
     assertThat(TestModelDownloaderService.hasEverBeenBound()).isFalse();
   }
@@ -218,6 +226,8 @@ public final class ModelDownloaderImplTest {
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode()).isEqualTo(ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(TestModelDownloaderService.DOWNLOADER_LIB_ERROR_CODE);
     assertThat(e).hasMessageThat().contains(TestModelDownloaderService.ERROR_MSG);
     assertThat(TestModelDownloaderService.getOnUnbindInvokedLatch().await(1L, SECONDS)).isTrue();
     assertThat(TestModelDownloaderService.isBound()).isFalse();
@@ -239,6 +249,8 @@ public final class ModelDownloaderImplTest {
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode()).isEqualTo(ModelDownloadException.FAILED_TO_VALIDATE_MODEL);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
     assertThat(TestModelDownloaderService.getOnUnbindInvokedLatch().await(1L, SECONDS)).isTrue();
     assertThat(TestModelDownloaderService.isBound()).isFalse();
     assertThat(TestModelDownloaderService.hasEverBeenBound()).isTrue();
