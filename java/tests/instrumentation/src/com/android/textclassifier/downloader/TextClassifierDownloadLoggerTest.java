@@ -20,6 +20,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.android.os.AtomsProto.TextClassifierDownloadReported;
+import com.android.os.AtomsProto.TextClassifierDownloadWorkCompleted;
+import com.android.os.AtomsProto.TextClassifierDownloadWorkScheduled;
 import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.statsd.TextClassifierDownloadLoggerTestRule;
 import com.google.common.collect.Iterables;
@@ -38,6 +40,19 @@ public final class TextClassifierDownloadLoggerTest {
   private static final TextClassifierDownloadReported.FailureReason FAILURE_REASON_ATOM =
       TextClassifierDownloadReported.FailureReason.FAILED_TO_DOWNLOAD_404_ERROR;
   private static final int RUN_ATTEMPT_COUNT = 1;
+  private static final long WORK_ID = 123456789L;
+  private static final long DOWNLOAD_DURATION_MILLIS = 666L;
+  private static final int DOWNLOADER_LIB_ERROR_CODE = 500;
+  private static final int REASON_TO_SCHEDULE =
+      TextClassifierDownloadLogger.REASON_TO_SCHEDULE_TCS_STARTED;
+  private static final TextClassifierDownloadWorkScheduled.ReasonToSchedule
+      REASON_TO_SCHEDULE_ATOM = TextClassifierDownloadWorkScheduled.ReasonToSchedule.TCS_STARTED;
+  private static final int WORK_RESULT =
+      TextClassifierDownloadLogger.WORK_RESULT_SUCCESS_MODEL_DOWNLOADED;
+  private static final TextClassifierDownloadWorkCompleted.WorkResult WORK_RESULT_ATOM =
+      TextClassifierDownloadWorkCompleted.WorkResult.SUCCESS_MODEL_DOWNLOADED;
+  private static final long SCHEDULED_TO_START_DURATION_MILLIS = 777L;
+  private static final long STARTED_TO_FINISHED_DURATION_MILLIS = 888L;
 
   @Rule
   public final TextClassifierDownloadLoggerTestRule loggerTestRule =
@@ -45,27 +60,85 @@ public final class TextClassifierDownloadLoggerTest {
 
   @Test
   public void downloadSucceeded() throws Exception {
-    TextClassifierDownloadLogger.downloadSucceeded(MODEL_TYPE, URL, RUN_ATTEMPT_COUNT);
+    TextClassifierDownloadLogger.downloadSucceeded(
+        WORK_ID, MODEL_TYPE, URL, RUN_ATTEMPT_COUNT, DOWNLOAD_DURATION_MILLIS);
 
-    TextClassifierDownloadReported atom = Iterables.getOnlyElement(loggerTestRule.getLoggedAtoms());
+    TextClassifierDownloadReported atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadReportedAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
     assertThat(atom.getDownloadStatus())
         .isEqualTo(TextClassifierDownloadReported.DownloadStatus.SUCCEEDED);
     assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
     assertThat(atom.getUrlSuffix()).isEqualTo(URL);
     assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
+    assertThat(atom.getDownloadDurationMillis()).isEqualTo(DOWNLOAD_DURATION_MILLIS);
   }
 
   @Test
-  public void downloadFailedAndRetry() throws Exception {
-    TextClassifierDownloadLogger.downloadFailedAndRetry(
-        MODEL_TYPE, URL, ERROR_CODE, RUN_ATTEMPT_COUNT);
+  public void downloadFailed() throws Exception {
+    TextClassifierDownloadLogger.downloadFailed(
+        WORK_ID,
+        MODEL_TYPE,
+        URL,
+        ERROR_CODE,
+        RUN_ATTEMPT_COUNT,
+        DOWNLOADER_LIB_ERROR_CODE,
+        DOWNLOAD_DURATION_MILLIS);
 
-    TextClassifierDownloadReported atom = Iterables.getOnlyElement(loggerTestRule.getLoggedAtoms());
+    TextClassifierDownloadReported atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadReportedAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
     assertThat(atom.getDownloadStatus())
         .isEqualTo(TextClassifierDownloadReported.DownloadStatus.FAILED_AND_RETRY);
     assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
     assertThat(atom.getUrlSuffix()).isEqualTo(URL);
     assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
     assertThat(atom.getFailureReason()).isEqualTo(FAILURE_REASON_ATOM);
+    assertThat(atom.getDownloaderLibFailureCode()).isEqualTo(DOWNLOADER_LIB_ERROR_CODE);
+    assertThat(atom.getDownloadDurationMillis()).isEqualTo(DOWNLOAD_DURATION_MILLIS);
+  }
+
+  @Test
+  public void downloadWorkScheduled_succeeded() throws Exception {
+    TextClassifierDownloadLogger.downloadWorkScheduled(
+        WORK_ID, REASON_TO_SCHEDULE, /* failedToSchedule= */ false);
+
+    TextClassifierDownloadWorkScheduled atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkScheduledAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
+    assertThat(atom.getReasonToSchedule()).isEqualTo(REASON_TO_SCHEDULE_ATOM);
+    assertThat(atom.getFailedToSchedule()).isFalse();
+  }
+
+  @Test
+  public void downloadWorkScheduled_failed() throws Exception {
+    TextClassifierDownloadLogger.downloadWorkScheduled(
+        WORK_ID, REASON_TO_SCHEDULE, /* failedToSchedule= */ true);
+
+    TextClassifierDownloadWorkScheduled atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkScheduledAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
+    assertThat(atom.getReasonToSchedule()).isEqualTo(REASON_TO_SCHEDULE_ATOM);
+    assertThat(atom.getFailedToSchedule()).isTrue();
+  }
+
+  @Test
+  public void downloadWorkCompleted() throws Exception {
+    TextClassifierDownloadLogger.downloadWorkCompleted(
+        WORK_ID,
+        WORK_RESULT,
+        RUN_ATTEMPT_COUNT,
+        SCHEDULED_TO_START_DURATION_MILLIS,
+        STARTED_TO_FINISHED_DURATION_MILLIS);
+
+    TextClassifierDownloadWorkCompleted atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkCompletedAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
+    assertThat(atom.getWorkResult()).isEqualTo(WORK_RESULT_ATOM);
+    assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
+    assertThat(atom.getWorkScheduledToStartedDurationMillis())
+        .isEqualTo(SCHEDULED_TO_START_DURATION_MILLIS);
+    assertThat(atom.getWorkStartedToEndedDurationMillis())
+        .isEqualTo(STARTED_TO_FINISHED_DURATION_MILLIS);
   }
 }

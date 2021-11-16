@@ -24,12 +24,30 @@ import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
 public final class ModelDownloadExceptionTest {
-  private static final int ERROR_CODE = ModelDownloadException.WORKER_STOPPED;
+  private static final int ERROR_CODE = ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER;
+  private static final int DOWNLOADER_LIB_ERROR_CODE = 500;
 
   @Test
-  public void getErrorCode() {
-    assertThat(new ModelDownloadException(ERROR_CODE, new Exception()).getErrorCode())
-        .isEqualTo(ERROR_CODE);
-    assertThat(new ModelDownloadException(ERROR_CODE, "").getErrorCode()).isEqualTo(ERROR_CODE);
+  public void getErrorCode_constructor1() {
+    ModelDownloadException e = new ModelDownloadException(ERROR_CODE, new Exception());
+    assertThat(e.getErrorCode()).isEqualTo(ERROR_CODE);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
+  }
+
+  @Test
+  public void getErrorCode_constructor2() {
+    ModelDownloadException e = new ModelDownloadException(ERROR_CODE, "error_msg");
+    assertThat(e.getErrorCode()).isEqualTo(ERROR_CODE);
+    assertThat(e.getDownloaderLibErrorCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
+  }
+
+  @Test
+  public void getErrorCode_constructor3() {
+    ModelDownloadException e =
+        new ModelDownloadException(ERROR_CODE, DOWNLOADER_LIB_ERROR_CODE, "error_msg");
+    assertThat(e.getErrorCode()).isEqualTo(ERROR_CODE);
+    assertThat(e.getDownloaderLibErrorCode()).isEqualTo(DOWNLOADER_LIB_ERROR_CODE);
   }
 }
