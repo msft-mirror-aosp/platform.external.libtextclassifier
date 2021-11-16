@@ -64,10 +64,6 @@ final class TextClassifierDownloadLogger {
               TextClassifierStatsLog
                   .TEXT_CLASSIFIER_DOWNLOAD_REPORTED__FAILURE_REASON__UNKNOWN_FAILURE_REASON)
           .put(
-              ModelDownloadException.FAILED_TO_SCHEDULE,
-              TextClassifierStatsLog
-                  .TEXT_CLASSIFIER_DOWNLOAD_REPORTED__FAILURE_REASON__FAILED_TO_SCHEDULE)
-          .put(
               ModelDownloadException.FAILED_TO_DOWNLOAD_SERVICE_CONN_BROKEN,
               TextClassifierStatsLog
                   .TEXT_CLASSIFIER_DOWNLOAD_REPORTED__FAILURE_REASON__FAILED_TO_DOWNLOAD_SERVICE_CONN_BROKEN)
@@ -91,41 +87,7 @@ final class TextClassifierDownloadLogger {
               ModelDownloadException.FAILED_TO_VALIDATE_MODEL,
               TextClassifierStatsLog
                   .TEXT_CLASSIFIER_DOWNLOAD_REPORTED__FAILURE_REASON__FAILED_TO_VALIDATE_MODEL)
-          .put(
-              ModelDownloadException.FAILED_TO_MOVE_MODEL,
-              TextClassifierStatsLog
-                  .TEXT_CLASSIFIER_DOWNLOAD_REPORTED__FAILURE_REASON__FAILED_TO_MOVE_MODEL)
-          .put(
-              ModelDownloadException.WORKER_STOPPED,
-              TextClassifierStatsLog
-                  .TEXT_CLASSIFIER_DOWNLOAD_REPORTED__FAILURE_REASON__WORKER_STOPPED)
           .build();
-
-  /** Logs a scheduled download task. */
-  public static void downloadSceduled(@ModelTypeDef String modelType, String url) {
-    Preconditions.checkArgument(!TextUtils.isEmpty(url), "url cannot be null/empty");
-    TextClassifierStatsLog.write(
-        TextClassifierStatsLog.TEXT_CLASSIFIER_DOWNLOAD_REPORTED,
-        MODEL_TYPE_MAP.getOrDefault(modelType, DEFAULT_MODEL_TYPE),
-        DEFAULT_FILE_TYPE,
-        DOWNLOAD_STATUS_SCHEDULED,
-        url,
-        DEFAULT_FAILURE_REASON,
-        /* runAttemptCount */ 0);
-    if (TcLog.ENABLE_FULL_LOGGING) {
-      TcLog.v(
-          TAG,
-          String.format(
-              "Download Reported: modelType=%s, fileType=%d, status=%d, url=%s, "
-                  + "failureReason=%d, runAttemptCount=%d",
-              MODEL_TYPE_MAP.getOrDefault(modelType, DEFAULT_MODEL_TYPE),
-              DEFAULT_FILE_TYPE,
-              DOWNLOAD_STATUS_SCHEDULED,
-              url,
-              DEFAULT_FAILURE_REASON,
-              /* runAttemptCount */ 0));
-    }
-  }
 
   /** Logs a succeeded download task. */
   public static void downloadSucceeded(
@@ -138,7 +100,10 @@ final class TextClassifierDownloadLogger {
         DOWNLOAD_STATUS_SUCCEEDED,
         url,
         DEFAULT_FAILURE_REASON,
-        runAttemptCount);
+        runAttemptCount,
+        /* downloaderLibErrorCode */ 0,
+        /* downloadDurationMillis */ 0,
+        /* workId */ 0L);
     if (TcLog.ENABLE_FULL_LOGGING) {
       TcLog.v(
           TAG,
@@ -165,7 +130,10 @@ final class TextClassifierDownloadLogger {
         DOWNLOAD_STATUS_FAILED_AND_RETRY,
         url,
         FAILURE_REASON_MAP.getOrDefault(errorCode, DEFAULT_FAILURE_REASON),
-        runAttemptCount);
+        runAttemptCount,
+        /* downloaderLibErrorCode */ 0,
+        /* downloadDurationMillis */ 0,
+        /* workId */ 0L);
     if (TcLog.ENABLE_FULL_LOGGING) {
       TcLog.v(
           TAG,
@@ -175,33 +143,6 @@ final class TextClassifierDownloadLogger {
               MODEL_TYPE_MAP.getOrDefault(modelType, DEFAULT_MODEL_TYPE),
               DEFAULT_FILE_TYPE,
               DOWNLOAD_STATUS_FAILED_AND_RETRY,
-              url,
-              FAILURE_REASON_MAP.getOrDefault(errorCode, DEFAULT_FAILURE_REASON),
-              runAttemptCount));
-    }
-  }
-
-  /** Logs a failed download task which will not be retried. */
-  public static void downloadFailedAndAbort(
-      @ModelTypeDef String modelType, String url, @ErrorCode int errorCode, int runAttemptCount) {
-    Preconditions.checkArgument(!TextUtils.isEmpty(url), "url cannot be null/empty");
-    TextClassifierStatsLog.write(
-        TextClassifierStatsLog.TEXT_CLASSIFIER_DOWNLOAD_REPORTED,
-        MODEL_TYPE_MAP.getOrDefault(modelType, DEFAULT_MODEL_TYPE),
-        DEFAULT_FILE_TYPE,
-        DOWNLOAD_STATUS_FAILED_AND_ABORT,
-        url,
-        FAILURE_REASON_MAP.getOrDefault(errorCode, DEFAULT_FAILURE_REASON),
-        runAttemptCount);
-    if (TcLog.ENABLE_FULL_LOGGING) {
-      TcLog.v(
-          TAG,
-          String.format(
-              "Download Reported: modelType=%s, fileType=%d, status=%d, url=%s, "
-                  + "failureReason=%d, runAttemptCount=%d",
-              MODEL_TYPE_MAP.getOrDefault(modelType, DEFAULT_MODEL_TYPE),
-              DEFAULT_FILE_TYPE,
-              DOWNLOAD_STATUS_FAILED_AND_ABORT,
               url,
               FAILURE_REASON_MAP.getOrDefault(errorCode, DEFAULT_FAILURE_REASON),
               runAttemptCount));
