@@ -16,6 +16,7 @@
 
 package com.android.textclassifier.downloader;
 
+import static com.android.textclassifier.downloader.ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE;
 import static com.google.common.base.Predicates.instanceOf;
 import static com.google.common.base.Throwables.getCausalChain;
 
@@ -123,19 +124,17 @@ final class ModelDownloaderServiceImpl extends IModelDownloaderService.Stub {
                               getCausalChain(t),
                               instanceOf(RequestException.class),
                               /* defaultValue= */ null);
-                  // TODO(licha): might be better to pass back the raw error code (instead of
-                  // using the ErrorCode defined inside the ModelDownloadException).
-                  int errorCode =
-                      (requestException != null
-                              && requestException.getErrorDetails().getHttpStatusCode() == 404)
-                          ? ModelDownloadException.FAILED_TO_DOWNLOAD_404_ERROR
-                          : ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER;
-                  dispatchOnFailureSafely(callback, errorCode, t);
+                  // TODO(b/181805039): Use error code once downloader lib supports it.
+                  int downloaderLibErrorCode =
+                      requestException != null
+                          ? requestException.getErrorDetails().getHttpStatusCode()
+                          : DEFAULT_DOWNLOADER_LIB_ERROR_CODE;
+                  dispatchOnFailureSafely(callback, downloaderLibErrorCode, t);
                 }
               },
               bgExecutorService);
     } catch (Throwable t) {
-      dispatchOnFailureSafely(callback, ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER, t);
+      dispatchOnFailureSafely(callback, DEFAULT_DOWNLOADER_LIB_ERROR_CODE, t);
     }
   }
 
@@ -154,11 +153,9 @@ final class ModelDownloaderServiceImpl extends IModelDownloaderService.Stub {
   }
 
   private static void dispatchOnFailureSafely(
-      IModelDownloaderCallback callback,
-      @ModelDownloadException.ErrorCode int errorCode,
-      Throwable throwable) {
+      IModelDownloaderCallback callback, int downloaderLibErrorCode, Throwable throwable) {
     try {
-      callback.onFailure(errorCode, throwable.getMessage());
+      callback.onFailure(downloaderLibErrorCode, throwable.getMessage());
     } catch (RemoteException e) {
       TcLog.e(TAG, "Unable to notify failures in download", e);
     }

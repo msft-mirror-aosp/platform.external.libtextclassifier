@@ -32,6 +32,7 @@ import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.downloader.DownloadedModelDatabase.Manifest;
 import com.android.textclassifier.downloader.DownloadedModelDatabase.ManifestEnrollment;
 import com.android.textclassifier.downloader.DownloadedModelDatabase.Model;
+import com.google.auto.value.AutoValue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -41,6 +42,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -48,12 +50,23 @@ import java.util.Locale;
 public final class ModelDownloadWorker extends ListenableWorker {
   private static final String TAG = "ModelDownloadWorker";
 
+  public static final String INPUT_DATA_KEY_WORK_ID = "ModelDownloadWorker_workId";
+  public static final String INPUT_DATA_KEY_SCHEDULED_TIMESTAMP =
+      "ModelDownloadWorker_scheduledTimestamp";
+
   private final ListeningExecutorService executorService;
   private final ModelDownloader downloader;
   private final DownloadedModelManager downloadedModelManager;
   private final TextClassifierSettings settings;
 
+  private final long workId;
+
+  private final Clock clock;
+  private final long workScheduledTimeMillis;
+
   private final Object lock = new Object();
+
+  private long workStartedTimeMillis = 0;
 
   @GuardedBy("lock")
   private final ArrayMap<String, ListenableFuture<Void>> pendingDownloads;
@@ -68,6 +81,11 @@ public final class ModelDownloadWorker extends ListenableWorker {
     this.settings = new TextClassifierSettings();
     this.pendingDownloads = new ArrayMap<>();
     this.manifestsToDownload = null;
+
+    this.workId = workerParams.getInputData().getLong(INPUT_DATA_KEY_WORK_ID, 0);
+    this.workScheduledTimeMillis =
+        workerParams.getInputData().getLong(INPUT_DATA_KEY_SCHEDULED_TIMESTAMP, 0);
+    this.clock = Clock.systemUTC();
   }
 
   @VisibleForTesting
@@ -77,7 +95,10 @@ public final class ModelDownloadWorker extends ListenableWorker {
       ListeningExecutorService executorService,
       ModelDownloader modelDownloader,
       DownloadedModelManager downloadedModelManager,
-      TextClassifierSettings settings) {
+      TextClassifierSettings settings,
+      long workId,
+      Clock clock,
+      long workScheduledTimeMillis) {
     super(context, workerParams);
     this.executorService = executorService;
     this.downloader = modelDownloader;
@@ -85,36 +106,54 @@ public final class ModelDownloadWorker extends ListenableWorker {
     this.settings = settings;
     this.pendingDownloads = new ArrayMap<>();
     this.manifestsToDownload = null;
+    this.workId = workId;
+    this.clock = clock;
+    this.workScheduledTimeMillis = workScheduledTimeMillis;
   }
 
   @Override
   public final ListenableFuture<ListenableWorker.Result> startWork() {
+    workStartedTimeMillis = getCurrentTimeMillis();
     // Notice: startWork() is invoked on the main thread
     if (!settings.isModelDownloadManagerEnabled()) {
       TcLog.e(TAG, "Model Downloader is disabled. Abort the work.");
+      logDownloadWorkCompleted(
+          TextClassifierDownloadLogger.WORK_RESULT_FAILURE_MODEL_DOWNLOADER_DISABLED);
       return Futures.immediateFuture(ListenableWorker.Result.failure());
     }
     TcLog.v(TAG, "Start download work...");
     if (getRunAttemptCount() >= settings.getModelDownloadWorkerMaxAttempts()) {
       TcLog.d(TAG, "Max attempt reached. Abort download work.");
+      logDownloadWorkCompleted(
+          TextClassifierDownloadLogger.WORK_RESULT_FAILURE_MAX_RUN_ATTEMPT_REACHED);
       return Futures.immediateFuture(ListenableWorker.Result.failure());
     }
 
     return FluentFuture.from(Futures.submitAsync(this::checkAndDownloadModels, executorService))
         .transform(
-            allSucceeded -> {
+            downloadResult -> {
               Preconditions.checkNotNull(manifestsToDownload);
               downloadedModelManager.onDownloadCompleted(manifestsToDownload);
-              TcLog.v(TAG, "Download work completed. Succeeded: " + allSucceeded);
-              return allSucceeded
-                  ? ListenableWorker.Result.success()
-                  : ListenableWorker.Result.retry();
+              TcLog.v(TAG, "Download work completed: " + downloadResult);
+              if (downloadResult.failureCount() == 0) {
+                logDownloadWorkCompleted(
+                    downloadResult.successCount() > 0
+                        ? TextClassifierDownloadLogger.WORK_RESULT_SUCCESS_MODEL_DOWNLOADED
+                        : TextClassifierDownloadLogger.WORK_RESULT_SUCCESS_NO_UPDATE_AVAILABLE);
+                return ListenableWorker.Result.success();
+              } else {
+                logDownloadWorkCompleted(
+                    TextClassifierDownloadLogger.WORK_RESULT_RETRY_MODEL_DOWNLOAD_FAILED);
+                return ListenableWorker.Result.retry();
+              }
             },
             executorService)
         .catching(
             Throwable.class,
             t -> {
               TcLog.e(TAG, "Unexpected Exception during downloading: ", t);
+              logDownloadWorkCompleted(
+                  TextClassifierDownloadLogger.WORK_RESULT_RETRY_RUNTIME_EXCEPTION);
               return ListenableWorker.Result.retry();
             },
             executorService);
@@ -155,7 +194,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
    * <p>Download tasks will be combined and logged after completion. Return true if all tasks
    * succeeded
    */
-  private ListenableFuture<Boolean> checkAndDownloadModels() {
+  private ListenableFuture<DownloadResult> checkAndDownloadModels() {
     ImmutableList<Locale> localesToDownload = getLocalesToDownload();
     ArrayList<ListenableFuture<Boolean>> downloadResultFutures = new ArrayList<>();
     ImmutableMap.Builder<String, ManifestsToDownloadByType> manifestsToDownloadBuilder =
@@ -170,7 +209,8 @@ public final class ModelDownloadWorker extends ListenableWorker {
         if (bestLocaleTagAndManifestUrl == null) {
           TcLog.w(
               TAG,
-              String.format("No suitable manifest for %s, %s", modelType, locale.toLanguageTag()));
+              String.format(
+                  Locale.US, "No suitable manifest for %s, %s", modelType, locale.toLanguageTag()));
           continue;
         }
         String bestLocaleTag = bestLocaleTagAndManifestUrl.first;
@@ -179,8 +219,12 @@ public final class ModelDownloadWorker extends ListenableWorker {
         TcLog.d(
             TAG,
             String.format(
+                Locale.US,
                 "model type: %s, current locale tag: %s, best locale tag: %s, manifest url: %s",
-                modelType, locale.toLanguageTag(), bestLocaleTag, manifestUrl));
+                modelType,
+                locale.toLanguageTag(),
+                bestLocaleTag,
+                manifestUrl));
         if (!shouldDownloadManifest(modelType, bestLocaleTag, manifestUrl)) {
           continue;
         }
@@ -196,11 +240,16 @@ public final class ModelDownloadWorker extends ListenableWorker {
         .call(
             () -> {
               TcLog.v(TAG, "All Download Tasks Completed");
-              boolean allSucceeded = true;
+              int successCount = 0;
+              int failureCount = 0;
               for (ListenableFuture<Boolean> downloadResultFuture : downloadResultFutures) {
-                allSucceeded &= Futures.getDone(downloadResultFuture);
+                if (Futures.getDone(downloadResultFuture)) {
+                  successCount += 1;
+                } else {
+                  failureCount += 1;
+                }
               }
-              return allSucceeded;
+              return DownloadResult.create(successCount, failureCount);
             },
             executorService);
   }
@@ -216,8 +265,10 @@ public final class ModelDownloadWorker extends ListenableWorker {
         TcLog.w(
             TAG,
             String.format(
+                Locale.US,
                 "Manifest failed too many times, stop retrying: %s %d",
-                manifestUrl, downloadedManifest.getFailureCounts()));
+                manifestUrl,
+                downloadedManifest.getFailureCounts()));
         return false;
       } else {
         return true;
@@ -236,12 +287,17 @@ public final class ModelDownloadWorker extends ListenableWorker {
    */
   private ListenableFuture<Boolean> downloadManifestAndRegister(
       @ModelTypeDef String modelType, String localeTag, String manifestUrl) {
+    long downloadStartTimestamp = getCurrentTimeMillis();
     return FluentFuture.from(downloadManifest(manifestUrl))
         .transform(
             unused -> {
               downloadedModelManager.registerManifestEnrollment(modelType, localeTag, manifestUrl);
               TextClassifierDownloadLogger.downloadSucceeded(
-                  modelType, manifestUrl, getRunAttemptCount());
+                  workId,
+                  modelType,
+                  manifestUrl,
+                  getRunAttemptCount(),
+                  getCurrentTimeMillis() - downloadStartTimestamp);
               TcLog.d(TAG, "Manifest downloaded and registered: " + manifestUrl);
               return true;
             },
@@ -251,12 +307,21 @@ public final class ModelDownloadWorker extends ListenableWorker {
             t -> {
               downloadedModelManager.registerManifestDownloadFailure(manifestUrl);
               int errorCode = ModelDownloadException.UNKNOWN_FAILURE_REASON;
+              int downloaderLibErrorCode = 0;
               if (t instanceof ModelDownloadException) {
-                errorCode = ((ModelDownloadException) t).getErrorCode();
+                ModelDownloadException mde = (ModelDownloadException) t;
+                errorCode = mde.getErrorCode();
+                downloaderLibErrorCode = mde.getDownloaderLibErrorCode();
               }
               TcLog.e(TAG, "Failed to download manfiest: " + manifestUrl, t);
-              TextClassifierDownloadLogger.downloadFailedAndRetry(
-                  modelType, manifestUrl, errorCode, getRunAttemptCount());
+              TextClassifierDownloadLogger.downloadFailed(
+                  workId,
+                  modelType,
+                  manifestUrl,
+                  errorCode,
+                  getRunAttemptCount(),
+                  downloaderLibErrorCode,
+                  getCurrentTimeMillis() - downloadStartTimestamp);
               return false;
             },
             executorService);
@@ -328,6 +393,41 @@ public final class ModelDownloadWorker extends ListenableWorker {
    */
   @Override
   public final void onStopped() {
-    TcLog.d(TAG, String.format("Stop download. Attempt:%d", getRunAttemptCount()));
+    TcLog.d(TAG, String.format(Locale.US, "Stop download. Attempt:%d", getRunAttemptCount()));
+    logDownloadWorkCompleted(TextClassifierDownloadLogger.WORK_RESULT_RETRY_STOPPED_BY_OS);
+  }
+
+  private long getCurrentTimeMillis() {
+    return clock.instant().toEpochMilli();
+  }
+
+  private void logDownloadWorkCompleted(int workResult) {
+    if (workStartedTimeMillis < workScheduledTimeMillis) {
+      TcLog.w(
+          TAG,
+          String.format(
+              Locale.US,
+              "Bad workStartedTimeMillis: %d, workScheduledTimeMillis: %d",
+              workStartedTimeMillis,
+              workScheduledTimeMillis));
+      workStartedTimeMillis = workScheduledTimeMillis;
+    }
+    TextClassifierDownloadLogger.downloadWorkCompleted(
+        workId,
+        workResult,
+        getRunAttemptCount(),
+        workStartedTimeMillis - workScheduledTimeMillis,
+        getCurrentTimeMillis() - workStartedTimeMillis);
+  }
+
+  @AutoValue
+  abstract static class DownloadResult {
+    public abstract int successCount();
+
+    public abstract int failureCount();
+
+    public static DownloadResult create(int successCount, int failureCount) {
+      return new AutoValue_ModelDownloadWorker_DownloadResult(successCount, failureCount);
+    }
   }
 }
