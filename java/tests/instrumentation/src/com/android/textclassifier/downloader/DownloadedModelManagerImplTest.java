@@ -19,7 +19,6 @@ package com.android.textclassifier.downloader;
 import static com.google.common.truth.Truth.assertThat;
 
 import android.content.Context;
-import android.util.Pair;
 import androidx.room.Room;
 import androidx.test.core.app.ApplicationProvider;
 import com.android.textclassifier.common.ModelType;
@@ -32,7 +31,6 @@ import com.android.textclassifier.downloader.DownloadedModelDatabase.Model;
 import com.android.textclassifier.testing.TestingDeviceConfig;
 import com.google.common.collect.ImmutableMap;
 import java.io.File;
-import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -107,11 +105,13 @@ public final class DownloadedModelManagerImplTest {
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
         .containsExactly(new File("modelPathEn"));
 
-    Map<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("zh", "manifestUrlZh"));
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("zh", "manifestUrlZh")));
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
-        .containsExactly(new File("modelPathZh"));
+        .contains(new File("modelPathZh"));
   }
 
   @Test
@@ -181,25 +181,29 @@ public final class DownloadedModelManagerImplTest {
 
   @Test
   public void onDownloadCompleted_newModelDownloaded() throws Exception {
-    Map<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("en", "manifestUrl1"));
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("en", "manifestUrl1")));
     File modelFile1 = new File(modelDownloaderDir, "modelFile1");
     modelFile1.createNewFile();
     registerManifestToDB(
         ModelType.ANNOTATOR, "en", "manifestUrl1", "modelUrl1", modelFile1.getAbsolutePath());
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(modelFile1.exists()).isTrue();
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
         .containsExactly(modelFile1);
 
-    modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("en", "manifestUrl2"));
+    manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("en", "manifestUrl2")));
     File modelFile2 = new File(modelDownloaderDir, "modelFile2");
     modelFile2.createNewFile();
     registerManifestToDB(
         ModelType.ANNOTATOR, "en", "manifestUrl2", "modelUrl2", modelFile2.getAbsolutePath());
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(modelFile1.exists()).isFalse();
     assertThat(modelFile2.exists()).isTrue();
@@ -209,22 +213,26 @@ public final class DownloadedModelManagerImplTest {
 
   @Test
   public void onDownloadCompleted_newModelDownloadFailed() throws Exception {
-    Map<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("en", "manifestUrl1"));
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("en", "manifestUrl1")));
     File modelFile1 = new File(modelDownloaderDir, "modelFile1");
     modelFile1.createNewFile();
     registerManifestToDB(
         ModelType.ANNOTATOR, "en", "manifestUrl1", "modelUrl1", modelFile1.getAbsolutePath());
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(modelFile1.exists()).isTrue();
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
         .containsExactly(modelFile1);
 
-    modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("en", "manifestUrl2"));
+    manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("en", "manifestUrl2")));
     downloadedModelManagerImpl.registerManifestDownloadFailure("manifestUrl2");
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(modelFile1.exists()).isTrue();
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
@@ -233,20 +241,22 @@ public final class DownloadedModelManagerImplTest {
 
   @Test
   public void onDownloadCompleted_flatUnset() throws Exception {
-    Map<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("en", "manifestUrl1"));
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("en", "manifestUrl1")));
     File modelFile1 = new File(modelDownloaderDir, "modelFile1");
     modelFile1.createNewFile();
     registerManifestToDB(
         ModelType.ANNOTATOR, "en", "manifestUrl1", "modelUrl1", modelFile1.getAbsolutePath());
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(modelFile1.exists()).isTrue();
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
         .containsExactly(modelFile1);
 
-    modelTypeToLocaleTagAndManifestUrls = ImmutableMap.of();
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    manifestsToDownload = ImmutableMap.of();
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(modelFile1.exists()).isFalse();
     assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR)).isEmpty();
@@ -254,15 +264,97 @@ public final class DownloadedModelManagerImplTest {
 
   @Test
   public void onDownloadCompleted_cleanUpFailureRecords() throws Exception {
-    Map<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls =
-        ImmutableMap.of(ModelType.ANNOTATOR, Pair.create("en", "manifestUrl1"));
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(ImmutableMap.of("en", "manifestUrl1")));
     downloadedModelManagerImpl.registerManifestDownloadFailure("manifestUrl1");
     downloadedModelManagerImpl.registerManifestDownloadFailure("manifestUrl2");
-    downloadedModelManagerImpl.onDownloadCompleted(modelTypeToLocaleTagAndManifestUrls);
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
 
     assertThat(downloadedModelManagerImpl.getManifest("manifestUrl1").getStatus())
         .isEqualTo(Manifest.STATUS_FAILED);
     assertThat(downloadedModelManagerImpl.getManifest("manifestUrl2")).isNull();
+  }
+
+  @Test
+  public void onDownloadCompleted_modelsForMultipleLocalesDownloaded() throws Exception {
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(
+                ImmutableMap.of("en", "manifestUrl1", "es", "manifestUrl2")));
+
+    File modelFile1 = new File(modelDownloaderDir, "modelFile1");
+    modelFile1.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "en", "manifestUrl1", "modelUrl1", modelFile1.getAbsolutePath());
+
+    File modelFile2 = new File(modelDownloaderDir, "modelFile2");
+    modelFile2.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "es", "manifestUrl2", "modelUrl2", modelFile2.getAbsolutePath());
+
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
+    assertThat(modelFile1.exists()).isTrue();
+    assertThat(modelFile2.exists()).isTrue();
+    assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
+        .containsExactly(modelFile1, modelFile2);
+  }
+
+  @Test
+  public void onDownloadCompleted_multipleLocales_oneDownloadFailed() throws Exception {
+    File modelFile1 = new File(modelDownloaderDir, "modelFile1");
+    modelFile1.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "en", "manifestUrl1", "modelUrl1", modelFile1.getAbsolutePath());
+
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(
+                ImmutableMap.of("es", "manifestUrl2", "en", "manifestUrl3")));
+    File modelFile2 = new File(modelDownloaderDir, "modelFile2");
+    modelFile2.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "es", "manifestUrl2", "modelUrl2", modelFile2.getAbsolutePath());
+    downloadedModelManagerImpl.registerManifestDownloadFailure("manifestUrl3");
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
+
+    assertThat(modelFile1.exists()).isTrue();
+    assertThat(modelFile2.exists()).isTrue();
+    assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
+        .containsExactly(modelFile1, modelFile2);
+  }
+
+  @Test
+  public void onDownoadCompleted_multipleLocales_replaceOldModel() throws Exception {
+    File modelFile1 = new File(modelDownloaderDir, "modelFile1");
+    modelFile1.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "en", "manifestUrl1", "modelUrl1", modelFile1.getAbsolutePath());
+
+    ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload =
+        ImmutableMap.of(
+            ModelType.ANNOTATOR,
+            ManifestsToDownloadByType.create(
+                ImmutableMap.of("en", "manifestUrl2", "es", "manifestUrl3")));
+
+    File modelFile2 = new File(modelDownloaderDir, "modelFile2");
+    modelFile2.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "en", "manifestUrl2", "modelUrl2", modelFile2.getAbsolutePath());
+
+    File modelFile3 = new File(modelDownloaderDir, "modelFile3");
+    modelFile3.createNewFile();
+    registerManifestToDB(
+        ModelType.ANNOTATOR, "es", "manifestUrl3", "modelUrl3", modelFile3.getAbsolutePath());
+
+    downloadedModelManagerImpl.onDownloadCompleted(manifestsToDownload);
+    assertThat(modelFile2.exists()).isTrue();
+    assertThat(modelFile3.exists()).isTrue();
+    assertThat(downloadedModelManagerImpl.listModels(ModelType.ANNOTATOR))
+        .containsExactly(modelFile2, modelFile3);
   }
 
   private void registerManifestToDB(
