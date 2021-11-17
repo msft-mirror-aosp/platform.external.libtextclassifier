@@ -22,6 +22,7 @@
 #include "utils/base/macros.h"
 #include "utils/strings/utf8.h"
 #include "utils/utf8/unicodetext.h"
+#include "absl/strings/string_view.h"
 
 namespace libtextclassifier3 {
 
@@ -94,7 +95,7 @@ void Tokenizer::GetScriptAndRole(char32 codepoint,
   }
 }
 
-std::vector<Token> Tokenizer::Tokenize(const std::string& text) const {
+std::vector<Token> Tokenizer::Tokenize(absl::string_view text) const {
   UnicodeText text_unicode = UTF8ToUnicodeText(text, /*do_copy=*/false);
   return Tokenize(text_unicode);
 }
