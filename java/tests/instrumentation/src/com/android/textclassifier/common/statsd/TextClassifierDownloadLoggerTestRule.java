@@ -21,6 +21,8 @@ import androidx.test.core.app.ApplicationProvider;
 import com.android.internal.os.StatsdConfigProto.StatsdConfig;
 import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.TextClassifierDownloadReported;
+import com.android.os.AtomsProto.TextClassifierDownloadWorkCompleted;
+import com.android.os.AtomsProto.TextClassifierDownloadWorkScheduled;
 import com.google.common.collect.ImmutableList;
 import java.util.stream.Collectors;
 import org.junit.rules.ExternalResource;
@@ -30,38 +32,96 @@ import org.junit.rules.ExternalResource;
 public final class TextClassifierDownloadLoggerTestRule extends ExternalResource {
   private static final String TAG = "DownloadLoggerTestRule";
 
-  /** A statsd config ID, which is arbitrary. */
-  private static final long CONFIG_ID = 423779;
+  // Statsd config IDs, which are arbitrary.
+  private static final long CONFIG_ID_DOWNLOAD_REPORTED = 423779;
+  private static final long CONFIG_ID_DOWNLOAD_WORK_SCHEDULED = 42;
+  private static final long CONFIG_ID_DOWNLOAD_WORK_COMPLETED = 2021;
 
   private static final long SHORT_TIMEOUT_MS = 1000;
 
   @Override
   public void before() throws Exception {
-    StatsdTestUtils.cleanup(CONFIG_ID);
+    StatsdTestUtils.cleanup(CONFIG_ID_DOWNLOAD_REPORTED);
+    StatsdTestUtils.cleanup(CONFIG_ID_DOWNLOAD_WORK_SCHEDULED);
+    StatsdTestUtils.cleanup(CONFIG_ID_DOWNLOAD_WORK_COMPLETED);
 
-    StatsdConfig.Builder builder =
+    StatsdConfig.Builder builder1 =
         StatsdConfig.newBuilder()
-            .setId(CONFIG_ID)
+            .setId(CONFIG_ID_DOWNLOAD_REPORTED)
             .addAllowedLogSource(ApplicationProvider.getApplicationContext().getPackageName());
-    StatsdTestUtils.addAtomMatcher(builder, Atom.TEXT_CLASSIFIER_DOWNLOAD_REPORTED_FIELD_NUMBER);
-    StatsdTestUtils.pushConfig(builder.build());
+    StatsdTestUtils.addAtomMatcher(builder1, Atom.TEXT_CLASSIFIER_DOWNLOAD_REPORTED_FIELD_NUMBER);
+    StatsdTestUtils.pushConfig(builder1.build());
+
+    StatsdConfig.Builder builder2 =
+        StatsdConfig.newBuilder()
+            .setId(CONFIG_ID_DOWNLOAD_WORK_SCHEDULED)
+            .addAllowedLogSource(ApplicationProvider.getApplicationContext().getPackageName());
+    StatsdTestUtils.addAtomMatcher(
+        builder2, Atom.TEXT_CLASSIFIER_DOWNLOAD_WORK_SCHEDULED_FIELD_NUMBER);
+    StatsdTestUtils.pushConfig(builder2.build());
+
+    StatsdConfig.Builder builder3 =
+        StatsdConfig.newBuilder()
+            .setId(CONFIG_ID_DOWNLOAD_WORK_COMPLETED)
+            .addAllowedLogSource(ApplicationProvider.getApplicationContext().getPackageName());
+    StatsdTestUtils.addAtomMatcher(
+        builder3, Atom.TEXT_CLASSIFIER_DOWNLOAD_WORK_COMPLETED_FIELD_NUMBER);
+    StatsdTestUtils.pushConfig(builder3.build());
   }
 
   @Override
   public void after() {
     try {
-      StatsdTestUtils.cleanup(CONFIG_ID);
+      StatsdTestUtils.cleanup(CONFIG_ID_DOWNLOAD_REPORTED);
+      StatsdTestUtils.cleanup(CONFIG_ID_DOWNLOAD_WORK_SCHEDULED);
+      StatsdTestUtils.cleanup(CONFIG_ID_DOWNLOAD_WORK_COMPLETED);
     } catch (Exception e) {
       Log.e(TAG, "Failed to clean up statsd after tests.");
     }
   }
 
-  /** Gets a list of download atoms written into statsd, sorted by increasing timestamp. */
-  public ImmutableList<TextClassifierDownloadReported> getLoggedAtoms() throws Exception {
-    ImmutableList<Atom> loggedAtoms = StatsdTestUtils.getLoggedAtoms(CONFIG_ID, SHORT_TIMEOUT_MS);
+  /**
+   * Gets a list of TextClassifierDownloadReported atoms written into statsd, sorted by increasing
+   * timestamp.
+   */
+  public ImmutableList<TextClassifierDownloadReported> getLoggedDownloadReportedAtoms()
+      throws Exception {
+    ImmutableList<Atom> loggedAtoms =
+        StatsdTestUtils.getLoggedAtoms(CONFIG_ID_DOWNLOAD_REPORTED, SHORT_TIMEOUT_MS);
     return ImmutableList.copyOf(
         loggedAtoms.stream()
+            .filter(Atom::hasTextClassifierDownloadReported)
             .map(Atom::getTextClassifierDownloadReported)
+            .collect(Collectors.toList()));
+  }
+
+  /**
+   * Gets a list of TextClassifierDownloadWorkScheduled atoms written into statsd, sorted by
+   * increasing timestamp.
+   */
+  public ImmutableList<TextClassifierDownloadWorkScheduled> getLoggedDownloadWorkScheduledAtoms()
+      throws Exception {
+    ImmutableList<Atom> loggedAtoms =
+        StatsdTestUtils.getLoggedAtoms(CONFIG_ID_DOWNLOAD_WORK_SCHEDULED, SHORT_TIMEOUT_MS);
+    return ImmutableList.copyOf(
+        loggedAtoms.stream()
+            .filter(Atom::hasTextClassifierDownloadWorkScheduled)
+            .map(Atom::getTextClassifierDownloadWorkScheduled)
+            .collect(Collectors.toList()));
+  }
+
+  /**
+   * Gets a list of TextClassifierDownloadWorkCompleted atoms written into statsd, sorted by
+   * increasing timestamp.
+   */
+  public ImmutableList<TextClassifierDownloadWorkCompleted> getLoggedDownloadWorkCompletedAtoms()
+      throws Exception {
+    ImmutableList<Atom> loggedAtoms =
+        StatsdTestUtils.getLoggedAtoms(CONFIG_ID_DOWNLOAD_WORK_COMPLETED, SHORT_TIMEOUT_MS);
+    return ImmutableList.copyOf(
+        loggedAtoms.stream()
+            .filter(Atom::hasTextClassifierDownloadWorkCompleted)
+            .map(Atom::getTextClassifierDownloadWorkCompleted)
             .collect(Collectors.toList()));
   }
 }
