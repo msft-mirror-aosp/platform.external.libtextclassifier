@@ -32,6 +32,8 @@ import androidx.work.testing.TestListenableWorkerBuilder;
 import com.android.os.AtomsProto.TextClassifierDownloadReported;
 import com.android.os.AtomsProto.TextClassifierDownloadReported.DownloadStatus;
 import com.android.os.AtomsProto.TextClassifierDownloadReported.FailureReason;
+import com.android.os.AtomsProto.TextClassifierDownloadWorkCompleted;
+import com.android.os.AtomsProto.TextClassifierDownloadWorkCompleted.WorkResult;
 import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.statsd.TextClassifierDownloadLoggerTestRule;
@@ -41,6 +43,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.io.File;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -55,6 +59,7 @@ import org.mockito.MockitoAnnotations;
 
 @RunWith(JUnit4.class)
 public final class ModelDownloadWorkerTest {
+  private static final long WORK_ID = 123456789L;
   private static final String MODEL_TYPE = ModelType.ANNOTATOR;
   private static final String MODEL_TYPE_2 = ModelType.ACTIONS_SUGGESTIONS;
   private static final TextClassifierDownloadReported.ModelType MODEL_TYPE_ATOM =
@@ -112,7 +117,24 @@ public final class ModelDownloadWorkerTest {
       new LocaleList(new Locale(LOCALE_TAG), new Locale(LOCALE_TAG_2));
   private static final LocaleList LOCALE_LIST_3 =
       new LocaleList(new Locale(LOCALE_TAG), new Locale(LOCALE_TAG_2), new Locale(LOCALE_TAG_3));
+  private static final Instant WORK_SCHEDULED_TIME = Instant.now();
+  private static final Instant WORK_STARTED_TIME = WORK_SCHEDULED_TIME.plusSeconds(100);
+  // Make sure any combination has a different diff
+  private static final Instant DOWNLOAD_STARTED_TIME = WORK_STARTED_TIME.plusSeconds(1);
+  private static final Instant DOWNLOAD_ENDED_TIME = WORK_STARTED_TIME.plusSeconds(1 + 2);
+  private static final Instant DOWNLOAD_STARTED_TIME_2 = WORK_STARTED_TIME.plusSeconds(1 + 2 + 3);
+  private static final Instant DOWNLOAD_ENDED_TIME_2 = WORK_STARTED_TIME.plusSeconds(1 + 2 + 3 + 4);
+  private static final Instant WORK_ENDED_TIME = WORK_STARTED_TIME.plusSeconds(1 + 2 + 3 + 4 + 5);
+  private static final long DOWNLOAD_STARTED_TO_ENDED_MILLIS =
+      DOWNLOAD_ENDED_TIME.toEpochMilli() - DOWNLOAD_STARTED_TIME.toEpochMilli();
+  private static final long DOWNLOAD_STARTED_TO_ENDED_2_MILLIS =
+      DOWNLOAD_ENDED_TIME_2.toEpochMilli() - DOWNLOAD_STARTED_TIME_2.toEpochMilli();
+  private static final long WORK_SCHEDULED_TO_STARTED_MILLIS =
+      WORK_STARTED_TIME.toEpochMilli() - WORK_SCHEDULED_TIME.toEpochMilli();
+  private static final long WORK_STARTED_TO_ENDED_MILLIS =
+      WORK_ENDED_TIME.toEpochMilli() - WORK_STARTED_TIME.toEpochMilli();
 
+  @Mock private Clock clock;
   @Mock private ModelDownloader modelDownloader;
   private File modelDownloaderDir;
   private File modelFile;
@@ -163,12 +185,15 @@ public final class ModelDownloadWorkerTest {
     modelFile.createNewFile();
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
         .thenReturn(Futures.immediateFuture(modelFile));
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(modelFile.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
-    verifyLoggedAtom(DownloadStatus.SUCCEEDED, RUN_ATTEMPT_COUNT, /* failureReason= */ null);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -178,12 +203,15 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(MODEL_MANIFEST_PROTO));
     modelFile.createNewFile();
     downloadedModelManager.registerModel(MODEL_URL, modelFile.getAbsolutePath());
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(modelFile.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
-    verifyLoggedAtom(DownloadStatus.SUCCEEDED, RUN_ATTEMPT_COUNT, /* failureReason= */ null);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -192,12 +220,15 @@ public final class ModelDownloadWorkerTest {
     modelFile.createNewFile();
     downloadedModelManager.registerModel(MODEL_URL, modelFile.getAbsolutePath());
     downloadedModelManager.registerManifest(MANIFEST_URL, MODEL_URL);
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(modelFile.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
-    verifyLoggedAtom(DownloadStatus.SUCCEEDED, RUN_ATTEMPT_COUNT, /* failureReason= */ null);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -214,6 +245,15 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(modelFile));
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO_2))
         .thenReturn(Futures.immediateFuture(modelFile2));
+    // We assume we always download MODEL_TYPE first and then MODEL_TYPE_2, o/w this will be flaky
+    when(clock.instant())
+        .thenReturn(
+            WORK_STARTED_TIME,
+            DOWNLOAD_STARTED_TIME,
+            DOWNLOAD_ENDED_TIME,
+            DOWNLOAD_STARTED_TIME_2,
+            DOWNLOAD_ENDED_TIME_2,
+            WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
@@ -221,7 +261,7 @@ public final class ModelDownloadWorkerTest {
     assertThat(modelFile2.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
     assertThat(downloadedModelManager.listModels(MODEL_TYPE_2)).containsExactly(modelFile2);
-    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedAtoms();
+    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedDownloadReportedAtoms();
     assertThat(atoms).hasSize(2);
     assertThat(
             atoms.stream()
@@ -230,6 +270,12 @@ public final class ModelDownloadWorkerTest {
         .containsExactly(MANIFEST_URL, MANIFEST_URL_2);
     assertThat(atoms.get(0).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
     assertThat(atoms.get(1).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getDownloadDurationMillis)
+                .collect(Collectors.toList()))
+        .containsExactly(DOWNLOAD_STARTED_TO_ENDED_MILLIS, DOWNLOAD_STARTED_TO_ENDED_2_MILLIS);
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -243,6 +289,15 @@ public final class ModelDownloadWorkerTest {
     modelFile.createNewFile();
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
         .thenReturn(Futures.immediateFuture(modelFile));
+    // We assume we always download MODEL_TYPE first and then MODEL_TYPE_2, o/w this will be flaky
+    when(clock.instant())
+        .thenReturn(
+            WORK_STARTED_TIME,
+            DOWNLOAD_STARTED_TIME,
+            DOWNLOAD_ENDED_TIME,
+            DOWNLOAD_STARTED_TIME_2,
+            DOWNLOAD_ENDED_TIME_2,
+            WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
@@ -250,7 +305,7 @@ public final class ModelDownloadWorkerTest {
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
     assertThat(downloadedModelManager.listModels(MODEL_TYPE_2)).containsExactly(modelFile);
     verify(modelDownloader, times(1)).downloadModel(modelDownloaderDir, MODEL_PROTO);
-    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedAtoms();
+    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedDownloadReportedAtoms();
     assertThat(atoms).hasSize(2);
     assertThat(
             atoms.stream()
@@ -259,6 +314,12 @@ public final class ModelDownloadWorkerTest {
         .containsExactly(MANIFEST_URL, MANIFEST_URL_2);
     assertThat(atoms.get(0).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
     assertThat(atoms.get(1).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getDownloadDurationMillis)
+                .collect(Collectors.toList()))
+        .containsExactly(DOWNLOAD_STARTED_TO_ENDED_MILLIS, DOWNLOAD_STARTED_TO_ENDED_2_MILLIS);
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -270,6 +331,15 @@ public final class ModelDownloadWorkerTest {
     modelFile.createNewFile();
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
         .thenReturn(Futures.immediateFuture(modelFile));
+    // We assume we always download MODEL_TYPE first and then MODEL_TYPE_2, o/w this will be flaky
+    when(clock.instant())
+        .thenReturn(
+            WORK_STARTED_TIME,
+            DOWNLOAD_STARTED_TIME,
+            DOWNLOAD_ENDED_TIME,
+            DOWNLOAD_STARTED_TIME_2,
+            DOWNLOAD_ENDED_TIME_2,
+            WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
@@ -277,7 +347,7 @@ public final class ModelDownloadWorkerTest {
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
     assertThat(downloadedModelManager.listModels(MODEL_TYPE_2)).containsExactly(modelFile);
     verify(modelDownloader, times(1)).downloadManifest(MANIFEST_URL);
-    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedAtoms();
+    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedDownloadReportedAtoms();
     assertThat(atoms).hasSize(2);
     assertThat(
             atoms.stream()
@@ -286,6 +356,12 @@ public final class ModelDownloadWorkerTest {
         .containsExactly(MANIFEST_URL, MANIFEST_URL);
     assertThat(atoms.get(0).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
     assertThat(atoms.get(1).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getDownloadDurationMillis)
+                .collect(Collectors.toList()))
+        .containsExactly(DOWNLOAD_STARTED_TO_ENDED_MILLIS, DOWNLOAD_STARTED_TO_ENDED_2_MILLIS);
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -293,11 +369,13 @@ public final class ModelDownloadWorkerTest {
     setUpManifestUrl(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
     when(modelDownloader.downloadManifest(MANIFEST_URL))
         .thenReturn(Futures.immediateFailedFuture(FAILED_TO_DOWNLOAD_EXCEPTION));
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.retry());
-    verifyLoggedAtom(
-        DownloadStatus.FAILED_AND_RETRY, RUN_ATTEMPT_COUNT, FAILED_TO_DOWNLOAD_FAILURE_REASON);
+    verifyFailedDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.RETRY_MODEL_DOWNLOAD_FAILED);
   }
 
   @Test
@@ -307,21 +385,39 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(MODEL_MANIFEST_PROTO));
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
         .thenReturn(Futures.immediateFailedFuture(FAILED_TO_DOWNLOAD_EXCEPTION));
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.retry());
-    verifyLoggedAtom(
-        DownloadStatus.FAILED_AND_RETRY, RUN_ATTEMPT_COUNT, FAILED_TO_DOWNLOAD_FAILURE_REASON);
+    verifyFailedDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.RETRY_MODEL_DOWNLOAD_FAILED);
+  }
+
+  @Test
+  public void downloadFailed_modelDownloadManagerDisabled() throws Exception {
+    deviceConfig.setConfig(TextClassifierSettings.MODEL_DOWNLOAD_MANAGER_ENABLED, false);
+    when(clock.instant()).thenReturn(WORK_STARTED_TIME, WORK_ENDED_TIME);
+
+    ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
+    assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.failure());
+    assertThat(loggerTestRule.getLoggedDownloadReportedAtoms()).isEmpty();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.FAILURE_MODEL_DOWNLOADER_DISABLED);
   }
 
   @Test
   public void downloadFailed_reachWorkerMaxRunAttempts() throws Exception {
+    when(clock.instant()).thenReturn(WORK_STARTED_TIME, WORK_ENDED_TIME);
+
     ModelDownloadWorker worker = createWorker(WORKER_MAX_RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.failure());
+    assertThat(loggerTestRule.getLoggedDownloadReportedAtoms()).isEmpty();
+    verifyWorkLogging(WORKER_MAX_RUN_ATTEMPT_COUNT, WorkResult.FAILURE_MAX_RUN_ATTEMPT_REACHED);
   }
 
   @Test
   public void downloadSkipped_reachManifestMaxAttempts() throws Exception {
+    when(clock.instant()).thenReturn(WORK_STARTED_TIME, WORK_ENDED_TIME);
     setUpManifestUrl(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
     deviceConfig.setConfig(
         TextClassifierSettings.MANIFEST_DOWNLOAD_MAX_ATTEMPTS, MANIFEST_MAX_ATTEMPT_COUNT);
@@ -332,20 +428,23 @@ public final class ModelDownloadWorkerTest {
     ModelDownloadWorker worker = createWorker(MANIFEST_MAX_ATTEMPT_COUNT);
 
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
-    assertThat(loggerTestRule.getLoggedAtoms()).isEmpty();
+    assertThat(loggerTestRule.getLoggedDownloadReportedAtoms()).isEmpty();
+    verifyWorkLogging(MANIFEST_MAX_ATTEMPT_COUNT, WorkResult.SUCCESS_NO_UPDATE_AVAILABLE);
   }
 
   @Test
   public void downloadSkipped_manifestAlreadyProcessed() throws Exception {
+    when(clock.instant()).thenReturn(WORK_STARTED_TIME, WORK_ENDED_TIME);
     setUpManifestUrl(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
     modelFile.createNewFile();
     downloadedModelManager.registerModel(MODEL_URL, modelFile.getAbsolutePath());
     downloadedModelManager.registerManifest(MANIFEST_URL, MODEL_URL);
     downloadedModelManager.registerManifestEnrollment(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
 
-    ModelDownloadWorker worker = createWorker(MANIFEST_MAX_ATTEMPT_COUNT);
+    ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
-    assertThat(loggerTestRule.getLoggedAtoms()).isEmpty();
+    assertThat(loggerTestRule.getLoggedDownloadReportedAtoms()).isEmpty();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_NO_UPDATE_AVAILABLE);
   }
 
   @Test
@@ -366,6 +465,15 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(modelFile));
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO_2))
         .thenReturn(Futures.immediateFuture(modelFile2));
+    // We assume we always download MODEL_TYPE first and then MODEL_TYPE_2, o/w this will be flaky
+    when(clock.instant())
+        .thenReturn(
+            WORK_STARTED_TIME,
+            DOWNLOAD_STARTED_TIME,
+            DOWNLOAD_ENDED_TIME,
+            DOWNLOAD_STARTED_TIME_2,
+            DOWNLOAD_ENDED_TIME_2,
+            WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
@@ -374,6 +482,21 @@ public final class ModelDownloadWorkerTest {
 
     assertThat(downloadedModelManager.listModels(MODEL_TYPE))
         .containsExactly(modelFile, modelFile2);
+    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedDownloadReportedAtoms();
+    assertThat(atoms).hasSize(2);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getUrlSuffix)
+                .collect(Collectors.toList()))
+        .containsExactly(MANIFEST_URL, MANIFEST_URL_2);
+    assertThat(atoms.get(0).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(atoms.get(1).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getDownloadDurationMillis)
+                .collect(Collectors.toList()))
+        .containsExactly(DOWNLOAD_STARTED_TO_ENDED_MILLIS, DOWNLOAD_STARTED_TO_ENDED_2_MILLIS);
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -388,11 +511,15 @@ public final class ModelDownloadWorkerTest {
     modelFile.createNewFile();
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
         .thenReturn(Futures.immediateFuture(modelFile));
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(modelFile.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -404,15 +531,18 @@ public final class ModelDownloadWorkerTest {
     setUpManifestUrl(MODEL_TYPE, LOCALE_TAG_2, MANIFEST_URL_2);
 
     modelFile.createNewFile();
-    downloadedModelManager.registerModel(MODEL_URL, modelFile.getAbsolutePath());
-    downloadedModelManager.registerManifest(MANIFEST_URL, MODEL_URL);
-    downloadedModelManager.registerManifestEnrollment(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
+    when(modelDownloader.downloadManifest(MANIFEST_URL))
+        .thenReturn(Futures.immediateFuture(MODEL_MANIFEST_PROTO));
+    when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
+        .thenReturn(Futures.immediateFuture(modelFile));
 
-    when(modelDownloader.downloadManifest(MANIFEST_URL_2))
-        .thenReturn(Futures.immediateFuture(MODEL_MANIFEST_PROTO_2));
     modelFile2.createNewFile();
-    when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO_2))
-        .thenReturn(Futures.immediateFuture(modelFile2));
+    downloadedModelManager.registerModel(MODEL_URL_2, modelFile2.getAbsolutePath());
+    downloadedModelManager.registerManifest(MANIFEST_URL_2, MODEL_URL_2);
+    downloadedModelManager.registerManifestEnrollment(MODEL_TYPE, LOCALE_TAG_2, MANIFEST_URL_2);
+
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
@@ -420,6 +550,8 @@ public final class ModelDownloadWorkerTest {
     assertThat(modelFile2.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE))
         .containsExactly(modelFile, modelFile2);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -440,11 +572,15 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(modelFile));
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO_2))
         .thenReturn(Futures.immediateFuture(modelFile2));
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(modelFile.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
@@ -462,11 +598,35 @@ public final class ModelDownloadWorkerTest {
     modelFile.createNewFile();
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO))
         .thenReturn(Futures.immediateFuture(modelFile));
+    // We assume we always download MODEL_TYPE first and then MODEL_TYPE_2, o/w this will be flaky
+    when(clock.instant())
+        .thenReturn(
+            WORK_STARTED_TIME,
+            DOWNLOAD_STARTED_TIME,
+            DOWNLOAD_ENDED_TIME,
+            DOWNLOAD_STARTED_TIME_2,
+            DOWNLOAD_ENDED_TIME_2,
+            WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.retry());
     assertThat(modelFile.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
+    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedDownloadReportedAtoms();
+    assertThat(atoms).hasSize(2);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getUrlSuffix)
+                .collect(Collectors.toList()))
+        .containsExactly(MANIFEST_URL, MANIFEST_URL_2);
+    assertThat(atoms.get(0).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(atoms.get(1).getDownloadStatus()).isEqualTo(DownloadStatus.FAILED_AND_RETRY);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getDownloadDurationMillis)
+                .collect(Collectors.toList()))
+        .containsExactly(DOWNLOAD_STARTED_TO_ENDED_MILLIS, DOWNLOAD_STARTED_TO_ENDED_2_MILLIS);
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.RETRY_MODEL_DOWNLOAD_FAILED);
   }
 
   @Test
@@ -494,6 +654,15 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(modelFile2));
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO_3))
         .thenReturn(Futures.immediateFuture(modelFile3));
+    // We assume we always download MODEL_TYPE first and then MODEL_TYPE_2, o/w this will be flaky
+    when(clock.instant())
+        .thenReturn(
+            WORK_STARTED_TIME,
+            DOWNLOAD_STARTED_TIME,
+            DOWNLOAD_ENDED_TIME,
+            DOWNLOAD_STARTED_TIME_2,
+            DOWNLOAD_ENDED_TIME_2,
+            WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
@@ -501,17 +670,32 @@ public final class ModelDownloadWorkerTest {
     assertThat(modelFile2.exists()).isTrue();
     assertThat(downloadedModelManager.listModels(MODEL_TYPE))
         .containsExactly(modelFile, modelFile2);
+    List<TextClassifierDownloadReported> atoms = loggerTestRule.getLoggedDownloadReportedAtoms();
+    assertThat(atoms).hasSize(2);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getUrlSuffix)
+                .collect(Collectors.toList()))
+        .containsExactly(MANIFEST_URL, MANIFEST_URL_2);
+    assertThat(atoms.get(0).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(atoms.get(1).getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
+    assertThat(
+            atoms.stream()
+                .map(TextClassifierDownloadReported::getDownloadDurationMillis)
+                .collect(Collectors.toList()))
+        .containsExactly(DOWNLOAD_STARTED_TO_ENDED_MILLIS, DOWNLOAD_STARTED_TO_ENDED_2_MILLIS);
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   @Test
-  public void downloadSucceed_multiLanguageSupportEnabled_checkDownloadedModelTypes()
+  public void downloadSucceed_multiLanguageSupportEnabled_onlyDownloadMultipleForEnabledModelType()
       throws Exception {
     setDefaultLocalesRule.set(LOCALE_LIST_2);
     deviceConfig.setConfig(TextClassifierSettings.MULTI_LANGUAGE_SUPPORT_ENABLED, true);
     deviceConfig.setConfig(
-        TextClassifierSettings.ENABLED_MODEL_TYPES_FOR_MULTI_LANGUAGE_SUPPORT, MODEL_TYPE);
-    setUpManifestUrl(MODEL_TYPE_2, LOCALE_TAG, MANIFEST_URL);
-    setUpManifestUrl(MODEL_TYPE_2, LOCALE_TAG_2, MANIFEST_URL_2);
+        TextClassifierSettings.ENABLED_MODEL_TYPES_FOR_MULTI_LANGUAGE_SUPPORT, MODEL_TYPE_2);
+    setUpManifestUrl(MODEL_TYPE, LOCALE_TAG, MANIFEST_URL);
+    setUpManifestUrl(MODEL_TYPE, LOCALE_TAG_2, MANIFEST_URL_2);
 
     when(modelDownloader.downloadManifest(MANIFEST_URL))
         .thenReturn(Futures.immediateFuture(MODEL_MANIFEST_PROTO));
@@ -525,11 +709,15 @@ public final class ModelDownloadWorkerTest {
         .thenReturn(Futures.immediateFuture(modelFile));
     when(modelDownloader.downloadModel(modelDownloaderDir, MODEL_PROTO_2))
         .thenReturn(Futures.immediateFuture(modelFile2));
+    when(clock.instant())
+        .thenReturn(WORK_STARTED_TIME, DOWNLOAD_STARTED_TIME, DOWNLOAD_ENDED_TIME, WORK_ENDED_TIME);
 
     ModelDownloadWorker worker = createWorker(RUN_ATTEMPT_COUNT);
     assertThat(worker.startWork().get()).isEqualTo(ListenableWorker.Result.success());
     assertThat(modelFile.exists()).isTrue();
-    assertThat(downloadedModelManager.listModels(MODEL_TYPE_2)).containsExactly(modelFile);
+    assertThat(downloadedModelManager.listModels(MODEL_TYPE)).containsExactly(modelFile);
+    verifySucceededDownloadLogging();
+    verifyWorkLogging(RUN_ATTEMPT_COUNT, WorkResult.SUCCESS_MODEL_DOWNLOADED);
   }
 
   private ModelDownloadWorker createWorker(int runAttemptCount) {
@@ -547,23 +735,50 @@ public final class ModelDownloadWorkerTest {
                     MoreExecutors.newDirectExecutorService(),
                     modelDownloader,
                     downloadedModelManager,
-                    settings);
+                    settings,
+                    WORK_ID,
+                    clock,
+                    WORK_SCHEDULED_TIME.toEpochMilli());
               }
             })
         .build();
   }
 
-  private void verifyLoggedAtom(
-      DownloadStatus downloadStatus, long runAttemptCount, FailureReason failureReason)
-      throws Exception {
-    TextClassifierDownloadReported atom = Iterables.getOnlyElement(loggerTestRule.getLoggedAtoms());
-    assertThat(atom.getDownloadStatus()).isEqualTo(downloadStatus);
+  private void verifySucceededDownloadLogging() throws Exception {
+    TextClassifierDownloadReported atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadReportedAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
+    assertThat(atom.getDownloadStatus()).isEqualTo(DownloadStatus.SUCCEEDED);
     assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
     assertThat(atom.getUrlSuffix()).isEqualTo(MANIFEST_URL);
-    assertThat(atom.getRunAttemptCount()).isEqualTo(runAttemptCount);
-    if (failureReason != null) {
-      assertThat(atom.getFailureReason()).isEqualTo(failureReason);
-    }
+    assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
+    assertThat(atom.getFailureReason()).isEqualTo(FailureReason.UNKNOWN_FAILURE_REASON);
+    assertThat(atom.getDownloadDurationMillis()).isEqualTo(DOWNLOAD_STARTED_TO_ENDED_MILLIS);
+  }
+
+  private void verifyFailedDownloadLogging() throws Exception {
+    TextClassifierDownloadReported atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadReportedAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
+    assertThat(atom.getDownloadStatus()).isEqualTo(DownloadStatus.FAILED_AND_RETRY);
+    assertThat(atom.getModelType()).isEqualTo(MODEL_TYPE_ATOM);
+    assertThat(atom.getUrlSuffix()).isEqualTo(MANIFEST_URL);
+    assertThat(atom.getRunAttemptCount()).isEqualTo(RUN_ATTEMPT_COUNT);
+    assertThat(atom.getFailureReason()).isEqualTo(FAILED_TO_DOWNLOAD_FAILURE_REASON);
+    assertThat(atom.getDownloaderLibFailureCode())
+        .isEqualTo(ModelDownloadException.DEFAULT_DOWNLOADER_LIB_ERROR_CODE);
+    assertThat(atom.getDownloadDurationMillis()).isEqualTo(DOWNLOAD_STARTED_TO_ENDED_MILLIS);
+  }
+
+  private void verifyWorkLogging(int runTimeAttempt, WorkResult workResult) throws Exception {
+    TextClassifierDownloadWorkCompleted atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkCompletedAtoms());
+    assertThat(atom.getWorkId()).isEqualTo(WORK_ID);
+    assertThat(atom.getWorkResult()).isEqualTo(workResult);
+    assertThat(atom.getRunAttemptCount()).isEqualTo(runTimeAttempt);
+    assertThat(atom.getWorkScheduledToStartedDurationMillis())
+        .isEqualTo(WORK_SCHEDULED_TO_STARTED_MILLIS);
+    assertThat(atom.getWorkStartedToEndedDurationMillis()).isEqualTo(WORK_STARTED_TO_ENDED_MILLIS);
   }
 
   private void setUpManifestUrl(
