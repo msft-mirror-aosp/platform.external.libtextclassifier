@@ -25,48 +25,61 @@ import java.lang.annotation.Retention;
 /** Exception thrown when downloading a model. */
 final class ModelDownloadException extends RuntimeException {
 
-  // Consistent with TextClassifierDownloadReported.failure_reason
+  // Consistent with TextClassifierDownloadReported.failure_reason. [1, 8, 9] reserved
   public static final int UNKNOWN_FAILURE_REASON = 0;
-  public static final int FAILED_TO_SCHEDULE = 1;
   public static final int FAILED_TO_DOWNLOAD_SERVICE_CONN_BROKEN = 2;
   public static final int FAILED_TO_DOWNLOAD_404_ERROR = 3;
   public static final int FAILED_TO_DOWNLOAD_OTHER = 4;
   public static final int DOWNLOADED_FILE_MISSING = 5;
   public static final int FAILED_TO_PARSE_MANIFEST = 6;
   public static final int FAILED_TO_VALIDATE_MODEL = 7;
-  public static final int FAILED_TO_MOVE_MODEL = 8;
-  public static final int WORKER_STOPPED = 9;
 
   /** Error code for a failed download task. */
   @Retention(SOURCE)
   @IntDef({
     UNKNOWN_FAILURE_REASON,
-    FAILED_TO_SCHEDULE,
     FAILED_TO_DOWNLOAD_SERVICE_CONN_BROKEN,
     FAILED_TO_DOWNLOAD_404_ERROR,
     FAILED_TO_DOWNLOAD_OTHER,
     DOWNLOADED_FILE_MISSING,
     FAILED_TO_PARSE_MANIFEST,
-    FAILED_TO_VALIDATE_MODEL,
-    FAILED_TO_MOVE_MODEL,
-    WORKER_STOPPED
+    FAILED_TO_VALIDATE_MODEL
   })
   public @interface ErrorCode {}
 
+  public static final int DEFAULT_DOWNLOADER_LIB_ERROR_CODE = -1;
+
   private final int errorCode;
+
+  private final int downloaderLibErrorCode;
 
   public ModelDownloadException(@ErrorCode int errorCode, Throwable cause) {
     super(cause);
     this.errorCode = errorCode;
+    this.downloaderLibErrorCode = DEFAULT_DOWNLOADER_LIB_ERROR_CODE;
   }
 
   public ModelDownloadException(@ErrorCode int errorCode, String message) {
     super(message);
     this.errorCode = errorCode;
+    this.downloaderLibErrorCode = DEFAULT_DOWNLOADER_LIB_ERROR_CODE;
   }
 
+  public ModelDownloadException(
+      @ErrorCode int errorCode, int downloaderLibErrorCode, String message) {
+    super(message);
+    this.errorCode = errorCode;
+    this.downloaderLibErrorCode = downloaderLibErrorCode;
+  }
+
+  /** Returns the error code from Model Downloader itself. */
   @ErrorCode
   public int getErrorCode() {
     return errorCode;
+  }
+
+  /** Returns the error code from internal HTTP stack. */
+  public int getDownloaderLibErrorCode() {
+    return downloaderLibErrorCode;
   }
 }
