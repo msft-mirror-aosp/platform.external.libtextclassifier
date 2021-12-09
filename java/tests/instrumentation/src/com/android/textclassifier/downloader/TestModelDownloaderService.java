@@ -33,7 +33,7 @@ public final class TestModelDownloaderService extends Service {
   public static final String GOOD_URI = "good_uri";
   public static final String BAD_URI = "bad_uri";
   public static final long BYTES_WRITTEN = 1L;
-  public static final int ERROR_CODE = ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER;
+  public static final int DOWNLOADER_LIB_ERROR_CODE = 500;
   public static final String ERROR_MSG = "not good uri";
 
   public enum DownloadResult {
@@ -129,7 +129,7 @@ public final class TestModelDownloaderService extends Service {
             callback.onSuccess(BYTES_WRITTEN);
             break;
           case FAILED:
-            callback.onFailure(ERROR_CODE, ERROR_MSG);
+            callback.onFailure(DOWNLOADER_LIB_ERROR_CODE, ERROR_MSG);
             break;
           case DO_NOTHING:
             // Do nothing

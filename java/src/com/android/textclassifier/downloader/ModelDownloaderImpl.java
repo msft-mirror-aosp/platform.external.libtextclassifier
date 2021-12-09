@@ -210,9 +210,12 @@ final class ModelDownloaderImpl implements ModelDownloader {
                 }
 
                 @Override
-                public void onFailure(
-                    @ModelDownloadException.ErrorCode int errorCode, String errorMsg) {
-                  completer.setException(new ModelDownloadException(errorCode, errorMsg));
+                public void onFailure(int downloaderLibErrorCode, String errorMsg) {
+                  completer.setException(
+                      new ModelDownloadException(
+                          ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER,
+                          downloaderLibErrorCode,
+                          errorMsg));
                 }
               });
           return "downlaoderService.download";
