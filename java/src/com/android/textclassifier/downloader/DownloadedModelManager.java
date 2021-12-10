@@ -16,20 +16,19 @@
 
 package com.android.textclassifier.downloader;
 
-import android.util.Pair;
 import com.android.textclassifier.common.ModelType.ModelTypeDef;
 import com.android.textclassifier.downloader.DownloadedModelDatabase.Manifest;
 import com.android.textclassifier.downloader.DownloadedModelDatabase.ManifestEnrollment;
 import com.android.textclassifier.downloader.DownloadedModelDatabase.Model;
 import com.android.textclassifier.utils.IndentingPrintWriter;
+import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.util.List;
-import java.util.Map;
 import javax.annotation.Nullable;
 
 // TODO(licha): Let Worker access DB class directly, then we can make this a lister interface
 /** An interface to provide easy access to DownloadedModelDatabase. */
-interface DownloadedModelManager {
+public interface DownloadedModelManager {
 
   /** Returns the directory containing models downloaded by the downloader. */
   File getModelDownloaderDir();
@@ -123,10 +122,10 @@ interface DownloadedModelManager {
   /**
    * Clean up unused downloaded models and update other internal states.
    *
-   * @param bestLocaleTagAndManifestUrls <modelType, <localeTag, manifestUrl>> the worker tried to
+   * @param manifestsToDownload Map<modelType, manifestsToDownloadMyType> that the worker tried to
    *     download
    */
-  void onDownloadCompleted(Map<String, Pair<String, String>> bestLocaleTagAndManifestUrls);
+  void onDownloadCompleted(ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload);
 
   /**
    * Dumps the internal state for debugging.

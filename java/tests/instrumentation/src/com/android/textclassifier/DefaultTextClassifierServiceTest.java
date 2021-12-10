@@ -20,14 +20,11 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.Mockito.verify;
 
 import android.content.Context;
-import android.os.Binder;
 import android.os.CancellationSignal;
-import android.os.Parcel;
 import android.service.textclassifier.TextClassifierService;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.TextClassification;
-import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
@@ -45,6 +42,7 @@ import com.android.os.AtomsProto.TextClassifierApiUsageReported.ResultType;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.statsd.StatsdTestUtils;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
+import com.android.textclassifier.downloader.ModelDownloadManager;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -112,7 +110,7 @@ public class DefaultTextClassifierServiceTest {
         new TextClassification.Request.Builder(text, 0, text.length()).build();
 
     defaultTextClassifierService.onClassifyText(
-        createTextClassificationSessionId(),
+        TestingUtils.createTextClassificationSessionId(SESSION_ID),
         request,
         new CancellationSignal(),
         textClassificationCallback);
@@ -134,7 +132,7 @@ public class DefaultTextClassifierServiceTest {
     TextSelection.Request request = new TextSelection.Request.Builder(text, start, end).build();
 
     defaultTextClassifierService.onSuggestSelection(
-        createTextClassificationSessionId(),
+        TestingUtils.createTextClassificationSessionId(SESSION_ID),
         request,
         new CancellationSignal(),
         textSelectionCallback);
@@ -152,7 +150,10 @@ public class DefaultTextClassifierServiceTest {
     TextLinks.Request request = new TextLinks.Request.Builder(text).build();
 
     defaultTextClassifierService.onGenerateLinks(
-        createTextClassificationSessionId(), request, new CancellationSignal(), textLinksCallback);
+        TestingUtils.createTextClassificationSessionId(SESSION_ID),
+        request,
+        new CancellationSignal(),
+        textLinksCallback);
 
     ArgumentCaptor<TextLinks> captor = ArgumentCaptor.forClass(TextLinks.class);
     verify(textLinksCallback).onSuccess(captor.capture());
@@ -169,7 +170,7 @@ public class DefaultTextClassifierServiceTest {
     TextLanguage.Request request = new TextLanguage.Request.Builder(text).build();
 
     defaultTextClassifierService.onDetectLanguage(
-        createTextClassificationSessionId(),
+        TestingUtils.createTextClassificationSessionId(SESSION_ID),
         request,
         new CancellationSignal(),
         textLanguageCallback);
@@ -191,7 +192,7 @@ public class DefaultTextClassifierServiceTest {
         new ConversationActions.Request.Builder(ImmutableList.of(message)).build();
 
     defaultTextClassifierService.onSuggestConversationActions(
-        createTextClassificationSessionId(),
+        TestingUtils.createTextClassificationSessionId(SESSION_ID),
         request,
         new CancellationSignal(),
         conversationActionsCallback);
@@ -207,12 +208,15 @@ public class DefaultTextClassifierServiceTest {
   @Test
   public void missingModelFile_onFailureShouldBeCalled() throws Exception {
     testInjector.setModelFileManager(
-        new ModelFileManager(ApplicationProvider.getApplicationContext(), ImmutableList.of()));
+        new ModelFileManagerImpl(
+            ApplicationProvider.getApplicationContext(),
+            ImmutableList.of(),
+            testInjector.createTextClassifierSettings()));
     defaultTextClassifierService.onCreate();
 
     TextClassification.Request request = new TextClassification.Request.Builder("hi", 0, 2).build();
     defaultTextClassifierService.onClassifyText(
-        createTextClassificationSessionId(),
+        TestingUtils.createTextClassificationSessionId(SESSION_ID),
         request,
         new CancellationSignal(),
         textClassificationCallback);
@@ -239,15 +243,6 @@ public class DefaultTextClassifierServiceTest {
     assertThat(loggedEvent.getSessionId()).isEqualTo(SESSION_ID);
   }
 
-  private static TextClassificationSessionId createTextClassificationSessionId() {
-    // Used a hack to create TextClassificationSessionId because its constructor is @hide.
-    Parcel parcel = Parcel.obtain();
-    parcel.writeString(SESSION_ID);
-    parcel.writeStrongBinder(new Binder());
-    parcel.setDataPosition(0);
-    return TextClassificationSessionId.CREATOR.createFromParcel(parcel);
-  }
-
   private static final class TestInjector implements DefaultTextClassifierService.Injector {
     private final Context context;
     private ModelFileManager modelFileManager;
@@ -266,7 +261,8 @@ public class DefaultTextClassifierServiceTest {
     }
 
     @Override
-    public ModelFileManager createModelFileManager(TextClassifierSettings settings) {
+    public ModelFileManager createModelFileManager(
+        TextClassifierSettings settings, ModelDownloadManager modelDownloadManager) {
       if (modelFileManager == null) {
         return TestDataUtils.createModelFileManagerForTesting(context);
       }
