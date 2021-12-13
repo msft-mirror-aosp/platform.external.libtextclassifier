@@ -78,6 +78,8 @@ TfLiteRegistration* Register_CUMSUM();
 TfLiteRegistration* Register_EXPAND_DIMS();
 TfLiteRegistration* Register_FILL();
 TfLiteRegistration* Register_PADV2();
+TfLiteRegistration* Register_EMBEDDING_LOOKUP();
+TfLiteRegistration* Register_GREATER();
 }  // namespace builtin
 }  // namespace ops
 }  // namespace tflite
@@ -252,6 +254,12 @@ void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
                        ::tflite::ops::builtin::Register_FILL());
   resolver->AddBuiltin(::tflite::BuiltinOperator_PADV2,
                        ::tflite::ops::builtin::Register_PADV2());
+  resolver->AddBuiltin(::tflite::BuiltinOperator_EMBEDDING_LOOKUP,
+                       ::tflite::ops::builtin::Register_EMBEDDING_LOOKUP(),
+                       /* min_version=*/1,
+                       /*max_version=*/3);
+  resolver->AddBuiltin(::tflite::BuiltinOperator_GREATER,
+                       ::tflite::ops::builtin::Register_GREATER());
 }
 #else
 void RegisterSelectedOps(tflite::MutableOpResolver* resolver) {
