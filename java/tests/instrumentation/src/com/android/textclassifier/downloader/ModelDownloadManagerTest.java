@@ -46,7 +46,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @RunWith(AndroidJUnit4.class)
 public final class ModelDownloadManagerTest {
@@ -61,6 +62,8 @@ public final class ModelDownloadManagerTest {
   public final TextClassifierDownloadLoggerTestRule loggerTestRule =
       new TextClassifierDownloadLoggerTestRule();
 
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
+
   private TestingDeviceConfig deviceConfig;
   private WorkManager workManager;
   private ModelDownloadManager downloadManager;
@@ -68,7 +71,6 @@ public final class ModelDownloadManagerTest {
 
   @Before
   public void setUp() {
-    MockitoAnnotations.initMocks(this);
     Context context = ApplicationProvider.getApplicationContext();
     WorkManagerTestInitHelper.initializeTestWorkManager(context);
 
