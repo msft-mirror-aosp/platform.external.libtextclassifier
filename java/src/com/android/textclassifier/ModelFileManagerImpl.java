@@ -378,13 +378,17 @@ final class ModelFileManagerImpl implements ModelFileManager {
       @Nullable LocaleList localePreferences,
       @Nullable LocaleList detectedLocales) {
     Locale targetLocale = findBestModelLocale(localePreferences, detectedLocales);
-    if (!isEmptyLocaleList(localePreferences) && !targetLocale.equals(localePreferences.get(0))) {
+    // detectedLocales usually only contains 2-char language (e.g. en), while locale in
+    // localePreferences is usually complete (e.g. en_US). Log only if targetLocale is not a prefix.
+    if (!isEmptyLocaleList(localePreferences)
+        && !localePreferences.get(0).toString().startsWith(targetLocale.toString())) {
       TcLog.d(
           TAG,
-          "locale preference and target locale mismatch. \n Target locale: "
-              + targetLocale
-              + " \n Preference locale: "
-              + localePreferences.get(0));
+          String.format(
+              Locale.US,
+              "localePreference and targetLocale mismatch: preference: %s, target: %s",
+              localePreferences.get(0),
+              targetLocale));
     }
     return findBestModelFile(modelType, targetLocale);
   }

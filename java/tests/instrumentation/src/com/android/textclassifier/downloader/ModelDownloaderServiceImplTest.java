@@ -22,11 +22,12 @@ import static org.mockito.Mockito.when;
 import static org.testng.Assert.expectThrows;
 
 import androidx.test.core.app.ApplicationProvider;
-import com.android.textclassifier.downloader.ModelDownloadException.ErrorCode;
 import com.google.android.downloader.DownloadConstraints;
 import com.google.android.downloader.DownloadRequest;
 import com.google.android.downloader.DownloadResult;
 import com.google.android.downloader.Downloader;
+import com.google.android.downloader.ErrorDetails;
+import com.google.android.downloader.RequestException;
 import com.google.android.downloader.SimpleFileDownloadDestination;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
@@ -36,17 +37,30 @@ import com.google.common.util.concurrent.SettableFuture;
 import java.io.File;
 import java.net.URI;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @RunWith(JUnit4.class)
 public final class ModelDownloaderServiceImplTest {
+
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
+
   private static final long BYTES_WRITTEN = 1L;
   private static final String DOWNLOAD_URI =
       "https://www.gstatic.com/android/text_classifier/r/v999/en.fb";
+  private static final int DOWNLOADER_LIB_ERROR_CODE = 500;
+  private static final String ERROR_MESSAGE = "err_msg";
+  private static final Exception DOWNLOADER_LIB_EXCEPTION =
+      new RequestException(
+          ErrorDetails.builder()
+              .setErrorMessage(ERROR_MESSAGE)
+              .setHttpStatusCode(DOWNLOADER_LIB_ERROR_CODE)
+              .build());
 
   @Mock private Downloader downloader;
   private File targetModelFile;
@@ -57,7 +71,6 @@ public final class ModelDownloaderServiceImplTest {
 
   @Before
   public void setUp() {
-    MockitoAnnotations.initMocks(this);
 
     this.targetModelFile =
         new File(ApplicationProvider.getApplicationContext().getCacheDir(), "model.fb");
@@ -98,7 +111,7 @@ public final class ModelDownloaderServiceImplTest {
     targetModelFile.createNewFile();
     targetMetadataFile.createNewFile();
     when(downloader.execute(any()))
-        .thenReturn(FluentFuture.from(Futures.immediateFailedFuture(new Exception("err_msg"))));
+        .thenReturn(FluentFuture.from(Futures.immediateFailedFuture(DOWNLOADER_LIB_EXCEPTION)));
     modelDownloaderServiceImpl.download(
         DOWNLOAD_URI, targetModelFile.getAbsolutePath(), successCallback);
 
@@ -107,7 +120,8 @@ public final class ModelDownloaderServiceImplTest {
     assertThat(t).hasCauseThat().isInstanceOf(ModelDownloadException.class);
     ModelDownloadException e = (ModelDownloadException) t.getCause();
     assertThat(e.getErrorCode()).isEqualTo(ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER);
-    assertThat(e).hasMessageThat().contains("err_msg");
+    assertThat(e.getDownloaderLibErrorCode()).isEqualTo(DOWNLOADER_LIB_ERROR_CODE);
+    assertThat(e).hasMessageThat().contains(ERROR_MESSAGE);
     assertThat(targetModelFile.exists()).isFalse();
     assertThat(targetMetadataFile.exists()).isFalse();
   }
@@ -132,7 +146,7 @@ public final class ModelDownloaderServiceImplTest {
     targetModelFile.createNewFile();
     targetMetadataFile.createNewFile();
     when(downloader.execute(any()))
-        .thenReturn(FluentFuture.from(Futures.immediateFailedFuture(new Exception("err_msg"))));
+        .thenReturn(FluentFuture.from(Futures.immediateFailedFuture(DOWNLOADER_LIB_EXCEPTION)));
     modelDownloaderServiceImpl.download(
         DOWNLOAD_URI, targetModelFile.getAbsolutePath(), failureCallback);
 
@@ -155,8 +169,10 @@ public final class ModelDownloaderServiceImplTest {
     }
 
     @Override
-    public void onFailure(@ErrorCode int errorCode, String errorMsg) {
-      bytesWrittenFuture.setException(new ModelDownloadException(errorCode, errorMsg));
+    public void onFailure(int downloaderLibErrorCode, String errorMsg) {
+      bytesWrittenFuture.setException(
+          new ModelDownloadException(
+              ModelDownloadException.FAILED_TO_DOWNLOAD_OTHER, downloaderLibErrorCode, errorMsg));
     }
   }
 
@@ -171,7 +187,7 @@ public final class ModelDownloaderServiceImplTest {
     }
 
     @Override
-    public void onFailure(@ErrorCode int errorCode, String errorMsg) {
+    public void onFailure(int downloaderLibErrorCode, String errorMsg) {
       onFailureCalled = true;
       throw new RuntimeException();
     }
