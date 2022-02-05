@@ -53,7 +53,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -67,6 +68,7 @@ public final class ModelFileManagerImplTest {
   @Mock private DownloadedModelManager downloadedModelManager;
 
   @Rule public final SetDefaultLocalesRule setDefaultLocalesRule = new SetDefaultLocalesRule();
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
 
   private File rootTestDir;
   private ModelFileManagerImpl modelFileManager;
@@ -75,7 +77,6 @@ public final class ModelFileManagerImplTest {
 
   @Before
   public void setup() {
-    MockitoAnnotations.initMocks(this);
     deviceConfig = new TestingDeviceConfig();
     rootTestDir =
         new File(ApplicationProvider.getApplicationContext().getCacheDir(), "rootTestDir");
