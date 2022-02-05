@@ -52,16 +52,21 @@ import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class DefaultTextClassifierServiceTest {
+
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
+
   /** A statsd config ID, which is arbitrary. */
   private static final long CONFIG_ID = 689777;
 
@@ -79,7 +84,6 @@ public class DefaultTextClassifierServiceTest {
 
   @Before
   public void setup() {
-    MockitoAnnotations.initMocks(this);
 
     testInjector = new TestInjector(ApplicationProvider.getApplicationContext());
     defaultTextClassifierService = new DefaultTextClassifierService(testInjector);
