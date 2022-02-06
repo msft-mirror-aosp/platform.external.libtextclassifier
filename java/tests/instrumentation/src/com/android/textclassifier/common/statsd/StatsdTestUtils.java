@@ -86,8 +86,8 @@ public class StatsdTestUtils {
     return ImmutableList.copyOf(
         metricsList.stream()
             .flatMap(statsLogReport -> statsLogReport.getEventMetrics().getDataList().stream())
-            .flatMap(eventMetricData -> backfillAggregatedAtomsinEventMetric(
-                    eventMetricData).stream())
+            .flatMap(
+                eventMetricData -> backfillAggregatedAtomsinEventMetric(eventMetricData).stream())
             .sorted(Comparator.comparing(EventMetricData::getElapsedTimestampNanos))
             .map(EventMetricData::getAtom)
             .collect(Collectors.toList()));
@@ -136,7 +136,7 @@ public class StatsdTestUtils {
   }
 
   private static ImmutableList<EventMetricData> backfillAggregatedAtomsinEventMetric(
-    EventMetricData metricData) {
+      EventMetricData metricData) {
     if (metricData.hasAtom()) {
       return ImmutableList.of(metricData);
     }
