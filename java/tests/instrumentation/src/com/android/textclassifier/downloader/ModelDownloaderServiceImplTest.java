@@ -37,14 +37,19 @@ import com.google.common.util.concurrent.SettableFuture;
 import java.io.File;
 import java.net.URI;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @RunWith(JUnit4.class)
 public final class ModelDownloaderServiceImplTest {
+
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
+
   private static final long BYTES_WRITTEN = 1L;
   private static final String DOWNLOAD_URI =
       "https://www.gstatic.com/android/text_classifier/r/v999/en.fb";
@@ -66,7 +71,6 @@ public final class ModelDownloaderServiceImplTest {
 
   @Before
   public void setUp() {
-    MockitoAnnotations.initMocks(this);
 
     this.targetModelFile =
         new File(ApplicationProvider.getApplicationContext().getCacheDir(), "model.fb");
