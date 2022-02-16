@@ -14,15 +14,6 @@
 // limitations under the License.
 //
 
-package {
-    // See: http://go/android-license-faq
-    // A large-scale-change added 'default_applicable_licenses' to import
-    // all of the 'license_kinds' from "external_libtextclassifier_license"
-    // to get the below license kinds:
-    //   SPDX-license-identifier-Apache-2.0
-    default_applicable_licenses: ["external_libtextclassifier_license"],
-}
-
 java_library {
     name: "textclassifier-java-proto-lite",
     proto: {
@@ -37,3 +28,4 @@ java_library {
         "com.android.extservices",
     ],
 }
+
