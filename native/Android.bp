@@ -31,7 +31,6 @@ cc_library_headers {
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
     ],
-    sdk_version: "current",
 }
 
 cc_defaults {
@@ -130,7 +129,7 @@ cc_defaults {
         "liblua",
         "libutf",
         "libtflite_static",
-        "tflite_support"
+        "tflite_support",
     ],
 }
 
@@ -246,7 +245,7 @@ cc_test_library {
         "libtextclassifier",
     ],
     header_libs: [
-        "libtextclassifier_flatbuffer_testonly_headers",
+    	"libtextclassifier_flatbuffer_testonly_headers",
     ],
 }
 
