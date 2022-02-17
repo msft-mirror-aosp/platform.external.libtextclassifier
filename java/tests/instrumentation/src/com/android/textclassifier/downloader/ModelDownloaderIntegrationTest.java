@@ -87,7 +87,7 @@ public class ModelDownloaderIntegrationTest {
             + V804_EN_ANNOTATOR_MANIFEST_URL);
 
     assertWithRetries(
-        /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveEnglishModel(V804_EN_TAG));
+        /* maxAttempts= */ 10, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
   }
 
   @Test
@@ -100,7 +100,7 @@ public class ModelDownloaderIntegrationTest {
 
       assertWithRetries(
           /* maxAttempts= */ 10,
-          /* sleepMs= */ 500,
+          /* sleepMs= */ 1000,
           () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
 
@@ -111,7 +111,7 @@ public class ModelDownloaderIntegrationTest {
               + V804_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveEnglishModel(V804_EN_TAG));
+          /* maxAttempts= */ 10, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
     }
   }
 
@@ -124,7 +124,7 @@ public class ModelDownloaderIntegrationTest {
               + V804_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveEnglishModel(V804_EN_TAG));
+          /* maxAttempts= */ 10, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
     }
 
     // Upgrade to an experimental model.
@@ -135,7 +135,7 @@ public class ModelDownloaderIntegrationTest {
 
       assertWithRetries(
           /* maxAttempts= */ 10,
-          /* sleepMs= */ 500,
+          /* sleepMs= */ 1000,
           () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
   }
@@ -150,7 +150,7 @@ public class ModelDownloaderIntegrationTest {
 
       assertWithRetries(
           /* maxAttempts= */ 10,
-          /* sleepMs= */ 500,
+          /* sleepMs= */ 1000,
           () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
 
@@ -160,7 +160,7 @@ public class ModelDownloaderIntegrationTest {
       // Fallback to use the universal model.
       assertWithRetries(
           /* maxAttempts= */ 10,
-          /* sleepMs= */ 500,
+          /* sleepMs= */ 1000,
           () -> verifyActiveModel(/* text= */ "abc", /* expectedVersion= */ FACTORY_MODEL_TAG));
     }
   }
@@ -181,14 +181,14 @@ public class ModelDownloaderIntegrationTest {
             + V804_RU_ANNOTATOR_MANIFEST_URL);
     assertWithRetries(
         /* maxAttempts= */ 10,
-        /* sleepMs= */ 500,
+        /* sleepMs= */ 1000,
         () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
 
-    assertWithRetries(/* maxAttempts= */ 10, /* sleepMs= */ 500, this::verifyActiveRussianModel);
+    assertWithRetries(/* maxAttempts= */ 10, /* sleepMs= */ 1000, this::verifyActiveRussianModel);
 
     assertWithRetries(
         /* maxAttempts= */ 10,
-        /* sleepMs= */ 500,
+        /* sleepMs= */ 1000,
         () -> verifyActiveModel(/* text= */ "français", /* expectedVersion= */ FACTORY_MODEL_TAG));
   }
 
@@ -211,6 +211,7 @@ public class ModelDownloaderIntegrationTest {
   private void verifyActiveModel(String text, String expectedVersion) {
     TextClassification textClassification =
         textClassifier.classifyText(new Request.Builder(text, 0, text.length()).build());
+    Log.d(TAG, "verifyActiveModel. TextClassification ID: " + textClassification.getId());
     // The result id contains the name of the just used model.
     assertThat(textClassification.getId()).contains(expectedVersion);
   }
