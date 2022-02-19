@@ -25,6 +25,7 @@ import android.os.LocaleList;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import androidx.work.WorkManager;
 import com.android.textclassifier.ModelFileManagerImpl.DownloaderModelsLister;
 import com.android.textclassifier.ModelFileManagerImpl.RegularFileFullMatchLister;
 import com.android.textclassifier.ModelFileManagerImpl.RegularFilePatternMatchLister;
@@ -87,6 +88,7 @@ public final class ModelFileManagerImplTest {
         new ModelDownloadManager(
             context,
             ModelDownloadWorker.class,
+            () -> WorkManager.getInstance(context),
             downloadedModelManager,
             settings,
             MoreExecutors.newDirectExecutorService());
