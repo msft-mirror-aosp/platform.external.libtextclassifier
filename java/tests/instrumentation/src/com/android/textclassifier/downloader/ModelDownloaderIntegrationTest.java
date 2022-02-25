@@ -65,9 +65,17 @@ public class ModelDownloaderIntegrationTest {
     runShellCommand("device_config put textclassifier config_updater_model_enabled false");
     runShellCommand("device_config put textclassifier model_download_manager_enabled true");
     runShellCommand("device_config put textclassifier model_download_backoff_delay_in_millis 5");
+    // Avoid wasting time to download models not useful for this test. This is to reduce flakiness.
+    runShellCommand("device_config delete textclassifier manifest_url_lang_id_universal");
+    runShellCommand("device_config delete textclassifier manifest_url_actions_suggestions_en");
+    // Enable VERBOSE logging
+    runShellCommand("setprop log.tag.androidtc VERBOSE");
+    runShellCommand("am force-stop com.google.android.ext.services");
+    runShellCommand("am force-stop android.ext.services");
 
     textClassifier = extServicesTextClassifierRule.getTextClassifier();
     startExtservicesProcess();
+    dumpDefaultTextClassifierService();
   }
 
   @After
@@ -78,6 +86,7 @@ public class ModelDownloaderIntegrationTest {
     runShellCommand("device_config delete textclassifier multi_language_support_enabled");
     runShellCommand(
         "device_config put textclassifier model_download_backoff_delay_in_millis 3600000");
+    dumpDefaultTextClassifierService();
   }
 
   @Test
@@ -87,7 +96,7 @@ public class ModelDownloaderIntegrationTest {
             + V804_EN_ANNOTATOR_MANIFEST_URL);
 
     assertWithRetries(
-        /* maxAttempts= */ 10, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
+        /* maxAttempts= */ 20, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
   }
 
   @Test
@@ -99,7 +108,7 @@ public class ModelDownloaderIntegrationTest {
               + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10,
+          /* maxAttempts= */ 20,
           /* sleepMs= */ 1000,
           () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
@@ -111,7 +120,7 @@ public class ModelDownloaderIntegrationTest {
               + V804_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
+          /* maxAttempts= */ 20, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
     }
   }
 
@@ -124,7 +133,7 @@ public class ModelDownloaderIntegrationTest {
               + V804_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
+          /* maxAttempts= */ 20, /* sleepMs= */ 1000, () -> verifyActiveEnglishModel(V804_EN_TAG));
     }
 
     // Upgrade to an experimental model.
@@ -134,7 +143,7 @@ public class ModelDownloaderIntegrationTest {
               + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10,
+          /* maxAttempts= */ 20,
           /* sleepMs= */ 1000,
           () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
@@ -149,7 +158,7 @@ public class ModelDownloaderIntegrationTest {
               + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
       assertWithRetries(
-          /* maxAttempts= */ 10,
+          /* maxAttempts= */ 20,
           /* sleepMs= */ 1000,
           () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
     }
@@ -159,7 +168,7 @@ public class ModelDownloaderIntegrationTest {
       runShellCommand("device_config delete textclassifier manifest_url_annotator_en");
       // Fallback to use the universal model.
       assertWithRetries(
-          /* maxAttempts= */ 10,
+          /* maxAttempts= */ 20,
           /* sleepMs= */ 1000,
           () -> verifyActiveModel(/* text= */ "abc", /* expectedVersion= */ FACTORY_MODEL_TAG));
     }
@@ -180,14 +189,14 @@ public class ModelDownloaderIntegrationTest {
         "device_config put textclassifier manifest_url_annotator_ru "
             + V804_RU_ANNOTATOR_MANIFEST_URL);
     assertWithRetries(
-        /* maxAttempts= */ 10,
+        /* maxAttempts= */ 20,
         /* sleepMs= */ 1000,
         () -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
 
-    assertWithRetries(/* maxAttempts= */ 10, /* sleepMs= */ 1000, this::verifyActiveRussianModel);
+    assertWithRetries(/* maxAttempts= */ 20, /* sleepMs= */ 1000, this::verifyActiveRussianModel);
 
     assertWithRetries(
-        /* maxAttempts= */ 10,
+        /* maxAttempts= */ 20,
         /* sleepMs= */ 1000,
         () -> verifyActiveModel(/* text= */ "français", /* expectedVersion= */ FACTORY_MODEL_TAG));
   }
@@ -227,6 +236,12 @@ public class ModelDownloaderIntegrationTest {
   private void startExtservicesProcess() {
     // Start the process of ExtServices by sending it a text classifier request.
     textClassifier.classifyText(new TextClassification.Request.Builder("abc", 0, 3).build());
+  }
+
+  private void dumpDefaultTextClassifierService() {
+      runShellCommand("dumpsys activity service com.google.android.ext.services/" +
+                      "com.android.textclassifier.DefaultTextClassifierService");
+      runShellCommand("cmd device_config list textclassifier");
   }
 
   private static void runShellCommand(String cmd) {
