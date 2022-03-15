@@ -17,7 +17,10 @@
 package com.android.textclassifier;
 
 import static com.google.common.truth.Truth.assertThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.os.CancellationSignal;
@@ -39,6 +42,7 @@ import com.android.os.AtomsProto.Atom;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported.ApiType;
 import com.android.os.AtomsProto.TextClassifierApiUsageReported.ResultType;
+import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.common.statsd.StatsdTestUtils;
 import com.android.textclassifier.common.statsd.TextClassifierApiUsageLogger;
@@ -47,21 +51,27 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class DefaultTextClassifierServiceTest {
+
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
+
   /** A statsd config ID, which is arbitrary. */
   private static final long CONFIG_ID = 689777;
 
@@ -76,14 +86,21 @@ public class DefaultTextClassifierServiceTest {
   @Mock private TextClassifierService.Callback<TextLinks> textLinksCallback;
   @Mock private TextClassifierService.Callback<ConversationActions> conversationActionsCallback;
   @Mock private TextClassifierService.Callback<TextLanguage> textLanguageCallback;
+  @Mock private ModelFileManager testModelFileManager;
 
   @Before
-  public void setup() {
-    MockitoAnnotations.initMocks(this);
-
-    testInjector = new TestInjector(ApplicationProvider.getApplicationContext());
+  public void setup() throws IOException {
+    testInjector =
+        new TestInjector(ApplicationProvider.getApplicationContext(), testModelFileManager);
     defaultTextClassifierService = new DefaultTextClassifierService(testInjector);
     defaultTextClassifierService.onCreate();
+
+    when(testModelFileManager.findBestModelFile(eq(ModelType.ANNOTATOR), any(), any()))
+        .thenReturn(TestDataUtils.getTestAnnotatorModelFileWrapped());
+    when(testModelFileManager.findBestModelFile(eq(ModelType.LANG_ID), any(), any()))
+        .thenReturn(TestDataUtils.getLangIdModelFileWrapped());
+    when(testModelFileManager.findBestModelFile(eq(ModelType.ACTIONS_SUGGESTIONS), any(), any()))
+        .thenReturn(TestDataUtils.getTestActionsModelFileWrapped());
   }
 
   @Before
@@ -207,11 +224,8 @@ public class DefaultTextClassifierServiceTest {
 
   @Test
   public void missingModelFile_onFailureShouldBeCalled() throws Exception {
-    testInjector.setModelFileManager(
-        new ModelFileManagerImpl(
-            ApplicationProvider.getApplicationContext(),
-            ImmutableList.of(),
-            testInjector.createTextClassifierSettings()));
+    when(testModelFileManager.findBestModelFile(eq(ModelType.ANNOTATOR), any(), any()))
+        .thenReturn(null);
     defaultTextClassifierService.onCreate();
 
     TextClassification.Request request = new TextClassification.Request.Builder("hi", 0, 2).build();
@@ -247,12 +261,9 @@ public class DefaultTextClassifierServiceTest {
     private final Context context;
     private ModelFileManager modelFileManager;
 
-    private TestInjector(Context context) {
+    private TestInjector(Context context, ModelFileManager modelFileManager) {
       this.context = Preconditions.checkNotNull(context);
-    }
-
-    private void setModelFileManager(ModelFileManager modelFileManager) {
-      this.modelFileManager = modelFileManager;
+      this.modelFileManager = Preconditions.checkNotNull(modelFileManager);
     }
 
     @Override
@@ -263,9 +274,6 @@ public class DefaultTextClassifierServiceTest {
     @Override
     public ModelFileManager createModelFileManager(
         TextClassifierSettings settings, ModelDownloadManager modelDownloadManager) {
-      if (modelFileManager == null) {
-        return TestDataUtils.createModelFileManagerForTesting(context);
-      }
       return modelFileManager;
     }
 
