@@ -113,6 +113,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
 
   @Override
   public final ListenableFuture<ListenableWorker.Result> startWork() {
+    TcLog.d(TAG, "Start download work...");
     workStartedTimeMillis = getCurrentTimeMillis();
     // Notice: startWork() is invoked on the main thread
     if (!settings.isModelDownloadManagerEnabled()) {
@@ -121,7 +122,6 @@ public final class ModelDownloadWorker extends ListenableWorker {
           TextClassifierDownloadLogger.WORK_RESULT_FAILURE_MODEL_DOWNLOADER_DISABLED);
       return Futures.immediateFuture(ListenableWorker.Result.failure());
     }
-    TcLog.v(TAG, "Start download work...");
     if (getRunAttemptCount() >= settings.getModelDownloadWorkerMaxAttempts()) {
       TcLog.d(TAG, "Max attempt reached. Abort download work.");
       logDownloadWorkCompleted(
@@ -134,7 +134,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
             downloadResult -> {
               Preconditions.checkNotNull(manifestsToDownload);
               downloadedModelManager.onDownloadCompleted(manifestsToDownload);
-              TcLog.v(TAG, "Download work completed: " + downloadResult);
+              TcLog.d(TAG, "Download work completed: " + downloadResult);
               if (downloadResult.failureCount() == 0) {
                 logDownloadWorkCompleted(
                     downloadResult.successCount() > 0
@@ -239,7 +239,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
     return Futures.whenAllComplete(downloadResultFutures)
         .call(
             () -> {
-              TcLog.v(TAG, "All Download Tasks Completed");
+              TcLog.d(TAG, "All Download Tasks Completed");
               int successCount = 0;
               int failureCount = 0;
               for (ListenableFuture<Boolean> downloadResultFuture : downloadResultFutures) {
@@ -333,7 +333,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
       Manifest downloadedManifest = downloadedModelManager.getManifest(manifestUrl);
       if (downloadedManifest != null
           && downloadedManifest.getStatus() == Manifest.STATUS_SUCCEEDED) {
-        TcLog.v(TAG, "Manifest already downloaded: " + manifestUrl);
+        TcLog.d(TAG, "Manifest already downloaded: " + manifestUrl);
         return Futures.immediateVoidFuture();
       }
       if (pendingDownloads.containsKey(manifestUrl)) {
