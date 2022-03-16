@@ -195,7 +195,7 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
   @Override
   public void onDownloadCompleted(
       ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload) {
-    TcLog.v(TAG, "Start to clean up models and update model lookup cache...");
+    TcLog.d(TAG, "Start to clean up models and update model lookup cache...");
     // Step 1: Clean up ManifestEnrollment table
     List<ManifestEnrollment> allManifestEnrollments = db.dao().queryAllManifestEnrollments();
     List<ManifestEnrollment> manifestEnrollmentsToDelete = new ArrayList<>();
@@ -286,7 +286,7 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
   // Clear the cache table and rebuild the cache based on ModelView table
   private void updateCache() {
     synchronized (cacheLock) {
-      TcLog.v(TAG, "Updating model lookup cache...");
+      TcLog.d(TAG, "Updating model lookup cache...");
       for (String modelType : ModelType.values()) {
         modelLookupCache.get(modelType).clear();
       }
