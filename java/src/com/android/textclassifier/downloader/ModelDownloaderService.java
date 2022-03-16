@@ -39,7 +39,7 @@ public final class ModelDownloaderService extends Service {
 
   @Override
   public IBinder onBind(Intent intent) {
-    TcLog.v(TAG, "Binding to ModelDownloadService");
+    TcLog.d(TAG, "Binding to ModelDownloadService");
     return iBinder;
   }
 }
