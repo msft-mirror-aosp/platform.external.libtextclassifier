@@ -147,7 +147,7 @@ public final class ModelDownloadManager {
         return;
       }
       maybeOverrideLocaleListForTesting();
-      TcLog.v(TAG, "Try to schedule model download work because TextClassifierService started.");
+      TcLog.d(TAG, "Try to schedule model download work because TextClassifierService started.");
       scheduleDownloadWork(REASON_TO_SCHEDULE_TCS_STARTED);
     } catch (Throwable t) {
       TcLog.e(TAG, "Failed inside onTextClassifierServiceCreated", t);
@@ -161,7 +161,7 @@ public final class ModelDownloadManager {
     if (!settings.isModelDownloadManagerEnabled()) {
       return;
     }
-    TcLog.v(TAG, "Try to schedule model download work because of system locale changes.");
+    TcLog.d(TAG, "Try to schedule model download work because of system locale changes.");
     try {
       scheduleDownloadWork(REASON_TO_SCHEDULE_LOCALE_SETTINGS_CHANGED);
     } catch (Throwable t) {
@@ -176,7 +176,7 @@ public final class ModelDownloadManager {
     if (!settings.isModelDownloadManagerEnabled()) {
       return;
     }
-    TcLog.v(TAG, "Try to schedule model download work because of device config changes.");
+    TcLog.d(TAG, "Try to schedule model download work because of device config changes.");
     try {
       maybeOverrideLocaleListForTesting();
       scheduleDownloadWork(REASON_TO_SCHEDULE_DEVICE_CONFIG_UPDATED);
@@ -261,7 +261,7 @@ public final class ModelDownloadManager {
           new FutureCallback<Operation.State.SUCCESS>() {
             @Override
             public void onSuccess(Operation.State.SUCCESS unused) {
-              TcLog.v(TAG, "Download work scheduled.");
+              TcLog.d(TAG, "Download work scheduled.");
               TextClassifierDownloadLogger.downloadWorkScheduled(
                   workId, reasonToSchedule, /* failedToSchedule= */ false);
             }
