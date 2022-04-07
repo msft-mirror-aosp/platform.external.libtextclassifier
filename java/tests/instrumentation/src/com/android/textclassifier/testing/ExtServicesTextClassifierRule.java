@@ -20,53 +20,103 @@ import android.app.UiAutomation;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.provider.DeviceConfig;
+import android.util.Log;
 import android.view.textclassifier.TextClassificationManager;
 import android.view.textclassifier.TextClassifier;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
+import com.google.common.io.ByteStreams;
+import java.io.FileInputStream;
+import java.io.IOException;
 import org.junit.rules.ExternalResource;
 
 /** A rule that manages a text classifier that is backed by the ExtServices. */
 public final class ExtServicesTextClassifierRule extends ExternalResource {
+  private static final String TAG = "androidtc";
   private static final String CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE =
       "textclassifier_service_package_override";
   private static final String PKG_NAME_GOOGLE_EXTSERVICES = "com.google.android.ext.services";
   private static final String PKG_NAME_AOSP_EXTSERVICES = "android.ext.services";
 
-  private String textClassifierServiceOverrideFlagOldValue;
+  private UiAutomation uiAutomation;
+  private DeviceConfig.Properties originalProperties;
+  private DeviceConfig.Properties.Builder newPropertiesBuilder;
 
   @Override
-  protected void before() {
-    UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+  protected void before() throws Exception {
+    uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+    uiAutomation.adoptShellPermissionIdentity();
+    originalProperties = DeviceConfig.getProperties(DeviceConfig.NAMESPACE_TEXTCLASSIFIER);
+    newPropertiesBuilder =
+        new DeviceConfig.Properties.Builder(DeviceConfig.NAMESPACE_TEXTCLASSIFIER)
+            .setString(
+                CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE, getExtServicesPackageName());
+    overrideDeviceConfig();
+  }
+
+  @Override
+  protected void after() {
     try {
-      uiAutomation.adoptShellPermissionIdentity();
-      textClassifierServiceOverrideFlagOldValue =
-          DeviceConfig.getString(
-              DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-              CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
-              null);
-      DeviceConfig.setProperty(
-          DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-          CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
-          getExtServicesPackageName(),
-          /* makeDefault= */ false);
+      DeviceConfig.setProperties(originalProperties);
+    } catch (Throwable t) {
+      Log.e(TAG, "Failed to reset DeviceConfig", t);
     } finally {
       uiAutomation.dropShellPermissionIdentity();
     }
   }
 
-  @Override
-  protected void after() {
-    UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
-    try {
-      uiAutomation.adoptShellPermissionIdentity();
-      DeviceConfig.setProperty(
-          DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
-          CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
-          textClassifierServiceOverrideFlagOldValue,
-          /* makeDefault= */ false);
-    } finally {
-      uiAutomation.dropShellPermissionIdentity();
+  public void addDeviceConfigOverride(String name, String value) {
+    newPropertiesBuilder.setString(name, value);
+  }
+
+  /**
+   * Overrides the TextClassifier DeviceConfig manually.
+   *
+   * <p>This will clean up all device configs not in newPropertiesBuilder.
+   *
+   * <p>We will need to call this everytime before testing, because DeviceConfig can be synced in
+   * background at anytime. DeviceConfig#setSyncDisabledMode is to disable sync, however it's a
+   * hidden API.
+   */
+  public void overrideDeviceConfig() throws Exception {
+    DeviceConfig.setProperties(newPropertiesBuilder.build());
+  }
+
+  /** Force stop ExtServices. Force-stop-and-start can be helpful to reload some states. */
+  public void forceStopExtServices() {
+    runShellCommand("am force-stop com.google.android.ext.services");
+    runShellCommand("am force-stop android.ext.services");
+  }
+
+  public TextClassifier getTextClassifier() {
+    TextClassificationManager textClassificationManager =
+        ApplicationProvider.getApplicationContext()
+            .getSystemService(TextClassificationManager.class);
+    textClassificationManager.setTextClassifier(null); // Reset TC overrides
+    return textClassificationManager.getTextClassifier();
+  }
+
+  public void dumpDefaultTextClassifierService() {
+    runShellCommand(
+        "dumpsys activity service com.google.android.ext.services/"
+            + "com.android.textclassifier.DefaultTextClassifierService");
+    runShellCommand("cmd device_config list textclassifier");
+  }
+
+  public void enableVerboseLogging() {
+    runShellCommand("setprop log.tag.androidtc VERBOSE");
+  }
+
+  private void runShellCommand(String cmd) {
+    Log.v(TAG, "run shell command: " + cmd);
+    try (FileInputStream output =
+        new FileInputStream(uiAutomation.executeShellCommand(cmd).getFileDescriptor())) {
+      String cmdOutput = new String(ByteStreams.toByteArray(output));
+      if (!cmdOutput.isEmpty()) {
+        Log.d(TAG, "cmd output: " + cmdOutput);
+      }
+    } catch (IOException ioe) {
+      Log.w(TAG, "failed to get cmd output", ioe);
     }
   }
 
@@ -78,13 +128,5 @@ public final class ExtServicesTextClassifierRule extends ExternalResource {
     } catch (NameNotFoundException e) {
       return PKG_NAME_AOSP_EXTSERVICES;
     }
-  }
-
-  public TextClassifier getTextClassifier() {
-    TextClassificationManager textClassificationManager =
-        ApplicationProvider.getApplicationContext()
-            .getSystemService(TextClassificationManager.class);
-    textClassificationManager.setTextClassifier(null); // Reset TC overrides
-    return textClassificationManager.getTextClassifier();
   }
 }
