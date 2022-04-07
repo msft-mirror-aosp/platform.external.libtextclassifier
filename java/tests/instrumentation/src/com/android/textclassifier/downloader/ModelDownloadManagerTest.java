@@ -109,8 +109,10 @@ public final class ModelDownloadManagerTest {
 
   @Test
   public void onTextClassifierServiceCreated_workManagerCrashed() throws Exception {
+    assertThat(loggerTestRule.getLoggedDownloadWorkScheduledAtoms()).isEmpty();
     downloadManagerWithBadWorkManager.onTextClassifierServiceCreated();
 
+    // Assertion below is flaky: DeviceConfig listener may be trigerred by OS during test
     TextClassifierDownloadWorkScheduled atom =
         Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkScheduledAtoms());
     assertThat(atom.getReasonToSchedule()).isEqualTo(ReasonToSchedule.TCS_STARTED);
@@ -119,6 +121,7 @@ public final class ModelDownloadManagerTest {
 
   @Test
   public void onTextClassifierServiceCreated_requestEnqueued() throws Exception {
+    assertThat(loggerTestRule.getLoggedDownloadWorkScheduledAtoms()).isEmpty();
     downloadManager.onTextClassifierServiceCreated();
 
     WorkInfo workInfo =
@@ -126,17 +129,20 @@ public final class ModelDownloadManagerTest {
             DownloaderTestUtils.queryWorkInfos(
                 workManager, ModelDownloadManager.UNIQUE_QUEUE_NAME));
     assertThat(workInfo.getState()).isEqualTo(WorkInfo.State.ENQUEUED);
+    // Assertion below is flaky: DeviceConfig listener may be trigerred by OS during test
     verifyWorkScheduledLogging(ReasonToSchedule.TCS_STARTED);
   }
 
   @Test
   public void onTextClassifierServiceCreated_localeListOverridden() throws Exception {
+    assertThat(loggerTestRule.getLoggedDownloadWorkScheduledAtoms()).isEmpty();
     deviceConfig.setConfig(TextClassifierSettings.TESTING_LOCALE_LIST_OVERRIDE, "zh,fr");
     downloadManager.onTextClassifierServiceCreated();
 
     assertThat(Locale.getDefault()).isEqualTo(Locale.forLanguageTag("zh"));
     assertThat(LocaleList.getDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
     assertThat(LocaleList.getAdjustedDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
+    // Assertion below is flaky: DeviceConfig listener may be trigerred by OS during test
     verifyWorkScheduledLogging(ReasonToSchedule.TCS_STARTED);
   }
 
