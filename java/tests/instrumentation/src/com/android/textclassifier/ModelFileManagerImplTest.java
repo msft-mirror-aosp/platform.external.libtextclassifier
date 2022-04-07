@@ -25,6 +25,7 @@ import android.os.LocaleList;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+import androidx.work.WorkManager;
 import com.android.textclassifier.ModelFileManagerImpl.DownloaderModelsLister;
 import com.android.textclassifier.ModelFileManagerImpl.RegularFileFullMatchLister;
 import com.android.textclassifier.ModelFileManagerImpl.RegularFilePatternMatchLister;
@@ -53,7 +54,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @SmallTest
 @RunWith(AndroidJUnit4.class)
@@ -67,6 +69,7 @@ public final class ModelFileManagerImplTest {
   @Mock private DownloadedModelManager downloadedModelManager;
 
   @Rule public final SetDefaultLocalesRule setDefaultLocalesRule = new SetDefaultLocalesRule();
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
 
   private File rootTestDir;
   private ModelFileManagerImpl modelFileManager;
@@ -75,7 +78,6 @@ public final class ModelFileManagerImplTest {
 
   @Before
   public void setup() {
-    MockitoAnnotations.initMocks(this);
     deviceConfig = new TestingDeviceConfig();
     rootTestDir =
         new File(ApplicationProvider.getApplicationContext().getCacheDir(), "rootTestDir");
@@ -86,6 +88,7 @@ public final class ModelFileManagerImplTest {
         new ModelDownloadManager(
             context,
             ModelDownloadWorker.class,
+            () -> WorkManager.getInstance(context),
             downloadedModelManager,
             settings,
             MoreExecutors.newDirectExecutorService());
