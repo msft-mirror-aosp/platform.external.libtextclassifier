@@ -264,7 +264,7 @@ std::vector<Rules::RhsElement> Rules::ResolveAnchors(
 }
 
 std::vector<Rules::RhsElement> Rules::ResolveFillers(
-    const std::vector<RhsElement>& rhs, int shard) {
+    const std::vector<RhsElement>& rhs) {
   std::vector<RhsElement> result;
   for (int i = 0; i < rhs.size();) {
     if (i == rhs.size() - 1 || IsNonterminalOfName(rhs[i], kFiller) ||
@@ -284,27 +284,15 @@ std::vector<Rules::RhsElement> Rules::ResolveFillers(
                            /*is_optional=*/false);
     if (rhs[i + 1].is_optional) {
       // <a_with_tokens> ::= <a>
-      Add(with_tokens_nonterminal, {rhs[i]},
-          /*callback=*/kNoCallback,
-          /*callback_param=*/0,
-          /*max_whitespace_gap=*/-1,
-          /*case_sensitive=*/false, shard);
+      Add(with_tokens_nonterminal, {rhs[i]});
     } else {
       // <a_with_tokens> ::= <a> <token>
-      Add(with_tokens_nonterminal, {rhs[i], token},
-          /*callback=*/kNoCallback,
-          /*callback_param=*/0,
-          /*max_whitespace_gap=*/-1,
-          /*case_sensitive=*/false, shard);
+      Add(with_tokens_nonterminal, {rhs[i], token});
     }
     // <a_with_tokens> ::= <a_with_tokens> <token>
     const RhsElement with_tokens(with_tokens_nonterminal,
                                  /*is_optional=*/false);
-    Add(with_tokens_nonterminal, {with_tokens, token},
-        /*callback=*/kNoCallback,
-        /*callback_param=*/0,
-        /*max_whitespace_gap=*/-1,
-        /*case_sensitive=*/false, shard);
+    Add(with_tokens_nonterminal, {with_tokens, token});
     result.push_back(with_tokens);
     i += 2;
   }
@@ -312,8 +300,8 @@ std::vector<Rules::RhsElement> Rules::ResolveFillers(
 }
 
 std::vector<Rules::RhsElement> Rules::OptimizeRhs(
-    const std::vector<RhsElement>& rhs, int shard) {
-  return ResolveFillers(ResolveAnchors(rhs), shard);
+    const std::vector<RhsElement>& rhs) {
+  return ResolveFillers(ResolveAnchors(rhs));
 }
 
 void Rules::Add(const int lhs, const std::vector<RhsElement>& rhs,

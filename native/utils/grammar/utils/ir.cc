@@ -235,9 +235,6 @@ Nonterm Ir::Add(const Lhs& lhs, const std::string& terminal,
   }
 }
 
-// For latency we put sub-rules on the first shard which must be any match
-// i.e. '*' rules are always included while parsing the tree as it is only
-// on shard one hence will be deduped correctly.
 Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
                 const int shard) {
   // Add a new unary rule.
@@ -248,9 +245,9 @@ Nonterm Ir::Add(const Lhs& lhs, const std::vector<Nonterm>& rhs,
   // Add a chain of (rhs.size() - 1) binary rules.
   Nonterm prev = rhs.front();
   for (int i = 1; i < rhs.size() - 1; i++) {
-    prev = Add(kUnassignedNonterm, prev, rhs[i]);
+    prev = Add(kUnassignedNonterm, prev, rhs[i], shard);
   }
-  return Add(lhs, prev, rhs.back());
+  return Add(lhs, prev, rhs.back(), shard);
 }
 
 Nonterm Ir::AddRegex(Nonterm lhs, const std::string& regex_pattern) {

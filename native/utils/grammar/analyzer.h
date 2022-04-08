@@ -38,13 +38,11 @@ class Analyzer {
                     const Tokenizer* tokenizer);
 
   // Parses and evaluates an input.
-  StatusOr<std::vector<EvaluatedDerivation>> Parse(
-      const TextContext& input, UnsafeArena* arena,
-      bool deduplicate_derivations = true) const;
-
+  StatusOr<std::vector<EvaluatedDerivation>> Parse(const TextContext& input,
+                                                   UnsafeArena* arena) const;
   StatusOr<std::vector<EvaluatedDerivation>> Parse(
       const UnicodeText& text, const std::vector<Locale>& locales,
-      UnsafeArena* arena, bool deduplicate_derivations = true) const;
+      UnsafeArena* arena) const;
 
   // Pre-processes an input text for parsing.
   TextContext BuildTextContextForInput(

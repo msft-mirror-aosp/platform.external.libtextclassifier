@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "annotator/contact/contact-engine.h"
-#include "annotator/datetime/datetime-grounder.h"
 #include "annotator/datetime/parser.h"
 #include "annotator/duration/duration.h"
 #include "annotator/experimental/experimental.h"
@@ -51,7 +50,6 @@
 #include "utils/flatbuffers/mutable.h"
 #include "utils/i18n/locale.h"
 #include "utils/memory/mmap.h"
-#include "utils/utf8/unicodetext.h"
 #include "utils/utf8/unilib.h"
 #include "utils/zlib/zlib.h"
 #include "lang_id/lang-id.h"
@@ -216,9 +214,10 @@ class Annotator {
       const std::string& context,
       const AnnotationOptions& options = AnnotationOptions()) const;
 
-  // Looks up a knowledge entity by its id. Returns the serialized knowledge
-  // result.
-  StatusOr<std::string> LookUpKnowledgeEntity(const std::string& id) const;
+  // Looks up a knowledge entity by its id. If successful, populates the
+  // serialized knowledge result and returns true.
+  bool LookUpKnowledgeEntity(const std::string& id,
+                             std::string* serialized_knowledge_result) const;
 
   // Looks up an entity's property.
   StatusOr<std::string> LookUpKnowledgeEntityProperty(
@@ -293,10 +292,6 @@ class Annotator {
 
   // Classifies the selected text given the context string with the
   // classification model.
-  // The following arguments are optional:
-  //   - cached_tokens - can be given as empty
-  //   - embedding_cache - can be given as nullptr
-  //   - tokens - can be given as nullptr
   // Returns true if no error occurred.
   bool ModelClassifyText(
       const std::string& context, const std::vector<Token>& cached_tokens,
@@ -307,23 +302,23 @@ class Annotator {
       std::vector<ClassificationResult>* classification_results,
       std::vector<Token>* tokens) const;
 
-  // Same as above, but (for optimization) takes the context as UnicodeText and
-  // takes the following extra arguments:
-  //   - span_begin, span_end - iterators in context_unicode corresponding to
-  //     selection_indices
-  //   - line - a UnicodeTextRange within context_unicode corresponding to the
-  //     line containing the selection - optional, can be given as nullptr
+  // Same as above but doesn't output tokens.
   bool ModelClassifyText(
-      const UnicodeText& context_unicode,
-      const std::vector<Token>& cached_tokens,
+      const std::string& context, const std::vector<Token>& cached_tokens,
       const std::vector<Locale>& detected_text_language_tags,
-      const UnicodeText::const_iterator& span_begin,
-      const UnicodeText::const_iterator& span_end, const UnicodeTextRange* line,
       const CodepointSpan& selection_indices, const BaseOptions& options,
       InterpreterManager* interpreter_manager,
       FeatureProcessor::EmbeddingCache* embedding_cache,
-      std::vector<ClassificationResult>* classification_results,
-      std::vector<Token>* tokens) const;
+      std::vector<ClassificationResult>* classification_results) const;
+
+  // Same as above but doesn't take cached tokens and doesn't output tokens.
+  bool ModelClassifyText(
+      const std::string& context,
+      const std::vector<Locale>& detected_text_language_tags,
+      const CodepointSpan& selection_indices, const BaseOptions& options,
+      InterpreterManager* interpreter_manager,
+      FeatureProcessor::EmbeddingCache* embedding_cache,
+      std::vector<ClassificationResult>* classification_results) const;
 
   // Returns a relative token span that represents how many tokens on the left
   // from the selection and right from the selection are needed for the
@@ -449,8 +444,6 @@ class Annotator {
   std::unique_ptr<const FeatureProcessor> selection_feature_processor_;
   std::unique_ptr<const FeatureProcessor> classification_feature_processor_;
 
-  std::unique_ptr<const grammar::Analyzer> analyzer_;
-  std::unique_ptr<const DatetimeGrounder> datetime_grounder_;
   std::unique_ptr<const DatetimeParser> datetime_parser_;
   std::unique_ptr<const GrammarAnnotator> grammar_annotator_;
 

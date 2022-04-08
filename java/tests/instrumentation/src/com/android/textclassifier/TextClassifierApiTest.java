@@ -18,24 +18,31 @@ package com.android.textclassifier;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import android.app.UiAutomation;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.icu.util.ULocale;
+import android.provider.DeviceConfig;
 import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.TextClassification;
+import android.view.textclassifier.TextClassificationManager;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextLanguage;
 import android.view.textclassifier.TextLinks;
 import android.view.textclassifier.TextLinks.TextLink;
 import android.view.textclassifier.TextSelection;
+import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
-import com.android.textclassifier.testing.ExtServicesTextClassifierRule;
+import androidx.test.platform.app.InstrumentationRegistry;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExternalResource;
 import org.junit.runner.RunWith;
 
 /**
@@ -138,5 +145,68 @@ public class TextClassifierApiTest {
     ConversationAction conversationAction = conversationActions.getConversationActions().get(0);
     assertThat(conversationAction.getType()).isEqualTo(ConversationAction.TYPE_OPEN_URL);
     assertThat(conversationAction.getAction()).isNotNull();
+  }
+
+  /** A rule that manages a text classifier that is backed by the ExtServices. */
+  private static class ExtServicesTextClassifierRule extends ExternalResource {
+    private static final String CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE =
+        "textclassifier_service_package_override";
+    private static final String PKG_NAME_GOOGLE_EXTSERVICES = "com.google.android.ext.services";
+    private static final String PKG_NAME_AOSP_EXTSERVICES = "android.ext.services";
+
+    private String textClassifierServiceOverrideFlagOldValue;
+
+    @Override
+    protected void before() {
+      UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+      try {
+        uiAutomation.adoptShellPermissionIdentity();
+        textClassifierServiceOverrideFlagOldValue =
+            DeviceConfig.getString(
+                DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
+                CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
+                null);
+        DeviceConfig.setProperty(
+            DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
+            CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
+            getExtServicesPackageName(),
+            /* makeDefault= */ false);
+      } finally {
+        uiAutomation.dropShellPermissionIdentity();
+      }
+    }
+
+    @Override
+    protected void after() {
+      UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+      try {
+        uiAutomation.adoptShellPermissionIdentity();
+        DeviceConfig.setProperty(
+            DeviceConfig.NAMESPACE_TEXTCLASSIFIER,
+            CONFIG_TEXT_CLASSIFIER_SERVICE_PACKAGE_OVERRIDE,
+            textClassifierServiceOverrideFlagOldValue,
+            /* makeDefault= */ false);
+      } finally {
+        uiAutomation.dropShellPermissionIdentity();
+      }
+    }
+
+    private static String getExtServicesPackageName() {
+      PackageManager packageManager =
+          ApplicationProvider.getApplicationContext().getPackageManager();
+      try {
+        packageManager.getApplicationInfo(PKG_NAME_GOOGLE_EXTSERVICES, /* flags= */ 0);
+        return PKG_NAME_GOOGLE_EXTSERVICES;
+      } catch (NameNotFoundException e) {
+        return PKG_NAME_AOSP_EXTSERVICES;
+      }
+    }
+
+    public TextClassifier getTextClassifier() {
+      TextClassificationManager textClassificationManager =
+          ApplicationProvider.getApplicationContext()
+              .getSystemService(TextClassificationManager.class);
+      return textClassificationManager.getTextClassifier();
+    }
   }
 }

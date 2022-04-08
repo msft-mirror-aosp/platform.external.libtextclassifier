@@ -45,7 +45,6 @@ class TestingAnnotator : public Annotator {
     ValidateAndInitialize(libtextclassifier3::ViewModel(owned_buffer_.data(),
                                                         owned_buffer_.size()),
                           unilib, calendarlib);
-    AssertIsInitialized();
   }
 
   static std::unique_ptr<TestingAnnotator> FromUnownedBuffer(
@@ -60,9 +59,6 @@ class TestingAnnotator : public Annotator {
   }
 
   using Annotator::ResolveConflicts;
-
- private:
-  void AssertIsInitialized() { ASSERT_TRUE(IsInitialized()); }
 };
 
 class AnnotatorTest : public ::testing::TestWithParam<const char*> {

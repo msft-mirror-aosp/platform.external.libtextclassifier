@@ -51,8 +51,7 @@ class RegexDatetimeParserTest : public DateTimeParserTest {
   void SetUp() override {
     // Loads default unmodified model. Individual tests can call LoadModel to
     // make changes.
-    LoadModel(
-        [](ModelT* model) { model->datetime_grammar_model.reset(nullptr); });
+    LoadModel([](ModelT* model) {});
   }
 
   template <typename Fn>
@@ -694,7 +693,6 @@ TEST_F(RegexDatetimeParserTest,
     // In the test model, the prefer_future_for_unspecified_date is true; make
     // it false only for this test.
     model->datetime_model->prefer_future_for_unspecified_date = false;
-    model->datetime_grammar_model.reset(nullptr);
   });
 
   EXPECT_TRUE(ParsesCorrectly(
@@ -1267,7 +1265,6 @@ TEST_F(RegexDatetimeParserTest,
   LoadModel([](ModelT* model) {
     model->datetime_model->generate_alternative_interpretations_when_ambiguous =
         false;
-    model->datetime_grammar_model.reset(nullptr);
   });
 
   EXPECT_TRUE(ParsesCorrectly(

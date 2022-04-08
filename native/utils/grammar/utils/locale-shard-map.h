@@ -34,8 +34,7 @@ namespace libtextclassifier3::grammar {
 class LocaleShardMap {
  public:
   static LocaleShardMap CreateLocaleShardMap(
-      const std::vector<std::string>& locale_tags,
-      const bool include_any_match_language_tag_shard = false);
+      const std::vector<std::string>& locale_tags);
 
   std::vector<Locale> GetLocales(const int shard) const;
 

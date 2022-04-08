@@ -33,8 +33,6 @@ import android.view.textclassifier.ConversationAction;
 import android.view.textclassifier.ConversationActions;
 import android.view.textclassifier.SelectionEvent;
 import android.view.textclassifier.TextClassification;
-import android.view.textclassifier.TextClassification.Request;
-import android.view.textclassifier.TextClassificationContext;
 import android.view.textclassifier.TextClassificationSessionId;
 import android.view.textclassifier.TextClassifier;
 import android.view.textclassifier.TextClassifierEvent;
@@ -45,9 +43,7 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.WorkerThread;
 import androidx.core.util.Pair;
 import com.android.textclassifier.ModelFileManager.ModelFile;
-import com.android.textclassifier.common.ModelType;
-import com.android.textclassifier.common.TextClassifierSettings;
-import com.android.textclassifier.common.TextSelectionCompat;
+import com.android.textclassifier.ModelFileManager.ModelType;
 import com.android.textclassifier.common.base.TcLog;
 import com.android.textclassifier.common.intent.LabeledIntent;
 import com.android.textclassifier.common.intent.TemplateIntentFactory;
@@ -60,7 +56,6 @@ import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.android.textclassifier.ActionsSuggestionsModel;
-import com.google.android.textclassifier.ActionsSuggestionsModel.ActionSuggestions;
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.android.textclassifier.LangIdModel;
 import com.google.common.base.Optional;
@@ -130,11 +125,7 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextSelection suggestSelection(
-      @Nullable TextClassificationSessionId sessionId,
-      @Nullable TextClassificationContext textClassificationContext,
-      TextSelection.Request request)
-      throws IOException {
+  TextSelection suggestSelection(TextSelection.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     final int rangeLength = request.getEndIndex() - request.getStartIndex();
@@ -167,8 +158,6 @@ final class TextClassifierImpl {
       throw new IllegalArgumentException("Got bad indices for input text. Ignoring result.");
     }
     final TextSelection.Builder tsBuilder = new TextSelection.Builder(start, end);
-    final boolean shouldIncludeTextClassification =
-        TextSelectionCompat.shouldIncludeTextClassification(request);
     final AnnotatorModel.ClassificationResult[] results =
         annotatorImpl.classifyText(
             string,
@@ -179,33 +168,23 @@ final class TextClassifierImpl {
                 .setReferenceTimezone(refTime.getZone().getId())
                 .setLocales(localesString)
                 .setDetectedTextLanguageTags(detectLanguageTags)
-                .setAnnotationUsecase(AnnotatorModel.AnnotationUsecase.SMART.getValue())
                 .setUserFamiliarLanguageTags(LocaleList.getDefault().toLanguageTags())
                 .build(),
-            // Passing null here to suppress intent generation.
+            // Passing null here to suppress intent generation
             // TODO: Use an explicit flag to suppress it.
-            shouldIncludeTextClassification ? context : null,
-            getResourceLocalesString());
+            /* appContext */ null,
+            /* deviceLocales */ null);
     final int size = results.length;
     for (int i = 0; i < size; i++) {
       tsBuilder.setEntityType(results[i].getCollection(), results[i].getScore());
     }
     final String resultId =
         createAnnotatorId(string, request.getStartIndex(), request.getEndIndex());
-    if (shouldIncludeTextClassification) {
-      TextClassification textClassification =
-          createClassificationResult(results, string, start, end, langIdModel);
-      TextSelectionCompat.setTextClassification(tsBuilder, textClassification);
-    }
     return tsBuilder.setId(resultId).build();
   }
 
   @WorkerThread
-  TextClassification classifyText(
-      @Nullable TextClassificationSessionId sessionId,
-      @Nullable TextClassificationContext textClassificationContext,
-      Request request)
-      throws IOException {
+  TextClassification classifyText(TextClassification.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     LangIdModel langId = getLangIdImpl();
@@ -245,11 +224,7 @@ final class TextClassifierImpl {
   }
 
   @WorkerThread
-  TextLinks generateLinks(
-      @Nullable TextClassificationSessionId sessionId,
-      @Nullable TextClassificationContext textClassificationContext,
-      TextLinks.Request request)
-      throws IOException {
+  TextLinks generateLinks(TextLinks.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     Preconditions.checkArgument(
         request.getText().length() <= getMaxGenerateLinksTextLength(),
@@ -316,8 +291,6 @@ final class TextClassifierImpl {
       langIdModelInfo = Optional.fromNullable(langIdModelInUse).transform(ModelFile::toModelInfo);
     }
     generateLinksLogger.logGenerateLinks(
-        sessionId,
-        textClassificationContext,
         request.getText(),
         links,
         callingPackageName,
@@ -346,7 +319,7 @@ final class TextClassifierImpl {
     }
   }
 
-  void onSelectionEvent(@Nullable TextClassificationSessionId sessionId, SelectionEvent event) {
+  void onSelectionEvent(SelectionEvent event) {
     TextClassifierEvent textClassifierEvent = SelectionEventConverter.toTextClassifierEvent(event);
     if (textClassifierEvent == null) {
       return;
@@ -361,11 +334,7 @@ final class TextClassifierImpl {
         TextClassifierEventConverter.fromPlatform(event));
   }
 
-  TextLanguage detectLanguage(
-      @Nullable TextClassificationSessionId sessionId,
-      @Nullable TextClassificationContext textClassificationContext,
-      TextLanguage.Request request)
-      throws IOException {
+  TextLanguage detectLanguage(TextLanguage.Request request) throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
     final TextLanguage.Builder builder = new TextLanguage.Builder();
@@ -378,10 +347,7 @@ final class TextClassifierImpl {
     return builder.build();
   }
 
-  ConversationActions suggestConversationActions(
-      @Nullable TextClassificationSessionId sessionId,
-      @Nullable TextClassificationContext textClassificationContext,
-      ConversationActions.Request request)
+  ConversationActions suggestConversationActions(ConversationActions.Request request)
       throws IOException {
     Preconditions.checkNotNull(request);
     checkMainThread();
@@ -396,7 +362,7 @@ final class TextClassifierImpl {
     ActionsSuggestionsModel.Conversation nativeConversation =
         new ActionsSuggestionsModel.Conversation(nativeMessages);
 
-    ActionSuggestions nativeSuggestions =
+    ActionsSuggestionsModel.ActionSuggestion[] nativeSuggestions =
         actionsImpl.suggestActionsWithIntents(
             nativeConversation,
             null,
@@ -413,11 +379,11 @@ final class TextClassifierImpl {
    * non-null component name is in the extras.
    */
   private ConversationActions createConversationActionResult(
-      ConversationActions.Request request, ActionSuggestions nativeSuggestions) {
+      ConversationActions.Request request,
+      ActionsSuggestionsModel.ActionSuggestion[] nativeSuggestions) {
     Collection<String> expectedTypes = resolveActionTypesFromRequest(request);
     List<ConversationAction> conversationActions = new ArrayList<>();
-    for (ActionsSuggestionsModel.ActionSuggestion nativeSuggestion :
-        nativeSuggestions.actionSuggestions) {
+    for (ActionsSuggestionsModel.ActionSuggestion nativeSuggestion : nativeSuggestions) {
       String actionType = nativeSuggestion.getActionType();
       if (!expectedTypes.contains(actionType)) {
         continue;
@@ -682,7 +648,6 @@ final class TextClassifierImpl {
 
       printWriter.println();
       settings.dump(printWriter);
-      printWriter.println();
     }
   }
 
@@ -699,7 +664,7 @@ final class TextClassifierImpl {
 
   private static void checkMainThread() {
     if (Looper.myLooper() == Looper.getMainLooper()) {
-      TcLog.e(TAG, "TCS TextClassifier called on main thread", new Exception());
+      TcLog.e(TAG, "TextClassifier called on main thread", new Exception());
     }
   }
 

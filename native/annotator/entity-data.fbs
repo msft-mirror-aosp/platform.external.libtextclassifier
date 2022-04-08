@@ -73,18 +73,6 @@ table Datetime {
   datetime_component:[Datetime_.DatetimeComponent];
 }
 
-namespace libtextclassifier3.EntityData_.Contact_.AlternativeNameInfo_;
-enum AlternativeNameSource : int {
-  NONE = 0,
-  NAME_CORRECTION_LOG = 1,
-}
-
-namespace libtextclassifier3.EntityData_.Contact_;
-table AlternativeNameInfo {
-  name:string (shared);
-  source:AlternativeNameInfo_.AlternativeNameSource;
-}
-
 namespace libtextclassifier3.EntityData_;
 table Contact {
   name:string (shared);
@@ -93,7 +81,6 @@ table Contact {
   email_address:string (shared);
   phone_number:string (shared);
   contact_id:string (shared);
-  alternative_name_info:[Contact_.AlternativeNameInfo];
 }
 
 namespace libtextclassifier3.EntityData_;

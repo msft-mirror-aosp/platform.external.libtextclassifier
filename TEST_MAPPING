@@ -16,23 +16,6 @@
     },
     {
       "name": "TextClassifierNotificationTests"
-    },
-    {
-      "name": "TCSModelDownloaderIntegrationTest"
-    }
-  ],
-  "mainline-presubmit": [
-    {
-      "name": "TextClassifierNotificationTests[com.google.android.extservices.apex]"
-    },
-    {
-      "name": "TextClassifierServiceTest[com.google.android.extservices.apex]"
-    },
-    {
-      "name": "libtextclassifier_tests[com.google.android.extservices.apex]"
-    },
-    {
-      "name": "libtextclassifier_java_tests[com.google.android.extservices.apex]"
     }
   ]
 }

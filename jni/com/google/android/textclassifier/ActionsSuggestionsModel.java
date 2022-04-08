@@ -87,7 +87,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   }
 
   /** Suggests actions / replies to the given conversation. */
-  public ActionSuggestions suggestActions(
+  public ActionSuggestion[] suggestActions(
       Conversation conversation, ActionSuggestionOptions options, AnnotatorModel annotator) {
     return nativeSuggestActions(
         actionsModelPtr,
@@ -99,7 +99,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         /* generateAndroidIntents= */ false);
   }
 
-  public ActionSuggestions suggestActionsWithIntents(
+  public ActionSuggestion[] suggestActionsWithIntents(
       Conversation conversation,
       ActionSuggestionOptions options,
       Object appContext,
@@ -172,26 +172,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         assetFileDescriptor.getLength());
   }
 
-  /** Initializes conversation intent detection, passing the given serialized config to it. */
-  public void initializeConversationIntentDetection(byte[] serializedConfig) {
-    if (!nativeInitializeConversationIntentDetection(actionsModelPtr, serializedConfig)) {
-      throw new IllegalArgumentException("Couldn't initialize conversation intent detection");
-    }
-  }
-
-  /** Represents a list of suggested actions of a given conversation. */
-  public static final class ActionSuggestions {
-    /** A list of suggested actionsm sorted by score descendingly. */
-    public final ActionSuggestion[] actionSuggestions;
-    /** Whether the input conversation is considered as sensitive. */
-    public final boolean isSensitive;
-
-    public ActionSuggestions(ActionSuggestion[] actionSuggestions, boolean isSensitive) {
-      this.actionSuggestions = actionSuggestions;
-      this.isSensitive = isSensitive;
-    }
-  }
-
   /** Action suggestion that contains a response text and the type of the response. */
   public static final class ActionSuggestion {
     @Nullable private final String responseText;
@@ -200,7 +180,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     @Nullable private final NamedVariant[] entityData;
     @Nullable private final byte[] serializedEntityData;
     @Nullable private final RemoteActionTemplate[] remoteActionTemplates;
-    @Nullable private final Slot[] slots;
 
     public ActionSuggestion(
         @Nullable String responseText,
@@ -208,15 +187,13 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
         float score,
         @Nullable NamedVariant[] entityData,
         @Nullable byte[] serializedEntityData,
-        @Nullable RemoteActionTemplate[] remoteActionTemplates,
-        @Nullable Slot[] slots) {
+        @Nullable RemoteActionTemplate[] remoteActionTemplates) {
       this.responseText = responseText;
       this.actionType = actionType;
       this.score = score;
       this.entityData = entityData;
       this.serializedEntityData = serializedEntityData;
       this.remoteActionTemplates = remoteActionTemplates;
-      this.slots = slots;
     }
 
     @Nullable
@@ -246,11 +223,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     @Nullable
     public RemoteActionTemplate[] getRemoteActionTemplates() {
       return remoteActionTemplates;
-    }
-
-    @Nullable
-    public Slot[] getSlots() {
-      return slots;
     }
   }
 
@@ -323,25 +295,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
     public ActionSuggestionOptions() {}
   }
 
-  /** Represents a slot for an {@link ActionSuggestion}. */
-  public static final class Slot {
-
-    public final String type;
-    public final int messageIndex;
-    public final int startIndex;
-    public final int endIndex;
-    public final float confidenceScore;
-
-    public Slot(
-        String type, int messageIndex, int startIndex, int endIndex, float confidenceScore) {
-      this.type = type;
-      this.messageIndex = messageIndex;
-      this.startIndex = startIndex;
-      this.endIndex = endIndex;
-      this.confidenceScore = confidenceScore;
-    }
-  }
-
   /**
    * Retrieves the pointer to the native object. Note: Need to keep the {@code
    * ActionsSuggestionsModel} alive as long as the pointer is used.
@@ -358,9 +311,6 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
   private static native long nativeNewActionsModelWithOffset(
       int fd, long offset, long size, byte[] preconditionsOverwrite);
 
-  private native boolean nativeInitializeConversationIntentDetection(
-      long actionsModelPtr, byte[] serializedConfig);
-
   private static native String nativeGetLocales(int fd);
 
   private static native String nativeGetLocalesWithOffset(int fd, long offset, long size);
@@ -373,7 +323,7 @@ public final class ActionsSuggestionsModel implements AutoCloseable {
 
   private static native String nativeGetNameWithOffset(int fd, long offset, long size);
 
-  private native ActionSuggestions nativeSuggestActions(
+  private native ActionSuggestion[] nativeSuggestActions(
       long context,
       Conversation conversation,
       ActionSuggestionOptions options,

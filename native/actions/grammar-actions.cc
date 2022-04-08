@@ -159,8 +159,8 @@ bool GrammarActions::SuggestActions(
 
   for (const grammar::EvaluatedDerivation& evaluated_derivation :
        evaluated_derivations.ValueOrDie()) {
-    if (!InstantiateActionsFromMatch(text, message_index, evaluated_derivation,
-                                     result)) {
+    if (!InstantiateActionsFromMatch(text, message_index,
+                                     evaluated_derivation.derivation, result)) {
       TC3_LOG(ERROR) << "Could not instantiate actions from a grammar match.";
       return false;
     }

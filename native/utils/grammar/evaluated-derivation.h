@@ -23,7 +23,8 @@
 namespace libtextclassifier3::grammar {
 
 // A parse tree for a root rule and its semantic value.
-struct EvaluatedDerivation : public Derivation {
+struct EvaluatedDerivation {
+  Derivation derivation;
   const SemanticValue* value;
 };
 

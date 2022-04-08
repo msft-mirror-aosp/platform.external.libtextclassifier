@@ -70,8 +70,9 @@ TEST_F(AnalyzerTest, ParsesTextWithGrammar) {
     EXPECT_THAT(results, SizeIs(1));
 
     // Check parse tree.
-    EXPECT_THAT(results[0], IsDerivation(kMonth /* rule_id */, 13 /* begin */,
-                                         20 /* end */));
+    EXPECT_THAT(
+        results[0].derivation,
+        IsDerivation(kMonth /* rule_id */, 13 /* begin */, 20 /* end */));
 
     // Check semantic result.
     EXPECT_EQ(results[0].value->Value<int32>(), 1);
@@ -87,7 +88,7 @@ TEST_F(AnalyzerTest, ParsesTextWithGrammar) {
     EXPECT_THAT(results, SizeIs(1));
 
     // Check parse tree.
-    EXPECT_THAT(results[0],
+    EXPECT_THAT(results[0].derivation,
                 IsDerivation(kMonth /* rule_id */, 0 /* begin */, 8 /* end */));
 
     // Check semantic result.

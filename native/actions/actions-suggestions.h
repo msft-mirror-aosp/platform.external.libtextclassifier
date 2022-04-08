@@ -25,12 +25,11 @@
 #include <vector>
 
 #include "actions/actions_model_generated.h"
-#include "actions/conversation_intent_detection/conversation-intent-detection.h"
 #include "actions/feature-processor.h"
 #include "actions/grammar-actions.h"
+#include "actions/ngram-model.h"
 #include "actions/ranker.h"
 #include "actions/regex-actions.h"
-#include "actions/sensitive-classifier-base.h"
 #include "actions/types.h"
 #include "annotator/annotator.h"
 #include "annotator/model-executor.h"
@@ -45,6 +44,12 @@
 #include "utils/zlib/zlib.h"
 
 namespace libtextclassifier3 {
+
+// Options for suggesting actions.
+struct ActionSuggestionOptions {
+  static ActionSuggestionOptions Default() { return ActionSuggestionOptions(); }
+  std::unordered_map<std::string, Variant> model_parameters;
+};
 
 // Class for predicting actions following a conversation.
 class ActionsSuggestions {
@@ -104,9 +109,6 @@ class ActionsSuggestions {
   ActionsSuggestionsResponse SuggestActions(
       const Conversation& conversation, const Annotator* annotator,
       const ActionSuggestionOptions& options = ActionSuggestionOptions()) const;
-
-  bool InitializeConversationIntentDetection(
-      const std::string& serialized_config);
 
   const ActionsModel* model() const;
   const reflection::Schema* entity_data_schema() const;
@@ -194,10 +196,6 @@ class ActionsSuggestions {
       ActionsSuggestionsResponse* response,
       std::unique_ptr<tflite::Interpreter>* interpreter) const;
 
-  Status SuggestActionsFromConversationIntentDetection(
-      const Conversation& conversation, const ActionSuggestionOptions& options,
-      std::vector<ActionSuggestion>* actions) const;
-
   // Creates options for annotation of a message.
   AnnotationOptions AnnotationOptionsForMessage(
       const ConversationMessage& message) const;
@@ -266,11 +264,7 @@ class ActionsSuggestions {
   const TriggeringPreconditions* triggering_preconditions_overlay_;
 
   // Low confidence input ngram classifier.
-  std::unique_ptr<const SensitiveTopicModelBase> sensitive_model_;
-
-  // Conversation intent detection model for additional actions.
-  std::unique_ptr<const ConversationIntentDetection>
-      conversation_intent_detection_;
+  std::unique_ptr<const NGramModel> ngram_model_;
 };
 
 // Interprets the buffer as a Model flatbuffer and returns it for reading.

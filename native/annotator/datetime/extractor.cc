@@ -16,7 +16,6 @@
 
 #include "annotator/datetime/extractor.h"
 
-#include "annotator/datetime/utils.h"
 #include "annotator/model_generated.h"
 #include "annotator/types.h"
 #include "utils/base/logging.h"
@@ -391,7 +390,15 @@ bool DatetimeExtractor::ParseYear(const UnicodeText& input,
   if (!ParseDigits(input, parsed_year)) {
     return false;
   }
-  *parsed_year = GetAdjustedYear(*parsed_year);
+
+  // Logic to decide if XX will be 20XX or 19XX
+  if (*parsed_year < 100) {
+    if (*parsed_year < 50) {
+      *parsed_year += 2000;
+    } else {
+      *parsed_year += 1900;
+    }
+  }
 
   return true;
 }
