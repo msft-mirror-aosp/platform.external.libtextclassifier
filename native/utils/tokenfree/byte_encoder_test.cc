@@ -29,7 +29,7 @@ namespace {
 
 using testing::ElementsAre;
 
-TEST(EncoderTest, SimpleTokenization) {
+TEST(ByteEncoderTest, SimpleTokenization) {
   const ByteEncoder encoder;
   {
     std::vector<int64_t> encoded_text;
@@ -39,7 +39,7 @@ TEST(EncoderTest, SimpleTokenization) {
   }
 }
 
-TEST(EncoderTest, SimpleTokenization2) {
+TEST(ByteEncoderTest, SimpleTokenization2) {
   const ByteEncoder encoder;
   {
     std::vector<int64_t> encoded_text;
