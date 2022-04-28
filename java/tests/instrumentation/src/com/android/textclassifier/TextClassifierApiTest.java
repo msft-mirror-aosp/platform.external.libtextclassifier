@@ -56,6 +56,10 @@ public class TextClassifierApiTest {
 
   @Before
   public void setup() {
+    extServicesTextClassifierRule.enableVerboseLogging();
+    // Verbose logging only takes effect after restarting ExtServices
+    extServicesTextClassifierRule.forceStopExtServices();
+
     textClassifier = extServicesTextClassifierRule.getTextClassifier();
   }
 
@@ -81,8 +85,8 @@ public class TextClassifierApiTest {
 
   @Test
   public void classifyText() {
-    String text = "Contact me at droid@android.com";
-    String classifiedText = "droid@android.com";
+    String text = "Contact me at http://www.android.com";
+    String classifiedText = "http://www.android.com";
     int startIndex = text.indexOf(classifiedText);
     int endIndex = startIndex + classifiedText.length();
     TextClassification.Request request =
@@ -90,7 +94,7 @@ public class TextClassifierApiTest {
 
     TextClassification classification = textClassifier.classifyText(request);
     assertThat(classification.getEntityCount()).isGreaterThan(0);
-    assertThat(classification.getEntity(0)).isEqualTo(TextClassifier.TYPE_EMAIL);
+    assertThat(classification.getEntity(0)).isEqualTo(TextClassifier.TYPE_URL);
     assertThat(classification.getText()).isEqualTo(classifiedText);
     assertThat(classification.getActions()).isNotEmpty();
   }
