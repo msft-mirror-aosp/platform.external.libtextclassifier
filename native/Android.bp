@@ -66,6 +66,7 @@ cc_library_static {
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
         "com.android.extservices",
+        "com.android.adservices",
     ],
 }
 
