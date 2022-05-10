@@ -18,7 +18,6 @@ package com.android.textclassifier.downloader;
 
 import android.content.Context;
 import android.util.ArrayMap;
-import android.util.Pair;
 import androidx.annotation.GuardedBy;
 import androidx.room.Room;
 import com.android.textclassifier.common.ModelType;
@@ -33,6 +32,7 @@ import com.android.textclassifier.downloader.DownloadedModelDatabase.ModelView;
 import com.android.textclassifier.utils.IndentingPrintWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import java.io.File;
 import java.util.ArrayList;
@@ -194,8 +194,8 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
 
   @Override
   public void onDownloadCompleted(
-      Map<String, Pair<String, String>> modelTypeToLocaleTagAndManifestUrls) {
-    TcLog.v(TAG, "Start to clean up models and update model lookup cache...");
+      ImmutableMap<String, ManifestsToDownloadByType> manifestsToDownload) {
+    TcLog.d(TAG, "Start to clean up models and update model lookup cache...");
     // Step 1: Clean up ManifestEnrollment table
     List<ManifestEnrollment> allManifestEnrollments = db.dao().queryAllManifestEnrollments();
     List<ManifestEnrollment> manifestEnrollmentsToDelete = new ArrayList<>();
@@ -204,35 +204,52 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
           allManifestEnrollments.stream()
               .filter(modelEnrollment -> modelEnrollment.getModelType().equals(modelType))
               .collect(Collectors.toList());
-      Pair<String, String> localeTagAndManifestUrl =
-          modelTypeToLocaleTagAndManifestUrls.get(modelType);
-      if (localeTagAndManifestUrl == null) {
-        // No suitable manifest configured for this model type. Delete everything.
+      ManifestsToDownloadByType manifestsToDownloadByType = manifestsToDownload.get(modelType);
+
+      if (manifestsToDownloadByType == null) {
+        // No suitable manifests configured for this model type. Delete everything.
         manifestEnrollmentsToDelete.addAll(manifestEnrollmentsByType);
-      } else {
-        String localeTag = localeTagAndManifestUrl.first;
-        String manifestUrl = localeTagAndManifestUrl.second;
-        Optional<ManifestEnrollment> optionalManifestEnrollment =
+        continue;
+      }
+      ImmutableMap<String, String> localeTagToManifestUrl =
+          manifestsToDownloadByType.localeTagToManifestUrl();
+
+      boolean allModelsDownloaded = true;
+      for (Map.Entry<String, String> entry : localeTagToManifestUrl.entrySet()) {
+        String localeTag = entry.getKey();
+        String manifestUrl = entry.getValue();
+        Optional<ManifestEnrollment> manifestEnrollmentForLocaleTagAndManifestUrl =
             manifestEnrollmentsByType.stream()
                 .filter(
                     manifestEnrollment ->
                         manifestEnrollment.getLocaleTag().equals(localeTag)
                             && manifestEnrollment.getManifestUrl().equals(manifestUrl))
                 .findAny();
-        if (optionalManifestEnrollment.isPresent()) {
-          // The desired manifest is downloaded successfully. Delete everything else.
-          manifestEnrollmentsToDelete.addAll(manifestEnrollmentsByType);
-          manifestEnrollmentsToDelete.remove(optionalManifestEnrollment.get());
-        } else {
-          // TODO(licha): We may still need to delete models here. E.g. we are switching from en to
-          // zh. Although we fail to download zh model, we still want to delete en models.
-          // The desired manifest failed to be downloaded. Do not delete anything.
+        if (!manifestEnrollmentForLocaleTagAndManifestUrl.isPresent()) {
+          // The desired manifest failed to be downloaded.
           TcLog.w(
               TAG,
               String.format(
                   "Desired manifest is missing on download completed: %s, %s, %s",
                   modelType, localeTag, manifestUrl));
+          allModelsDownloaded = false;
         }
+      }
+      if (allModelsDownloaded) {
+        // Delete unused manifest enrollments.
+        manifestEnrollmentsToDelete.addAll(
+            manifestEnrollmentsByType.stream()
+                .filter(
+                    manifestEnrollment ->
+                        !manifestEnrollment
+                            .getManifestUrl()
+                            .equals(localeTagToManifestUrl.get(manifestEnrollment.getLocaleTag())))
+                .collect(Collectors.toList()));
+      } else {
+        // TODO(licha): We may still need to delete models here. E.g. we are switching from en to
+        // zh. Although we fail to download zh model, we still want to delete en models.
+        TcLog.w(
+            TAG, "Unused models were not deleted because downloading of at least one model failed");
       }
     }
     db.dao().deleteManifestEnrollments(manifestEnrollmentsToDelete);
@@ -244,8 +261,11 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
     // in allAttemptedManifestUrls, they can still be useful (e.g. current manifest is v901, and we
     // failed to download v902. v901 will not be in the map, but it should be kept.)
     List<String> allAttemptedManifestUrls =
-        modelTypeToLocaleTagAndManifestUrls.values().stream()
-            .map(localTagAndManifestUrlPair -> localTagAndManifestUrlPair.second)
+        manifestsToDownload.entrySet().stream()
+            .flatMap(
+                entry ->
+                    entry.getValue().localeTagToManifestUrl().entrySet().stream()
+                        .map(Map.Entry::getValue))
             .collect(Collectors.toList());
     db.dao().deleteUnusedManifestFailureRecords(allAttemptedManifestUrls);
     // Step 4: Update lookup cache
@@ -266,7 +286,7 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
   // Clear the cache table and rebuild the cache based on ModelView table
   private void updateCache() {
     synchronized (cacheLock) {
-      TcLog.v(TAG, "Updating model lookup cache...");
+      TcLog.d(TAG, "Updating model lookup cache...");
       for (String modelType : ModelType.values()) {
         modelLookupCache.get(modelType).clear();
       }

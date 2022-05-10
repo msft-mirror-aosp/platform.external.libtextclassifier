@@ -18,15 +18,10 @@ package com.android.textclassifier.downloader;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.app.Instrumentation;
-import android.app.UiAutomation;
 import android.util.Log;
 import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextClassification.Request;
-import android.view.textclassifier.TextClassifier;
-import androidx.test.platform.app.InstrumentationRegistry;
 import com.android.textclassifier.testing.ExtServicesTextClassifierRule;
-import java.io.IOException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,143 +37,146 @@ public class ModelDownloaderIntegrationTest {
   private static final String EXPERIMENTAL_EN_TAG = "en_v999999999";
   private static final String V804_EN_ANNOTATOR_MANIFEST_URL =
       "https://www.gstatic.com/android/text_classifier/r/v804/en.fb.manifest";
+  private static final String V804_RU_ANNOTATOR_MANIFEST_URL =
+      "https://www.gstatic.com/android/text_classifier/r/v804/ru.fb.manifest";
   private static final String V804_EN_TAG = "en_v804";
+  private static final String V804_RU_TAG = "ru_v804";
   private static final String FACTORY_MODEL_TAG = "*";
+  private static final int ASSERT_MAX_ATTEMPTS = 20;
+  private static final int ASSERT_SLEEP_BEFORE_RETRY_MS = 1000;
 
   @Rule
   public final ExtServicesTextClassifierRule extServicesTextClassifierRule =
       new ExtServicesTextClassifierRule();
 
-  private TextClassifier textClassifier;
-
   @Before
   public void setup() throws Exception {
-    // Flag overrides below can be overridden by Phenotype sync, which makes this test flaky
-    runShellCommand("device_config put textclassifier config_updater_model_enabled false");
-    runShellCommand("device_config put textclassifier model_download_manager_enabled true");
-    runShellCommand("device_config put textclassifier model_download_backoff_delay_in_millis 1");
+    extServicesTextClassifierRule.addDeviceConfigOverride("config_updater_model_enabled", "false");
+    extServicesTextClassifierRule.addDeviceConfigOverride("model_download_manager_enabled", "true");
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "model_download_backoff_delay_in_millis", "5");
+    extServicesTextClassifierRule.addDeviceConfigOverride("testing_locale_list_override", "en-US");
+    extServicesTextClassifierRule.overrideDeviceConfig();
 
-    textClassifier = extServicesTextClassifierRule.getTextClassifier();
-    startExtservicesProcess();
+    extServicesTextClassifierRule.enableVerboseLogging();
+    // Verbose logging only takes effect after restarting ExtServices
+    extServicesTextClassifierRule.forceStopExtServices();
   }
 
   @After
   public void tearDown() throws Exception {
-    runShellCommand("device_config delete textclassifier manifest_url_annotator_en");
-    runShellCommand("device_config put textclassifier config_updater_model_enabled true");
-    runShellCommand(
-        "device_config put textclassifier model_download_backoff_delay_in_millis 3600000");
+    // This is to reset logging/locale_override for ExtServices.
+    extServicesTextClassifierRule.forceStopExtServices();
   }
 
   @Test
-  public void smokeTest() throws IOException, InterruptedException {
-    runShellCommand(
-        "device_config put textclassifier manifest_url_annotator_en "
-            + V804_EN_ANNOTATOR_MANIFEST_URL);
+  public void smokeTest() throws Exception {
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", V804_EN_ANNOTATOR_MANIFEST_URL);
 
-    assertWithRetries(
-        /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(V804_EN_TAG));
+    assertWithRetries(() -> verifyActiveEnglishModel(V804_EN_TAG));
   }
 
   @Test
-  public void downgradeModel() throws IOException, InterruptedException {
+  public void downgradeModel() throws Exception {
     // Download an experimental model.
-    {
-      runShellCommand(
-          "device_config put textclassifier manifest_url_annotator_en "
-              + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
-      assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(EXPERIMENTAL_EN_TAG));
-    }
+    assertWithRetries(() -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
 
     // Downgrade to an older model.
-    {
-      runShellCommand(
-          "device_config put textclassifier manifest_url_annotator_en "
-              + V804_EN_ANNOTATOR_MANIFEST_URL);
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", V804_EN_ANNOTATOR_MANIFEST_URL);
 
-      assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(V804_EN_TAG));
-    }
+    assertWithRetries(() -> verifyActiveEnglishModel(V804_EN_TAG));
   }
 
   @Test
-  public void upgradeModel() throws IOException, InterruptedException {
+  public void upgradeModel() throws Exception {
     // Download a model.
-    {
-      runShellCommand(
-          "device_config put textclassifier manifest_url_annotator_en "
-              + V804_EN_ANNOTATOR_MANIFEST_URL);
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", V804_EN_ANNOTATOR_MANIFEST_URL);
 
-      assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(V804_EN_TAG));
-    }
+    assertWithRetries(() -> verifyActiveEnglishModel(V804_EN_TAG));
 
     // Upgrade to an experimental model.
-    {
-      runShellCommand(
-          "device_config put textclassifier manifest_url_annotator_en "
-              + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
-      assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(EXPERIMENTAL_EN_TAG));
-    }
+    assertWithRetries(() -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
   }
 
   @Test
-  public void clearFlag() throws IOException, InterruptedException {
+  public void clearFlag() throws Exception {
     // Download a new model.
-    {
-      runShellCommand(
-          "device_config put textclassifier manifest_url_annotator_en "
-              + EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
 
-      assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(EXPERIMENTAL_EN_TAG));
-    }
+    assertWithRetries(() -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
 
     // Revert the flag.
-    {
-      runShellCommand("device_config delete textclassifier manifest_url_annotator_en");
-      // Fallback to use the universal model.
-      assertWithRetries(
-          /* maxAttempts= */ 10, /* sleepMs= */ 500, () -> verifyActiveModel(FACTORY_MODEL_TAG));
-    }
+    extServicesTextClassifierRule.addDeviceConfigOverride("manifest_url_annotator_en", "");
+    // Fallback to use the universal model.
+    assertWithRetries(
+        () -> verifyActiveModel(/* text= */ "abc", /* expectedVersion= */ FACTORY_MODEL_TAG));
   }
 
-  private void assertWithRetries(int maxAttempts, int sleepMs, Runnable assertRunnable)
-      throws InterruptedException {
-    for (int i = 0; i < maxAttempts; i++) {
+  @Test
+  public void modelsForMultipleLanguagesDownloaded() throws Exception {
+    extServicesTextClassifierRule.addDeviceConfigOverride("multi_language_support_enabled", "true");
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "testing_locale_list_override", "en-US,ru-RU");
+
+    // download en model
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_en", EXPERIMENTAL_EN_ANNOTATOR_MANIFEST_URL);
+
+    // download ru model
+    extServicesTextClassifierRule.addDeviceConfigOverride(
+        "manifest_url_annotator_ru", V804_RU_ANNOTATOR_MANIFEST_URL);
+    assertWithRetries(() -> verifyActiveEnglishModel(EXPERIMENTAL_EN_TAG));
+
+    assertWithRetries(this::verifyActiveRussianModel);
+
+    assertWithRetries(
+        () -> verifyActiveModel(/* text= */ "français", /* expectedVersion= */ FACTORY_MODEL_TAG));
+  }
+
+  private void assertWithRetries(Runnable assertRunnable) throws Exception {
+    for (int i = 0; i < ASSERT_MAX_ATTEMPTS; i++) {
       try {
+        extServicesTextClassifierRule.overrideDeviceConfig();
         assertRunnable.run();
         break; // success. Bail out.
       } catch (AssertionError ex) {
-        if (i == maxAttempts - 1) { // last attempt, give up.
+        if (i == ASSERT_MAX_ATTEMPTS - 1) { // last attempt, give up.
+          extServicesTextClassifierRule.dumpDefaultTextClassifierService();
           throw ex;
         } else {
-          Thread.sleep(sleepMs);
+          Thread.sleep(ASSERT_SLEEP_BEFORE_RETRY_MS);
         }
+      } catch (Exception unknownException) {
+        throw unknownException;
       }
     }
   }
 
-  private void verifyActiveModel(String expectedVersion) {
+  private void verifyActiveModel(String text, String expectedVersion) {
     TextClassification textClassification =
-        textClassifier.classifyText(new Request.Builder("abc", 0, 3).build());
+        extServicesTextClassifierRule
+            .getTextClassifier()
+            .classifyText(new Request.Builder(text, 0, text.length()).build());
     // The result id contains the name of the just used model.
+    Log.d(TAG, "verifyActiveModel. TextClassification ID: " + textClassification.getId());
     assertThat(textClassification.getId()).contains(expectedVersion);
   }
 
-  private void startExtservicesProcess() {
-    // Start the process of ExtServices by sending it a text classifier request.
-    textClassifier.classifyText(new TextClassification.Request.Builder("abc", 0, 3).build());
+  private void verifyActiveEnglishModel(String expectedVersion) {
+    verifyActiveModel("abc", expectedVersion);
   }
 
-  private static void runShellCommand(String cmd) {
-    Log.v(TAG, "run shell command: " + cmd);
-    Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
-    UiAutomation uiAutomation = instrumentation.getUiAutomation();
-    uiAutomation.executeShellCommand(cmd);
+  private void verifyActiveRussianModel() {
+    verifyActiveModel("привет", V804_RU_TAG);
   }
 }

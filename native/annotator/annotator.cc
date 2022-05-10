@@ -973,11 +973,11 @@ CodepointSpan Annotator::SuggestSelection(
   // Sort candidates according to their position in the input, so that the next
   // code can assume that any connected component of overlapping spans forms a
   // contiguous block.
-  std::sort(candidates.annotated_spans[0].begin(),
-            candidates.annotated_spans[0].end(),
-            [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
-              return a.span.first < b.span.first;
-            });
+  std::stable_sort(candidates.annotated_spans[0].begin(),
+                   candidates.annotated_spans[0].end(),
+                   [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
+                     return a.span.first < b.span.first;
+                   });
 
   std::vector<int> candidate_indices;
   if (!ResolveConflicts(candidates.annotated_spans[0], context, tokens,
@@ -987,13 +987,14 @@ CodepointSpan Annotator::SuggestSelection(
     return original_click_indices;
   }
 
-  std::sort(candidate_indices.begin(), candidate_indices.end(),
-            [this, &candidates](int a, int b) {
-              return GetPriorityScore(
-                         candidates.annotated_spans[0][a].classification) >
-                     GetPriorityScore(
-                         candidates.annotated_spans[0][b].classification);
-            });
+  std::stable_sort(
+      candidate_indices.begin(), candidate_indices.end(),
+      [this, &candidates](int a, int b) {
+        return GetPriorityScore(
+                   candidates.annotated_spans[0][a].classification) >
+               GetPriorityScore(
+                   candidates.annotated_spans[0][b].classification);
+      });
 
   for (const int i : candidate_indices) {
     if (SpansOverlap(candidates.annotated_spans[0][i].span, click_indices) &&
@@ -1173,7 +1174,7 @@ bool Annotator::ResolveConflict(
     }
   }
 
-  std::sort(
+  std::stable_sort(
       conflicting_indices.begin(), conflicting_indices.end(),
       [this, &scores_lengths, candidates, conflicting_indices](int i, int j) {
         if (scores_lengths[i].first == scores_lengths[j].first &&
@@ -1241,7 +1242,7 @@ bool Annotator::ResolveConflict(
     chosen_indices_for_source_ptr->insert(considered_candidate);
   }
 
-  std::sort(chosen_indices->begin(), chosen_indices->end());
+  std::stable_sort(chosen_indices->begin(), chosen_indices->end());
 
   return true;
 }
@@ -1414,10 +1415,11 @@ namespace {
 // Sorts the classification results from high score to low score.
 void SortClassificationResults(
     std::vector<ClassificationResult>* classification_results) {
-  std::sort(classification_results->begin(), classification_results->end(),
-            [](const ClassificationResult& a, const ClassificationResult& b) {
-              return a.score > b.score;
-            });
+  std::stable_sort(
+      classification_results->begin(), classification_results->end(),
+      [](const ClassificationResult& a, const ClassificationResult& b) {
+        return a.score > b.score;
+      });
 }
 }  // namespace
 
@@ -1936,10 +1938,11 @@ std::vector<ClassificationResult> Annotator::ClassifyText(
   }
 
   // Sort results according to score.
-  std::sort(results.begin(), results.end(),
-            [](const ClassificationResult& a, const ClassificationResult& b) {
-              return a.score > b.score;
-            });
+  std::stable_sort(
+      results.begin(), results.end(),
+      [](const ClassificationResult& a, const ClassificationResult& b) {
+        return a.score > b.score;
+      });
 
   if (results.empty()) {
     results = {{Collections::Other(), 1.0}};
@@ -2297,19 +2300,19 @@ Status Annotator::AnnotateSingleInput(
   // Also sort them according to the end position and collection, so that the
   // deduplication code below can assume that same spans and classifications
   // form contiguous blocks.
-  std::sort(candidates->begin(), candidates->end(),
-            [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
-              if (a.span.first != b.span.first) {
-                return a.span.first < b.span.first;
-              }
+  std::stable_sort(candidates->begin(), candidates->end(),
+                   [](const AnnotatedSpan& a, const AnnotatedSpan& b) {
+                     if (a.span.first != b.span.first) {
+                       return a.span.first < b.span.first;
+                     }
 
-              if (a.span.second != b.span.second) {
-                return a.span.second < b.span.second;
-              }
+                     if (a.span.second != b.span.second) {
+                       return a.span.second < b.span.second;
+                     }
 
-              return a.classification[0].collection <
-                     b.classification[0].collection;
-            });
+                     return a.classification[0].collection <
+                            b.classification[0].collection;
+                   });
 
   std::vector<int> candidate_indices;
   if (!ResolveConflicts(*candidates, context, tokens,
@@ -2904,10 +2907,10 @@ bool Annotator::ModelChunk(int num_tokens, const TokenSpan& span_of_interest,
       return false;
     }
   }
-  std::sort(scored_chunks.rbegin(), scored_chunks.rend(),
-            [](const ScoredChunk& lhs, const ScoredChunk& rhs) {
-              return lhs.score < rhs.score;
-            });
+  std::stable_sort(scored_chunks.rbegin(), scored_chunks.rend(),
+                   [](const ScoredChunk& lhs, const ScoredChunk& rhs) {
+                     return lhs.score < rhs.score;
+                   });
 
   // Traverse the candidate chunks from highest-scoring to lowest-scoring. Pick
   // them greedily as long as they do not overlap with any previously picked
@@ -2936,7 +2939,7 @@ bool Annotator::ModelChunk(int num_tokens, const TokenSpan& span_of_interest,
     chunks->push_back(scored_chunk.token_span);
   }
 
-  std::sort(chunks->begin(), chunks->end());
+  std::stable_sort(chunks->begin(), chunks->end());
 
   return true;
 }
