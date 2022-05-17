@@ -46,7 +46,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 @RunWith(AndroidJUnit4.class)
 public final class ModelDownloadManagerTest {
@@ -61,14 +62,16 @@ public final class ModelDownloadManagerTest {
   public final TextClassifierDownloadLoggerTestRule loggerTestRule =
       new TextClassifierDownloadLoggerTestRule();
 
+  @Rule public final MockitoRule mocks = MockitoJUnit.rule();
+
   private TestingDeviceConfig deviceConfig;
   private WorkManager workManager;
   private ModelDownloadManager downloadManager;
+  private ModelDownloadManager downloadManagerWithBadWorkManager;
   @Mock DownloadedModelManager downloadedModelManager;
 
   @Before
   public void setUp() {
-    MockitoAnnotations.initMocks(this);
     Context context = ApplicationProvider.getApplicationContext();
     WorkManagerTestInitHelper.initializeTestWorkManager(context);
 
@@ -78,6 +81,17 @@ public final class ModelDownloadManagerTest {
         new ModelDownloadManager(
             context,
             ModelDownloadWorker.class,
+            () -> workManager,
+            downloadedModelManager,
+            new TextClassifierSettings(deviceConfig),
+            MoreExecutors.newDirectExecutorService());
+    this.downloadManagerWithBadWorkManager =
+        new ModelDownloadManager(
+            context,
+            ModelDownloadWorker.class,
+            () -> {
+              throw new IllegalStateException("WorkManager may fail!");
+            },
             downloadedModelManager,
             new TextClassifierSettings(deviceConfig),
             MoreExecutors.newDirectExecutorService());
@@ -94,7 +108,20 @@ public final class ModelDownloadManagerTest {
   }
 
   @Test
+  public void onTextClassifierServiceCreated_workManagerCrashed() throws Exception {
+    assertThat(loggerTestRule.getLoggedDownloadWorkScheduledAtoms()).isEmpty();
+    downloadManagerWithBadWorkManager.onTextClassifierServiceCreated();
+
+    // Assertion below is flaky: DeviceConfig listener may be trigerred by OS during test
+    TextClassifierDownloadWorkScheduled atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkScheduledAtoms());
+    assertThat(atom.getReasonToSchedule()).isEqualTo(ReasonToSchedule.TCS_STARTED);
+    assertThat(atom.getFailedToSchedule()).isTrue();
+  }
+
+  @Test
   public void onTextClassifierServiceCreated_requestEnqueued() throws Exception {
+    assertThat(loggerTestRule.getLoggedDownloadWorkScheduledAtoms()).isEmpty();
     downloadManager.onTextClassifierServiceCreated();
 
     WorkInfo workInfo =
@@ -102,18 +129,31 @@ public final class ModelDownloadManagerTest {
             DownloaderTestUtils.queryWorkInfos(
                 workManager, ModelDownloadManager.UNIQUE_QUEUE_NAME));
     assertThat(workInfo.getState()).isEqualTo(WorkInfo.State.ENQUEUED);
+    // Assertion below is flaky: DeviceConfig listener may be trigerred by OS during test
     verifyWorkScheduledLogging(ReasonToSchedule.TCS_STARTED);
   }
 
   @Test
   public void onTextClassifierServiceCreated_localeListOverridden() throws Exception {
+    assertThat(loggerTestRule.getLoggedDownloadWorkScheduledAtoms()).isEmpty();
     deviceConfig.setConfig(TextClassifierSettings.TESTING_LOCALE_LIST_OVERRIDE, "zh,fr");
     downloadManager.onTextClassifierServiceCreated();
 
     assertThat(Locale.getDefault()).isEqualTo(Locale.forLanguageTag("zh"));
     assertThat(LocaleList.getDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
     assertThat(LocaleList.getAdjustedDefault()).isEqualTo(LocaleList.forLanguageTags("zh,fr"));
+    // Assertion below is flaky: DeviceConfig listener may be trigerred by OS during test
     verifyWorkScheduledLogging(ReasonToSchedule.TCS_STARTED);
+  }
+
+  @Test
+  public void onLocaleChanged_workManagerCrashed() throws Exception {
+    downloadManagerWithBadWorkManager.onLocaleChanged();
+
+    TextClassifierDownloadWorkScheduled atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkScheduledAtoms());
+    assertThat(atom.getReasonToSchedule()).isEqualTo(ReasonToSchedule.LOCALE_SETTINGS_CHANGED);
+    assertThat(atom.getFailedToSchedule()).isTrue();
   }
 
   @Test
@@ -126,6 +166,16 @@ public final class ModelDownloadManagerTest {
                 workManager, ModelDownloadManager.UNIQUE_QUEUE_NAME));
     assertThat(workInfo.getState()).isEqualTo(WorkInfo.State.ENQUEUED);
     verifyWorkScheduledLogging(ReasonToSchedule.LOCALE_SETTINGS_CHANGED);
+  }
+
+  @Test
+  public void onTextClassifierDeviceConfigChanged_workManagerCrashed() throws Exception {
+    downloadManagerWithBadWorkManager.onTextClassifierDeviceConfigChanged();
+
+    TextClassifierDownloadWorkScheduled atom =
+        Iterables.getOnlyElement(loggerTestRule.getLoggedDownloadWorkScheduledAtoms());
+    assertThat(atom.getReasonToSchedule()).isEqualTo(ReasonToSchedule.DEVICE_CONFIG_UPDATED);
+    assertThat(atom.getFailedToSchedule()).isTrue();
   }
 
   @Test
@@ -184,6 +234,13 @@ public final class ModelDownloadManagerTest {
     when(downloadedModelManager.listModels(MODEL_TYPE)).thenReturn(ImmutableList.of(modelFile));
 
     assertThat(downloadManager.listDownloadedModels(MODEL_TYPE)).containsExactly(modelFile);
+  }
+
+  @Test
+  public void listDownloadedModels_doNotCrashOnError() throws Exception {
+    when(downloadedModelManager.listModels(MODEL_TYPE)).thenThrow(new IllegalStateException());
+
+    assertThat(downloadManager.listDownloadedModels(MODEL_TYPE)).isEmpty();
   }
 
   private void verifyWorkScheduledLogging(ReasonToSchedule reasonToSchedule) throws Exception {
