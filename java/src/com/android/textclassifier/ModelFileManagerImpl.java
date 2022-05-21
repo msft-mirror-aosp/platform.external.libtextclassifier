@@ -390,18 +390,7 @@ final class ModelFileManagerImpl implements ModelFileManager {
               localePreferences.get(0),
               targetLocale));
     }
-    ModelFile modelFile = findBestModelFile(modelType, targetLocale);
-    TcLog.d(
-        TAG,
-        String.format(
-            Locale.US,
-            "findBestModelFile: best model: %s; localePreferences: %s; detectedLocales: %s;"
-                + " targetLocale: %s",
-            modelFile,
-            localePreferences,
-            detectedLocales,
-            targetLocale));
-    return modelFile;
+    return findBestModelFile(modelType, targetLocale);
   }
 
   /**
