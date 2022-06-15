@@ -176,7 +176,6 @@ cc_library_headers {
     apex_available: [
         "//apex_available:platform",
         "com.android.extservices",
-        "com.android.adservices",
     ],
     generated_headers: [
         "libtextclassifier_fbgen_lang_id_common_flatbuffers_model",
