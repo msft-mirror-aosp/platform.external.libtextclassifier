@@ -181,7 +181,9 @@ cc_library {
         "**/*_test-include.*",
         "**/*unittest.*",
     ],
-
+    static_libs: [
+        "libflatbuffers-cpp",
+    ],
     version_script: "jni.lds",
 
     apex_available: [
@@ -242,6 +244,7 @@ cc_test_library {
     ],
     version_script: "jni.lds",
     static_libs: [
+        "libflatbuffers-cpp",
         "libgmock_ndk",
         "libgtest_ndk_c++",
         "libbase_ndk",
