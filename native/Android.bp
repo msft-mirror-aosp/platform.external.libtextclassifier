@@ -31,6 +31,7 @@ cc_library_headers {
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
     ],
+    min_sdk_version: "apex_inherit",
     sdk_version: "current",
 }
 
@@ -61,6 +62,7 @@ cc_library_static {
     defaults: ["libtextclassifier_hash_defaults"],
     sdk_version: "current",
     stl: "libc++_static",
+    min_sdk_version: "apex_inherit",
     apex_available: [
         "//apex_available:platform",
         "com.android.neuralnetworks",
@@ -179,7 +181,9 @@ cc_library {
         "**/*_test-include.*",
         "**/*unittest.*",
     ],
-
+    static_libs: [
+        "libflatbuffers-cpp",
+    ],
     version_script: "jni.lds",
 
     apex_available: [
@@ -240,6 +244,7 @@ cc_test_library {
     ],
     version_script: "jni.lds",
     static_libs: [
+        "libflatbuffers-cpp",
         "libgmock_ndk",
         "libgtest_ndk_c++",
         "libbase_ndk",
