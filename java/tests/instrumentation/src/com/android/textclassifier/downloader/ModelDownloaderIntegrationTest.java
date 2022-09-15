@@ -18,7 +18,6 @@ package com.android.textclassifier.downloader;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import android.util.Log;
 import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextClassification.Request;
 import com.android.textclassifier.testing.ExtServicesTextClassifierRule;
@@ -168,7 +167,6 @@ public class ModelDownloaderIntegrationTest {
             .getTextClassifier()
             .classifyText(new Request.Builder(text, 0, text.length()).build());
     // The result id contains the name of the just used model.
-    Log.d(TAG, "verifyActiveModel. TextClassification ID: " + textClassification.getId());
     assertThat(textClassification.getId()).contains(expectedVersion);
   }
 
