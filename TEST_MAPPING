@@ -16,6 +16,9 @@
     },
     {
       "name": "TextClassifierNotificationTests"
+    },
+    {
+      "name": "TCSModelDownloaderIntegrationTest"
     }
   ],
   "hwasan-postsubmit": [
