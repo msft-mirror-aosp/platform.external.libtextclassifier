@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.view.textclassifier.TextClassification;
 import android.view.textclassifier.TextClassification.Request;
+import androidx.test.filters.FlakyTest;
 import com.android.textclassifier.testing.ExtServicesTextClassifierRule;
 import org.junit.After;
 import org.junit.Before;
@@ -122,6 +123,7 @@ public class ModelDownloaderIntegrationTest {
   }
 
   @Test
+  @FlakyTest(bugId = 267344737)
   public void modelsForMultipleLanguagesDownloaded() throws Exception {
     extServicesTextClassifierRule.addDeviceConfigOverride("multi_language_support_enabled", "true");
     extServicesTextClassifierRule.addDeviceConfigOverride(
