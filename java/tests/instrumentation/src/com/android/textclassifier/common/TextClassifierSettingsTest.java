@@ -33,15 +33,15 @@ import org.junit.runner.RunWith;
 @SmallTest
 @RunWith(AndroidJUnit4.class)
 public class TextClassifierSettingsTest {
-  private static final String WRITE_DEVICE_CONFIG_PERMISSION =
-      "android.permission.WRITE_DEVICE_CONFIG";
+  private static final String ALLOWLISTED_WRITE_DEVICE_CONFIG_PERMISSION =
+      "android.permission.ALLOWLISTED_WRITE_DEVICE_CONFIG";
   private static final float EPSILON = 0.0001f;
 
   @Before
   public void setup() {
     InstrumentationRegistry.getInstrumentation()
         .getUiAutomation()
-        .adoptShellPermissionIdentity(WRITE_DEVICE_CONFIG_PERMISSION);
+        .adoptShellPermissionIdentity(ALLOWLISTED_WRITE_DEVICE_CONFIG_PERMISSION);
   }
 
   @After
