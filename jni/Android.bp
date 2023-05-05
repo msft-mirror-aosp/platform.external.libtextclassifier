@@ -27,4 +27,8 @@ java_library_static {
     static_libs: ["guava"],
     sdk_version: "system_current",
     min_sdk_version: "28",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.extservices",
+    ],
 }
