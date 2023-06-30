@@ -36,6 +36,7 @@ java_library {
         "TextClassifierServiceLib",
         "androidx.test.espresso.core",
         "mockito-target-minus-junit4",
+        "compatibility-device-util-axt",
     ],
 }
 
