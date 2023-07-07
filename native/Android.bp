@@ -31,6 +31,7 @@ cc_library_headers {
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
     ],
+    min_sdk_version: "apex_inherit",
     sdk_version: "current",
 }
 
@@ -61,6 +62,7 @@ cc_library_static {
     defaults: ["libtextclassifier_hash_defaults"],
     sdk_version: "current",
     stl: "libc++_static",
+    min_sdk_version: "apex_inherit",
     apex_available: [
         "//apex_available:platform",
         "com.android.neuralnetworks",
@@ -235,7 +237,9 @@ cc_library {
         "**/*_test-include.*",
         "**/*unittest.*",
     ],
-
+    static_libs: [
+        "libflatbuffers-cpp",
+    ],
     version_script: "jni.lds",
 
     apex_available: [
@@ -274,8 +278,15 @@ cc_test {
         "libtextclassifier_fbgen_utils_lua_utils_tests",
     ],
 
-    compile_multilib: "prefer32",
-
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
     // A workaround for code coverage. See b/166040889#comment23
     sdk_variant_only: true,
 }
@@ -296,6 +307,7 @@ cc_test_library {
     ],
     version_script: "jni.lds",
     static_libs: [
+        "libflatbuffers-cpp",
         "libgmock_ndk",
         "libgtest_ndk_c++",
         "libbase_ndk",
