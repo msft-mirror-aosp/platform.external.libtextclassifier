@@ -278,8 +278,15 @@ cc_test {
         "libtextclassifier_fbgen_utils_lua_utils_tests",
     ],
 
-    compile_multilib: "prefer32",
-
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
     // A workaround for code coverage. See b/166040889#comment23
     sdk_variant_only: true,
 }
