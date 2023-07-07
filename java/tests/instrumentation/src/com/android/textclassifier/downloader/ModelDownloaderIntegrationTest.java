@@ -70,6 +70,7 @@ public class ModelDownloaderIntegrationTest {
   }
 
   @Test
+  @FlakyTest(bugId = 284901878)
   public void smokeTest() throws Exception {
     extServicesTextClassifierRule.addDeviceConfigOverride(
         "manifest_url_annotator_en", V804_EN_ANNOTATOR_MANIFEST_URL);
@@ -78,6 +79,7 @@ public class ModelDownloaderIntegrationTest {
   }
 
   @Test
+  @FlakyTest(bugId = 284901878)
   public void downgradeModel() throws Exception {
     // Download an experimental model.
     extServicesTextClassifierRule.addDeviceConfigOverride(
@@ -93,6 +95,7 @@ public class ModelDownloaderIntegrationTest {
   }
 
   @Test
+  @FlakyTest(bugId = 284901878)
   public void upgradeModel() throws Exception {
     // Download a model.
     extServicesTextClassifierRule.addDeviceConfigOverride(
@@ -108,6 +111,7 @@ public class ModelDownloaderIntegrationTest {
   }
 
   @Test
+  @FlakyTest(bugId = 284901878)
   public void clearFlag() throws Exception {
     // Download a new model.
     extServicesTextClassifierRule.addDeviceConfigOverride(
