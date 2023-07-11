@@ -14,7 +14,7 @@
      limitations under the License.
 -->
 <configuration description="Config for libtextclassifier_tests">
-    <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.extservices.apex" />
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.extservices_tplus.apex" />
     <option name="test-suite-tag" value="apct" />
     <option name="test-suite-tag" value="mts" />
 
