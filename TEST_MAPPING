@@ -9,7 +9,10 @@
       ]
     },
     {
-      "name": "libtextclassifier_tests"
+      "name": "libtextclassifier_tests-tplus"
+    },
+    {
+      "name": "libtextclassifier_tests-sminus"
     },
     {
       "name": "libtextclassifier_java_tests"
@@ -36,7 +39,10 @@
       ]
     },
     {
-      "name": "libtextclassifier_tests"
+      "name": "libtextclassifier_tests-tplus"
+    },
+    {
+      "name": "libtextclassifier_tests-sminus"
     },
     {
       "name": "libtextclassifier_java_tests"
@@ -53,10 +59,22 @@
       "name": "TextClassifierServiceTest[com.google.android.extservices_tplus.apex]"
     },
     {
-      "name": "libtextclassifier_tests[com.google.android.extservices_tplus.apex]"
+      "name": "libtextclassifier_tests-tplus[com.google.android.extservices_tplus.apex]"
     },
     {
       "name": "libtextclassifier_java_tests[com.google.android.extservices_tplus.apex]"
+    },
+    {
+      "name": "TextClassifierNotificationTests[com.google.android.extservices.apex]"
+    },
+    {
+      "name": "TextClassifierServiceTest[com.google.android.extservices.apex]"
+    },
+    {
+      "name": "libtextclassifier_tests-sminus[com.google.android.extservices.apex]"
+    },
+    {
+      "name": "libtextclassifier_java_tests[com.google.android.extservices.apex]"
     }
   ]
 }
