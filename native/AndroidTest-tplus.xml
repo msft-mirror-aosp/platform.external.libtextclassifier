@@ -13,14 +13,14 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-<configuration description="Config for libtextclassifier_tests">
+<configuration description="Config for libtextclassifier_tests-tplus">
     <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.extservices_tplus.apex" />
     <option name="test-suite-tag" value="apct" />
     <option name="test-suite-tag" value="mts" />
 
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
-        <option name="push" value="libtextclassifier_tests->/data/local/tmp/libtextclassifier_tests" />
+        <option name="push" value="libtextclassifier_tests-tplus->/data/local/tmp/libtextclassifier_tests-tplus" />
         <option name="append-bitness" value="true" />
     </target_preparer>
 
@@ -33,8 +33,12 @@
 
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
-        <option name="module-name" value="libtextclassifier_tests" />
+        <option name="module-name" value="libtextclassifier_tests-tplus" />
     </test>
+
+    <!-- Prevent tests from running on Android S- -->
+    <object type="module_controller"
+            class="com.android.tradefed.testtype.suite.module.Sdk32ModuleController"/>
 
     <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
         <option name="mainline-module-package-name" value="com.google.android.extservices" />
