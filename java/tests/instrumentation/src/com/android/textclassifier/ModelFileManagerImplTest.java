@@ -83,7 +83,7 @@ public final class ModelFileManagerImplTest {
         new File(ApplicationProvider.getApplicationContext().getCacheDir(), "rootTestDir");
     rootTestDir.mkdirs();
     Context context = ApplicationProvider.getApplicationContext();
-    settings = new TextClassifierSettings(deviceConfig);
+    settings = new TextClassifierSettings(deviceConfig, /* isWear= */ false);
     modelDownloadManager =
         new ModelDownloadManager(
             context,
@@ -135,7 +135,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, /* localePreferences= */ null, /*detectedLocales=*/ null);
+            MODEL_TYPE, /* localePreferences= */ null, /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(newerModelFile);
   }
 
@@ -149,7 +149,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, new LocaleList(DEFAULT_LOCALE), /*detectedLocales=*/ null);
+            MODEL_TYPE, new LocaleList(DEFAULT_LOCALE), /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(languageDependentModelFile);
   }
 
@@ -162,7 +162,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, new LocaleList(DEFAULT_LOCALE), /*detectedLocales=*/ null);
+            MODEL_TYPE, new LocaleList(DEFAULT_LOCALE), /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(languageIndependentModelFile);
   }
 
@@ -175,7 +175,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, new LocaleList(DEFAULT_LOCALE), /*detectedLocales=*/ null);
+            MODEL_TYPE, new LocaleList(DEFAULT_LOCALE), /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(matchButOlderModel);
   }
 
@@ -189,7 +189,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, LocaleList.forLanguageTags("zh-hk"), /*detectedLocales=*/ null);
+            MODEL_TYPE, LocaleList.forLanguageTags("zh-hk"), /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(languageDependentModelFile);
   }
 
@@ -203,7 +203,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, LocaleList.forLanguageTags("zh"), /*detectedLocales=*/ null);
+            MODEL_TYPE, LocaleList.forLanguageTags("zh"), /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(languageDependentModelFile);
   }
 
@@ -217,7 +217,7 @@ public final class ModelFileManagerImplTest {
 
     ModelFile bestModelFile =
         modelFileManager.findBestModelFile(
-            MODEL_TYPE, LocaleList.forLanguageTags("zh"), /*detectedLocales=*/ null);
+            MODEL_TYPE, LocaleList.forLanguageTags("zh"), /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(languageIndependentModelFile);
   }
 
@@ -250,7 +250,7 @@ public final class ModelFileManagerImplTest {
         modelFileManager.findBestModelFile(
             MODEL_TYPE,
             new LocaleList(Locale.forLanguageTag("en"), Locale.forLanguageTag("zh-hk")),
-            /*detectedLocales=*/ null);
+            /* detectedLocales= */ null);
     assertThat(bestModelFile).isEqualTo(languageIndependentModelFile);
   }
 
