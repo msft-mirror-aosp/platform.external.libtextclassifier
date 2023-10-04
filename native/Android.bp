@@ -375,7 +375,7 @@ android_test {
         "androidx.test.rules",
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
-        "truth-prebuilt",
+        "truth",
         "TextClassifierCoverageLib",
     ],
     jni_libs: [
