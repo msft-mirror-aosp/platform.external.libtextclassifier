@@ -39,7 +39,7 @@ public final class LocaleUtilsTest {
   @Before
   public void setUp() {
     deviceConfig = new TestingDeviceConfig();
-    settings = new TextClassifierSettings(deviceConfig);
+    settings = new TextClassifierSettings(deviceConfig, /* isWear= */ false);
   }
 
   @Test

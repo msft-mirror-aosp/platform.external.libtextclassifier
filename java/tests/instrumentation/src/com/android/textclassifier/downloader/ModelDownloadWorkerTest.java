@@ -157,7 +157,7 @@ public final class ModelDownloadWorkerTest {
 
     Context context = ApplicationProvider.getApplicationContext();
     this.deviceConfig = new TestingDeviceConfig();
-    this.settings = new TextClassifierSettings(deviceConfig);
+    this.settings = new TextClassifierSettings(deviceConfig, /* isWear= */ false);
     this.modelDownloaderDir = new File(context.getCacheDir(), "downloaded");
     this.modelDownloaderDir.mkdirs();
     this.modelFile = new File(modelDownloaderDir, "test.model");
