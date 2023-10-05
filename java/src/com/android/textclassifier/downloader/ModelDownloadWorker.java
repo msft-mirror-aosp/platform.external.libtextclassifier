@@ -78,7 +78,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
     this.executorService = TextClassifierServiceExecutors.getDownloaderExecutor();
     this.downloader = new ModelDownloaderImpl(context, executorService);
     this.downloadedModelManager = DownloadedModelManagerImpl.getInstance(context);
-    this.settings = new TextClassifierSettings();
+    this.settings = new TextClassifierSettings(context);
     this.pendingDownloads = new ArrayMap<>();
     this.manifestsToDownload = null;
 
@@ -359,6 +359,7 @@ public final class ModelDownloadWorker extends ListenableWorker {
       return manfiestDownloadFuture;
     }
   }
+
   // Download a model and register it into Model table.
   private ListenableFuture<Void> downloadModel(ModelManifest.Model modelInfo) {
     String modelUrl = modelInfo.getUrl();

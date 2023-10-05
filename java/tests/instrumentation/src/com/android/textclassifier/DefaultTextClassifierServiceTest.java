@@ -279,7 +279,7 @@ public class DefaultTextClassifierServiceTest {
 
     @Override
     public TextClassifierSettings createTextClassifierSettings() {
-      return new TextClassifierSettings();
+      return new TextClassifierSettings(getContext());
     }
 
     @Override
