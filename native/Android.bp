@@ -30,6 +30,7 @@ cc_library_headers {
         "//apex_available:platform",
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
+        "com.android.ondevicepersonalization",
     ],
     min_sdk_version: "apex_inherit",
     sdk_version: "current",
@@ -69,6 +70,7 @@ cc_library_static {
         "test_com.android.neuralnetworks",
         "com.android.extservices",
         "com.android.adservices",
+        "com.android.ondevicepersonalization",
     ],
 }
 
@@ -252,7 +254,7 @@ cc_library {
 // libtextclassifier_tests
 // -----------------------
 cc_test {
-    name: "libtextclassifier_tests",
+    name: "libtextclassifier_tests-tplus",
     defaults: ["libtextclassifier_defaults"],
 
     test_suites: ["general-tests", "mts-extservices"],
@@ -289,6 +291,48 @@ cc_test {
     },
     // A workaround for code coverage. See b/166040889#comment23
     sdk_variant_only: true,
+    test_config: "AndroidTest-tplus.xml",
+}
+
+cc_test {
+    name: "libtextclassifier_tests-sminus",
+    defaults: ["libtextclassifier_defaults"],
+
+    test_suites: ["general-tests", "mts-extservices"],
+
+    data: [
+        "**/test_data/*",
+        "**/*.bfbs",
+    ],
+
+    srcs: ["**/*.cc"],
+    exclude_srcs: [":libtextclassifier_java_test_sources"],
+
+    header_libs: ["jni_headers"],
+
+    static_libs: [
+        "libgmock_ndk",
+        "libgtest_ndk_c++",
+        "libbase_ndk",
+    ],
+
+    generated_headers: [
+        "libtextclassifier_fbgen_utils_flatbuffers_flatbuffers_test",
+        "libtextclassifier_fbgen_utils_lua_utils_tests",
+    ],
+
+    compile_multilib: "both",
+    multilib: {
+        lib32: {
+            suffix: "32",
+        },
+        lib64: {
+            suffix: "64",
+        },
+    },
+    // A workaround for code coverage. See b/166040889#comment23
+    sdk_variant_only: true,
+    test_config: "AndroidTest-sminus.xml",
 }
 
 // ------------------------------------
