@@ -52,7 +52,7 @@ public final class DownloadedModelManagerImplTest {
     modelDownloaderDir = new File(context.getFilesDir(), "test_dir");
     modelDownloaderDir.mkdirs();
     deviceConfig = new TestingDeviceConfig();
-    settings = new TextClassifierSettings(deviceConfig);
+    settings = new TextClassifierSettings(deviceConfig, /* isWear= */ false);
     db = Room.inMemoryDatabaseBuilder(context, DownloadedModelDatabase.class).build();
     downloadedModelManagerImpl =
         DownloadedModelManagerImpl.getInstanceForTesting(db, modelDownloaderDir, settings);
