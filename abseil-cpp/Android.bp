@@ -32,29 +32,35 @@ license {
 
 cc_library_static {
     name: "libtextclassifier_abseil",
-    export_include_dirs: ["."],
-    visibility: [
-        "//external/libtextclassifier:__subpackages__",
-        "//external/tflite-support:__subpackages__",
-    ],
     srcs: [
         "absl/**/*.cc",
     ],
+    exclude_srcs: [
+        "absl/**/*benchmark.cc",
+        "absl/**/*benchmarks.cc",
+        "absl/**/*_test.cc",
+        "absl/**/*_testing.cc",
+        "absl/base/spinlock_test_common.cc",
+        "absl/hash/internal/print_hash_of.cc",
+        "absl/log/internal/test_helpers.cc",
+        "absl/log/internal/test_matchers.cc",
+        "absl/log/scoped_mock_log.cc",
+        "absl/random/internal/gaussian_distribution_gentables.cc",
+    ],
+    export_include_dirs: ["."],
+    shared_libs: [
+        "liblog",
+    ],
+    stl: "libc++",
     apex_available: [
         "//apex_available:platform",
         "com.android.extservices",
         "com.android.adservices",
     ],
+    visibility: [
+        "//external/libtextclassifier:__subpackages__",
+        "//external/tflite-support:__subpackages__",
+    ],
     sdk_version: "current",
     min_sdk_version: "30",
-    stl: "libc++_static",
-    exclude_srcs: [
-        "**/*_test.cc",
-        "**/*_test_common.cc",
-        "**/*test_util.cc",
-        "**/*test_utils.cc",
-        "**/*benchmark.cc",
-        "absl/random/benchmarks.cc",
-        "absl/hash/internal/print_hash_of.cc",
-    ],
 }
