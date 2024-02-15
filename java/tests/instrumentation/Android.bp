@@ -36,6 +36,7 @@ java_library {
         "TextClassifierServiceLib",
         "androidx.test.espresso.core",
         "mockito-target-minus-junit4",
+        "compatibility-device-util-axt",
     ],
 }
 
@@ -59,7 +60,6 @@ android_test {
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
         "mockito-target-minus-junit4",
-        "ub-uiautomator",
         "testng",
         "compatibility-device-util-axt",
         "androidx.room_room-runtime",
@@ -106,7 +106,6 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
-        "ub-uiautomator",
         "TextClassifierServiceTestingLib",
     ],
 

@@ -77,7 +77,8 @@ public final class DownloadedModelManagerImpl implements DownloadedModelManager 
                 .build();
         File modelDownloaderDir = new File(context.getFilesDir(), DOWNLOAD_SUB_DIR_NAME);
         instance =
-            new DownloadedModelManagerImpl(db, modelDownloaderDir, new TextClassifierSettings());
+            new DownloadedModelManagerImpl(
+                db, modelDownloaderDir, new TextClassifierSettings(context));
       }
       return instance;
     }
