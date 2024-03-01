@@ -26,6 +26,8 @@ package {
 java_library {
     name: "TextClassifierServiceTestingLib",
 
+    sdk_version: "test_current",
+
     srcs: [
         "src/com/android/textclassifier/testing/*.java",
     ],
