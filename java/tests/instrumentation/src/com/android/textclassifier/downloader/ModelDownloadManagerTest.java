@@ -83,7 +83,7 @@ public final class ModelDownloadManagerTest {
             ModelDownloadWorker.class,
             () -> workManager,
             downloadedModelManager,
-            new TextClassifierSettings(deviceConfig),
+            new TextClassifierSettings(deviceConfig, /* isWear= */ false),
             MoreExecutors.newDirectExecutorService());
     this.downloadManagerWithBadWorkManager =
         new ModelDownloadManager(
@@ -93,7 +93,7 @@ public final class ModelDownloadManagerTest {
               throw new IllegalStateException("WorkManager may fail!");
             },
             downloadedModelManager,
-            new TextClassifierSettings(deviceConfig),
+            new TextClassifierSettings(deviceConfig, /* isWear= */ false),
             MoreExecutors.newDirectExecutorService());
 
     setDefaultLocalesRule.set(DEFAULT_LOCALE_LIST);

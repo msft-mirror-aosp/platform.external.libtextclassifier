@@ -93,7 +93,7 @@ public class TextClassifierImplTest {
             .setAppLabel(FakeContextBuilder.DEFAULT_COMPONENT.getPackageName(), "Test app")
             .build();
     this.deviceConfig = new TestingDeviceConfig();
-    this.settings = new TextClassifierSettings(deviceConfig);
+    this.settings = new TextClassifierSettings(deviceConfig, /* isWear= */ false);
     this.annotatorModelCache = new LruCache<>(2);
     this.classifier =
         new TextClassifierImpl(context, settings, modelFileManager, annotatorModelCache);
@@ -177,7 +177,7 @@ public class TextClassifierImplTest {
     String suggested = "http://www.android.com";
     int startIndex = text.indexOf(suggested);
     TextSelection.Request request =
-        new TextSelection.Request.Builder(text, startIndex, /*endIndex=*/ startIndex + 1)
+        new TextSelection.Request.Builder(text, startIndex, /* endIndex= */ startIndex + 1)
             .setIncludeTextClassification(true)
             .build();
 
@@ -194,7 +194,7 @@ public class TextClassifierImplTest {
   public void testSuggestSelection_notIncludeTextClassification() throws IOException {
     String text = "Visit http://www.android.com for more information";
     TextSelection.Request request =
-        new TextSelection.Request.Builder(text, /*startIndex=*/ 0, /*endIndex=*/ 4)
+        new TextSelection.Request.Builder(text, /* startIndex= */ 0, /* endIndex= */ 4)
             .setIncludeTextClassification(false)
             .build();
 
