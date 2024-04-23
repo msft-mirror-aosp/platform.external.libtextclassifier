@@ -1,4 +1,32 @@
 {
+  "extservices-mainline-presubmit": [
+    {
+      "name": "TextClassifierNotificationTests"
+    },
+    {
+      "name": "TextClassifierServiceTest"
+    },
+    {
+      "name": "libtextclassifier_tests-sminus"
+    },
+    {
+      "name": "libtextclassifier_java_tests"
+    }
+  ],
+  "extservices-tplus-mainline-presubmit": [
+    {
+      "name": "TextClassifierNotificationTests"
+    },
+    {
+      "name": "TextClassifierServiceTest"
+    },
+    {
+      "name": "libtextclassifier_tests-tplus"
+    },
+    {
+      "name": "libtextclassifier_java_tests"
+    }
+  ],
   "presubmit": [
     {
       "name": "TextClassifierServiceTest",
