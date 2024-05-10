@@ -139,7 +139,7 @@ public class TextClassifierSettingsTest {
   private static void assertSettings(
       Map<String, String> keyValueMap, Consumer<TextClassifierSettings> settingsConsumer) {
     TestingDeviceConfig deviceConfig = new TestingDeviceConfig();
-    TextClassifierSettings settings = new TextClassifierSettings(deviceConfig);
+    TextClassifierSettings settings = new TextClassifierSettings(deviceConfig, /* isWear= */ false);
     for (String key : keyValueMap.keySet()) {
       deviceConfig.setConfig(key, keyValueMap.get(key));
     }

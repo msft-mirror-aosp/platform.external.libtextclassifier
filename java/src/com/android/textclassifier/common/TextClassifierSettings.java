@@ -18,6 +18,8 @@ package com.android.textclassifier.common;
 
 import static java.util.concurrent.TimeUnit.HOURS;
 
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.provider.DeviceConfig;
 import android.provider.DeviceConfig.Properties;
 import android.text.TextUtils;
@@ -55,15 +57,20 @@ public final class TextClassifierSettings {
 
   /** Whether the user language profile feature is enabled. */
   private static final String USER_LANGUAGE_PROFILE_ENABLED = "user_language_profile_enabled";
+
   /** Max length of text that suggestSelection can accept. */
   @VisibleForTesting
   static final String SUGGEST_SELECTION_MAX_RANGE_LENGTH = "suggest_selection_max_range_length";
+
   /** Max length of text that classifyText can accept. */
   private static final String CLASSIFY_TEXT_MAX_RANGE_LENGTH = "classify_text_max_range_length";
+
   /** Max length of text that generateLinks can accept. */
   private static final String GENERATE_LINKS_MAX_TEXT_LENGTH = "generate_links_max_text_length";
+
   /** Sampling rate for generateLinks logging. */
   private static final String GENERATE_LINKS_LOG_SAMPLE_RATE = "generate_links_log_sample_rate";
+
   /**
    * Extra count that is added to some languages, e.g. system languages, when deducing the frequent
    * languages in {@link
@@ -75,52 +82,65 @@ public final class TextClassifierSettings {
    * hint is not given.
    */
   @VisibleForTesting static final String ENTITY_LIST_DEFAULT = "entity_list_default";
+
   /**
    * A colon(:) separated string that specifies the default entities types for generateLinks when
    * the text is in a not editable UI widget.
    */
   private static final String ENTITY_LIST_NOT_EDITABLE = "entity_list_not_editable";
+
   /**
    * A colon(:) separated string that specifies the default entities types for generateLinks when
    * the text is in an editable UI widget.
    */
   private static final String ENTITY_LIST_EDITABLE = "entity_list_editable";
+
   /**
    * A colon(:) separated string that specifies the default action types for
    * suggestConversationActions when the suggestions are used in an app.
    */
   private static final String IN_APP_CONVERSATION_ACTION_TYPES_DEFAULT =
       "in_app_conversation_action_types_default";
+
   /**
    * A colon(:) separated string that specifies the default action types for
    * suggestConversationActions when the suggestions are used in a notification.
    */
   private static final String NOTIFICATION_CONVERSATION_ACTION_TYPES_DEFAULT =
       "notification_conversation_action_types_default";
+
   /** Threshold to accept a suggested language from LangID model. */
   @VisibleForTesting static final String LANG_ID_THRESHOLD_OVERRIDE = "lang_id_threshold_override";
+
   /** Whether to enable {@link com.android.textclassifier.intent.TemplateIntentFactory}. */
   @VisibleForTesting
   static final String TEMPLATE_INTENT_FACTORY_ENABLED = "template_intent_factory_enabled";
+
   /** Whether to enable "translate" action in classifyText. */
   private static final String TRANSLATE_IN_CLASSIFICATION_ENABLED =
       "translate_in_classification_enabled";
+
   /**
    * Whether to detect the languages of the text in request by using langId for the native model.
    */
   private static final String DETECT_LANGUAGES_FROM_TEXT_ENABLED =
       "detect_languages_from_text_enabled";
+
   /** Whether to use models downloaded by config updater. */
   private static final String CONFIG_UPDATER_MODEL_ENABLED = "config_updater_model_enabled";
+
   /** Whether to enable model downloading with ModelDownloadManager */
   @VisibleForTesting
   public static final String MODEL_DOWNLOAD_MANAGER_ENABLED = "model_download_manager_enabled";
+
   /** Type of network to download model manifest. A String value of androidx.work.NetworkType. */
   private static final String MANIFEST_DOWNLOAD_REQUIRED_NETWORK_TYPE =
       "manifest_download_required_network_type";
+
   /** Max attempts allowed for a single ModelDownloader downloading task. */
   @VisibleForTesting
   static final String MODEL_DOWNLOAD_WORKER_MAX_ATTEMPTS = "model_download_worker_max_attempts";
+
   /** Max attempts allowed for a certain manifest url. */
   @VisibleForTesting
   public static final String MANIFEST_DOWNLOAD_MAX_ATTEMPTS = "manifest_download_max_attempts";
@@ -181,6 +201,7 @@ public final class TextClassifierSettings {
    * @see {@code TextClassifierImpl#detectLanguages(String, int, int)} for reference.
    */
   @VisibleForTesting static final String LANG_ID_CONTEXT_SETTINGS = "lang_id_context_settings";
+
   /** Default threshold to translate the language of the context the user selects */
   private static final String TRANSLATE_ACTION_THRESHOLD = "translate_action_threshold";
 
@@ -216,6 +237,7 @@ public final class TextClassifierSettings {
           ConversationAction.TYPE_VIEW_MAP,
           TYPE_ADD_CONTACT,
           TYPE_COPY);
+
   /**
    * < 0 : Not set. Use value from LangId model. 0 - 1: Override value in LangId model.
    *
@@ -236,6 +258,7 @@ public final class TextClassifierSettings {
   private static final int MANIFEST_DOWNLOAD_MAX_ATTEMPTS_DEFAULT = 3;
   private static final long MODEL_DOWNLOAD_BACKOFF_DELAY_IN_MILLIS_DEFAULT = HOURS.toMillis(1);
   private static final boolean MANIFEST_DOWNLOAD_REQUIRES_DEVICE_IDLE_DEFAULT = false;
+  private static final boolean MANIFEST_DOWNLOAD_REQUIRES_CHARGING_WEAR_DEFAULT = true;
   private static final boolean MANIFEST_DOWNLOAD_REQUIRES_CHARGING_DEFAULT = false;
   private static final boolean MULTI_LANGUAGE_SUPPORT_ENABLED_DEFAULT = false;
   private static final int MULTI_LANGUAGE_MODELS_LIMIT_DEFAULT = 2;
@@ -247,6 +270,7 @@ public final class TextClassifierSettings {
   private static final String MANIFEST_URL_DEFAULT = "";
   private static final String TESTING_LOCALE_LIST_OVERRIDE_DEFAULT = "";
   private static final float[] LANG_ID_CONTEXT_SETTINGS_DEFAULT = new float[] {20f, 1.0f, 0.4f};
+
   /**
    * Sampling rate for API logging. For example, 100 means there is a 0.01 chance that the API call
    * is the logged.
@@ -327,14 +351,18 @@ public final class TextClassifierSettings {
       };
 
   private final IDeviceConfig deviceConfig;
+  private final boolean isWear;
 
-  public TextClassifierSettings() {
-    this(DEFAULT_DEVICE_CONFIG);
+  public TextClassifierSettings(Context context) {
+    this(
+        DEFAULT_DEVICE_CONFIG,
+        context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WATCH));
   }
 
   @VisibleForTesting
-  public TextClassifierSettings(IDeviceConfig deviceConfig) {
+  public TextClassifierSettings(IDeviceConfig deviceConfig, boolean isWear) {
     this.deviceConfig = deviceConfig;
+    this.isWear = isWear;
   }
 
   public int getSuggestSelectionMaxRangeLength() {
@@ -461,7 +489,9 @@ public final class TextClassifierSettings {
     return deviceConfig.getBoolean(
         NAMESPACE,
         MANIFEST_DOWNLOAD_REQUIRES_CHARGING,
-        MANIFEST_DOWNLOAD_REQUIRES_CHARGING_DEFAULT);
+        isWear
+            ? MANIFEST_DOWNLOAD_REQUIRES_CHARGING_WEAR_DEFAULT
+            : MANIFEST_DOWNLOAD_REQUIRES_CHARGING_DEFAULT);
   }
 
   /* Gets a list of models urls that should not be used. Usually used for a quick rollback.  */
@@ -496,6 +526,7 @@ public final class TextClassifierSettings {
     return deviceConfig.getInt(
         NAMESPACE, MULTI_ANNOTATOR_CACHE_SIZE, MULTI_ANNOTATOR_CACHE_SIZE_DEFAULT);
   }
+
   /**
    * Gets all language variants and associated manifest url configured for a specific ModelType.
    *
@@ -525,7 +556,7 @@ public final class TextClassifierSettings {
         variantsMapBuilder.put(modelLanguageTag, urlFlagValue);
       }
     }
-    return variantsMapBuilder.build();
+    return variantsMapBuilder.buildOrThrow();
   }
 
   public String getTestingLocaleListOverride() {
