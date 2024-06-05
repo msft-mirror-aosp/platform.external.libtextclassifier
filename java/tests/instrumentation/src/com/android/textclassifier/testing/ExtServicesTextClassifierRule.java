@@ -25,6 +25,7 @@ import android.view.textclassifier.TextClassificationManager;
 import android.view.textclassifier.TextClassifier;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.platform.app.InstrumentationRegistry;
+import com.android.compatibility.common.util.DeviceConfigStateHelper;
 import com.google.common.io.ByteStreams;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -57,7 +58,8 @@ public final class ExtServicesTextClassifierRule extends ExternalResource {
   @Override
   protected void after() {
     try {
-      DeviceConfig.setProperties(originalProperties);
+      DeviceConfigStateHelper.callWithSyncEnabledWithShellPermissions(() ->
+          DeviceConfig.setProperties(originalProperties));
     } catch (Throwable t) {
       Log.e(TAG, "Failed to reset DeviceConfig", t);
     } finally {
@@ -79,7 +81,8 @@ public final class ExtServicesTextClassifierRule extends ExternalResource {
    * hidden API.
    */
   public void overrideDeviceConfig() throws Exception {
-    DeviceConfig.setProperties(newPropertiesBuilder.build());
+    DeviceConfigStateHelper.callWithSyncEnabledWithShellPermissions(() ->
+        DeviceConfig.setProperties(newPropertiesBuilder.build()));
   }
 
   /** Force stop ExtServices. Force-stop-and-start can be helpful to reload some states. */

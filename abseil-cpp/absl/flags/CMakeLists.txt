@@ -87,6 +87,8 @@ absl_cc_library(
     absl::config
     absl::core_headers
     absl::log_severity
+    absl::int128
+    absl::optional
     absl::strings
     absl::str_format
 )
@@ -105,6 +107,7 @@ absl_cc_library(
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
     absl::config
+    absl::dynamic_annotations
     absl::fast_type_id
 )
 
@@ -176,6 +179,7 @@ absl_cc_library(
     "internal/flag.cc"
   HDRS
     "internal/flag.h"
+    "internal/sequence_lock.h"
   COPTS
     ${ABSL_DEFAULT_COPTS}
   LINKOPTS
@@ -201,6 +205,7 @@ absl_cc_library(
   HDRS
     "declare.h"
     "flag.h"
+    "internal/flag_msvc.inc"
   COPTS
     ${ABSL_DEFAULT_COPTS}
   LINKOPTS
@@ -238,6 +243,7 @@ absl_cc_library(
     absl::flags_private_handle_accessor
     absl::flags_program_name
     absl::flags_reflection
+    absl::flat_hash_map
     absl::strings
     absl::synchronization
 )
@@ -257,6 +263,7 @@ absl_cc_library(
     absl::config
     absl::core_headers
     absl::flags_usage_internal
+    absl::raw_logging_internal
     absl::strings
     absl::synchronization
 )
@@ -274,6 +281,7 @@ absl_cc_library(
   LINKOPTS
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
+    absl::algorithm_container
     absl::config
     absl::core_headers
     absl::flags_config
@@ -290,7 +298,7 @@ absl_cc_library(
 )
 
 ############################################################################
-# Unit tests in alpahabetical order.
+# Unit tests in alphabetical order.
 
 absl_cc_test(
   NAME
@@ -308,7 +316,7 @@ absl_cc_test(
     absl::flags_reflection
     absl::memory
     absl::strings
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -320,7 +328,7 @@ absl_cc_test(
     ${ABSL_TEST_COPTS}
   DEPS
     absl::flags_config
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -338,9 +346,10 @@ absl_cc_test(
     absl::flags_internal
     absl::flags_marshalling
     absl::flags_reflection
+    absl::int128
     absl::strings
     absl::time
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -352,7 +361,7 @@ absl_cc_test(
     ${ABSL_TEST_COPTS}
   DEPS
     absl::flags_marshalling
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -366,11 +375,12 @@ absl_cc_test(
     absl::flags
     absl::flags_parse
     absl::flags_reflection
-    absl::raw_logging_internal
+    absl::flags_usage_internal
+    absl::log
     absl::scoped_set_env
     absl::span
     absl::strings
-    gmock_main
+    GTest::gmock_main
 )
 
 absl_cc_test(
@@ -382,7 +392,7 @@ absl_cc_test(
     ${ABSL_TEST_COPTS}
   DEPS
     absl::flags_path_util
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -395,7 +405,7 @@ absl_cc_test(
   DEPS
     absl::flags_program_name
     absl::strings
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -412,7 +422,21 @@ absl_cc_test(
     absl::flags_usage
     absl::memory
     absl::strings
-    gmock_main
+    GTest::gmock_main
+)
+
+absl_cc_test(
+  NAME
+    flags_sequence_lock_test
+  SRCS
+    "internal/sequence_lock_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::flags_internal
+    absl::time
+    GTest::gmock_main
 )
 
 absl_cc_test(
@@ -427,7 +451,7 @@ absl_cc_test(
     absl::flags_path_util
     absl::flags_program_name
     absl::strings
-    gtest_main
+    GTest::gtest_main
 )
 
 absl_cc_test(
@@ -446,5 +470,5 @@ absl_cc_test(
     absl::flags_reflection
     absl::flags_usage
     absl::strings
-    gtest
+    GTest::gmock
 )

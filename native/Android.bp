@@ -28,6 +28,7 @@ cc_library_headers {
     export_include_dirs: ["."],
     apex_available: [
         "//apex_available:platform",
+        "com.android.btservices",
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
         "com.android.ondevicepersonalization",
@@ -66,6 +67,7 @@ cc_library_static {
     min_sdk_version: "apex_inherit",
     apex_available: [
         "//apex_available:platform",
+        "com.android.btservices",
         "com.android.neuralnetworks",
         "test_com.android.neuralnetworks",
         "com.android.extservices",
@@ -77,6 +79,7 @@ cc_library_static {
 cc_defaults {
     name: "libtextclassifier_defaults",
     stl: "libc++_static",
+    cpp_std: "gnu++17",
     sdk_version: "current",
     // For debug / treemap purposes.
     //strip: {
@@ -197,27 +200,23 @@ cc_library_static {
 // -----------------
 // Generate headers with FlatBuffer schema compiler.
 // -----------------
-genrule_defaults {
-    name: "fbgen",
-    tools: ["flatc"],
-    // "depfile" is used here in conjunction with flatc's -M to gather the deps
-    cmd: "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -M $(in) >$(depfile) && " +
-        "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -o $$(dirname $(out)) $(in)",
-    depfile: true,
-}
+
+FBGEN_ARGS = "$(location flatc) --cpp --no-union-value-namespacing --gen-object-api --keep-prefix -I external/libtextclassifier/native -o $$(dirname $(out)) "
 
 genrule {
     name: "libtextclassifier_fbgen_utils_flatbuffers_flatbuffers_test",
     srcs: ["utils/flatbuffers/flatbuffers_test.fbs"],
     out: ["utils/flatbuffers/flatbuffers_test_generated.h"],
-    defaults: ["fbgen"],
+    tools: ["flatc"],
+    cmd: FBGEN_ARGS + "$(in)"
 }
 
 genrule {
     name: "libtextclassifier_fbgen_utils_lua_utils_tests",
     srcs: ["utils/lua_utils_tests.fbs"],
     out: ["utils/lua_utils_tests_generated.h"],
-    defaults: ["fbgen"],
+    tools: ["flatc"],
+    cmd: FBGEN_ARGS + "$(in)"
 }
 
 // -----------------
@@ -375,7 +374,7 @@ android_test {
         "androidx.test.rules",
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
-        "truth-prebuilt",
+        "truth",
         "TextClassifierCoverageLib",
     ],
     jni_libs: [
