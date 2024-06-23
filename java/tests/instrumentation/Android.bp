@@ -26,6 +26,8 @@ package {
 java_library {
     name: "TextClassifierServiceTestingLib",
 
+    sdk_version: "test_current",
+
     srcs: [
         "src/com/android/textclassifier/testing/*.java",
     ],
@@ -60,7 +62,6 @@ android_test {
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
         "mockito-target-minus-junit4",
-        "ub-uiautomator",
         "testng",
         "compatibility-device-util-axt",
         "androidx.room_room-runtime",
@@ -107,7 +108,6 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.espresso.core",
         "androidx.test.ext.truth",
-        "ub-uiautomator",
         "TextClassifierServiceTestingLib",
     ],
 
