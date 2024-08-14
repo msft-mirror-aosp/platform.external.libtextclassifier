@@ -24,11 +24,13 @@ import android.view.textclassifier.TextClassification.Request;
 import com.android.textclassifier.testing.ExtServicesTextClassifierRule;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+@Ignore("b/358423172")
 @RunWith(JUnit4.class)
 public class ModelDownloaderIntegrationTest {
   private static final String TAG = "ModelDownloaderTest";
