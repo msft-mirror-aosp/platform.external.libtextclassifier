@@ -133,12 +133,12 @@ cc_defaults {
     ],
 
     static_libs: [
-        "marisa-trie",
-        "libtextclassifier_abseil",
+        "libabsl",
         "liblua",
-        "libutf",
         "libtflite_static",
-        "tflite_support"
+        "libutf",
+        "marisa-trie",
+        "tflite_support",
     ],
 }
 
@@ -189,7 +189,7 @@ cc_library_static {
         "libtextclassifier_flatbuffer_headers",
     ],
     static_libs: [
-        "libtextclassifier_abseil",
+        "libabsl",
         "tflite_support",
     ],
     sdk_version: "current",
@@ -208,7 +208,7 @@ genrule {
     srcs: ["utils/flatbuffers/flatbuffers_test.fbs"],
     out: ["utils/flatbuffers/flatbuffers_test_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -216,7 +216,7 @@ genrule {
     srcs: ["utils/lua_utils_tests.fbs"],
     out: ["utils/lua_utils_tests_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 // -----------------
@@ -256,7 +256,10 @@ cc_test {
     name: "libtextclassifier_tests-tplus",
     defaults: ["libtextclassifier_defaults"],
 
-    test_suites: ["general-tests", "mts-extservices"],
+    test_suites: [
+        "general-tests",
+        "mts-extservices",
+    ],
 
     data: [
         "**/test_data/*",
@@ -297,7 +300,10 @@ cc_test {
     name: "libtextclassifier_tests-sminus",
     defaults: ["libtextclassifier_defaults"],
 
-    test_suites: ["general-tests", "mts-extservices"],
+    test_suites: [
+        "general-tests",
+        "mts-extservices",
+    ],
 
     data: [
         "**/test_data/*",
@@ -433,4 +439,7 @@ prebuilt_etc {
     sub_dir: "textclassifier",
 }
 
-build = ["FlatBufferHeaders.bp", "JavaTests.bp"]
+build = [
+    "FlatBufferHeaders.bp",
+    "JavaTests.bp",
+]
