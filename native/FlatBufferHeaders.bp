@@ -19,7 +19,7 @@ genrule {
     srcs: ["utils/i18n/language-tag.fbs"],
     out: ["utils/i18n/language-tag_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -27,7 +27,7 @@ genrule {
     srcs: ["utils/tflite/text_encoder_config.fbs"],
     out: ["utils/tflite/text_encoder_config_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -39,7 +39,7 @@ genrule {
     ],
     out: ["utils/resources_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location utils/resources.fbs)"
+    cmd: FBGEN_ARGS + "$(location utils/resources.fbs)",
 }
 
 genrule {
@@ -53,7 +53,7 @@ genrule {
     ],
     out: ["utils/grammar/rules_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location utils/grammar/rules.fbs)"
+    cmd: FBGEN_ARGS + "$(location utils/grammar/rules.fbs)",
 }
 
 genrule {
@@ -61,7 +61,7 @@ genrule {
     srcs: ["utils/grammar/testing/value.fbs"],
     out: ["utils/grammar/testing/value_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -72,7 +72,7 @@ genrule {
     ],
     out: ["utils/grammar/semantics/expression_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location utils/grammar/semantics/expression.fbs)"
+    cmd: FBGEN_ARGS + "$(location utils/grammar/semantics/expression.fbs)",
 }
 
 genrule {
@@ -80,7 +80,7 @@ genrule {
     srcs: ["utils/zlib/buffer.fbs"],
     out: ["utils/zlib/buffer_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -88,7 +88,7 @@ genrule {
     srcs: ["utils/normalization.fbs"],
     out: ["utils/normalization_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -99,7 +99,7 @@ genrule {
     ],
     out: ["utils/intents/intent-config_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location utils/intents/intent-config.fbs)"
+    cmd: FBGEN_ARGS + "$(location utils/intents/intent-config.fbs)",
 }
 
 genrule {
@@ -107,7 +107,7 @@ genrule {
     srcs: ["utils/container/bit-vector.fbs"],
     out: ["utils/container/bit-vector_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -115,7 +115,7 @@ genrule {
     srcs: ["utils/codepoint-range.fbs"],
     out: ["utils/codepoint-range_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -123,7 +123,7 @@ genrule {
     srcs: ["utils/tokenizer.fbs"],
     out: ["utils/tokenizer_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -131,7 +131,7 @@ genrule {
     srcs: ["utils/flatbuffers/flatbuffers.fbs"],
     out: ["utils/flatbuffers/flatbuffers_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -156,7 +156,7 @@ genrule {
     ],
     out: ["actions/actions_model_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location actions/actions_model.fbs)"
+    cmd: FBGEN_ARGS + "$(location actions/actions_model.fbs)",
 }
 
 genrule {
@@ -164,7 +164,7 @@ genrule {
     srcs: ["actions/actions-entity-data.fbs"],
     out: ["actions/actions-entity-data_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -172,7 +172,7 @@ genrule {
     srcs: ["lang_id/common/flatbuffers/embedding-network.fbs"],
     out: ["lang_id/common/flatbuffers/embedding-network_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -180,7 +180,7 @@ genrule {
     srcs: ["lang_id/common/flatbuffers/model.fbs"],
     out: ["lang_id/common/flatbuffers/model_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -188,7 +188,7 @@ genrule {
     srcs: ["annotator/entity-data.fbs"],
     out: ["annotator/entity-data_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -212,7 +212,7 @@ genrule {
     ],
     out: ["annotator/person_name/person_name_model_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location annotator/person_name/person_name_model.fbs)"
+    cmd: FBGEN_ARGS + "$(location annotator/person_name/person_name_model.fbs)",
 }
 
 genrule {
@@ -220,7 +220,7 @@ genrule {
     srcs: ["annotator/experimental/experimental.fbs"],
     out: ["annotator/experimental/experimental_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 genrule {
@@ -243,7 +243,7 @@ genrule {
     ],
     out: ["annotator/model_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(location annotator/model.fbs)"
+    cmd: FBGEN_ARGS + "$(location annotator/model.fbs)",
 }
 
 genrule {
@@ -251,7 +251,7 @@ genrule {
     srcs: ["annotator/datetime/datetime.fbs"],
     out: ["annotator/datetime/datetime_generated.h"],
     tools: ["flatc"],
-    cmd: FBGEN_ARGS + "$(in)"
+    cmd: FBGEN_ARGS + "$(in)",
 }
 
 cc_library_headers {
