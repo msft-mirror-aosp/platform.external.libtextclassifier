@@ -109,7 +109,13 @@ cc_defaults {
         "-DTC3_AOSP",
         "-DTC3_VOCAB_ANNOTATOR_IMPL",
         "-DTC3_POD_NER_ANNOTATOR_IMPL",
-    ],
+    ] + select((
+        release_flag("RELEASE_BUILD_USE_VARIANT_FLAGS"),
+        release_flag("RELEASE_EXTERNAL_TC3_DEBUG"),
+    ), {
+        (true, true): ["-DTC3_DEBUG_LOGGING=1"],
+        (default, default): unset,
+    }),
 
     product_variables: {
         debuggable: {
