@@ -60,6 +60,8 @@ import com.android.textclassifier.common.statsd.TextClassificationSessionIdConve
 import com.android.textclassifier.common.statsd.TextClassifierEventConverter;
 import com.android.textclassifier.common.statsd.TextClassifierEventLogger;
 import com.android.textclassifier.utils.IndentingPrintWriter;
+import com.android.textclassifier.utils.TextClassifierUtils;
+
 import com.google.android.textclassifier.ActionsSuggestionsModel;
 import com.google.android.textclassifier.ActionsSuggestionsModel.ActionSuggestions;
 import com.google.android.textclassifier.AnnotatorModel;
@@ -293,6 +295,12 @@ final class TextClassifierImpl {
                 .resolveEntityListModifications(
                     getEntitiesForHints(request.getEntityConfig().getHints()))
             : settings.getEntityListDefault();
+
+    if (TextClassifierUtils.isOtpClassificationEnabled() && entitiesToIdentify.contains(
+            TextClassifierUtils.TYPE_OTP)) {
+      TextClassifierOtpHelper.addOtpLink(request.getText().toString(), this, builder);
+    }
+
     final String localesString = concatenateLocales(request.getDefaultLocales());
     LangIdModel langId = getLangIdImpl();
     ImmutableList<String> detectLanguageTags = detectLanguageTags(langId, request.getText());

@@ -34,6 +34,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.LocaleList;
+import android.permission.flags.Flags;
+import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.view.textclassifier.ConversationAction;
@@ -52,6 +54,8 @@ import com.android.textclassifier.common.ModelType;
 import com.android.textclassifier.common.TextClassifierSettings;
 import com.android.textclassifier.testing.FakeContextBuilder;
 import com.android.textclassifier.testing.TestingDeviceConfig;
+import com.android.textclassifier.utils.TextClassifierUtils;
+
 import com.google.android.textclassifier.AnnotatorModel;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
@@ -62,6 +66,7 @@ import java.util.List;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -321,6 +326,33 @@ public class TextClassifierImplTest {
     assertThat(
         classifier.generateLinks(null, null, request),
         isTextLinksContaining(text, "+12122537077", TextClassifier.TYPE_PHONE));
+  }
+
+  @Test
+  @RequiresFlagsEnabled(Flags.FLAG_ENABLE_OTP_IN_TEXT_CLASSIFIERS)
+  public void testGenerateLinks_otp() throws IOException {
+    Assume.assumeTrue(TextClassifierUtils.isOtpClassificationEnabled());
+    String text = "Your OTP code is 123456";
+    List<String> included = new ArrayList<>(List.of(TextClassifier.TYPE_OTP));
+    TextClassifier.EntityConfig config =
+            new TextClassifier.EntityConfig.Builder()
+                    .setIncludedTypes(included)
+                    .includeTypesFromTextClassifier(false)
+                    .build();
+    TextLinks.Request request = new TextLinks.Request.Builder(text).setEntityConfig(config).build();
+    assertThat(
+            classifier.generateLinks(null, null, request),
+            isTextLinksContaining(text, "", TextClassifier.TYPE_OTP));
+  }
+
+  @Test
+  @RequiresFlagsEnabled(Flags.FLAG_ENABLE_OTP_IN_TEXT_CLASSIFIERS)
+  public void testGenerateLinks_otpTypeNotInRequest() throws IOException {
+    Assume.assumeTrue(TextClassifierUtils.isOtpClassificationEnabled());
+    String text = "Your OTP code is 123456";
+    TextLinks.Request request = new TextLinks.Request.Builder(text).build();
+    assertThat(
+            classifier.generateLinks(null, null, request).getLinks()).isEmpty();
   }
 
   @Test
