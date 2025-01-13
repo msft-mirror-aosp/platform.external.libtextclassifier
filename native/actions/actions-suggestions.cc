@@ -987,12 +987,12 @@ bool ActionsSuggestions::ReadModelOutput(
               }
             }
             if (task_spec->concept_mappings()) {
-              for (const auto& concept : *task_spec->concept_mappings()) {
+              for (const auto& concept_mapping : *task_spec->concept_mappings()) {
                 std::vector<std::string> candidates;
-                for (const auto& candidate : *concept->candidates()) {
+                for (const auto& candidate : *concept_mapping->candidates()) {
                   candidates.push_back(candidate->str());
                 }
-                concept_mappings[concept->concept_name()->str()] = candidates;
+                concept_mappings[concept_mapping->concept_name()->str()] = candidates;
               }
             }
           }
