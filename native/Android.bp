@@ -77,7 +77,6 @@ cc_library_static {
 cc_defaults {
     name: "libtextclassifier_defaults",
     stl: "libc++_static",
-    cpp_std: "gnu++17",
     sdk_version: "current",
     // For debug / treemap purposes.
     //strip: {
