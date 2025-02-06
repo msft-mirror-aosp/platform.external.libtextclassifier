@@ -75,6 +75,7 @@ android_library {
         "androidx.concurrent_concurrent-futures",
         "auto_value_annotations",
         "androidx.room_room-runtime",
+        "android.permission.flags-aconfig-java-export",
     ],
     sdk_version: "system_current",
     min_sdk_version: "30",
@@ -105,7 +106,7 @@ genrule {
     name: "statslog-textclassifier-java-gen",
     tools: ["stats-log-api-gen"],
     cmd: "$(location stats-log-api-gen) --java $(out) --module textclassifier" +
-         " --javaPackage com.android.textclassifier.common.statsd" +
-         " --javaClass TextClassifierStatsLog --minApiLevel 30",
+        " --javaPackage com.android.textclassifier.common.statsd" +
+        " --javaClass TextClassifierStatsLog --minApiLevel 30",
     out: ["com/android/textclassifier/common/statsd/TextClassifierStatsLog.java"],
 }

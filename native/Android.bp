@@ -28,7 +28,7 @@ cc_library_headers {
     export_include_dirs: ["."],
     apex_available: [
         "//apex_available:platform",
-        "com.android.btservices",
+        "com.android.bt",
         "com.android.neuralnetworks",
         "com.android.ondevicepersonalization",
     ],
@@ -66,7 +66,7 @@ cc_library_static {
     min_sdk_version: "apex_inherit",
     apex_available: [
         "//apex_available:platform",
-        "com.android.btservices",
+        "com.android.bt",
         "com.android.neuralnetworks",
         "com.android.extservices",
         "com.android.adservices",
@@ -77,7 +77,6 @@ cc_library_static {
 cc_defaults {
     name: "libtextclassifier_defaults",
     stl: "libc++_static",
-    cpp_std: "gnu++17",
     sdk_version: "current",
     // For debug / treemap purposes.
     //strip: {
