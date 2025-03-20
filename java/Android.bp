@@ -85,6 +85,7 @@ android_library {
         "//apex_available:platform",
         "com.android.extservices",
     ],
+    jarjar_rules: "jarjar-rules.txt",
 
 }
 
