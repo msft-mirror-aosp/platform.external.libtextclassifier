@@ -49,13 +49,13 @@ android_test {
 
     srcs: [
         "src/**/*.java",
+        "src/**/*.kt",
     ],
 
     exclude_srcs: [
         "src/**/ModelDownloaderIntegrationTest.java",
         "src/com/android/textclassifier/testing/*.java",
     ],
-
 
     static_libs: [
         "androidx.test.ext.junit",
@@ -75,14 +75,15 @@ android_test {
 
     jni_libs: [
         "libtextclassifier",
-        "libdexmakerjvmtiagent"
+        "libdexmakerjvmtiagent",
     ],
 
     test_suites: [
-        "general-tests", "mts-extservices"
+        "general-tests",
+        "mts-extservices",
     ],
 
-    plugins: ["androidx.room_room-compiler-plugin",],
+    plugins: ["androidx.room_room-compiler-plugin"],
     min_sdk_version: "30",
     sdk_version: "system_current",
     use_embedded_native_libs: true,
@@ -116,7 +117,7 @@ android_test {
     ],
 
     test_suites: [
-        "general-tests"
+        "general-tests",
     ],
 
     min_sdk_version: "30",
